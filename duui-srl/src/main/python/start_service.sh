@@ -1,0 +1,8 @@
+
+TEXTIMAGER_SRL_ANNOTATOR_NAME=srl_cuda \
+TEXTIMAGER_SRL_ANNOTATOR_VERSION=0.0.1 \
+TEXTIMAGER_SRL_LOG_LEVEL=INFO \
+TEXTIMAGER_SRL_PARSER_MODEL_NAME=exp/xlm_roberta_base_de_final/model \
+TEXTIMAGER_SRL_PARSER_MODEL_TYPE=xlm-roberta-base \
+TEXTIMAGER_SRL_PARSER_BATCH_SIZE=$1 \
+uvicorn textimager_duui_srl:app --host 0.0.0.0 --port 8501 --workers 1

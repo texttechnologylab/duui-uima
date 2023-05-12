@@ -1,0 +1,47 @@
+filter_path = "resources/filter_de.txt"
+generate_abbrv = false
+generate_skip_grams = false
+
+[corpora]
+[corpora.AbbrvSkipgram]
+path = "resources/abbrv_skipgram/*.gz"
+generate_abbrv = true
+generate_skip_grams = true
+skip_gram_min_length = 2
+skip_gram_max_skips = 2
+[corpora.AbbrvSkipgram.format]
+delimiter = ";"
+has_header = true
+
+[corpora.Hybrids]
+path = "resources/hybrids/*.gz"
+generate_abbrv = true
+generate_skip_grams = true
+# Possibly change skip_gram_min_length to 3
+skip_gram_min_length = 2
+skip_gram_max_skips = 4
+[corpora.Hybrids.format]
+delimiter = ";"
+has_header = true
+
+# [corpora.AbbrvOnly]
+# path = "resources/abbrv_only/*.gz"
+# generate_abbrv = true
+# [corpora.AbbrvOnly.format]
+# delimiter = ";"
+# has_header = true
+
+[corpora.SkipgramOnly]
+path = "resources/skipgram_only/*.gz"
+generate_skip_grams = true
+skip_gram_min_length = 2
+skip_gram_max_skips = 2
+[corpora.SkipgramOnly.format]
+delimiter = ";"
+has_header = true
+
+[corpora.Plain]
+path = "resources/plain/*.gz"
+[corpora.Plain.format]
+delimiter = ";"
+has_header = true

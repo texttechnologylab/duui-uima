@@ -1,0 +1,74 @@
+####
+# This Dockerfile is used in order to build a container that runs the Quarkus application in JVM mode
+#
+# Before building the container image run:
+#
+# ./mvnw package
+#
+# Then, build the image with:
+#
+# docker build -f src/main/docker/Dockerfile.jvm -t quarkus/textimager-uima-ddc-fasttext-jvm .
+#
+# Then run the container using:
+#
+# docker run -i --rm -p 8080:8080 quarkus/textimager-uima-ddc-fasttext-jvm
+#
+# If you want to include the debug port into your docker image
+# you will have to expose the debug port (default 5005) like this :  EXPOSE 8080 5005
+#
+# Then run the container using :
+#
+# docker run -i --rm -p 8080:8080 quarkus/textimager-uima-ddc-fasttext-jvm
+#
+###
+FROM registry.access.redhat.com/ubi8/openjdk-11-runtime:1.10
+
+# TODO hotfix for utf8/encoding/locale problems
+USER root
+RUN microdnf install glibc-locale-source glibc-langpack-en gzip
+RUN localedef -i en_US -f UTF-8 en_US.UTF-8
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
+
+# Configure the JAVA_OPTIONS, you can add -XshowSettings:vm to also display the heap size.
+ENV JAVA_OPTIONS='-Dquarkus.http.host=0.0.0.0 -Djava.util.logging.manager=org.jboss.logmanager.LogManager -Dfile.encoding="UTF-8"'
+ENV JAVA_TOOLS_OPTIONS='-Dfile.encoding="UTF-8"'
+
+# copy needed data files
+COPY ./docker_data/fastText_original_for_ducc_annotators/fasttext /home/stud_homes/baumartz/mnt/resources/nlp/bin/categorization/fastText_original_for_ducc_annotators/fasttext
+COPY ./docker_data/am_posmap.txt /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/am_posmap.txt
+
+# DDC2
+# DE
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc.v4.with_categories-lr0.2-lrUR150-minC5-dim100-ep10000-vec_vec_token_lemmapos.vec.epoch5000.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2018/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc.v4.with_categories-lr0.2-lrUR150-minC5-dim100-ep10000-vec_vec_token_lemmapos.vec.epoch5000.bin
+# EN
+COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc.v3.with_wikidata_model_dim100_pretreined-glove.6B.100d.txt_epoch100000.epoch10000.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc2_2018/wikipedia_en.v8.lemma.nopunct_gnd_ddc.v3.with_wikidata_model_dim100_pretreined-glove.6B.100d.txt_epoch100000.epoch10000.bin
+
+# DDC3
+# DE
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionswords_gnd_ddc_full.v5.with_categories-lr0.2-lrUR150-minC5-dim100-ep10000-vec_vec_token_lemmapos.vec.epoch5000.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2018/wikipedia_de.v8.lemma.nopunct.pos.no_functionswords_gnd_ddc_full.v5.with_categories-lr0.2-lrUR150-minC5-dim100-ep10000-vec_vec_token_lemmapos.vec.epoch5000.bin
+# EN
+COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc_full.v5.with_categories_dim300-ep10000-vec_wiki.en.vec.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc3_2018/wikipedia_en.v8.lemma.nopunct_gnd_ddc_full.v5.with_categories_dim300-ep10000-vec_wiki.en.vec.bin
+
+# TODO include in jar
+COPY src/main/resources/textimager_duui_ddc_fasttext.lua /home/stud_homes/baumartz/dev/git/TTLab-UIMA/textimager-uima-ddc-fasttext/src/main/resources/textimager_duui_ddc_fasttext.lua
+COPY src/main/resources/TypeSystemCategory.xml /home/stud_homes/baumartz/dev/git/TTLab-UIMA/textimager-uima-ddc-fasttext/src/main/resources/TypeSystemCategory.xml
+
+# meta data
+ARG TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME="textimager-duui-ddc-fasttext"
+ENV TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME=$TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME
+ARG TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION="unset"
+ENV TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION=$TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION
+
+# We make four distinct layers so if there are application changes the library layers can be re-used
+#COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
+#COPY --chown=185 target/quarkus-app/*.jar /deployments/
+#COPY --chown=185 target/quarkus-app/app/ /deployments/app/
+#COPY --chown=185 target/quarkus-app/quarkus/ /deployments/quarkus/
+COPY --chown=185 "target/textimager-uima-ddc-fasttext-${TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION}-SNAPSHOT-runner.jar" /deployments/
+
+EXPOSE 9714
+USER 185
+
+#ENTRYPOINT [ "java", "-jar", "/deployments/quarkus-run.jar" ]
+ENTRYPOINT java -jar "/deployments/textimager-uima-ddc-fasttext-${TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION}-SNAPSHOT-runner.jar"
+

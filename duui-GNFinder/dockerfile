@@ -1,0 +1,6 @@
+FROM maven:3.8.5-jdk-11
+ADD src src
+ADD pom.xml pom.xml
+ADD gnfinder gnfinder
+RUN mvn compile
+CMD mvn exec:java -Dexec.mainClass="org.texttechnologylab.tools.GNFinder"

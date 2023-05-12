@@ -1,0 +1,14 @@
+filter_path = "resources/filter_de.txt"
+generate_abbrv = false
+generate_ngrams = false
+
+[corpora]
+[corpora.habitat]
+path = "resources/*.csv.gz"
+generate_abbrv = true
+generate_skip_grams = true
+skip_gram_min_length = 2
+skip_gram_max_skips = 2
+[corpora.habitat.format]
+delimiter = ";"
+has_header = true

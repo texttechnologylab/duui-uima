@@ -1,0 +1,39 @@
+FROM python:3.8
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+# dependencies
+RUN pip install setuptools wheel
+COPY ./requirements.txt ./requirements.txt
+RUN pip install --no-deps -r requirements.txt
+
+# single model image
+ARG TEXTIMAGER_SPACY_SINGLE_MODEL
+ENV TEXTIMAGER_SPACY_SINGLE_MODEL=$TEXTIMAGER_SPACY_SINGLE_MODEL
+RUN python -m spacy download $TEXTIMAGER_SPACY_SINGLE_MODEL
+ARG TEXTIMAGER_SPACY_SINGLE_MODEL_LANG
+ENV TEXTIMAGER_SPACY_SINGLE_MODEL_LANG=$TEXTIMAGER_SPACY_SINGLE_MODEL_LANG
+
+# meta data
+ARG TEXTIMAGER_SPACY_ANNOTATOR_NAME="textimager-duui-spacy-single-$TEXTIMAGER_SPACY_SINGLE_MODEL"
+ENV TEXTIMAGER_SPACY_ANNOTATOR_NAME=$TEXTIMAGER_SPACY_ANNOTATOR_NAME
+ARG TEXTIMAGER_SPACY_ANNOTATOR_VERSION="unset"
+ENV TEXTIMAGER_SPACY_ANNOTATOR_VERSION=$TEXTIMAGER_SPACY_ANNOTATOR_VERSION
+
+# log level
+ARG TEXTIMAGER_SPACY_LOG_LEVEL="DEBUG"
+ENV TEXTIMAGER_SPACY_LOG_LEVEL=$TEXTIMAGER_SPACY_LOG_LEVEL
+
+# config
+ARG TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=3
+ENV TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=$TEXTIMAGER_SPACY_MODEL_CACHE_SIZE
+
+# service script
+COPY ./src/main/python/TypeSystemSpacy.xml ./TypeSystemSpacy.xml
+COPY ./src/main/python/textimager_duui_spacy.py ./textimager_duui_spacy.py
+COPY ./src/main/python/textimager_duui_spacy.lua ./textimager_duui_spacy.lua
+
+ENTRYPOINT ["uvicorn", "textimager_duui_spacy:app", "--host", "0.0.0.0", "--port" ,"9714"]
+CMD ["--workers", "1"]

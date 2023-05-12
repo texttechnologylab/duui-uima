@@ -1,0 +1,49 @@
+FROM python:3.8
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+RUN apt install wget
+
+# dependencies
+RUN pip install symspellpy fastapi uvicorn[standard] dkpro-cassis
+RUN pip install torch==1.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
+RUN pip install torchserve==0.7.1
+RUN pip install transformers==4.9.1
+RUN pip install chardet==5.1.0
+RUN pip install numpy
+RUN pip install scikit-learn==0.22.1
+RUN pip install pyhocon graphviz tensorboard pydantic
+RUN pip install tqdm==4.56.0
+RUN pip install requests --upgrade
+RUN pip install urllib3 --upgrade
+RUN pip install chardet --upgrade
+# RUN pip install func_timeout
+
+
+# meta data
+ARG TEXTIMAGER_COREF_ANNOTATOR_NAME="textimager_duui_gercoref"
+ENV TEXTIMAGER_COREF_ANNOTATOR_NAME=$TEXTIMAGER_COREF_ANNOTATOR_NAME
+ARG TEXTIMAGER_COREF_ANNOTATOR_VERSION="0.0.1"
+ENV TEXTIMAGER_COREF_ANNOTATOR_VERSION=$TEXTIMAGER_COREF_ANNOTATOR_VERSION
+
+# log level
+ARG TEXTIMAGER_COREF_LOG_LEVEL="DEBUG"
+ENV TEXTIMAGER_COREF_LOG_LEVEL=$TEXTIMAGER_BFSRL_LOG_LEVEL
+
+# config
+ARG TEXTIMAGER_COREF_PARSER_MODEL_NAME="se10_electra_uncased"
+ENV TEXTIMAGER_COREF_PARSER_MODEL_NAME=$TEXTIMAGER_BFSRL_MODEL_NAME
+
+
+# service script
+COPY ./src/main/python/ ./
+RUN ls -la ./*
+
+#patch diaparser error
+#https://github.com/Unipisa/diaparser/issues/9
+#COPY ./src/main/python/transform.py /usr/local/lib/python3.8/dist-packages/diaparser/utils/
+
+ENTRYPOINT ["uvicorn", "textimager_duui_coref_ger:app", "--host", "0.0.0.0", "--port" ,"9714", "--use-colors"]
+CMD ["--workers", "1"]

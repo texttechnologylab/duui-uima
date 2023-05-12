@@ -1,0 +1,59 @@
+FROM nvidia/cuda:11.0.3-base-ubuntu20.04
+RUN apt update && DEBIAN_FRONTEND=noninteractive \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.8 python3-pip python3-setuptools python3-distutils && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN python -m pip install --upgrade pip
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+# dependencies
+
+RUN pip install symspellpy fastapi uvicorn[standard] dkpro-cassis
+RUN pip install setuptools wheel
+RUN pip install torch==1.13
+RUN pip install pathos omegaconf
+RUN pip install tqdm nltk transformers
+
+#RUN git clone https://github.com/yzhangcs/crfsrl.git --recursive
+
+# languages/models
+#RUN python -c "from diaparser.parsers import Parser; Parser.load('de_hdt.dbmdz-bert-base')"
+
+# meta data
+ARG TEXTIMAGER_SRL_ANNOTATOR_NAME="textimager_duui_srl_$TEXTIMAGER_SRL_BATCH_SIZE"
+ENV TEXTIMAGER_SRL_ANNOTATOR_NAME=$TEXTIMAGER_SRL_ANNOTATOR_NAME
+ARG TEXTIMAGER_SRL_ANNOTATOR_VERSION="unset"
+ENV TEXTIMAGER_SRL_ANNOTATOR_VERSION=$TEXTIMAGER_SRL_ANNOTATOR_VERSION
+
+# log level
+ARG TEXTIMAGER_SRL_LOG_LEVEL="INFO"
+ENV TEXTIMAGER_SRL_LOG_LEVEL=$TEXTIMAGER_SRL_LOG_LEVEL
+
+# config
+ARG TEXTIMAGER_SRL_PARSER_MODEL_NAME="exp/xlm_roberta_base_de_final/model"
+ENV TEXTIMAGER_SRL_PARSER_MODEL_NAME=$TEXTIMAGER_SRL_PARSER_MODEL_NAME
+ARG TEXTIMAGER_SRL_PARSER_MODEL_TYPE="xlm-roberta-base"
+ENV TEXTIMAGER_SRL_PARSER_MODEL_TYPE=$TEXTIMAGER_SRL_PARSER_MODEL_TYPE
+
+ARG TEXTIMAGER_SRL_PARSER_BATCH_SIZE=512
+ENV TEXTIMAGER_SRL_PARSER_BATCH_SIZE=$TEXTIMAGER_SRL_PARSER_BATCH_SIZE
+
+# offline mode for huggingface
+ARG TEXTIMAGER_DUUI_TRANSFORMERS_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_OFFLINE
+
+# service script
+COPY ./src/main/python/TypeSystemSRL.xml ./TypeSystemSRL.xml
+COPY ./src/main/python/textimager_duui_srl.lua ./textimager_duui_srl.lua
+COPY ./src/main/python/textimager_duui_srl.py ./textimager_duui_srl.py
+COPY ./src/main/python/srl.py ./srl.py
+COPY ./src/main/python/crfsrl ./crfsrl
+
+RUN python ./srl.py
+
+ENTRYPOINT ["uvicorn", "textimager_duui_srl:app", "--host", "0.0.0.0", "--port" ,"9714", "--use-colors"]
+CMD ["--workers", "1"]

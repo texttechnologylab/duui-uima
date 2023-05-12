@@ -1,0 +1,7 @@
+transformers==4.27.4
+torch==1.13.1
+torchvision==0.14.1
+torchaudio==0.13.1
+uvicorn==0.21.1
+fastapi==0.95.0
+dkpro-cassis==0.7.5

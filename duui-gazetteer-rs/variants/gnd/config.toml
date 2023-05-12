@@ -1,0 +1,10 @@
+filter_path = "resources/filter_de.txt"
+generate_abbrv = false
+generate_ngrams = false
+
+[corpora]
+[corpora.gnd]
+path = "resources/Kern-Personennamen.lex.gazetteer.v2.json.txt.gz"
+[corpora.gnd.format]
+quoting = false
+flexible = true

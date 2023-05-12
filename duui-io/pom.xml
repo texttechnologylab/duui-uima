@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.texttechnologylab.duui</groupId>
+    <artifactId>io</artifactId>
+    <version>1.0</version>
+
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <ttlab.textimager.version>78d5dbb428</ttlab.textimager.version>
+        <ttlab.typesystem.version>9b334dfe90</ttlab.typesystem.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>central</id>
+            <name>Maven Plugin Repository</name>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
+        <repository>
+            <id>ukp-oss-model-releases</id>
+            <url>https://zoidberg.ukp.informatik.tu-darmstadt.de/artifactory/public-model-releases-local</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- https://mvnrepository.com/artifact/xerces/xercesImpl -->
+        <dependency>
+            <groupId>xerces</groupId>
+            <artifactId>xercesImpl</artifactId>
+            <version>2.12.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>Utilities</artifactId>
+            <version>1.1.7-uima-2.10.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.texttechnologylab.textimager-uima</groupId>
+            <artifactId>textimager-uima-types</artifactId>
+            <version>${ttlab.textimager.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>UIMATypeSystem</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>${ttlab.typesystem.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>textimager-uima</artifactId>
+            <version>${ttlab.textimager.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>UIMATypeSystem</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.texttechnologylab.textimager-uima</groupId>
+            <artifactId>textimager-uima-spacy</artifactId>
+            <version>${ttlab.textimager.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>UIMATypeSystem</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.texttechnologylab.textimager-uima</groupId>
+            <artifactId>textimager-uima-io</artifactId>
+            <version>${ttlab.textimager.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>UIMATypeSystem</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-xmi-asl</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+            <version>20180130</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongo-java-driver</artifactId>
+            <version>3.5.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+            <version>8.2.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>8.2.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.1.3</version>
+        </dependency>
+
+    </dependencies>
+
+</project>

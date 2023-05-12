@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/XMI" xmlns:cas="http:///uima/cas.ecore" xmlns:type="http:///de/tudarmstadt/ukp/dkpro/core/api/segmentation/type.ecore" xmlns:pos="http:///de/tudarmstadt/ukp/dkpro/core/api/lexmorph/type/pos.ecore" xmlns:dependency="http:///de/tudarmstadt/ukp/dkpro/core/api/syntax/type/dependency.ecore" xmlns:annotation="http:///org/texttechnologylab/annotation.ecore" xmi:version="2.0">
+  <type:Token xmi:id="2" begin="0" end="3" sofa="1"/>
+  <type:Token xmi:id="3" begin="4" end="16" sofa="1"/>
+  <type:Token xmi:id="4" begin="17" end="23" sofa="1"/>
+  <type:Token xmi:id="5" begin="24" end="25" sofa="1"/>
+  <type:Sentence xmi:id="6" begin="0" end="26" sofa="1"/>
+  <type:Token xmi:id="19" begin="26" end="29" sofa="1"/>
+  <type:Token xmi:id="20" begin="30" end="40" sofa="1"/>
+  <type:Token xmi:id="21" begin="41" end="47" sofa="1"/>
+  <type:Token xmi:id="22" begin="48" end="51" sofa="1"/>
+  <type:Token xmi:id="23" begin="52" end="64" sofa="1"/>
+  <type:Token xmi:id="24" begin="65" end="66" sofa="1"/>
+  <type:Sentence xmi:id="25" begin="26" end="67" sofa="1"/>
+  <type:Token xmi:id="44" begin="67" end="70" sofa="1"/>
+  <type:Token xmi:id="45" begin="71" end="83" sofa="1"/>
+  <type:Token xmi:id="46" begin="84" end="91" sofa="1"/>
+  <type:Token xmi:id="47" begin="92" end="95" sofa="1"/>
+  <type:Token xmi:id="48" begin="96" end="106" sofa="1"/>
+  <type:Token xmi:id="49" begin="107" end="111" sofa="1"/>
+  <type:Token xmi:id="50" begin="112" end="119" sofa="1"/>
+  <type:Token xmi:id="51" begin="120" end="121" sofa="1"/>
+  <type:Sentence xmi:id="52" begin="67" end="122" sofa="1"/>
+  <type:Token xmi:id="77" begin="122" end="134" sofa="1"/>
+  <type:Token xmi:id="78" begin="135" end="140" sofa="1"/>
+  <type:Token xmi:id="79" begin="141" end="150" sofa="1"/>
+  <type:Token xmi:id="80" begin="151" end="152" sofa="1"/>
+  <type:Sentence xmi:id="81" begin="122" end="153" sofa="1"/>
+  <type:Token xmi:id="94" begin="153" end="165" sofa="1"/>
+  <type:Token xmi:id="95" begin="166" end="171" sofa="1"/>
+  <type:Token xmi:id="96" begin="172" end="177" sofa="1"/>
+  <type:Token xmi:id="97" begin="178" end="187" sofa="1"/>
+  <type:Token xmi:id="98" begin="188" end="189" sofa="1"/>
+  <type:Sentence xmi:id="99" begin="153" end="190" sofa="1"/>
+  <cas:Sofa xmi:id="1" sofaNum="1" sofaID="_InitialView" mimeType="text/plain" sofaString="Die Rhizocephala tanzen . Der Buntspecht frisst die Rhizocephala . Die Rhizocephala erteilt dem Buntspecht eine Lektion . Rhizocephala wurde gefressen . Rhizocephala wurde nicht gefressen . "/>
+  <cas:View sofa="1" members="2 3 4 5 6 19 20 21 22 23 24 25 44 45 46 47 48 49 50 51 52 77 78 79 80 81 94 95 96 97 98 99"/>
+  </xmi:XMI>

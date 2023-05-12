@@ -1,0 +1,56 @@
+FROM nvidia/cuda:11.0.3-base-ubuntu20.04
+RUN apt update && DEBIAN_FRONTEND=noninteractive \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.8 python3-pip python3-setuptools python3-distutils && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN python -m pip install --upgrade pip
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+# dependencies
+
+RUN pip install symspellpy fastapi uvicorn[standard] dkpro-cassis
+RUN pip install setuptools wheel
+#RUN pip install spacy
+#RUN pip install hanta
+RUN pip install diaparser
+
+
+# languages/models
+RUN python -c "from diaparser.parsers import Parser; Parser.load('de_hdt.dbmdz-bert-base')"
+
+ARG TEXTIMAGER_UDEPPARSER_ANNOTATOR_NAME="textimager_duui_udepparser"
+ENV TEXTIMAGER_UDEPPARSER_ANNOTATOR_NAME=$TEXTIMAGER_UDEPPARSER_ANNOTATOR_NAME
+ARG TEXTIMAGER_UDEPPARSER_ANNOTATOR_VERSION="unset"
+ENV TEXTIMAGER_UDEPPARSER_ANNOTATOR_VERSION=$TEXTIMAGER_UDEPPARSER_ANNOTATOR_VERSION
+
+# log level
+ARG TEXTIMAGER_UDEPPARSER_LOG_LEVEL="INFO"
+ENV TEXTIMAGER_UDEPPARSER_LOG_LEVEL=$TEXTIMAGER_UDEPPARSER_LOG_LEVEL
+
+# config
+ARG TEXTIMAGER_UDEPPARSER_MODEL_NAME="de_hdt.dbmdz-bert-base"
+ENV TEXTIMAGER_UDEPPARSER_MODEL_NAME=$TEXTIMAGER_UDEPPARSER_MODEL_NAME
+
+ARG TEXTIMAGER_UDEPPARSER_BATCH_SIZE=1024
+ENV TEXTIMAGER_UDEPPARSER_BATCH_SIZE=$TEXTIMAGER_UDEPPARSER_BATCH_SIZE
+
+# offline mode for huggingface
+ARG TEXTIMAGER_DUUI_TRANSFORMERS_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_OFFLINE
+
+# service script
+COPY ./src/main/python/TypeSystemUDEP.xml ./TypeSystemUDEP.xml
+COPY ./src/main/python/textimager_duui_udep.lua ./textimager_duui_udep.lua
+COPY ./src/main/python/textimager_duui_udep.py ./textimager_duui_udep.py
+
+#patch diaparser error
+#https://github.com/Unipisa/diaparser/issues/9
+COPY ./src/main/python/transform.py /usr/local/lib/python3.8/dist-packages/diaparser/utils/
+
+
+ENTRYPOINT ["uvicorn", "textimager_duui_udep:app", "--host", "0.0.0.0", "--port" ,"9714", "--use-colors"]
+CMD ["--workers", "1"]

@@ -1,0 +1,146 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xmi:XMI xmlns:xmi="http://www.omg.org/XMI" xmlns:cas="http:///uima/cas.ecore" xmlns:type="http:///de/tudarmstadt/ukp/dkpro/core/api/segmentation/type.ecore" xmlns:pos="http:///de/tudarmstadt/ukp/dkpro/core/api/lexmorph/type/pos.ecore" xmlns:dependency="http:///de/tudarmstadt/ukp/dkpro/core/api/syntax/type/dependency.ecore" xmlns:annotation="http:///org/texttechnologylab/annotation.ecore" xmi:version="2.0">
+  <cas:NULL xmi:id="0"/>
+  <type:Token xmi:id="2" begin="0" end="3" sofa="1"/>
+  <type:Token xmi:id="3" begin="4" end="16" sofa="1"/>
+  <type:Token xmi:id="4" begin="17" end="23" sofa="1"/>
+  <type:Token xmi:id="5" begin="24" end="25" sofa="1"/>
+  <type:Sentence xmi:id="6" begin="0" end="26" sofa="1"/>
+  <type:Lemma xmi:id="7" value="der" begin="0" end="3" sofa="1"/>
+  <type:Lemma xmi:id="8" value="Rhizocephala" begin="4" end="16" sofa="1"/>
+  <type:Lemma xmi:id="9" value="tanzen" begin="17" end="23" sofa="1"/>
+  <type:Lemma xmi:id="10" value="." begin="24" end="25" sofa="1"/>
+  <pos:POS xmi:id="11" PosValue="ART" coarseValue="DET" begin="0" end="3" sofa="1"/>
+  <pos:POS xmi:id="12" PosValue="NN" coarseValue="NOUN" begin="4" end="16" sofa="1"/>
+  <pos:POS xmi:id="13" PosValue="VVFIN" coarseValue="VERB" begin="17" end="23" sofa="1"/>
+  <pos:POS xmi:id="14" PosValue="$." coarseValue="PUNCT" begin="24" end="25" sofa="1"/>
+  <dependency:Dependency xmi:id="15" Governor="3" Dependent="2" DependencyType="det" begin="0" end="3" sofa="1"/>
+  <dependency:Dependency xmi:id="16" Governor="4" Dependent="3" DependencyType="nsubj" begin="4" end="16" sofa="1"/>
+  <dependency:Dependency xmi:id="17" Governor="4" Dependent="4" DependencyType="root" begin="17" end="23" sofa="1"/>
+  <dependency:Dependency xmi:id="18" Governor="4" Dependent="5" DependencyType="punct" begin="24" end="25" sofa="1"/>
+  <type:Token xmi:id="19" begin="26" end="29" sofa="1"/>
+  <type:Token xmi:id="20" begin="30" end="40" sofa="1"/>
+  <type:Token xmi:id="21" begin="41" end="47" sofa="1"/>
+  <type:Token xmi:id="22" begin="48" end="51" sofa="1"/>
+  <type:Token xmi:id="23" begin="52" end="64" sofa="1"/>
+  <type:Token xmi:id="24" begin="65" end="66" sofa="1"/>
+  <type:Sentence xmi:id="25" begin="26" end="67" sofa="1"/>
+  <type:Lemma xmi:id="26" value="der" begin="26" end="29" sofa="1"/>
+  <type:Lemma xmi:id="27" value="Buntspecht" begin="30" end="40" sofa="1"/>
+  <type:Lemma xmi:id="28" value="frisst" begin="41" end="47" sofa="1"/>
+  <type:Lemma xmi:id="29" value="der" begin="48" end="51" sofa="1"/>
+  <type:Lemma xmi:id="30" value="Rhizocephala" begin="52" end="64" sofa="1"/>
+  <type:Lemma xmi:id="31" value="." begin="65" end="66" sofa="1"/>
+  <pos:POS xmi:id="32" PosValue="ART" coarseValue="DET" begin="26" end="29" sofa="1"/>
+  <pos:POS xmi:id="33" PosValue="NN" coarseValue="NOUN" begin="30" end="40" sofa="1"/>
+  <pos:POS xmi:id="34" PosValue="VVFIN" coarseValue="VERB" begin="41" end="47" sofa="1"/>
+  <pos:POS xmi:id="35" PosValue="ART" coarseValue="DET" begin="48" end="51" sofa="1"/>
+  <pos:POS xmi:id="36" PosValue="NN" coarseValue="NOUN" begin="52" end="64" sofa="1"/>
+  <pos:POS xmi:id="37" PosValue="$." coarseValue="PUNCT" begin="65" end="66" sofa="1"/>
+  <dependency:Dependency xmi:id="38" Governor="3" Dependent="19" DependencyType="det" begin="26" end="29" sofa="1"/>
+  <dependency:Dependency xmi:id="39" Governor="4" Dependent="20" DependencyType="nsubj" begin="30" end="40" sofa="1"/>
+  <dependency:Dependency xmi:id="40" Governor="21" Dependent="21" DependencyType="root" begin="41" end="47" sofa="1"/>
+  <dependency:Dependency xmi:id="41" Governor="19" Dependent="22" DependencyType="det" begin="48" end="51" sofa="1"/>
+  <dependency:Dependency xmi:id="42" Governor="4" Dependent="23" DependencyType="obj" begin="52" end="64" sofa="1"/>
+  <dependency:Dependency xmi:id="43" Governor="4" Dependent="24" DependencyType="punct" begin="65" end="66" sofa="1"/>
+  <type:Token xmi:id="44" begin="67" end="70" sofa="1"/>
+  <type:Token xmi:id="45" begin="71" end="83" sofa="1"/>
+  <type:Token xmi:id="46" begin="84" end="91" sofa="1"/>
+  <type:Token xmi:id="47" begin="92" end="95" sofa="1"/>
+  <type:Token xmi:id="48" begin="96" end="106" sofa="1"/>
+  <type:Token xmi:id="49" begin="107" end="111" sofa="1"/>
+  <type:Token xmi:id="50" begin="112" end="119" sofa="1"/>
+  <type:Token xmi:id="51" begin="120" end="121" sofa="1"/>
+  <type:Sentence xmi:id="52" begin="67" end="122" sofa="1"/>
+  <type:Lemma xmi:id="53" value="der" begin="67" end="70" sofa="1"/>
+  <type:Lemma xmi:id="54" value="Rhizocephala" begin="71" end="83" sofa="1"/>
+  <type:Lemma xmi:id="55" value="erteilen" begin="84" end="91" sofa="1"/>
+  <type:Lemma xmi:id="56" value="der" begin="92" end="95" sofa="1"/>
+  <type:Lemma xmi:id="57" value="Buntspecht" begin="96" end="106" sofa="1"/>
+  <type:Lemma xmi:id="58" value="einen" begin="107" end="111" sofa="1"/>
+  <type:Lemma xmi:id="59" value="Lektion" begin="112" end="119" sofa="1"/>
+  <type:Lemma xmi:id="60" value="." begin="120" end="121" sofa="1"/>
+  <pos:POS xmi:id="61" PosValue="ART" coarseValue="DET" begin="67" end="70" sofa="1"/>
+  <pos:POS xmi:id="62" PosValue="NN" coarseValue="NOUN" begin="71" end="83" sofa="1"/>
+  <pos:POS xmi:id="63" PosValue="VVFIN" coarseValue="VERB" begin="84" end="91" sofa="1"/>
+  <pos:POS xmi:id="64" PosValue="ART" coarseValue="DET" begin="92" end="95" sofa="1"/>
+  <pos:POS xmi:id="65" PosValue="NN" coarseValue="NOUN" begin="96" end="106" sofa="1"/>
+  <pos:POS xmi:id="66" PosValue="ART" coarseValue="DET" begin="107" end="111" sofa="1"/>
+  <pos:POS xmi:id="67" PosValue="NN" coarseValue="NOUN" begin="112" end="119" sofa="1"/>
+  <pos:POS xmi:id="68" PosValue="$." coarseValue="PUNCT" begin="120" end="121" sofa="1"/>
+  <dependency:Dependency xmi:id="69" Governor="3" Dependent="44" DependencyType="det" begin="67" end="70" sofa="1"/>
+  <dependency:Dependency xmi:id="70" Governor="4" Dependent="45" DependencyType="nsubj" begin="71" end="83" sofa="1"/>
+  <dependency:Dependency xmi:id="71" Governor="46" Dependent="46" DependencyType="root" begin="84" end="91" sofa="1"/>
+  <dependency:Dependency xmi:id="72" Governor="19" Dependent="47" DependencyType="det" begin="92" end="95" sofa="1"/>
+  <dependency:Dependency xmi:id="73" Governor="4" Dependent="48" DependencyType="iobj" begin="96" end="106" sofa="1"/>
+  <dependency:Dependency xmi:id="74" Governor="21" Dependent="49" DependencyType="det" begin="107" end="111" sofa="1"/>
+  <dependency:Dependency xmi:id="75" Governor="4" Dependent="50" DependencyType="obj" begin="112" end="119" sofa="1"/>
+  <dependency:Dependency xmi:id="76" Governor="4" Dependent="51" DependencyType="punct" begin="120" end="121" sofa="1"/>
+  <type:Token xmi:id="77" begin="122" end="134" sofa="1"/>
+  <type:Token xmi:id="78" begin="135" end="140" sofa="1"/>
+  <type:Token xmi:id="79" begin="141" end="150" sofa="1"/>
+  <type:Token xmi:id="80" begin="151" end="152" sofa="1"/>
+  <type:Sentence xmi:id="81" begin="122" end="153" sofa="1"/>
+  <type:Lemma xmi:id="82" value="Rhizocephala" begin="122" end="134" sofa="1"/>
+  <type:Lemma xmi:id="83" value="werden" begin="135" end="140" sofa="1"/>
+  <type:Lemma xmi:id="84" value="fressen" begin="141" end="150" sofa="1"/>
+  <type:Lemma xmi:id="85" value="." begin="151" end="152" sofa="1"/>
+  <pos:POS xmi:id="86" PosValue="NE" coarseValue="PROPN" begin="122" end="134" sofa="1"/>
+  <pos:POS xmi:id="87" PosValue="VAFIN" coarseValue="AUX" begin="135" end="140" sofa="1"/>
+  <pos:POS xmi:id="88" PosValue="VVPP" coarseValue="VERB" begin="141" end="150" sofa="1"/>
+  <pos:POS xmi:id="89" PosValue="$." coarseValue="PUNCT" begin="151" end="152" sofa="1"/>
+  <dependency:Dependency xmi:id="90" Governor="4" Dependent="77" DependencyType="nsubj:pass" begin="122" end="134" sofa="1"/>
+  <dependency:Dependency xmi:id="91" Governor="4" Dependent="78" DependencyType="aux:pass" begin="135" end="140" sofa="1"/>
+  <dependency:Dependency xmi:id="92" Governor="79" Dependent="79" DependencyType="root" begin="141" end="150" sofa="1"/>
+  <dependency:Dependency xmi:id="93" Governor="4" Dependent="80" DependencyType="punct" begin="151" end="152" sofa="1"/>
+  <type:Token xmi:id="94" begin="153" end="165" sofa="1"/>
+  <type:Token xmi:id="95" begin="166" end="171" sofa="1"/>
+  <type:Token xmi:id="96" begin="172" end="177" sofa="1"/>
+  <type:Token xmi:id="97" begin="178" end="187" sofa="1"/>
+  <type:Token xmi:id="98" begin="188" end="189" sofa="1"/>
+  <type:Sentence xmi:id="99" begin="153" end="190" sofa="1"/>
+  <type:Lemma xmi:id="100" value="Rhizocephala" begin="153" end="165" sofa="1"/>
+  <type:Lemma xmi:id="101" value="werden" begin="166" end="171" sofa="1"/>
+  <type:Lemma xmi:id="102" value="nicht" begin="172" end="177" sofa="1"/>
+  <type:Lemma xmi:id="103" value="fressen" begin="178" end="187" sofa="1"/>
+  <type:Lemma xmi:id="104" value="." begin="188" end="189" sofa="1"/>
+  <pos:POS xmi:id="105" PosValue="NE" coarseValue="PROPN" begin="153" end="165" sofa="1"/>
+  <pos:POS xmi:id="106" PosValue="VAFIN" coarseValue="AUX" begin="166" end="171" sofa="1"/>
+  <pos:POS xmi:id="107" PosValue="PTKNEG" coarseValue="PART" begin="172" end="177" sofa="1"/>
+  <pos:POS xmi:id="108" PosValue="VVPP" coarseValue="VERB" begin="178" end="187" sofa="1"/>
+  <pos:POS xmi:id="109" PosValue="$." coarseValue="PUNCT" begin="188" end="189" sofa="1"/>
+  <dependency:Dependency xmi:id="110" Governor="5" Dependent="94" DependencyType="nsubj:pass" begin="153" end="165" sofa="1"/>
+  <dependency:Dependency xmi:id="111" Governor="5" Dependent="95" DependencyType="aux:pass" begin="166" end="171" sofa="1"/>
+  <dependency:Dependency xmi:id="112" Governor="5" Dependent="96" DependencyType="advmod" begin="172" end="177" sofa="1"/>
+  <dependency:Dependency xmi:id="113" Governor="97" Dependent="97" DependencyType="root" begin="178" end="187" sofa="1"/>
+  <dependency:Dependency xmi:id="114" Governor="5" Dependent="98" DependencyType="punct" begin="188" end="189" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="115" name="udep" reference="15" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="116" name="udep" reference="16" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="117" name="udep" reference="17" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="118" name="udep" reference="18" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="119" name="udep" reference="38" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="120" name="udep" reference="39" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="121" name="udep" reference="40" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="122" name="udep" reference="41" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="123" name="udep" reference="42" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="124" name="udep" reference="43" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="125" name="udep" reference="69" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="126" name="udep" reference="70" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="127" name="udep" reference="71" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="128" name="udep" reference="72" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="129" name="udep" reference="73" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="130" name="udep" reference="74" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="131" name="udep" reference="75" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="132" name="udep" reference="76" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="133" name="udep" reference="90" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="134" name="udep" reference="91" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="135" name="udep" reference="92" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="136" name="udep" reference="93" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="137" name="udep" reference="110" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="138" name="udep" reference="111" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="139" name="udep" reference="112" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="140" name="udep" reference="113" sofa="1"/>
+  <annotation:AnnotationPerspective xmi:id="141" name="udep" reference="114" sofa="1"/>
+  <cas:Sofa xmi:id="1" sofaNum="1" sofaID="_InitialView" mimeType="text/plain" sofaString="Die Rhizocephala tanzen . Der Buntspecht frisst die Rhizocephala . Die Rhizocephala erteilt dem Buntspecht eine Lektion . Rhizocephala wurde gefressen . Rhizocephala wurde nicht gefressen . "/>
+  <cas:View sofa="1" members="2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141"/>
+</xmi:XMI>
