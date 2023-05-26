@@ -204,7 +204,7 @@ def process_selection(model_name, selection, doc_len):
     with model_lock:
         classifier = load_model(model_name)
 
-        results = classifier(texts, batch_size=128)
+        results = classifier(texts, truncation=True, padding=True, batch_size=128)
 
     processed_sentences = [
         map_topic(r, s)

@@ -1,9 +1,7 @@
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
--- switch to new utils, needs DUUI version >= 9d7a3e7c581ae7977763262397a4f533c6d7edec and rebuilt Dockers
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
---TopicUtils = luajava.bindClass("org.hucompute.textimager.uima.transformers.topic.Utils")
 
 function serialize(inputCas, outputStream, parameters)
     local doc_lang = inputCas:getDocumentLanguage()
