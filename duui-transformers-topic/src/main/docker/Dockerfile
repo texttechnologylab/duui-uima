@@ -12,7 +12,7 @@ RUN pip install -r requirements.txt
 
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-multi')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='chkla/parlbert-topic-german')" \
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='chkla/parlbert-topic-german')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ssharoff/genres')"
 
 
