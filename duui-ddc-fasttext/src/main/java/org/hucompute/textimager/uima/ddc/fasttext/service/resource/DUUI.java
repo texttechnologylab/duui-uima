@@ -1,27 +1,27 @@
 package org.hucompute.textimager.uima.ddc.fasttext.service.resource;
 
+import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 import org.apache.uima.UIMAException;
 import org.apache.uima.cas.impl.XmiCasDeserializer;
 import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
+import org.apache.uima.util.XMLSerializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.metrics.MetricUnits;
 import org.eclipse.microprofile.metrics.annotation.Counted;
 import org.eclipse.microprofile.metrics.annotation.Timed;
 import org.hucompute.textimager.uima.ddc.fasttext.service.model.duui.DUUICapability;
 import org.hucompute.textimager.uima.ddc.fasttext.service.model.duui.DUUIDocumentation;
-import org.hucompute.textimager.uima.ddc.fasttext.service.service.FastTextDDC2DEService;
-import org.hucompute.textimager.uima.ddc.fasttext.service.service.FastTextDDC2ENService;
-import org.hucompute.textimager.uima.ddc.fasttext.service.service.FastTextDDC3DEService;
-import org.hucompute.textimager.uima.ddc.fasttext.service.service.FastTextDDC3ENService;
+import org.hucompute.textimager.uima.ddc.fasttext.service.service.*;
 import org.texttechnologylab.annotation.AnnotationComment;
 import org.xml.sax.SAXException;
 
 import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import javax.xml.transform.OutputKeys;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,6 +34,9 @@ import java.util.HashMap;
 
 @Path("/v1")
 public class DUUI {
+    @Inject
+    FastTextDDC1DEService fastTextDDC1DEService;
+
     @Inject
     FastTextDDC2DEService fastTextDDC2DEService;
     @Inject
@@ -129,7 +132,23 @@ public class DUUI {
         System.out.println("DDC: " + ddcVariant);
         System.out.println("Selection: " + selection);
 
-        if (ddcVariant.equals("ddc2")) {
+        try {
+            DocumentMetaData meta = DocumentMetaData.get(jCas);
+            System.out.println("Document: " + meta.getDocumentId());
+        }
+        catch (Exception e) {
+            System.out.println("Document unknown");
+        }
+
+        if (ddcVariant.equals("ddc1")) {
+            if (documentLanguage.equals("de")) {
+                fastTextDDC1DEService.process(jCas, selection);
+            }
+            else {
+                throw new UIMAException(new Exception("Only DE languages are supported for DDC1!"));
+            }
+        }
+        else if (ddcVariant.equals("ddc2")) {
             if (documentLanguage.equals("de")) {
                 fastTextDDC2DEService.process(jCas, selection);
             }
@@ -137,7 +156,7 @@ public class DUUI {
                 fastTextDDC2ENService.process(jCas, selection);
             }
             else {
-                throw new UIMAException(new Exception("Only EN and DE languages are supported!"));
+                throw new UIMAException(new Exception("Only EN and DE languages are supported for DDC2!"));
             }
         }
         else if (ddcVariant.equals("ddc3")) {
@@ -151,7 +170,7 @@ public class DUUI {
                 fastTextDDC3ENService.process(jCas, selection);
             }
             else {
-                throw new UIMAException(new Exception("Only EN and DE languages are supported!"));
+                throw new UIMAException(new Exception("Only EN and DE languages are supported for DDC3!"));
             }
         }
         else {
@@ -159,7 +178,14 @@ public class DUUI {
         }
 
         OutputStream casStream = new ByteArrayOutputStream();
-        XmiCasSerializer.serialize(jCas.getCas(), casStream);
+        //XmiCasSerializer.serialize(jCas.getCas(), casStream);
+
+        XMLSerializer xmlSerializer = new XMLSerializer(casStream, true);
+        xmlSerializer.setOutputProperty(OutputKeys.VERSION, "1.1");
+        xmlSerializer.setOutputProperty(OutputKeys.ENCODING, StandardCharsets.UTF_8.toString());
+        XmiCasSerializer xmiCasSerializer = new XmiCasSerializer(null);
+        xmiCasSerializer.serialize(jCas.getCas(), xmlSerializer.getContentHandler());
+
         return casStream;
     }
 }

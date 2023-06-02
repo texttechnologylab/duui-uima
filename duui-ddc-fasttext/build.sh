@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME=textimager-duui-ddc-fasttext
-export TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION=2.1.0
+export TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION=2.2.0
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 

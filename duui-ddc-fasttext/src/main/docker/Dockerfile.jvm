@@ -49,6 +49,16 @@ COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionswords_gnd_ddc_f
 # EN
 COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc_full.v5.with_categories_dim300-ep10000-vec_wiki.en.vec.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc3_2018/wikipedia_en.v8.lemma.nopunct_gnd_ddc_full.v5.with_categories_dim300-ep10000-vec_wiki.en.vec.bin
 
+# "modern" fasttext, build inside container
+RUN microdnf install make gcc-c++ gcc
+COPY ./docker_data/fastText_modern_for_duui_annotators /home/stud_homes/baumartz/mnt/resources/nlp/bin/categorization/fastText_modern_for_duui_annotators
+WORKDIR /home/stud_homes/baumartz/mnt/resources/nlp/bin/categorization/fastText_modern_for_duui_annotators/
+RUN make
+
+# DDC1 - WIP demo model!
+# DE
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch500.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch500.bin
+
 # TODO include in jar
 COPY src/main/resources/textimager_duui_ddc_fasttext.lua /home/stud_homes/baumartz/dev/git/TTLab-UIMA/textimager-uima-ddc-fasttext/src/main/resources/textimager_duui_ddc_fasttext.lua
 COPY src/main/resources/TypeSystemCategory.xml /home/stud_homes/baumartz/dev/git/TTLab-UIMA/textimager-uima-ddc-fasttext/src/main/resources/TypeSystemCategory.xml
@@ -58,6 +68,8 @@ ARG TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME="textimager-duui-ddc-fasttext"
 ENV TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME=$TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_NAME
 ARG TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION="unset"
 ENV TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION=$TEXTIMAGER_DUUI_DDC_FASTTEXT_ANNOTATOR_VERSION
+
+WORKDIR /home/jboss
 
 # We make four distinct layers so if there are application changes the library layers can be re-used
 #COPY --chown=185 target/quarkus-app/lib/ /deployments/lib/
