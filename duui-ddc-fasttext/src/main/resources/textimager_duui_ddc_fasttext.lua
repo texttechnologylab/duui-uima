@@ -1,7 +1,8 @@
-XmiCasSerializer = luajava.bindClass("org.apache.uima.cas.impl.XmiCasSerializer")
 XmiCasDeserializer = luajava.bindClass("org.apache.uima.cas.impl.XmiCasDeserializer")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 AnnotationComment = luajava.bindClass("org.texttechnologylab.annotation.AnnotationComment")
+OutputKeys = luajava.bindClass("javax.xml.transform.OutputKeys")
+StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 
 DUUIConfiguratinParameterName = "__textimager_duui_configuration_parameter_ddc_fasttext__"
 BORLAND_SEP = "¤"
@@ -9,12 +10,12 @@ BORLAND_SEP = "¤"
 function add_parameter_to_cas(cas, parameters, param_name)
     local param_value = parameters[param_name]
     if param_value ~= nil then
-        -- TODO use "AnnotationComment" var somehow
+        -- TODO use "AnnotationComment" var somehow?
         local param_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", cas)
         param_anno:setKey(DUUIConfiguratinParameterName)
         param_anno:setValue(param_name .. BORLAND_SEP .. param_value)
         param_anno:addToIndexes()
-        print("added parameter: " .. param_name)
+        --print("added parameter: " .. param_name)
     end
 end
 
@@ -67,7 +68,12 @@ function serialize(inputCas, outputStream, parameters)
     add_parameter_to_cas(inputCas, parameters, "ddc_variant")
 
     -- add parameters to cas and send cas directly to service
-    XmiCasSerializer:serialize(inputCas:getCas(), outputStream)
+    --XmiCasSerializer:serialize(inputCas:getCas(), outputStream)
+    local xmlSerializer = luajava.newInstance("org.apache.uima.util.XMLSerializer", outputStream, true)
+    xmlSerializer:setOutputProperty(OutputKeys.VERSION, "1.1")
+    xmlSerializer:setOutputProperty(OutputKeys.ENCODING, StandardCharsets.UTF_8)
+    local xmiCasSerializer = luajava.newInstance("org.apache.uima.cas.impl.XmiCasSerializer", nil)
+    xmiCasSerializer:serialize(inputCas:getCas(), xmlSerializer:getContentHandler())
 end
 
 function deserialize(inputCas, inputStream)
