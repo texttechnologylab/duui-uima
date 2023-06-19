@@ -126,7 +126,7 @@ def get_input_output() -> JSONResponse:
 
 
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = '../static/dkpro-core-types.xml'
+typesystem_filename = 'dkpro-core-types.xml'
 with open(typesystem_filename, 'rb') as f:
     typesystem = f.read()
 # Get typesystem of this annotator
@@ -141,7 +141,7 @@ def get_typesystem() -> Response:
 
 
 # Load the Lua communication script
-communication = "../static/communication.lua"
+communication = "communication.lua"
 with open(communication, 'rb') as f:
     communication = f.read().decode("utf-8")
 
