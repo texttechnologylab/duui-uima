@@ -206,8 +206,6 @@
             <groupId>org.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
             <version>1.0</version>
-            <scope>system</scope>
-            <systemPath>/home/max/uni/DockerUnifiedUIMAInterface/target/DockerUnifiedUIMAInterface-1.0.jar</systemPath>
         </dependency>
     </dependencies>
 

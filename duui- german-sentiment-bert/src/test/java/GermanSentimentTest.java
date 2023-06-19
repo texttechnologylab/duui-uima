@@ -1,48 +1,25 @@
-import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
-
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
-import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
-import org.apache.uima.cas.CASException;
-import org.apache.uima.cas.impl.XmiCasSerializer;
 import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
-import org.apache.uima.collection.CollectionReader;
-import org.apache.uima.collection.CollectionReaderDescription;
-import org.apache.uima.fit.factory.CollectionReaderFactory;
+import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import org.apache.uima.fit.factory.JCasFactory;
-import org.apache.uima.fit.factory.TypeSystemDescriptionFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
-import org.apache.uima.jcas.cas.TOP;
-import org.apache.uima.jcas.tcas.Annotation;
-import org.apache.uima.resource.metadata.TypeSystemDescription;
-import org.apache.uima.util.CasCreationUtils;
 import org.apache.uima.util.CasIOUtils;
-import org.apache.uima.util.FileUtils;
-import org.apache.uima.util.InvalidXMLException;
-
 import org.dkpro.core.io.xmi.XmiWriter;
-import org.hucompute.textimager.uima.type.GerVaderSentiment;
-import org.texttechnologylab.annotation.SentimentBert;
-import org.luaj.vm2.Globals;
-import org.luaj.vm2.lib.jse.JsePlatform;
+import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.connection.IDUUIConnectionHandler;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.AsyncCollectionReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.LuaConsts;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.monitoring.DUUIMonitor;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.pipeline_storage.DUUIPipelineDocumentPerformance;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.pipeline_storage.IDUUIStorageBackend;
-
-import org.texttechnologylab.DockerUnifiedUIMAInterface.pipeline_storage.sqlite.DUUISqliteStorageBackend;
-import java.nio.file.*;
-import org.xml.sax.SAXException;
-import org.junit.jupiter.api.Test;
+import org.texttechnologylab.annotation.SentimentBert;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
 public class GermanSentimentTest {
 
@@ -99,21 +76,27 @@ public class GermanSentimentTest {
                 .withLuaContext(ctx)            // wir setzen den definierten Kontext
                 .withWorkers(1);         // wir geben dem Composer eine Anzahl an Threads mit.
 
+
         DUUIDockerDriver docker_driver = new DUUIDockerDriver();
-        DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
+        DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver(1000);
         composer.addDriver(docker_driver, remoteDriver);
 
 
-        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/german-sentiment-bert:latest")
+//        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/german-sentiment-bert:latest")
+//                .withScale(1)
+//                .build());
+//
+        composer.add(new DUUIRemoteDriver.Component("http://localhost:9716")
                 .withScale(1)
                 .build());
 
-        /*composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
-                .withScale(1)
-                .build());*/
+        JCas jCas = JCasFactory.createText("Dies ist ein schöner Test. Leider weiß ich nicht weiter.", "de");
+        //CasIOUtils.load(new File("/home/gabrami/Downloads/xmiExample/18001.xmi").toURI().toURL(), jCas.getCas());
 
-        JCas jCas = JCasFactory.createJCas();
-        CasIOUtils.load(new File("./testdata/xmi/test_jCas.xmi").toURI().toURL(), jCas.getCas());
+        new Sentence(jCas, 0, jCas.getDocumentText().indexOf(".")).addToIndexes();
+        new Sentence(jCas, jCas.getDocumentText().indexOf("."), jCas.getDocumentText().lastIndexOf(".")).addToIndexes();
+
+        System.out.println(JCasUtil.select(jCas, Sentence.class).size());
 
         composer.run(jCas, "test");
 

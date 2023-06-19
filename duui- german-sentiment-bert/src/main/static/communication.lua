@@ -23,7 +23,7 @@ function serialize(inputCas, outputStream, params)
             iBegin = s:getBegin(),
             iEnd = s:getEnd()
             }
-        print(tSentence)
+        --print(tSentence)
         table.insert(sentences_array, tSentence)
     end
 

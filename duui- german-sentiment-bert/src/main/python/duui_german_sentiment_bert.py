@@ -16,10 +16,8 @@ class Sentence(BaseModel):
 
 class SentimentBert(BaseModel):
     sentiment: int
-
     iBegin: int
     iEnd: int
-
     probabilityPositive: float
     probabilityNeutral: float
     probabilityNegative: float
@@ -122,13 +120,13 @@ app = FastAPI(
 def get_input_output() -> JSONResponse:
     json_item = {
         "inputs": ["de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"],
-        "outputs": ["org.hucompute.textimager.uima.type.GerVaderSentiment"]
+        "outputs": ["org.texttechnologylab.annotation.SentimentBert"]
     }
     return json_item
 
 
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'src/main/static/dkpro-core-types.xml'
+typesystem_filename = '../static/dkpro-core-types.xml'
 with open(typesystem_filename, 'rb') as f:
     typesystem = f.read()
 # Get typesystem of this annotator
@@ -143,7 +141,7 @@ def get_typesystem() -> Response:
 
 
 # Load the Lua communication script
-communication = "src/main/static/communication.lua"
+communication = "../static/communication.lua"
 with open(communication, 'rb') as f:
     communication = f.read().decode("utf-8")
 
@@ -167,6 +165,6 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         sentiments=sentiments
     )
 
-
-if __name__ == "__main__":
-    uvicorn.run("duui_german_sentiment_bert:app", host="0.0.0.0", port=9715, workers=1)
+# out for Docker-Image
+# if __name__ == "__main__":
+#     uvicorn.run("duui_german_sentiment_bert:app", host="0.0.0.0", port=9716, workers=1)
