@@ -23,7 +23,7 @@ function serialize(inputCas, outputStream, params)
             iBegin = s:getBegin(),
             iEnd = s:getEnd()
             }
-        --print(tSentence)
+        print(tSentence)
         table.insert(sentences_array, tSentence)
     end
 
@@ -31,7 +31,6 @@ function serialize(inputCas, outputStream, params)
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
         doc_text = doc_text,
-        doc_length = string.len(doc_text),
         sentences = sentences_array
     }))
 end

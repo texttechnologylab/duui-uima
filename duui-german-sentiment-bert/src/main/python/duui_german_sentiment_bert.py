@@ -4,6 +4,9 @@ from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel
 
+import gc
+import torch
+
 from germansentiment import SentimentModel
 
 import uvicorn
@@ -28,7 +31,6 @@ class SentimentBert(BaseModel):
 class DUUIRequest(BaseModel):
     # The sentences to process
     sentences: List[Sentence]
-    doc_length: int
     doc_text: str
 
 
@@ -40,7 +42,7 @@ class DUUIResponse(BaseModel):
 
 
 def getProbabilitiesOutOfList(probabilities: [[str, float]]) -> (float, float, float):
-    positive, neutral, negative  = 0, 0, 0
+    positive, neutral, negative = 0, 0, 0
     for probability in probabilities:
         if probability[0] == "positive":
             positive = probability[1]
@@ -55,28 +57,38 @@ def getProbabilitiesOutOfList(probabilities: [[str, float]]) -> (float, float, f
 
 model = SentimentModel()
 def analyse(doc_text, doc_length, sentences):
-    #https://huggingface.co/oliverguhr/german-sentiment-bert
+
     processed_sentences = []
 
-    classes, probabilities = model.predict_sentiment([sentence.text for sentence in sentences], output_probabilities=True)
     class_sentiment = {
         "positive": 1,
         "neutral": 0,
         "negative": -1
     }
 
-    for i in range(len(sentences)):
-        positive, neutral, negative = getProbabilitiesOutOfList(probabilities[i])
-        processed_sentences.append(SentimentBert(
-            iBegin=sentences[i].iBegin,
-            iEnd=sentences[i].iEnd,
-            sentiment=class_sentiment[classes[i]],
-            probabilityPositive=positive,
-            probabilityNeutral=neutral,
-            probabilityNegative=negative,
-        ))
+    step_size = 10  # Sentences that are processed in one run without freeing the graphic memory
+    for step in range((len(sentences)//step_size)+1):
 
-    classes, probabilities = model.predict_sentiment([doc_text], output_probabilities=True)
+        last_i_in_step = min(step_size, len(sentences) - (step*step_size))
+        sentences_in_step = sentences[step*step_size:step*step_size+last_i_in_step]
+
+        classes, probabilities = model.predict_sentiment([sentence.text for sentence in sentences_in_step],
+                                                         output_probabilities=True)
+        for i in range(last_i_in_step):
+            positive, neutral, negative = getProbabilitiesOutOfList(probabilities[i])
+            processed_sentences.append(SentimentBert(
+                iBegin=sentences_in_step[i].iBegin,
+                iEnd=sentences_in_step[i].iEnd,
+                sentiment=class_sentiment[classes[i]],
+                probabilityPositive=positive,
+                probabilityNeutral=neutral,
+                probabilityNegative=negative,
+            ))
+
+        print(torch.cuda.memory_reserved() / 1024**2)
+        torch.cuda.empty_cache()
+
+
     classes, probabilities = model.predict_sentiment([doc_text], output_probabilities=True)
     positive, neutral, negative = getProbabilitiesOutOfList(probabilities[0])
     processed_sentences.append(SentimentBert(
@@ -155,9 +167,14 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
     doc_text = request.doc_text
-    length = request.doc_length
+
+    length = len(doc_text)
     sentences = request.sentences
+
     sentiments = analyse(doc_text, length, sentences)
+
+    gc.collect()
+    torch.cuda.empty_cache()  # Freigabe des nicht verwendeten Speichers
     print("Analyse fertig!")
 
     # Return data as JSON
@@ -166,5 +183,5 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     )
 
 # out for Docker-Image
-# if __name__ == "__main__":
-#     uvicorn.run("duui_german_sentiment_bert:app", host="0.0.0.0", port=9716, workers=1)
+if __name__ == "__main__":
+    uvicorn.run("duui_german_sentiment_bert:app", host="0.0.0.0", port=9716, workers=1)
