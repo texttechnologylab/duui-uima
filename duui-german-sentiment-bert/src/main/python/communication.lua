@@ -9,8 +9,6 @@ utils = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 function serialize(inputCas, outputStream, params)
     -- Get data from CAS
-    -- For spaCy, we need the documents text and its language
-    -- TODO add additional params?
     local doc_text = inputCas:getDocumentText()
     local sentences = utils:select(inputCas, sentence):iterator()
 
@@ -23,7 +21,6 @@ function serialize(inputCas, outputStream, params)
             iBegin = s:getBegin(),
             iEnd = s:getEnd()
             }
-        print(tSentence)
         table.insert(sentences_array, tSentence)
     end
 
@@ -56,7 +53,5 @@ function deserialize(inputCas, inputStream)
         sentiment:setProbabilityNegative(pSentiment["probabilityNegative"])
         sentiment:setSentiment(pSentiment["sentiment"])
         sentiment:addToIndexes()
-
-     end
-
+    end
 end
