@@ -30,8 +30,14 @@ class DUUIResponse(BaseModel):
 
 
 # Creates an instance of the pipeline.
-# Device = 0 allows the pipeline to use the gpu.
-classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=0)
+# Device = 0 allows the pipeline to use the gpu, -1 forces cpu usage
+try:
+    classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=0)
+except RuntimeError as e:
+    print("RuntimeError while instantiating the pipeline.")
+    print("Retrying with CPU")
+    classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=-1)
+
 def analyse(doc_text, labels):
     analyzed_labels = []
 
