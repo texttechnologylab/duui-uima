@@ -54,9 +54,9 @@ public class ZeroShortTest {
         DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver(1000);
         composer.addDriver(docker_driver, remoteDriver);
 
-        boolean useDockerImage = false;
+        boolean useDockerImage = true;
         if (useDockerImage){
-             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/german-sentiment-bert:latest")
+             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-short:latest")
                     .withScale(iWorkers)
                      .withParameter("labels", labels)
                     .build());
@@ -72,7 +72,6 @@ public class ZeroShortTest {
 
         composer.run(jCas, "test");
 
-        System.out.println("Test");
         // Print Result
         for(CategoryCoveredTagged categoryCoveredTagged: JCasUtil.select(jCas, CategoryCoveredTagged.class)){
             System.out.println(categoryCoveredTagged.getValue() + ": " + categoryCoveredTagged.getScore());
@@ -81,7 +80,7 @@ public class ZeroShortTest {
     }
 
     @Test
-    public void analyseParlamentDataSentimentBert() throws Exception {
+    public void analyseParlamentData() throws Exception {
 
         // Input- und Output-Pfade
         String sInputPath = "/home/max/uni/testdata/input/ThirdReich";
@@ -108,14 +107,14 @@ public class ZeroShortTest {
         DUUIRemoteDriver duuiRemoteDriver = new DUUIRemoteDriver();
         composer.addDriver(docker_driver, uima_driver, duuiRemoteDriver);
 
-        boolean useDockerImage = false;
+        boolean useDockerImage = true;
         if (useDockerImage){
-            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/german-sentiment-bert:latest")
+            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-short:latest")
                     .withScale(iWorkers)
                     .withParameter("labels", labels)
                     .build());
         }else{
-            composer.add(new DUUIRemoteDriver.Component("http://localhost:9716")
+            composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                     .withScale(iWorkers)
                     .withParameter("labels", labels)
                     .build());

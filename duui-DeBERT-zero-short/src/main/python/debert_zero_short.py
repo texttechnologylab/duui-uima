@@ -29,10 +29,10 @@ class DUUIResponse(BaseModel):
     labels: List[Label]
 
 
-# Creates an instance of the SentimentModel.
-classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli")
+# Creates an instance of the pipeline.
+# Device = 0 allows the pipeline to use the gpu.
+classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=0)
 def analyse(doc_text, labels):
-
     analyzed_labels = []
 
     result = classifier(doc_text, labels, multi_label=True)
@@ -55,8 +55,8 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
-    title="GermanSentimentBertDUUI",
-    description="GermanSentimentBert implementation for TTLab DUUI",
+    title="DeBERT-Zero-Sort",
+    description="A implementation of the MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli Modell for TTLab DUUI",
     version="0.1",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
@@ -119,4 +119,4 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 # For starting the script locally
 if __name__ == "__main__":
-    uvicorn.run("debert-zero-short:app", host="0.0.0.0", port=9716, workers=1)
+    uvicorn.run("debert-zero-short:app", host="0.0.0.0", port=9714, workers=1)
