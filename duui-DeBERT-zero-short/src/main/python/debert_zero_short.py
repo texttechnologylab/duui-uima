@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import FastAPI, Response
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -52,28 +53,11 @@ def analyse(doc_text, labels):
     return analyzed_labels
 
 
-communication = ''
-
 # Start fastapi
-# TODO openapi types are not shown?
-# TODO self host swagger files: https://fastapi.tiangolo.com/advanced/extending-openapi/#self-hosting-javascript-and-css-for-docs
 app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
-    title="DeBERT-Zero-Sort",
-    description="A implementation of the MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli Modell for TTLab DUUI",
-    version="0.1",
-    terms_of_service="https://www.texttechnologylab.org/legal_notice/",
-    contact={
-        "name": "TTLab Team",
-        "url": "https://texttechnologylab.org",
-        "email": "abrami@em.uni-frankfurt.de",
-    },
-    license_info={
-        "name": "AGPL",
-        "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
-    },
 )
 
 # Get input and output of the annotator
@@ -123,6 +107,24 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         labels=analysed_labels
     )
 
+
+# Documentation for api
+openapi_schema = get_openapi(
+    title="DeBERT-Zero-Sort",
+    description="A implementation of the MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli Modell for TTLab DUUI",
+    version="0.1",
+    routes=app.routes
+)
+
+# Extra Documentation not supported by FastApi
+# https://fastapi.tiangolo.com/how-to/extending-openapi/#self-hosting-javascript-and-css-for-docs
+# https://spec.openapis.org/oas/v3.1.0#infoObject
+openapi_schema["info"]["contact"] = {"name": "TTLab Team", "url": "https://texttechnologylab.org", "email": "abrami@em.uni-frankfurt.de"}
+openapi_schema["info"]["termsOfService"] = "https://www.texttechnologylab.org/legal_notice/"
+openapi_schema["info"]["license"] = {"name": "AGPL", "url": "http://www.gnu.org/licenses/agpl-3.0.en.html"}
+app.openapi_schema = openapi_schema
+
+
 # For starting the script locally
 if __name__ == "__main__":
-    uvicorn.run("debert-zero-short:app", host="0.0.0.0", port=9714, workers=1)
+    uvicorn.run("debert_zero_short:app", host="0.0.0.0", port=9714, workers=1)
