@@ -4,6 +4,7 @@ from cassis import *
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel
+import uvicorn
 
 from gervader import vaderSentimentGER
 
@@ -55,7 +56,9 @@ analyzer = vaderSentimentGER.SentimentIntensityAnalyzer()
 def analyse(sentences, length):
     processed_sentences = []
 
+    last_sentence_end = 0
     for selection in sentences:
+        last_sentence_end = max(last_sentence_end, selection.iEnd)
         vs = analyzer.polarity_scores(selection.text)
 
         processed_sentences.append(Sentiment(
@@ -68,9 +71,10 @@ def analyse(sentences, length):
         ))
 
     # compute avg for this selection, if >1
+    print(length, last_sentence_end)
     if len(processed_sentences) > 1:
         begin = 0
-        end = length
+        end = last_sentence_end
 
         compounds = 0
         poss = 0
@@ -168,9 +172,7 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
     length = request.doc_length
-    print(length)
     sentences = request.sentences
-    print(sentences)
     sentiments = analyse(sentences, length)
 
     # Return data as JSON
@@ -179,5 +181,5 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     )
 
 
-# if __name__ == "__main__":
-#     uvicorn.run("duui_gervader:app", host="0.0.0.0", port=9715, workers=1)
+if __name__ == "__main__":
+    uvicorn.run("duui_gervader:app", host="0.0.0.0", port=9715, workers=1)
