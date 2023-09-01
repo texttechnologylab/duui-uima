@@ -37,7 +37,7 @@ ENV GPU_ID=$GPU_ID
 # meta data
 # ---------------------------------------------------------
 # name
-ARG TEXTIMAGER_PARA_ANNOTATOR_NAME="textimager-duui-paraphraser"
+ARG TEXTIMAGER_PARA_ANNOTATOR_NAME="duui-paraphraser-en"
 ENV TEXTIMAGER_PARA_ANNOTATOR_NAME=$TEXTIMAGER_PARA_ANNOTATOR_NAME
 # version
 ARG TEXTIMAGER_PARA_ANNOTATOR_VERSION=0.1
@@ -55,6 +55,7 @@ COPY ./src/main/python/requirements.txt ./requirements.txt
 RUN python3 -m pip install -r requirements.txt
 
 # load models
+# ENGLISH:
 # parrot
 RUN python -c "from parrot import Parrot; model = Parrot('prithivida/parrot_paraphraser_on_T5')"
 # pegasus
@@ -66,6 +67,13 @@ RUN python -c "from transformers import BartForConditionalGeneration; model = Ba
 # t5
 RUN python -c "from transformers import AutoTokenizer; tokenizer = AutoTokenizer.from_pretrained('humarin/chatgpt_paraphraser_on_T5_base')"
 RUN python -c "from transformers import AutoModelForSeq2SeqLM; model = AutoModelForSeq2SeqLM.from_pretrained('humarin/chatgpt_paraphraser_on_T5_base')"
+# GERMAN:
+# t5-costum-small
+# RUN python -c "from transformers import AutoTokenizer; tokenizer = AutoTokenizer.from_pretrained('Lelon/t5-german-paraphraser-small')"
+# RUN python -c "from transformers import AutoModelForSeq2SeqLM; model = AutoModelForSeq2SeqLM.from_pretrained('Lelon/t5-german-paraphraser-small')"
+# t5-costum-large
+# RUN python -c "from transformers import AutoTokenizer; tokenizer = AutoTokenizer.from_pretrained('Lelon/t5-german-paraphraser-large')"
+# RUN python -c "from transformers import AutoModelForSeq2SeqLM; model = AutoModelForSeq2SeqLM.from_pretrained('Lelon/t5-german-paraphraser-large')"
 
 
 ENTRYPOINT ["uvicorn", "duui_paraphraser:app", "--host", "0.0.0.0", "--port", "9714"]

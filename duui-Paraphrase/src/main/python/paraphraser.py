@@ -11,6 +11,7 @@ from transformers import (
 )
 from parrot import Parrot
 
+
 def override(func: Callable) -> Callable: return func
 
 
@@ -128,10 +129,78 @@ class T5Base(Paraphraser):
         """
 
         batch = self.tokenizer(f'paraphrase: {input_sequence}',
-                                   return_tensors="pt",
-                                   padding="longest",
-                                   max_length=max_length,
-                                   truncation=True).to(self.device)
+                               return_tensors="pt",
+                               padding="longest",
+                               max_length=max_length,
+                               truncation=True).to(self.device)
+
+        with torch.no_grad():
+            outputs = self.model.generate(**batch,
+                                          temperature=temperature,
+                                          repetition_penalty=repetition_penalty,
+                                          num_return_sequences=num_return_sequences,
+                                          no_repeat_ngram_size=no_repeat_ngram_size,
+                                          num_beams=num_beams,
+                                          num_beam_groups=num_beam_groups,
+                                          max_length=max_length,
+                                          diversity_penalty=diversity_penalty)
+
+        res = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        return res
+
+
+class T5BaseCustom(Paraphraser):
+    def __init__(self,
+                 model_name: str,
+                 tokenizer_name: str,
+                 cuda: bool = False,
+                 gpu_id: int = 0,
+                 **kwargs):
+        """
+        Initiating T5-Model.
+        :param model_name:
+        :param tokenizer_name:
+        :param cuda:
+        """
+        super().__init__(cuda, gpu_id)
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(self.device)
+        self.model.eval()
+
+    @override
+    def generate(self,
+                 input_sequence: str,
+                 num_return_sequences: int = 1,
+                 num_beams: int = 5,
+                 num_beam_groups: int = 5,
+                 repetition_penalty: float = 10.0,
+                 diversity_penalty: float = 3.0,
+                 no_repeat_ngram_size: int = 2,
+                 temperature: float = 0.7,
+                 max_length: int = 128,
+                 **kwargs
+                 ) -> List[str]:
+        """
+        Implementation of the generate method. Number of output sequences and search beams can be specified +
+        other params.
+        :param input_sequence:
+        :param num_return_sequences:
+        :param num_beams:
+        :param num_beam_groups:
+        :param repetition_penalty:
+        :param diversity_penalty:
+        :param no_repeat_ngram_size:
+        :param temperature:
+        :param max_length:
+        :return:
+        """
+
+        batch = self.tokenizer(input_sequence,
+                               return_tensors="pt",
+                               padding="longest",
+                               max_length=max_length,
+                               truncation=True).to(self.device)
 
         with torch.no_grad():
             outputs = self.model.generate(**batch,
@@ -241,7 +310,9 @@ class AutoParaphraser(ABC):
         linked_models = {"tuner007/pegasus_paraphrase": PegasusBase,
                          "humarin/chatgpt_paraphraser_on_T5_base": T5Base,
                          "eugenesiow/bart-paraphrase": BartBase,
-                         "prithivida/parrot_paraphraser_on_T5": ParrotBase}
+                         "prithivida/parrot_paraphraser_on_T5": ParrotBase,
+                         "Lelon/t5-german-paraphraser-small": T5BaseCustom,
+                         "Lelon/t5-german-paraphraser-large": T5BaseCustom}
         return linked_models[model_name](**inp)
 
     @abstractmethod
