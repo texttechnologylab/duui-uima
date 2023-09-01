@@ -4,7 +4,7 @@ export CUDA=1
 export GPU_ID=0
 
 
-export TEXTIMAGER_PARA_ANNOTATOR_NAME=textimager-duui-paraphraser-de
+export TEXTIMAGER_PARA_ANNOTATOR_NAME=duui-paraphraser-de
 export TEXTIMAGER_PARA_ANNOTATOR_VERSION=0.1
 
 docker build \

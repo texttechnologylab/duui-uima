@@ -37,7 +37,7 @@ ENV GPU_ID=$GPU_ID
 # meta data
 # ---------------------------------------------------------
 # name
-ARG TEXTIMAGER_PARA_ANNOTATOR_NAME="textimager-duui-paraphraser-de"
+ARG TEXTIMAGER_PARA_ANNOTATOR_NAME="duui-paraphraser-de"
 ENV TEXTIMAGER_PARA_ANNOTATOR_NAME=$TEXTIMAGER_PARA_ANNOTATOR_NAME
 # version
 ARG TEXTIMAGER_PARA_ANNOTATOR_VERSION=0.1
