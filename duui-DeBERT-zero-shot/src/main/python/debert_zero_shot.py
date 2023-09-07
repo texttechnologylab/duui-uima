@@ -65,7 +65,7 @@ app = FastAPI(
 def get_input_output() -> JSONResponse:
     json_item = {
         "inputs": [""],
-        "outputs": ["org.texttechnologylab.annotation.SentimentBert"]
+        "outputs": ["org.hucompute.textimager.uima.type.category.CategoryCoveredTagged"]
     }
     return json_item
 
@@ -110,7 +110,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 # Documentation for api
 openapi_schema = get_openapi(
-    title="DeBERT-Zero-Sort",
+    title="DeBERT-Zero-Shot",
     description="A implementation of the MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli Modell for TTLab DUUI",
     version="0.1",
     routes=app.routes
