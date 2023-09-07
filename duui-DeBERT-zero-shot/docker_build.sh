@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export ANNOTATOR_NAME=debert-zero-short
+export ANNOTATOR_NAME=debert-zero-shot
 export ANNOTATOR_VERSION=0.1
 
 export LOG_LEVEL=INFO

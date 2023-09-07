@@ -1,11 +1,11 @@
-# DeBert-v3 Zero Short Parser
+# DeBert-v3 Zero Shot Parser
 
 The parser uses the following model:
 https://huggingface.co/MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli
 
 To use this parser, you can add the docker image like this as a DUUI Component.
 ```java
-composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-short:latest")
+composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
         .withScale(iWorkers)
         .withParameter("labels", labels)
         .build());
@@ -20,4 +20,4 @@ for(CategoryCoveredTagged categoryCoveredTagged: JCasUtil.select(jCas, CategoryC
     System.out.println(categoryCoveredTagged.getValue() + ": " + categoryCoveredTagged.getScore());
 }
 ```
-You can find a complete example in src/test/java/ZeroShortTest.java.
+You can find a complete example in src/test/java/ZeroShotTest.java.

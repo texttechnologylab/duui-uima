@@ -1,35 +1,19 @@
-import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
-import io.swagger.models.auth.In;
-import org.apache.commons.compress.compressors.CompressorException;
-import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
-import org.apache.uima.util.CasIOUtils;
 import org.dkpro.core.io.xmi.XmiWriter;
 import org.junit.jupiter.api.Test;
-import org.luaj.vm2.ast.Str;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.AsyncCollectionReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
-import org.texttechnologylab.annotation.SentimentBert;
 import org.hucompute.textimager.uima.type.category.CategoryCoveredTagged;
-import org.xml.sax.SAXException;
 
 import java.io.File;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
-public class ZeroShortTest {
+public class ZeroShotTest {
 
     public static final String dijkstraExampleText = "Der Algorithmus von Dijkstra (nach seinem Erfinder Edsger W. Dijkstra) ist ein Algorithmus aus der Klasse der Greedy-Algorithmen[1] und löst das Problem der kürzesten Pfade für einen gegebenen Startknoten. " +
             "Er berechnet somit einen kürzesten Pfad zwischen dem gegebenen Startknoten und einem der (oder allen) übrigen Knoten in einem kantengewichteten Graphen (sofern dieser keine Negativkanten enthält).\n \n" +
@@ -56,7 +40,7 @@ public class ZeroShortTest {
 
         boolean useDockerImage = true;
         if (useDockerImage){
-             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-short:latest")
+             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
                     .withScale(iWorkers)
                      .withParameter("labels", labels)
                     .build());
@@ -77,6 +61,8 @@ public class ZeroShortTest {
             System.out.println(categoryCoveredTagged.getValue() + ": " + categoryCoveredTagged.getScore());
         }
 
+        //org.texttechnologylab.annotation.twitter.
+        //org.hucompute.textimager.uima.type.Similarity
     }
 
     @Test
@@ -107,9 +93,9 @@ public class ZeroShortTest {
         DUUIRemoteDriver duuiRemoteDriver = new DUUIRemoteDriver();
         composer.addDriver(docker_driver, uima_driver, duuiRemoteDriver);
 
-        boolean useDockerImage = true;
+        boolean useDockerImage = false;
         if (useDockerImage){
-            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-short:latest")
+            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
                     .withScale(iWorkers)
                     .withParameter("labels", labels)
                     .build());
