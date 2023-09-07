@@ -45,7 +45,7 @@ public class ZeroShotTest {
                      .withParameter("labels", labels)
                     .build());
         }else{
-            composer.add(new DUUIRemoteDriver.Component("http://localhost:9716")
+            composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                 .withScale(iWorkers)
                 .withParameter("labels", labels)
                 .build());
@@ -70,7 +70,7 @@ public class ZeroShotTest {
 
         // Input- und Output-Pfade
         String sInputPath = "/home/max/uni/testdata/input/ThirdReich";
-        String sOutputPath = "/home/max/uni/testdata/output/ThirdReich/SentimentBert";
+        String sOutputPath = "/home/max/uni/testdata/output/ThirdReich/DeBERTZeroShot";
         String sSuffix = "xmi.gz";
 
         int iWorkers = 1;
