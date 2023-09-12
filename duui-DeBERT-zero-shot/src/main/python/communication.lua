@@ -41,6 +41,5 @@ function deserialize(inputCas, inputStream)
         categoryCoveredTagged:setValue(label["label"])
         categoryCoveredTagged:setScore(label["score"])
         categoryCoveredTagged:addToIndexes()
-        print(categoryCoveredTagged)
     end
 end

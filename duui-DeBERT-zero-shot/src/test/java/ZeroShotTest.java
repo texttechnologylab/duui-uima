@@ -8,6 +8,7 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.AsyncCollectionReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.hucompute.textimager.uima.type.category.CategoryCoveredTagged;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.pipeline_storage.sqlite.DUUISqliteStorageBackend;
 
 import java.io.File;
 
@@ -73,11 +74,15 @@ public class ZeroShotTest {
         String sOutputPath = "/home/max/uni/testdata/output/ThirdReich/DeBERTZeroShot";
         String sSuffix = "xmi.gz";
 
+        String runName = "python-image";
         int iWorkers = 1;
 
         // Asynchroner reader für die Input-Dateien
         AsyncCollectionReader pCorpusReader = new AsyncCollectionReader(sInputPath, sSuffix, 1, false);
         new File(sOutputPath).mkdir();
+
+        DUUISqliteStorageBackend sqlite = new DUUISqliteStorageBackend("pipeline_data.db")
+                .withConnectionPoolSize(iWorkers);
 
         DUUILuaContext ctx = new DUUILuaContext().withJsonLibrary();
 
@@ -85,6 +90,7 @@ public class ZeroShotTest {
         DUUIComposer composer = new DUUIComposer()
                 .withSkipVerification(true)     // wir überspringen die Verifikation aller Componenten =)
                 .withLuaContext(ctx)            // wir setzen den definierten Kontext
+                .withStorageBackend(sqlite)
                 .withWorkers(iWorkers);         // wir geben dem Composer eine Anzahl an Threads mit.
 
         DUUIDockerDriver docker_driver = new DUUIDockerDriver();
@@ -114,8 +120,75 @@ public class ZeroShotTest {
                 XmiWriter.PARAM_VERSION, "1.1"
         )).build());
 
+        sqlite.addNewRun(runName, composer);
+
         long startTime = System.nanoTime();
-        composer.run(pCorpusReader, "test");
+        composer.run(pCorpusReader, runName);
+
+        // Print the past time in seconds
+        long endTime = System.nanoTime();
+        System.out.println("Time passed: " + formatNanoSeconds(endTime-startTime));
+
+    }
+
+    @Test
+    public void analyseBadenWuertemberg() throws Exception {
+
+        // Input- und Output-Pfade
+        String sInputPath = "/home/max/uni/testdata/input/BadenWuertemberg";
+        String sOutputPath = "/home/max/uni/testdata/output/BadenWuertemberg/DeBERTZeroShotCuda";
+        String sSuffix = "xmi.gz";
+
+        String runName = "cuda-image";
+        int iWorkers = 1;
+
+        // Asynchroner reader für die Input-Dateien
+        AsyncCollectionReader pCorpusReader = new AsyncCollectionReader(sInputPath, sSuffix, 1, false);
+        new File(sOutputPath).mkdir();
+
+        DUUISqliteStorageBackend sqlite = new DUUISqliteStorageBackend("pipeline_data.db")
+                .withConnectionPoolSize(iWorkers);
+
+        DUUILuaContext ctx = new DUUILuaContext().withJsonLibrary();
+
+        // Instanziierung des Composers, mit einigen Parametern
+        DUUIComposer composer = new DUUIComposer()
+                .withSkipVerification(true)     // wir überspringen die Verifikation aller Componenten =)
+                .withLuaContext(ctx)            // wir setzen den definierten Kontext
+                .withStorageBackend(sqlite)
+                .withWorkers(iWorkers);         // wir geben dem Composer eine Anzahl an Threads mit.
+
+        sqlite.addNewRun(runName, composer);
+
+        DUUIDockerDriver docker_driver = new DUUIDockerDriver();
+        DUUIUIMADriver uima_driver = new DUUIUIMADriver()
+                .withDebug(false);
+        DUUIRemoteDriver duuiRemoteDriver = new DUUIRemoteDriver();
+        composer.addDriver(docker_driver, uima_driver, duuiRemoteDriver);
+
+        boolean useDockerImage = false;
+        if (useDockerImage){
+            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
+                    .withScale(iWorkers)
+                    .withParameter("labels", labels)
+                    .build());
+        }else{
+            composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
+                    .withScale(iWorkers)
+                    .withParameter("labels", labels)
+                    .build());
+        }
+
+        // Hinzufügen einer UIMA-Componente zum schreiben der Ergebnisse
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        long startTime = System.nanoTime();
+        composer.run(pCorpusReader, runName);
 
         // Print the past time in seconds
         long endTime = System.nanoTime();

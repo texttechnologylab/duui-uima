@@ -127,4 +127,4 @@ app.openapi_schema = openapi_schema
 
 # For starting the script locally
 if __name__ == "__main__":
-    uvicorn.run("debert_zero_short:app", host="0.0.0.0", port=9714, workers=1)
+    uvicorn.run("debert_zero_shot:app", host="0.0.0.0", port=9714, workers=1)
