@@ -1,4 +1,5 @@
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
+import org.texttechnologylab.annotation.Language;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
@@ -17,7 +18,7 @@ import java.util.stream.Stream;
 
 import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
-public class ParlbertTopicGermanTest {
+public class LanguageDetectionTest {
 
     public static final String dijkstraExampleText = "Der Algorithmus von Dijkstra (nach seinem Erfinder Edsger W. Dijkstra) ist ein Algorithmus aus der Klasse der Greedy-Algorithmen[1] und löst das Problem der kürzesten Pfade für einen gegebenen Startknoten. " +
             "Er berechnet somit einen kürzesten Pfad zwischen dem gegebenen Startknoten und einem der (oder allen) übrigen Knoten in einem kantengewichteten Graphen (sofern dieser keine Negativkanten enthält)." +
@@ -42,12 +43,14 @@ public class ParlbertTopicGermanTest {
 
         boolean useDockerImage = true;
         if (useDockerImage){
-             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/parlbert-topic-german:latest")
-                    .withScale(iWorkers)
-                    .build());
+             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/xlm-roberta-base-language-detection:latest")
+                     .withParameter("annotationClassPath", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                     .withScale(iWorkers)
+                     .build());
         }else{
             composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                 .withScale(iWorkers)
+                .withParameter("annotationClassPath", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
                 .build());
         }
 
@@ -63,9 +66,9 @@ public class ParlbertTopicGermanTest {
         composer.run(jCas, "test");
 
         // Print Result
-        Collection<CategoryCoveredTagged> categoryCoveredTaggeds = JCasUtil.select(jCas, CategoryCoveredTagged.class).stream().sorted((c1, c2) -> c1.getBegin()-c2.getBegin()).collect(Collectors.toList());
-        for(CategoryCoveredTagged categoryCoveredTagged: categoryCoveredTaggeds){
-            System.out.println(categoryCoveredTagged.getBegin() + " - " + categoryCoveredTagged.getEnd() + " " + categoryCoveredTagged.getValue() + ": " + categoryCoveredTagged.getScore());
+        Collection<Language> languages = JCasUtil.select(jCas, Language.class).stream().sorted((l1, l2) -> l1.getBegin()-l2.getBegin()).collect(Collectors.toList());
+        for(Language language: languages){
+            System.out.println(language.getBegin() + " - " + language.getEnd() + " " + language.getValue() + ": " + language.getScore());
         }
 
     }
@@ -75,7 +78,7 @@ public class ParlbertTopicGermanTest {
 
         // Input- und Output-Pfade
         String sInputPath = "/home/max/uni/testdata/input/ThirdReich";
-        String sOutputPath = "/home/max/uni/testdata/output/ThirdReich/ParlbertTopicGerman";
+        String sOutputPath = "/home/max/uni/testdata/output/ThirdReich/LanguageDetection";
         String sSuffix = "xmi.gz";
 
         int iWorkers = 1;
@@ -100,12 +103,13 @@ public class ParlbertTopicGermanTest {
 
         boolean useDockerImage = false;
         if (useDockerImage){
-            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/parlbert-topic-german:latest")
+            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/xlm-roberta-base-language-detection:latest")
                     .withScale(iWorkers)
                     .build());
         }else{
             composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                     .withScale(iWorkers)
+                    .withParameter("annotationClassPath", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
                     .build());
         }
 
@@ -123,7 +127,6 @@ public class ParlbertTopicGermanTest {
         // Print the past time in seconds
         long endTime = System.nanoTime();
         System.out.println("Time passed: " + formatNanoSeconds(endTime-startTime));
-
     }
 
     public static String formatNanoSeconds(long nanoSeconds){
