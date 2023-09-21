@@ -1,0 +1,15 @@
+dkpro_cassis==0.7.6
+fastapi==0.95.2
+git+https://github.com/PrithivirajDamodaran/Parrot_Paraphraser.git
+pydantic==1.10.7
+starlette==0.27.0
+torch==1.11.0
+transformers==4.29.2
+uvicorn==0.22.0
+numpy==1.22.3
+sentencepiece
+python-Levenshtein
+fuzzywuzzy
+sentence-transformers
+pandas
+protobuf==3.20.3
