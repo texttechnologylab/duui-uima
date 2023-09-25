@@ -1,4 +1,4 @@
-# DeBert-v3 Zero Shot Parser
+# DeBert-v3 Zero Shot Category Parser
 
 The parser uses the following model:
 https://huggingface.co/MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli
