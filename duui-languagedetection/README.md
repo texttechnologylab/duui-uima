@@ -1,6 +1,6 @@
 # xlm-roberta-base-language-detection
 
-The parser uses the following model:
+The parser uses the following modell:
 https://huggingface.co/papluca/xlm-roberta-base-language-detection
 
 To use this parser, you can add the docker image like this as a DUUI Component.
