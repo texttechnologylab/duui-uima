@@ -41,7 +41,7 @@ public class ZeroShotTest {
 
         boolean useDockerImage = true;
         if (useDockerImage){
-             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
+             composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot-category:latest")
                     .withScale(iWorkers)
                      .withParameter("labels", labels)
                     .build());
@@ -101,7 +101,7 @@ public class ZeroShotTest {
 
         boolean useDockerImage = false;
         if (useDockerImage){
-            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
+            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot-category:latest")
                     .withScale(iWorkers)
                     .withParameter("labels", labels)
                     .build());
@@ -168,7 +168,7 @@ public class ZeroShotTest {
 
         boolean useDockerImage = false;
         if (useDockerImage){
-            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
+            composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot-category:latest")
                     .withScale(iWorkers)
                     .withParameter("labels", labels)
                     .build());

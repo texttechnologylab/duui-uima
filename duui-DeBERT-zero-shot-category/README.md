@@ -5,7 +5,7 @@ https://huggingface.co/MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli
 
 To use this parser, you can add the docker image like this as a DUUI Component.
 ```java
-composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot:latest")
+composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/debert-zero-shot-category:latest")
         .withScale(iWorkers)
         .withParameter("labels", labels)
         .build());

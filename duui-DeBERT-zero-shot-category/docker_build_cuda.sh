@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export ANNOTATOR_NAME=debert-zero-shot
+export ANNOTATOR_NAME=debert-zero-shot-category-cuda
 export ANNOTATOR_VERSION=0.1
 
 export LOG_LEVEL=INFO
@@ -13,7 +13,7 @@ docker build \
   --build-arg ANNOTATOR_VERSION \
   --build-arg LOG_LEVEL \
   -t ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:${ANNOTATOR_VERSION} \
-  -f "./Dockerfile" \
+  -f "./Dockerfile_cuda" \
   .
 
 docker tag \
