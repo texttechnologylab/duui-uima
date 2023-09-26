@@ -59,7 +59,7 @@ public class ZeroShotTest {
 
         // Print Result
         for(CategoryCoveredTagged categoryCoveredTagged: JCasUtil.select(jCas, CategoryCoveredTagged.class)){
-            System.out.println(categoryCoveredTagged.getValue() + ": " + categoryCoveredTagged.getScore());
+            System.out.println(categoryCoveredTagged.getBegin() + "-" + categoryCoveredTagged.getEnd() + "  " + categoryCoveredTagged.getValue() + ": " + categoryCoveredTagged.getScore());
         }
 
         //org.texttechnologylab.annotation.twitter.
@@ -74,7 +74,7 @@ public class ZeroShotTest {
         String sOutputPath = "/home/max/uni/testdata/output/ThirdReich/DeBERTZeroShot";
         String sSuffix = "xmi.gz";
 
-        String runName = "python-image";
+        String runName = "cuda-image";
         int iWorkers = 1;
 
         // Asynchroner reader für die Input-Dateien

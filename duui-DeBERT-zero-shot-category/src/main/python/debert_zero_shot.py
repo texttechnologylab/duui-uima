@@ -14,6 +14,8 @@ import uvicorn
 class Label(BaseModel):
     label: str
     score: float
+    iBegin: int
+    iEnd: int
 
 
 # Request sent by DUUI
@@ -42,13 +44,15 @@ except RuntimeError as e:
 def analyse(doc_text, labels):
     analyzed_labels = []
 
+    text_length = len(doc_text)
+
     result = classifier(doc_text, labels, multi_label=True)
 
     labels = result["labels"]
     scores = result["scores"]
 
     for i in range(len(labels)):
-        analyzed_labels.append(Label(label=labels[i], score=scores[i]))
+        analyzed_labels.append(Label(label=labels[i], score=scores[i], iBegin=0, iEnd=text_length))
 
     return analyzed_labels
 

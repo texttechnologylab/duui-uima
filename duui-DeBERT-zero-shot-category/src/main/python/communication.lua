@@ -40,6 +40,8 @@ function deserialize(inputCas, inputStream)
         local categoryCoveredTagged = luajava.newInstance("org.hucompute.textimager.uima.type.category.CategoryCoveredTagged", inputCas)
         categoryCoveredTagged:setValue(label["label"])
         categoryCoveredTagged:setScore(label["score"])
+        categoryCoveredTagged:setBegin(label["iBegin"])
+        categoryCoveredTagged:setEnd(label["iEnd"])
         categoryCoveredTagged:addToIndexes()
     end
 end

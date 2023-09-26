@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export ANNOTATOR_NAME=debert-zero-shot-category
-export ANNOTATOR_VERSION=0.1
+export ANNOTATOR_VERSION=0.11
 
 export LOG_LEVEL=INFO
 
