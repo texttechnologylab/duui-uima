@@ -1,0 +1,5 @@
+trankit==1.1.0
+dkpro-cassis
+uvicorn
+fastapi
+pydantic==1.10.7
