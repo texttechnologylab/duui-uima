@@ -17,7 +17,7 @@ class Lemma(BaseModel):
     """
     begin: int
     end: int
-    value: str
+    value: Optional[str] = None
 
 
 # Pos
@@ -27,8 +27,8 @@ class Pos(BaseModel):
     """
     begin: int
     end: int
-    PosValue: str  # xpos
-    coarseValue: str  # upos
+    PosValue: Optional[str] = None  # xpos
+    coarseValue: Optional[str] = None  # upos
 
 
 # Morph
@@ -265,7 +265,6 @@ def get_documentation() -> TextImagerDocumentation:
     return documentation
 
 
-
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
@@ -287,20 +286,22 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             for tok in temp["tokens"]:
                 beg, end = tok["span"]
                 beg, end = beg + beg_prefix, end + beg_prefix
-                pos = Pos(**{"begin": beg, "end": end, "PosValue": tok["xpos"], "coarseValue": tok["upos"]})
+                pos = Pos(**{"begin": beg, "end": end, "PosValue": tok.get("xpos"), "coarseValue": tok.get("upos")})
                 try:
                     morph = MorphUD1.from_str(begin=beg, end=end, morph_string=tok["feats"])
                 except KeyError:
                     morph = MorphUD1.from_str(begin=beg, end=end, morph_string=None)
-                lemma = Lemma(**{"begin": beg, "end": end, "value": tok["lemma"]})
+                lemma = Lemma(**{"begin": beg, "end": end, "value": tok.get("lemma")})
                 tokens.append(Token(**{"begin": beg, "end": end, "lemma": lemma, "pos": pos, "morph": morph}))
-                ners.append(Entity(**{"begin": beg, "end": end, "value": tok["ner"]}))
+                if tok.get("ner") != "O" and tok.get("ner") is not None:
+                    ners.append(Entity(**{"begin": beg, "end": end, "value": tok["ner"]}))
             for idx, tok in enumerate(temp["tokens"]):
                 beg, end = tok["span"]
                 beg, end = beg + beg_prefix, end + beg_prefix
                 # deps.append(**{"begin": beg, "end": end, "DependencyType": tok["deprel"], "flavor": "basic", "Governor": tokens[tok["head"] - 1], "Dependent": tokens[idx]})
-                deps.append(Dependency(**{"begin": beg, "end": end, "DependencyType": tok["deprel"], "flavor": "basic",
-                               "Governor": len(token) + tok["head"] - 1, "Dependent": len(token) + idx}))
+                if tok.get("deprel") is not None and tok.get("head") is not None:
+                    deps.append(Dependency(**{"begin": beg, "end": end, "DependencyType": tok["deprel"], "flavor": "basic",
+                                   "Governor": len(token) + tok["head"] - 1, "Dependent": len(token) + idx}))
             token.extend(tokens)
 
         # Return data as JSON
@@ -323,19 +324,21 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             sents.append(Sentence(**{"begin": sent["dspan"][0], "end": sent["dspan"][1], "coveredText": sent["text"]}))
             for tok in sent["tokens"]:
                 beg, end = tok["dspan"]
-                pos = Pos(**{"begin": beg, "end": end, "PosValue": tok["xpos"], "coarseValue": tok["upos"]})
+                pos = Pos(**{"begin": beg, "end": end, "PosValue": tok.get("xpos"), "coarseValue": tok.get("upos")})
                 try:
                     morph = MorphUD1.from_str(begin=beg, end=end, morph_string=tok["feats"])
                 except KeyError:
                     morph = MorphUD1.from_str(begin=beg, end=end, morph_string=None)
-                lemma = Lemma(**{"begin": beg, "end": end, "value": tok["lemma"]})
+                lemma = Lemma(**{"begin": beg, "end": end, "value": tok.get("lemma")})
                 tokens.append(Token(**{"begin": beg, "end": end, "lemma": lemma, "pos": pos, "morph": morph}))
-                ners.append(Entity(**{"begin": beg, "end": end, "value": tok["ner"]}))
+                if tok.get("ner") != "O" and tok.get("ner") is not None:
+                    ners.append(Entity(**{"begin": beg, "end": end, "value": tok["ner"]}))
             for idx, tok in enumerate(sent["tokens"]):
                 beg, end = tok["dspan"]
                 # deps.append(**{"begin": beg, "end": end, "DependencyType": tok["deprel"], "flavor": "basic", "Governor": tokens[tok["head"]-1], "Dependent": tokens[idx]})
-                deps.append(Dependency(**{"begin": beg, "end": end, "DependencyType": tok["deprel"], "flavor": "basic",
-                               "Governor": len(token) + tok["head"] - 1, "Dependent": len(token) + idx}))
+                if tok.get("deprel") is not None and tok.get("head") is not None:
+                    deps.append(Dependency(**{"begin": beg, "end": end, "DependencyType": tok["deprel"], "flavor": "basic",
+                                   "Governor": len(token) + tok["head"] - 1, "Dependent": len(token) + idx}))
             token.extend(tokens)
         # Return data as JSON
         return DUUIResponse(
@@ -348,4 +351,5 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 if __name__ == "__main__":
     uvicorn.run("duui_trankit:app", host="0.0.0.0", port=9714, workers=1)
+
 
