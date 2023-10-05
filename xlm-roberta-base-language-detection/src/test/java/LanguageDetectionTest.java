@@ -9,20 +9,14 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.AsyncCollectionReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
-import org.hucompute.textimager.uima.type.category.CategoryCoveredTagged;
 
 import java.io.File;
 import java.util.Collection;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
 public class LanguageDetectionTest {
-
-    public static final String dijkstraExampleText = "Der Algorithmus von Dijkstra (nach seinem Erfinder Edsger W. Dijkstra) ist ein Algorithmus aus der Klasse der Greedy-Algorithmen[1] und löst das Problem der kürzesten Pfade für einen gegebenen Startknoten. " +
-            "Er berechnet somit einen kürzesten Pfad zwischen dem gegebenen Startknoten und einem der (oder allen) übrigen Knoten in einem kantengewichteten Graphen (sofern dieser keine Negativkanten enthält)." +
-            "Für unzusammenhängende ungerichtete Graphen ist der Abstand zu denjenigen Knoten unendlich, zu denen kein Pfad vom Startknoten aus existiert. Dasselbe gilt auch für gerichtete nicht stark zusammenhängende Graphen. Dabei wird der Abstand synonym auch als Entfernung, Kosten oder Gewicht bezeichnet.";
 
     @Test
     public void test() throws Exception {
@@ -46,30 +40,45 @@ public class LanguageDetectionTest {
              composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/xlm-roberta-base-language-detection:latest")
                      .withParameter("annotationClassPath", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
                      .withScale(iWorkers)
+                     .withParameter("top_k", "1")
                      .build());
         }else{
             composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                 .withScale(iWorkers)
                 .withParameter("annotationClassPath", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                .withParameter("top_k", "1")
                 .build());
         }
 
         // Create basic test jCas.
-        JCas jCas = JCasFactory.createText(dijkstraExampleText, "de");
+        String exampleText = "The weather today is quite pleasant, with clear skies and a gentle breeze.\n" +
+                "Me gusta aprender nuevos idiomas porque es una forma fascinante de explorar diferentes culturas.\n" +
+                "Les livres sont une source inestimable de connaissances et d'évasion dans des mondes fantastiques.\n" +
+                "Die Welt der Technologie entwickelt sich rasant weiter, und wir sind Zeugen faszinierender Innovationen.\n" +
+                "La cucina italiana è famosa per la sua deliziosa pasta e i formaggi prelibati.\n"+
+                "我喜欢在春天漫步，欣赏盛开的花朵。";
+        JCas jCas = JCasFactory.createText(exampleText, "de");
 
-        new Sentence(jCas, 0, 206).addToIndexes();
-        new Sentence(jCas, 206, 402).addToIndexes();
-        new Sentence(jCas, 402, 544).addToIndexes();
-        new Sentence(jCas, 544, 616).addToIndexes();
-        new Sentence(jCas, 616, 699).addToIndexes();
+        new Sentence(jCas, 0, 75).addToIndexes();
+        new Sentence(jCas, 75, 172).addToIndexes();
+        new Sentence(jCas, 172, 271).addToIndexes();
+        new Sentence(jCas, 271, 376).addToIndexes();
+        new Sentence(jCas, 376, 455).addToIndexes();
+        new Sentence(jCas, 455, 472).addToIndexes();
 
         composer.run(jCas, "test");
 
+
         // Print Result
-        Collection<Language> languages = JCasUtil.select(jCas, Language.class).stream().sorted((l1, l2) -> l1.getBegin()-l2.getBegin()).collect(Collectors.toList());
+        System.out.println("\n\n");
+        Collection<Language> languages = JCasUtil.select(jCas, Language.class).stream().sorted(
+                (l1, l2) -> l1.getBegin()-l2.getBegin()
+        ).collect(Collectors.toList());
+
         for(Language language: languages){
-            System.out.println(language.getBegin() + " - " + language.getEnd() + " " + language.getValue() + ": " + language.getScore());
+            System.out.println(language.getBegin() + " - " + language.getEnd() + ": " + language.getValue() + ": " + language.getScore());
         }
+        System.out.println("\n\n");
 
     }
 

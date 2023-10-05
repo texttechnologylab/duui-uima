@@ -9,7 +9,13 @@ utils = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 function serialize(inputCas, outputStream, params)
     -- Get data from CAS
 
-     local annotation_class_path, success, annotationClass
+    local topK = -1
+    if params["top_k"] then
+        topK = tonumber(params["top_k"])
+    end
+
+
+    local annotation_class_path, success, annotationClass
 
     if params["annotationClassPath"] then
         annotation_class_path = params["annotationClassPath"]
@@ -46,7 +52,8 @@ function serialize(inputCas, outputStream, params)
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
-        part_of_speeches = partOfSpeechArray
+        part_of_speeches = partOfSpeechArray,
+        top_k = topK
     }))
 end
 
