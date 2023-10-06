@@ -114,7 +114,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 # Documentation for api
 openapi_schema = get_openapi(
-    title="DeBERT-Zero-Shot",
+    title="DeBERTa-Zero-Shot Classification",
     description="A implementation of the MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli Modell for TTLab DUUI",
     version="0.1",
     routes=app.routes
@@ -131,4 +131,4 @@ app.openapi_schema = openapi_schema
 
 # For starting the script locally
 if __name__ == "__main__":
-    uvicorn.run("debert_zero_shot:app", host="0.0.0.0", port=9714, workers=1)
+    uvicorn.run("deberta_zero_shot:app", host="0.0.0.0", port=9714, workers=1)

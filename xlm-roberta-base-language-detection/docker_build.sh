@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export ANNOTATOR_NAME=xlm-roberta-base-language-detection
-export ANNOTATOR_VERSION=0.1
+export ANNOTATOR_VERSION=0.2
 
 export LOG_LEVEL=INFO
 
