@@ -220,6 +220,13 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     except Exception as ex:
         logger.exception(ex)
 
+    logger.debug(sentences)
+    logger.debug(meta)
+    logger.debug(modification_meta)
+
+    duration = int(time()) - modification_timestamp_seconds
+    logger.info("Processed in %d seconds", duration)
+
     return TextImagerResponse(
         sentences=sentences,
         meta=meta,

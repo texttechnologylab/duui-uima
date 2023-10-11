@@ -13,7 +13,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <ttlab.duui.version>f68ca579ab553074f76d061623dc9b00cf508276</ttlab.duui.version>
         <ttlab.textimager.typesystem.version>e800053e2c09400aca1ca9f5138a62171550b448</ttlab.textimager.typesystem.version>
-        <ttlab.typesystem.version>033beaa593a99c005400f4021ea8d6fa8957e6c3</ttlab.typesystem.version>
+        <ttlab.typesystem.version>ef18c9a6500e68aa83eea59d03d91c371b0556bb</ttlab.typesystem.version>
     </properties>
 
     <repositories>

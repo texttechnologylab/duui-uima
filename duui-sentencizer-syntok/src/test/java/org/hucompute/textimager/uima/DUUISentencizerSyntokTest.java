@@ -10,6 +10,8 @@ import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
+import org.texttechnologylab.annotation.AnnotatorMetaData;
+import org.texttechnologylab.annotation.DocumentModification;
 import org.xml.sax.SAXException;
 
 import java.io.ByteArrayOutputStream;
@@ -65,8 +67,6 @@ public class DUUISentencizerSyntokTest {
         StringBuilder sb = new StringBuilder();
         if (sentences != null) {
             for (String sentence : sentences) {
-                Sentence sentenceAnnotation = new Sentence(cas, sb.length(), sb.length() + sentence.length());
-                sentenceAnnotation.addToIndexes();
                 sb.append(sentence).append(" ");
             }
         }
@@ -91,6 +91,12 @@ public class DUUISentencizerSyntokTest {
         createCas("en", expectedSentences);
         composer.run(cas);
 
+        Collection<AnnotatorMetaData> actualAnnotatorMetaDatas = new ArrayList<>(JCasUtil.select(cas, AnnotatorMetaData.class));
+        assertEquals(2, actualAnnotatorMetaDatas.size());
+
+        Collection<DocumentModification> actualDocumentModifications = new ArrayList<>(JCasUtil.select(cas, DocumentModification.class));
+        assertEquals(1, actualDocumentModifications.size());
+
         Collection<Sentence> actualSentences = new ArrayList<>(JCasUtil.select(cas, Sentence.class));
         assertEquals(expectedSentences.size(), actualSentences.size());
 
@@ -110,6 +116,12 @@ public class DUUISentencizerSyntokTest {
 
         createCas("en", null);
         composer.run(cas);
+
+        Collection<AnnotatorMetaData> actualAnnotatorMetaDatas = new ArrayList<>(JCasUtil.select(cas, AnnotatorMetaData.class));
+        assertEquals(0, actualAnnotatorMetaDatas.size());
+
+        Collection<DocumentModification> actualDocumentModifications = new ArrayList<>(JCasUtil.select(cas, DocumentModification.class));
+        assertEquals(1, actualDocumentModifications.size());
 
         Collection<Sentence> actualSentences = new ArrayList<>(JCasUtil.select(cas, Sentence.class));
         assertEquals(0, actualSentences.size());
