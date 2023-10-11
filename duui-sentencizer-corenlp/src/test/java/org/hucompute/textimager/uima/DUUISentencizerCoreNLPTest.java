@@ -27,11 +27,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class DUUISentencizerSegtokTest {
+public class DUUISentencizerCoreNLPTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String dockerImage = "docker.texttechnologylab.org/duui-sentencizer-segtok:latest";
+    static String dockerImage = "docker.texttechnologylab.org/duui-sentencizer-corenlp:latest";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException {
@@ -85,20 +85,20 @@ public class DUUISentencizerSegtokTest {
                 "This is a very great example sentence!",
                 "I absolutely hate this example."
         );
-        Integer[] expectedSentenceSpansBegin = new Integer[]{ 0, 0, 39 };
-        Integer[] expectedSentenceSpansEnd = new Integer[]{ 38, 0, 70 };
+        Integer[] expectedSentenceSpansBegin = new Integer[]{ 0, 39 };
+        Integer[] expectedSentenceSpansEnd = new Integer[]{ 38, 70 };
 
         createCas("en", expectedSentences);
         composer.run(cas);
 
         Collection<AnnotatorMetaData> actualAnnotatorMetaDatas = new ArrayList<>(JCasUtil.select(cas, AnnotatorMetaData.class));
-        assertEquals(expectedSentences.size()+1, actualAnnotatorMetaDatas.size());
+        assertEquals(expectedSentences.size(), actualAnnotatorMetaDatas.size());
 
         Collection<DocumentModification> actualDocumentModifications = new ArrayList<>(JCasUtil.select(cas, DocumentModification.class));
         assertEquals(1, actualDocumentModifications.size());
 
         Collection<Sentence> actualSentences = new ArrayList<>(JCasUtil.select(cas, Sentence.class));
-        assertEquals(expectedSentences.size()+1, actualSentences.size());
+        assertEquals(expectedSentences.size(), actualSentences.size());
 
         Integer[] actualSenttencesSpansBegin = actualSentences.stream().map(Sentence::getBegin).toArray(Integer[]::new);
         assertArrayEquals(expectedSentenceSpansBegin, actualSenttencesSpansBegin);
@@ -118,12 +118,12 @@ public class DUUISentencizerSegtokTest {
         composer.run(cas);
 
         Collection<AnnotatorMetaData> actualAnnotatorMetaDatas = new ArrayList<>(JCasUtil.select(cas, AnnotatorMetaData.class));
-        assertEquals(1, actualAnnotatorMetaDatas.size());
+        assertEquals(0, actualAnnotatorMetaDatas.size());
 
         Collection<DocumentModification> actualDocumentModifications = new ArrayList<>(JCasUtil.select(cas, DocumentModification.class));
         assertEquals(1, actualDocumentModifications.size());
 
         Collection<Sentence> actualSentences = new ArrayList<>(JCasUtil.select(cas, Sentence.class));
-        assertEquals(1, actualSentences.size());
+        assertEquals(0, actualSentences.size());
     }
 }

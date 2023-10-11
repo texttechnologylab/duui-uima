@@ -92,7 +92,7 @@ public class DUUISentencizerSyntokTest {
         composer.run(cas);
 
         Collection<AnnotatorMetaData> actualAnnotatorMetaDatas = new ArrayList<>(JCasUtil.select(cas, AnnotatorMetaData.class));
-        assertEquals(2, actualAnnotatorMetaDatas.size());
+        assertEquals(expectedSentences.size(), actualAnnotatorMetaDatas.size());
 
         Collection<DocumentModification> actualDocumentModifications = new ArrayList<>(JCasUtil.select(cas, DocumentModification.class));
         assertEquals(1, actualDocumentModifications.size());
