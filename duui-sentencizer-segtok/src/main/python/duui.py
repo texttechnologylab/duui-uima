@@ -14,7 +14,7 @@ from pydantic_settings import BaseSettings
 
 # NOTE adjust if changed in requirements.txt
 # TODO extract to python package
-SEGTOC_VERSION = "1.5.11"
+SEGTOK_VERSION = "1.5.11"
 
 
 class Settings(BaseSettings):
@@ -153,7 +153,7 @@ def get_documentation() -> TextImagerDocumentation:
         meta={
             "python_version": python_version(),
             "python_version_full": sys_version,
-            "segtoc_version": SEGTOC_VERSION,
+            "segtok_version": SEGTOK_VERSION,
         },
         docker_container_id="[TODO]",
         parameters={},
@@ -201,13 +201,13 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             name=settings.annotator_name,
             version=settings.annotator_version,
             modelName="segtok",
-            modelVersion=SEGTOC_VERSION
+            modelVersion=SEGTOK_VERSION
         )
 
         modification_meta = DocumentModification(
             user=settings.annotator_name,
             timestamp=modification_timestamp_seconds,
-            comment=f"{settings.annotator_name} ({settings.annotator_version}), segtok ({SEGTOC_VERSION})"
+            comment=f"{settings.annotator_name} ({settings.annotator_version}), segtok ({SEGTOK_VERSION})"
         )
 
     except Exception as ex:
