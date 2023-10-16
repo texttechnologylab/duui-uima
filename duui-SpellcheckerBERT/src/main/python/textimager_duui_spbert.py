@@ -4,7 +4,7 @@ import logging
 from time import time
 from fastapi import FastAPI, Response
 from cassis import load_typesystem
-from sp_correction import SentenceBestPrediction
+# from sp_correction import SentenceBestPrediction
 from symspellpy import SymSpell
 from spellchecker import spellchecker
 
@@ -193,15 +193,16 @@ def post_process(request: TextImagerRequest):
         sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
         dictionary_path = "de-100k.txt"
         sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
-        sen_pred = SentenceBestPrediction("", "bert-base-uncased", "all-mpnet-base-v2", 0)
+        # sen_pred = SentenceBestPrediction("", "bert-base-uncased", "all-mpnet-base-v2", 0)
         for c, sen_i in enumerate(document_token_sentences):
             spell_out = spellchecker(sen_i, begin_token_sentences[c], end_token_sentences[c], sym_spell, lower_case=True)
-            sen_org = " ".join(sen_i)
-            sen_test, sen_org = sen_pred.mask_sentence(spell_out)
-            sen_pred.set_sen_org(sen_org)
-            pred_sentences = sen_pred.get_Mask_prediction(sen_test)
-            cos_sim_sentences = sen_pred.get_sentence_sim(pred_sentences)
-            symspell_out.append(sen_pred.get_best_word(cos_sim_sentences, spell_out))
+            symspell_out.append(spell_out)
+            # sen_org = " ".join(sen_i)
+            # sen_test, sen_org = sen_pred.mask_sentence(spell_out)
+            # sen_pred.set_sen_org(sen_org)
+            # pred_sentences = sen_pred.get_Mask_prediction(sen_test)
+            # cos_sim_sentences = sen_pred.get_sentence_sim(pred_sentences)
+            # symspell_out.append(sen_pred.get_best_word(cos_sim_sentences, spell_out))
     except Exception as ex:
         logger.exception(ex)
     return TextImagerResponse(tokens=symspell_out, meta=meta, modification_meta=modification_meta)

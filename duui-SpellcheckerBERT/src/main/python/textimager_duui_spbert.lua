@@ -94,7 +94,7 @@ function deserialize(inputCas, inputStream)
             for j, token in ipairs(sent) do
                 -- Control every Spelling which can be correct with Symspell
                 print(token["spellout"])
-                if token["spellout"]=="wrong" then
+                if token["spellout"]=="wrong" or token["spellout"]=="unknown" then
                     -- counter for the suggestion Anomaly can save x SuggestedAction
                     print(token["begin"])
                     print(token["end"])
@@ -126,44 +126,44 @@ function deserialize(inputCas, inputStream)
                 end
     --
     --             -- Control every Spelling which can not be correct with Symspell, that spellings will be corrected with BERT
-                if token["spellout"]=="unknown" then
-                    -- Anomaly
-                    local spellout_anomaly = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.Anomaly", inputCas)
-                    spellout_anomaly:setBegin(token["begin"])
-                    spellout_anomaly:setEnd(token["end"])
-                    spellout_anomaly:setSuggestions(luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 3))
-                    spellout_anomaly:addToIndexes()
---                     print("Anomaly")
-                    local counter_suggest = 0
-                    for model_name, k in pairs(token["toolPred"]) do
-                        print(model_name)
-                        local certainty_i = token["toolPred"][model_name]["probability"]
-                        local suggestion_i = token["toolPred"][model_name]["word"]
-                        local spellout_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.SuggestedAction", inputCas)
-                        spellout_anno:setBegin(token["begin"])
-                        spellout_anno:setEnd(token["end"])
-                        spellout_anno:setReplacement(suggestion_i)
-                        spellout_anno:setCertainty(certainty_i)
-                        spellout_anno:addToIndexes()
---                         print(suggestion_i)
---                         print("suggestion")
-
-                        -- AnnotationComment
-                        local anno_comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-                        anno_comment:setReference(spellout_anno)
-                        anno_comment:setKey("Spelling")
-                        anno_comment:setValue(model_name)
-                        anno_comment:addToIndexes()
---                         print("comment")
-
-                        --SuggestedAction into Anomaly
-                        spellout_anomaly:setSuggestions(counter_suggest, spellout_anno)
---                         print("Add anomaly")
-
-                        counter_suggest = counter_suggest + 1
---                         print(counter_suggest)
-                    end
+--                 if token["spellout"]=="unknown" then
+--                     -- Anomaly
+--                     local spellout_anomaly = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.Anomaly", inputCas)
+--                     spellout_anomaly:setBegin(token["begin"])
+--                     spellout_anomaly:setEnd(token["end"])
+--                     spellout_anomaly:setSuggestions(luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 3))
+--                     spellout_anomaly:addToIndexes()
+-- --                     print("Anomaly")
+--                     local counter_suggest = 0
+--                     for model_name, k in pairs(token["toolPred"]) do
+--                         print(model_name)
+--                         local certainty_i = token["toolPred"][model_name]["probability"]
+--                         local suggestion_i = token["toolPred"][model_name]["word"]
+--                         local spellout_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.SuggestedAction", inputCas)
+--                         spellout_anno:setBegin(token["begin"])
+--                         spellout_anno:setEnd(token["end"])
+--                         spellout_anno:setReplacement(suggestion_i)
+--                         spellout_anno:setCertainty(certainty_i)
+--                         spellout_anno:addToIndexes()
+-- --                         print(suggestion_i)
+-- --                         print("suggestion")
+--
+--                         -- AnnotationComment
+--                         local anno_comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+--                         anno_comment:setReference(spellout_anno)
+--                         anno_comment:setKey("Spelling")
+--                         anno_comment:setValue(model_name)
+--                         anno_comment:addToIndexes()
+-- --                         print("comment")
+--
+--                         --SuggestedAction into Anomaly
+--                         spellout_anomaly:setSuggestions(counter_suggest, spellout_anno)
+-- --                         print("Add anomaly")
+--
+--                         counter_suggest = counter_suggest + 1
+-- --                         print(counter_suggest)
+--                     end
                 end
             end
         end
-end
+-- end
