@@ -14,12 +14,17 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
+# TODO
+DUUI_DEFAULT_LANGUAGE = "de"
+
+
 class Settings(BaseSettings):
     variant: str
     annotator_name: str
     annotator_version: str
     log_level: str
     model_cache_size: int
+    cuda: str
 
     class Config:
         env_prefix = 'duui_sentencizer_spacy_'
@@ -32,6 +37,17 @@ logger = logging.getLogger(__name__)
 logger.info("TTLab TextImager DUUI spaCy")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
+
+USE_GPU_KEYWORD = "-cuda"
+use_gpu = settings.cuda.startswith(USE_GPU_KEYWORD)
+logger.info("Using GPU: %s", use_gpu)
+if use_gpu:
+    try:
+        device = int(settings.cuda[len(USE_GPU_KEYWORD):])
+    except ValueError:
+        device = 0
+    logger.info("Using GPU device: %d", device)
+    spacy.require_gpu(device)
 
 UIMA_TYPE_SENTENCE = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
 
@@ -268,8 +284,14 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     meta = None
     modification_meta = None
 
+    # TODO
+    lang = request.lang
+    if lang not in SUPPORTED_LANGS:
+        print("WARNING: Unsupported language detected:", lang, "using default language:", DUUI_DEFAULT_LANGUAGE)
+        lang = DUUI_DEFAULT_LANGUAGE
+
     try:
-        nlp, nlp_err = load_spacy_model(request.lang, settings.variant)
+        nlp, nlp_err = load_spacy_model(lang, settings.variant)
         if nlp is None:
             raise Exception(f"spaCy model \"{request.lang}\" could not be loaded: {nlp_err}")
 
