@@ -14,6 +14,10 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
+# TODO
+DUUI_DEFAULT_LANGUAGE = "de"
+
+
 class Settings(BaseSettings):
     annotator_name: str
     annotator_version: str
@@ -213,6 +217,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     sentences = []
     meta = None
     modification_meta = None
+
+    # TODO
+    lang = request.lang
+    if lang not in SUPPORTED_LANGS:
+        print("WARNING: Unsupported language detected:", lang, "using default language:", DUUI_DEFAULT_LANGUAGE)
+        lang = DUUI_DEFAULT_LANGUAGE
 
     try:
         pipe, pipe_err = load_stanza_model(request.lang)

@@ -14,6 +14,10 @@ from starlette.responses import JSONResponse
 from trankit import Pipeline, __version__ as trankit_version
 
 
+# TODO
+DUUI_DEFAULT_LANGUAGE = "de"
+
+
 SUPPORTED_LANGS = {
     "en",
     "de",
@@ -76,7 +80,9 @@ lru_cache_with_size = lru_cache(maxsize=3)
 
 @lru_cache_with_size
 def load_pipeline(lang, embedding, gpu) -> Pipeline:
-    return Pipeline(lang, embedding=embedding, gpu=gpu)
+    use_gpu = bool(gpu)
+    print("Loading pipeline for", lang, "with", embedding, "embedding and gpu", gpu)
+    return Pipeline(lang, embedding=embedding, gpu=use_gpu)
 
 
 app = FastAPI(
@@ -151,8 +157,14 @@ def get_documentation() -> TextImagerDocumentation:
 def post_process(request: DUUIRequest) -> DUUIResponse:
     modification_timestamp_seconds = int(time())
 
+    # TODO
+    lang = request.lang
+    if lang not in SUPPORTED_LANGS:
+        print("WARNING: Unsupported language detected:", lang, "using default language:", DUUI_DEFAULT_LANGUAGE)
+        lang = DUUI_DEFAULT_LANGUAGE
+
     # TODO allow usage of "auto" with parameter
-    lang = LANGUAGE_MAPPING.get(request.lang, "auto")
+    lang = LANGUAGE_MAPPING.get(lang, "auto")
     print("Language detected:", lang, "parsed from", request.lang)
 
     pipeline = load_pipeline(lang, embedding=settings.model_name, gpu=settings.cuda)
