@@ -34,13 +34,10 @@ public class SpaCyMultiTest {
         composer.addDriver(dockerDriver);
 
 //        composer.add(
-//                new DUUIRemoteDriver.Component("http://127.0.0.1:9714"),
-//                DUUIRemoteDriver.class
+//                new DUUIRemoteDriver.Component("http://127.0.0.1:9714")
 //        );
 
-        composer.add(new DUUIDockerDriver.Component("textimager_duui_spellcheck:0.1.3")
-                        .withScale(1)
-                , DUUIDockerDriver.class);
+        composer.add(new DUUIDockerDriver.Component("textimager_duui_spellcheck:0.1.3"));
 
         JCas cas = JCasFactory.createText("Ich habe im Landtag3 L34t3 angesprochen , ich Int3ll3g3nt halte!");
         cas.setDocumentLanguage("de");
@@ -76,9 +73,9 @@ public class SpaCyMultiTest {
 
 //        System.out.println(XmlFormatter.getPrettyString(cas));
         Collection<Anomaly> all_tokens = JCasUtil.select(cas, Anomaly.class);
-//        Anomaly wrong_token = JCasUtil.selectSingleAt(cas, Anomaly.class, 12, 20);
-//        Anomaly unkown_token1 = JCasUtil.selectSingleAt(cas, Anomaly.class, 21, 26);
-//        Anomaly unkown_token2 = JCasUtil.selectSingleAt(cas, Anomaly.class, 46, 57);
+        Anomaly wrong_token = JCasUtil.selectSingleAt(cas, Anomaly.class, 12, 20);
+        Anomaly unkown_token1 = JCasUtil.selectSingleAt(cas, Anomaly.class, 21, 26);
+        Anomaly unkown_token2 = JCasUtil.selectSingleAt(cas, Anomaly.class, 46, 57);
         System.out.println("H");
     }
 }
