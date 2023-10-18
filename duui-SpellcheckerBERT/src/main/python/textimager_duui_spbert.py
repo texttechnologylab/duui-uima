@@ -1,4 +1,5 @@
-from pydantic import BaseSettings, BaseModel
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 from typing import List, Optional, Dict, Union
 import logging
 from time import time
@@ -40,11 +41,9 @@ with open(typesystem_filename, 'rb') as f:
     logger.debug("Base typesystem:")
     logger.debug(typesystem.to_xml())
 
-
 # Load the Lua communication script
 lua_communication_script_filename = "textimager_duui_spbert.lua"
 logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
-
 
 
 # Request sent by DUUI
@@ -55,18 +54,27 @@ class TextImagerRequest(BaseModel):
     # The texts language
     lang: str
     #
-    sen: Optional[list]
+    sen: Optional[list] = None
     #
-    tokens: Optional[list]
+    tokens: Optional[list] = None
     # Optional map/dict of parameters
     # TODO how with lua?
-    parameters: Optional[dict]
+    parameters: Optional[dict] = None
+
 
 # UIMA type: mark modification of the document
 class DocumentModification(BaseModel):
     user: str
     timestamp: int
     comment: str
+
+
+# UIMA type: adds metadata to each annotation
+class AnnotationMeta(BaseModel):
+    name: str
+    version: str
+    modelName: str
+    modelVersion: str
 
 
 # Response sent by DUUI
@@ -80,18 +88,10 @@ class TextImagerResponse(BaseModel):
     # 1. Best Prediction with BERT MASKED
     # 2. Best Cos-sim with Sentence-Bert and with perdicted words of BERT MASK
     # 3. Option 1 and 2 together
-    tokens: List[List[Dict[str, Union[float, str, Dict[str, Dict[str, Union[str, float]]], int]]]]
-    meta: dict
+    tokens: List[List[Dict[str, Union[float, str, int, Dict[str, Dict[str, Union[str, float]]]]]]]
+    meta: AnnotationMeta
     # Modification meta, one per document
-    modification_meta: Optional[DocumentModification]
-
-
-# UIMA type: adds metadata to each annotation
-class AnnotationMeta(BaseModel):
-    name: str
-    version: str
-    modelName: str
-    modelVersion: str
+    modification_meta: DocumentModification
 
 
 app = FastAPI(
@@ -143,10 +143,10 @@ def get_communication_layer() -> str:
 def get_documentation():
     return "Test"
 
+
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest):
-
     # Return data
     meta = None
     symspell_out = []
@@ -195,7 +195,8 @@ def post_process(request: TextImagerRequest):
         sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
         # sen_pred = SentenceBestPrediction("", "bert-base-uncased", "all-mpnet-base-v2", 0)
         for c, sen_i in enumerate(document_token_sentences):
-            spell_out = spellchecker(sen_i, begin_token_sentences[c], end_token_sentences[c], sym_spell, lower_case=True)
+            spell_out = spellchecker(sen_i, begin_token_sentences[c], end_token_sentences[c], sym_spell,
+                                     lower_case=True)
             symspell_out.append(spell_out)
             # sen_org = " ".join(sen_i)
             # sen_test, sen_org = sen_pred.mask_sentence(spell_out)

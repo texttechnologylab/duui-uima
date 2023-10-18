@@ -7,6 +7,7 @@ msgpack = luajava.bindClass("org.msgpack.core.MessagePack")
 comments = luajava.bindClass("org.texttechnologylab.annotation.AnnotationComment")
 anomaly = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.Anomaly")
 suggest = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.SuggestedAction")
+anomalyspelling = luajava.bindClass("org.texttechnologylab.annotation.AnomlySpelling")
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -18,11 +19,14 @@ function serialize(inputCas, outputStream)
     -- TODO add additional params?
     local doc_text = inputCas:getDocumentText()
     local doc_lang = inputCas:getDocumentLanguage()
+--     print(doc_text)
+--     print(doc_lang)
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     local sentences_cas = {}
     local token_cas = {}
     local sen_counter = 1
+--     print("start")
     local sents = util:select(inputCas, Sentences):iterator()
     while sents:hasNext() do
         local sent = sents:next()
@@ -47,12 +51,14 @@ function serialize(inputCas, outputStream)
         end
         sen_counter = sen_counter + 1
     end
+--     print("sentences")
     outputStream:write(json.encode({
         text = doc_text,
         lang = doc_lang,
         sen = sentences_cas,
         tokens = token_cas
     }))
+--     print("sendToPython")
 end
 
 -- This "deserialize" function is called on receiving the results from the annotator that have to be transformed into a CAS object
@@ -84,6 +90,8 @@ function deserialize(inputCas, inputStream)
      meta_anno:setModelName(meta["modelName"])
      meta_anno:setModelVersion(meta["modelVersion"])
      meta_anno:addToIndexes()
+--      print("Start")
+
 
 --     Get Token results
     local sen_document = results["tokens"]
@@ -93,12 +101,12 @@ function deserialize(inputCas, inputStream)
             -- read Tokens
             for j, token in ipairs(sent) do
                 -- Control every Spelling which can be correct with Symspell
-                print(token["spellout"])
-                if token["spellout"]=="wrong" or token["spellout"]=="unknown" then
+--                 print(token["spellout"])
+                if token["spellout"]=="wrong" or token["spellout"]=="unknown" or token["spellout"]=="skipped" or token["spellout"]=="right" then
                     -- counter for the suggestion Anomaly can save x SuggestedAction
-                    print(token["begin"])
-                    print(token["end"])
-                    print(token["suggestion"])
+--                     print(token["begin"])
+--                     print(token["end"])
+--                     print(token["suggestion"])
                     local counter_suggest = 0
                     local spellout_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.SuggestedAction", inputCas)
                     spellout_anno:setBegin(token["begin"])
@@ -106,22 +114,39 @@ function deserialize(inputCas, inputStream)
                     spellout_anno:setReplacement(token["suggestion"])
                     spellout_anno:setCertainty(1.0)
                     spellout_anno:addToIndexes()
---                     print("suggestion")
-
-                    local spellout_anomaly = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.Anomaly", inputCas)
-                    spellout_anomaly:setBegin(token["begin"])
-                    spellout_anomaly:setEnd(token["end"])
-                    spellout_anomaly:setSuggestions(luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 1))
-                    spellout_anomaly:setSuggestions(counter_suggest, spellout_anno)
-                    spellout_anomaly:setCategory("Symspell")
-                    spellout_anomaly:addToIndexes()
+-- --                     print("suggestion")
+--
+--                     local spellout_anomaly = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.anomaly.type.Anomaly", inputCas)
+--                     spellout_anomaly:setBegin(token["begin"])
+--                     spellout_anomaly:setEnd(token["end"])
+--                     spellout_anomaly:setSuggestions(luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 1))
+--                     spellout_anomaly:setSuggestions(counter_suggest, spellout_anno)
+--                     spellout_anomaly:setCategory("Symspell")
+--                     spellout_anomaly:addToIndexes()
 --                     print("Anomaly")
 
-                    local anno_comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-                    anno_comment:setReference(spellout_anno)
-                    anno_comment:setKey("Spelling")
-                    anno_comment:setValue("Symspell")
-                    anno_comment:addToIndexes()
+                    local anomly_spelling = luajava.newInstance("org.texttechnologylab.annotation.AnomlySpelling", inputCas)
+                    anomly_spelling:setBegin(token["begin"])
+                    anomly_spelling:setEnd(token["end"])
+                    anomly_spelling:setSuggestions(luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 1))
+                    anomly_spelling:setSuggestions(counter_suggest, spellout_anno)
+                    anomly_spelling:setSpellingType(token["spellout"])
+                    anomly_spelling:setModelName("Symspell")
+                    anomly_spelling:setCategory("Symspell")
+                    anomly_spelling:addToIndexes()
+--                     print("SpellingAnomly")
+
+--                     local anno_comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+--                     anno_comment:setReference(spellout_anno)
+--                     anno_comment:setKey("Spelling")
+--                     anno_comment:setValue("Symspell")
+--                     anno_comment:addToIndexes()
+--
+--                     local anno_comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+--                     anno_comment:setReference(spellout_anno)
+--                     anno_comment:setKey("SpellingType")
+--                     anno_comment:setValue(token["spellout"])
+--                     anno_comment:addToIndexes()
 --                     print("comment")
                 end
     --

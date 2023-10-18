@@ -9,11 +9,11 @@
     <version>0.0.1</version>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
         <ttlab.duui.version>f68ca579ab553074f76d061623dc9b00cf508276</ttlab.duui.version>
         <ttlab.textimager.typesystem.version>b10db8275163d19d63b9512cc20ca5872e52499b</ttlab.textimager.typesystem.version>
-        <ttlab.typesystem.version>29fe3e0ab56c14b1e8af402b3df25d91e1f41d94</ttlab.typesystem.version>
+        <ttlab.typesystem.version>1e3aab1f725e2e00b351d5941f2988f408de474c</ttlab.typesystem.version>
     </properties>
 
     <repositories>
