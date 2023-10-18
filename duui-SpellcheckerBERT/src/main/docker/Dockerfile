@@ -8,6 +8,8 @@ RUN pip3 install torch torchvision torchaudio --extra-index-url https://download
 RUN pip install transformers sentence-transformers
 RUN pip install numpy scipy scikit-learn
 RUN pip install symspellpy fastapi uvicorn[standard] dkpro-cassis
+RUN pip install --ignore-installed pydantic-settings==2.0.2
+
 
 # meta data
 ARG TEXTIMAGER_SPBERT_ANNOTATOR_NAME="textimager_duui_spellcheck:app"
@@ -39,6 +41,9 @@ COPY ./src/main/python/spellchecker.py ./spellchecker.py
 COPY ./src/main/python/sp_correction.py ./sp_correction.py
 COPY ./src/main/python/textimager_duui_spbert.lua ./textimager_duui_spbert.lua
 COPY ./src/main/python/textimager_duui_spbert.py ./textimager_duui_spbert.py
+COPY ./requirements.txt ./requirements.txt
+
+
 
 ENTRYPOINT ["uvicorn", "textimager_duui_spbert:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
