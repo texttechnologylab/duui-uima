@@ -47,6 +47,7 @@ def spellchecker(sentence: List[str], begin: List[str], end: List[str], speller:
                 "begin": begin[c],
                 "end": end[c]
             })
+
     return spellchecked
 
 

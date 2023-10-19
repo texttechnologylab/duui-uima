@@ -14,6 +14,7 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
+import org.texttechnologylab.annotation.AnomalySpellingMeta;
 
 import java.util.Collection;
 
@@ -76,6 +77,7 @@ public class SpaCyMultiTest {
 
 //        System.out.println(XmlFormatter.getPrettyString(cas));
         Collection<AnomlySpelling> allSpellings = JCasUtil.select(cas, AnomlySpelling.class);
+        AnomalySpellingMeta meta = JCasUtil.selectSingle(cas, AnomalySpellingMeta.class);
         System.out.println("H");
     }
 }
