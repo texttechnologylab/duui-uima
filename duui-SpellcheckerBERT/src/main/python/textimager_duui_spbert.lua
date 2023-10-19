@@ -154,27 +154,27 @@ function deserialize(inputCas, inputStream)
                 if token["spellout"]=="meta" then
                     local anomaly_spelling_meta = luajava.newInstance("org.texttechnologylab.annotation.AnomalySpellingMeta", inputCas)
                     anomaly_spelling_meta:setModelName("Symspell")
-                    print("Model")
+--                     print("Model")
                     anomaly_spelling_meta:setGoodQuality(token["goodQuality"])
                     anomaly_spelling_meta:setUnknownQuality(token["unknownQuality"])
                     anomaly_spelling_meta:setQuality(token["quality"])
-                    print("Quality")
+--                     print("Quality")
 
                     anomaly_spelling_meta:setRightWords(token["right"])
                     anomaly_spelling_meta:setWrongWords(token["wrong"])
                     anomaly_spelling_meta:setSkippedWords(token["skipped"])
                     anomaly_spelling_meta:setUnknownWords(token["unknown"])
-                    print("Words")
+--                     print("Words")
 
                     anomaly_spelling_meta:setPercentRight(token["percentRight"])
                     anomaly_spelling_meta:setPercentWrong(token["percentWrong"])
                     anomaly_spelling_meta:setPercentUnknown(token["percentUnknown"])
-                    print("Percent")
+--                     print("Percent")
 
                     anomaly_spelling_meta:setPercentRightWithoutSkipped(token["percentRightWithoutSkipped"])
                     anomaly_spelling_meta:setPercentWrongWithoutSkipped(token["percentWrongWithoutSkipped"])
                     anomaly_spelling_meta:setPercentUnknownWithoutSkipped(token["percentUnknownWithoutSkipped"])
-                    print("PercentWithoutSkipped")
+--                     print("PercentWithoutSkipped")
 
                     anomaly_spelling_meta:addToIndexes()
                 end
