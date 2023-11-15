@@ -5,7 +5,7 @@
 A DUUI pipeline for the use of [taxoNERD](https://github.com/nleguillarme/taxonerd).
 
 # HowToUse
-For using taxoNERD as a DUUI image it is necessary to use the Docker Unified UIMA Interface (DUUI).
+For using taxoNERD as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Use as Stand-Alone-Image
 ```
