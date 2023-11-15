@@ -49,7 +49,7 @@ A. Leonhardt, G. Abrami, D. Baumartz, and A. Mehler, “Unlocking the Heterogene
   author         = {Abrami, Giuseppe},
   title          = {taxoNerd as DUUI-Komponent},
   year           = {2022},
-  note           = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-taxoNERD}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-taxoNERD}
 }
 
 ```
