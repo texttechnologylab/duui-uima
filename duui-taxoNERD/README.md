@@ -4,8 +4,8 @@
 # taxoNERD
 A DUUI pipeline for the use of [taxoNERD](https://github.com/nleguillarme/taxonerd).
 
-# HoToUse
-For using taxoNERD as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
+# HowToUse
+For using taxoNERD as a DUUI image it is necessary to use the Docker Unified UIMA Interface (DUUI).
 
 ## Use as Stand-Alone-Image
 ```
@@ -29,15 +29,14 @@ composer.add(new DUUIDockerDriver.
 # Cite
 If you want to use the DUUI image please quote this as follows:
 
-TODO
 
 # BibTeX
 ```
-@InProceedings{Leonhardt:Abrami:Mehler:2022,
-  author         = {Leonhardt, Alexander and Abrami, Giuseppe and Mehler, Alexander},
-  title          = {TODO},
-  booktitle      = {},
-  year           = {2022}
+@misc{Abrami:2022,
+  author         = {Abrami, Giuseppe},
+  title          = {taxoNerd - DUUI-Komponent},
+  year           = {2022},
+  note           = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-taxoNERD}
 }
 
 ```
