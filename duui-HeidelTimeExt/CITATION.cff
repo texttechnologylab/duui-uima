@@ -1,0 +1,44 @@
+cff-version: "1.2.0"
+message: "If you use duui-HeidelTimeExt, please cite it using the reference geven below."
+abstract: "HeidelTime is one of the most widespread and successful tools for detecting temporal expressions in texts. Since HeidelTime’s pattern matching system is based on regular expression, it can be extended in a convenient way. We present such an extension for the German resources of HeidelTime: HeidelTimeExt. The extension has been brought about by means of observing false negatives within real world texts and various time banks. The gain in coverage is 2.7 \% or 8.5 \%, depending on the admitted degree of potential overgeneralization. We describe the development of HeidelTimeExt, its evaluation on text samples from various genres, and share some linguistic observations. HeidelTimeExt can be obtained from https://github.com/texttechnologylab/heideltime."
+authors:
+  - family-names: "Lücking"
+    given-names: "Andy"
+    orcid: "https://orcid.org/0000-0002-5070-2233"
+  - family-names: "Stoeckel"
+    given-names: "Manuel"
+    orcid: "https://orcid.org/0000-0002-3562-1339"
+  - family-names: "Abrami"
+    given-names: "Giuseppe"
+    orcid: "https://orcid.org/0000-0002-7084-4909"
+  - family-names: "Mehler"
+    given-names: "Alexander"
+    orcid: "https://orcid.org/0000-0003-2567-7539"
+title: duui-HeidelTimeExt
+version: "1.0"
+date-released: "2023-05-12"
+license: "AGPLv3"
+references:
+  - authors:
+      - family-names: "Lücking"
+        given-names: "Andy"
+        orcid: "https://orcid.org/0000-0002-5070-2233"
+      - family-names: "Stoeckel"
+        given-names: "Manuel"
+        orcid: "https://orcid.org/0000-0002-3562-1339"        
+      - family-names: "Abrami"
+        given-names: "Giuseppe"
+        orcid: 'https://orcid.org/0000-0002-7084-4909'        
+      - family-names: "Mehler"
+        given-names: "Alexander"
+        orcid: 'https://orcid.org/0000-0003-2567-7539'
+    journal: "Proceedings of the 13th Language Resources and Evaluation Conference (LREC 2022)"
+    month: 6
+    title: "I still have Time(s): Extending HeidelTime for German Texts"
+    type: "conference-paper"
+    year: "2022"
+    pages: "4723--4728"
+    publisher: "European Language Resources Association"
+    pdf: "http://www.lrec-conf.org/proceedings/lrec2022/pdf/2022.lrec-1.505.pdf"
+    url: "https://aclanthology.org/2022.lrec-1.505"
+
