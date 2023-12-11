@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: duui-flair-POS
+message: >-
+  If you use duui-flair-NER, please cite it using the metadata from this file.
+type: software
+authors:
+  - given-names: Manuel
+    family-names: Stoeckel
+    orcid: 'https://orcid.org/0000-0002-3562-1339'
+repository-code: >-
+  https://github.com/texttechnologylab/duui-uima/tree/main/duui-flair-NER
+license: AGPL-3.0
