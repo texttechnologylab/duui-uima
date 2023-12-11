@@ -120,7 +120,7 @@ If you want to use the DUUI image please quote this as follows:
 
 @misc{Stoeckel:2022:DUUI:Flair:NER,
   author         = {Stoeckel, Manuel},
-  title          = {Flair as DUUI-Component for NER},
+  title          = {Flair as DUUI Component for NER},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-flair-NER}
 }

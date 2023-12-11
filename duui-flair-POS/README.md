@@ -108,7 +108,7 @@ If you want to use the DUUI image please quote this as follows:
 
 @misc{Stoeckel:2022:DUUI:Flair:POS,
   author         = {Stoeckel, Manuel},
-  title          = {Flair as DUUI-Component for POS Tagging},
+  title          = {Flair as DUUI Component for POS Tagging},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-flair-POS}
 }
