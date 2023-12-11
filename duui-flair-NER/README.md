@@ -1,0 +1,127 @@
+[![Version](https://img.shields.io/static/v1?label=python&message=3.10&color=blue)]()
+[![Version](https://img.shields.io/static/v1?label=pytorch&message=1.13.1&color=orange)]()
+[![Version](https://img.shields.io/static/v1?label=flair&message=0.12&color=orange)]()
+[![Version](https://img.shields.io/static/v1?label=cuda&message=11.7.1&color=green)]()
+
+# Flair NER
+
+A DUUI pipeline for the use of [Flair](https://github.com/flairNLP/flair) for NER.
+
+# HowToUse
+
+For using taxoNERD as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+
+## Use as Stand-Alone-Image
+
+```sh
+docker run docker.texttechnologylab.org/flair/ner:latest
+```
+
+## Run with a specific port
+
+```sh
+docker run -p 1000:9714 docker.texttechnologylab.org/flair/ner:latest
+```
+
+## Run within DUUI
+
+```java
+composer.add(new DUUIDockerDriver.
+    Component("docker.texttechnologylab.org/flair/ner:latest")
+    .withScale(iWorkers)
+    .withImageFetching());
+```
+
+## Supported Models
+
+The models can be chosen using `language` parameter in the [LUA communication layer](./src/main/lua/communication_layer.lua) by the keys from the table below.
+
+| Key                  | Name                                | Type             | Language               | Dataset                      | Performance | Contributor / Notes  |
+| -------------------- | ----------------------------------- | ---------------- | ---------------------- | ---------------------------- | ----------: | -------------------- |
+| `en`                 | `flair/ner-english`                 | NER (4-class)    | English                | Conll-03                     |  93.03 (F1) |                      |
+| `en-ner`             | `flair/ner-english`                 | NER (4-class)    | English                | Conll-03                     |  93.03 (F1) |                      |
+| `en-fast`            | `flair/ner-english-fast`            | NER (4-class)    | English                | Conll-03                     |  92.75 (F1) | (fast model)         |
+| `en-large`           | `flair/ner-english-large`           | NER (4-class)    | English / Multilingual | Conll-03                     |  94.09 (F1) | (large model)        |
+| `en-pooled`          | `ner-pooled`                        | NER (4-class)    | English                | Conll-03                     |  93.24 (F1) | (memory inefficient) |
+| `en-ontonotes`       | `flair/ner-english-ontonotes`       | NER (18-class)   | English                | Ontonotes                    |  89.06 (F1) |                      |
+| `en-ontonotes-fast`  | `flair/ner-english-ontonotes-fast`  | NER (18-class)   | English                | Ontonotes                    |  89.27 (F1) | (fast model)         |
+| `en-ontonotes-large` | `flair/ner-english-ontonotes-large` | NER (18-class)   | English / Multilingual | Ontonotes                    |  90.93 (F1) | (large model)        |
+| `ar`                 | `ar-ner`                            | NER (4-class)    | Arabic                 | AQMAR & ANERcorp (curated)   |  86.66 (F1) |                      |
+| `ar-ner`             | `ar-ner`                            | NER (4-class)    | Arabic                 | AQMAR & ANERcorp (curated)   |  86.66 (F1) |                      |
+| `da`                 | `flair/ner-danish`                  | NER (4-class)    | Danish                 | Danish NER dataset           |             | AmaliePauli          |
+| `da-ner`             | `flair/ner-danish`                  | NER (4-class)    | Danish                 | Danish NER dataset           |             | AmaliePauli          |
+| `de`                 | `flair/ner-german`                  | NER (4-class)    | German                 | Conll-03                     |  87.94 (F1) |                      |
+| `de-ner`             | `flair/ner-german`                  | NER (4-class)    | German                 | Conll-03                     |  87.94 (F1) |                      |
+| `de-large`           | `flair/ner-german-large`            | NER (4-class)    | German / Multilingual  | Conll-03                     |  92.31 (F1) |                      |
+| `de-germeval`        | `de-ner-germeval`                   | NER (4-class)    | German                 | Germeval                     |  84.90 (F1) |                      |
+| `de-legal`           | `flair/ner-german-legal`            | NER (legal text) | German                 | LER dataset                  |  96.35 (F1) |                      |
+| `fr`                 | `flair/ner-french`                  | NER (4-class)    | French                 | WikiNER (aij-wikiner-fr-wp3) |  95.57 (F1) | mhham                |
+| `fr-ner`             | `flair/ner-french`                  | NER (4-class)    | French                 | WikiNER (aij-wikiner-fr-wp3) |  95.57 (F1) | mhham                |
+| `es`                 | `flair/ner-spanish-large`           | NER (4-class)    | Spanish                | CoNLL-03                     |  90.54 (F1) | mhham                |
+| `es-ner`             | `flair/ner-spanish-large`           | NER (4-class)    | Spanish                | CoNLL-03                     |  90.54 (F1) | mhham                |
+| `nl`                 | `flair/ner-dutch`                   | NER (4-class)    | Dutch                  | CoNLL 2002                   |  92.58 (F1) |                      |
+| `nl-ner`             | `flair/ner-dutch`                   | NER (4-class)    | Dutch                  | CoNLL 2002                   |  92.58 (F1) |                      |
+| `nl-large`           | `flair/ner-dutch-large`             | NER (4-class)    | Dutch                  | Conll-03                     |  95.25 (F1) |                      |
+| `nl-rnn`             | `nl-ner-rnn`                        | NER (4-class)    | Dutch                  | CoNLL 2002                   |  90.79 (F1) |                      |
+| `uk`                 | `dchaplinsky/flair-uk-ner`          | NER (4-class)    | Ukrainian              | NER-UK dataset               |  86.05 (F1) | dchaplinsky          |
+| `uk-ner`             | `dchaplinsky/flair-uk-ner`          | NER (4-class)    | Ukrainian              | NER-UK dataset               |  86.05 (F1) | dchaplinsky          |
+*See: <https://flairnlp.github.io/docs/tutorial-basics/tagging-entities>*
+
+## Environment Arguments
+
+The following environment arguments can be set to change the behavior of Flair:
+
+- `MODEL_CACHE_SIZE`: determines the number of Flair models that will remain loaded in memory at any given time.
+- `FLAIR_BATCH_SIZE`: determines the batch size during inference.
+
+### Default Values
+
+```sh
+MODEL_CACHE_SIZE=1
+FLAIR_BATCH_SIZE=128
+```
+
+# Cite
+
+If you want to use the DUUI image please quote this as follows:
+
+- Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (2023). "Unlocking the Heterogeneous Landscape of Big Data NLP with DUUI." Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399. [[LINK](https://aclanthology.org/2023.findings-emnlp.29)] [[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)]
+- Manuel Stoeckel. (2022) "Flair as DUUI-Component for NER." [[LINK](https://github.com/texttechnologylab/duui-uima/tree/main/duui-flair-NER)]
+
+## BibTeX
+
+```bibtex
+@inproceedings{Leonhardt:et:al:2023,
+  title     = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
+  author    = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel and Mehler, Alexander},
+  editor    = {Bouamor, Houda and Pino, Juan and Bali, Kalika},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year      = {2023},
+  address   = {Singapore},
+  publisher = {Association for Computational Linguistics},
+  url       = {https://aclanthology.org/2023.findings-emnlp.29},
+  pages     = {385--399},
+  pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf},
+  abstract  = {Automatic analysis of large corpora is a complex task, especially
+               in terms of time efficiency. This complexity is increased by the
+               fact that flexible, extensible text analysis requires the continuous
+               integration of ever new tools. Since there are no adequate frameworks
+               for these purposes in the field of NLP, and especially in the
+               context of UIMA, that are not outdated or unusable for security
+               reasons, we present a new approach to address the latter task:
+               Docker Unified UIMA Interface (DUUI), a scalable, flexible, lightweight,
+               and feature-rich framework for automatic distributed analysis
+               of text corpora that leverages Big Data experience and virtualization
+               with Docker. We evaluate DUUI{'}s communication approach against
+               a state-of-the-art approach and demonstrate its outstanding behavior
+               in terms of time efficiency, enabling the analysis of big text
+               data.}
+}
+
+@misc{Stoeckel:2022:DUUI:Flair:NER,
+  author         = {Stoeckel, Manuel},
+  title          = {Flair as DUUI-Component for NER},
+  year           = {2022},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-flair-NER}
+}
+```
