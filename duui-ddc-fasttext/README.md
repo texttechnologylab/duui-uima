@@ -90,7 +90,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
   author         = {Baumartz, Daniel},
   title          = {text2ddc as DUUI component},
   year           = {2022},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-sentiment}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-ddc-fasttext}
 }
 
 @inproceedings{Uslu:Mehler:Baumartz:2019,
