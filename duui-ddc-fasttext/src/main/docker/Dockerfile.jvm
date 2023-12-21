@@ -55,9 +55,34 @@ COPY ./docker_data/fastText_modern_for_duui_annotators /home/stud_homes/baumartz
 WORKDIR /home/stud_homes/baumartz/mnt/resources/nlp/bin/categorization/fastText_modern_for_duui_annotators/
 RUN make
 
-# DDC1 - WIP demo model!
+# ML
+# DDC1
+COPY ./docker_data/wikipedia_lemma_nopunct_pos__en_withwikidata__de_nofunction_withcategories__ddc1__dim100_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_lemma_nopunct_pos__en_withwikidata__de_nofunction_withcategories__ddc1__dim100_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_lemma_nopunct_pos__en_withwikidata__de_nofunction_withcategories__ddc1__dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_lemma_nopunct_pos__en_withwikidata__de_nofunction_withcategories__ddc1__dim300_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc2__dim100_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc2__dim100_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc2__dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc2__dim300_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc3__dim100_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc3__dim100_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc3__dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_lemma_nopunct_pos_withcategories__en__de_nofunction__ddc3__dim300_lr0.2_lrur150_mincount5_epoch100.bin
+
+# DDC1
 # DE
-COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch500.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch500.bin
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim100_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim100_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc1.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch100.bin
+# EN
+COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc1.v3.with_wikidata_dim100_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_en.v8.lemma.nopunct_gnd_ddc1.v3.with_wikidata_dim100_lr0.2_lrur150_mincount5_epoch100.bin
+COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc1.v3.with_wikidata_dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_en.v8.lemma.nopunct_gnd_ddc1.v3.with_wikidata_dim300_lr0.2_lrur150_mincount5_epoch100.bin
+
+# DDC2
+# DE
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_de.v8.lemma.nopunct.pos.no_functionwords_gnd_ddc.v4.with_categories_dim300_lr0.2_lrur150_mincount5_epoch100.bin
+# EN
+COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc.v3.with_wikidata_dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_en.v8.lemma.nopunct_gnd_ddc.v3.with_wikidata_dim300_lr0.2_lrur150_mincount5_epoch100.bin
+
+# DDC3
+# DE
+COPY ./docker_data/wikipedia_de.v8.lemma.nopunct.pos.no_functionswords_gnd_ddc_full.v5.with_categories_dim300_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_de.v8.lemma.nopunct.pos.no_functionswords_gnd_ddc_full.v5.with_categories_dim300_lr0.2_lrur150_mincount5_epoch100.bin
+# EN
+COPY ./docker_data/wikipedia_en.v8.lemma.nopunct_gnd_ddc_full.v5.with_categories_dim100_lr0.2_lrur150_mincount5_epoch100.bin /home/stud_homes/baumartz/mnt/resources/nlp/models/categorization/ddc/ddc_2023/wikipedia_en.v8.lemma.nopunct_gnd_ddc_full.v5.with_categories_dim100_lr0.2_lrur150_mincount5_epoch100.bin
 
 # TODO include in jar
 COPY src/main/resources/textimager_duui_ddc_fasttext.lua /home/stud_homes/baumartz/dev/git/TTLab-UIMA/textimager-uima-ddc-fasttext/src/main/resources/textimager_duui_ddc_fasttext.lua

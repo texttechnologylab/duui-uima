@@ -35,6 +35,8 @@ For using duui-transformers-sentiment as a DUUI image it is necessary to use the
 docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-transformers-sentiment:latest
 ```
 
+Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-transformers-sentiment/tags/list
+
 ## Run within DUUI
 
 ```
@@ -44,6 +46,13 @@ composer.add(
         .withImageFetching()
 );
 ```
+
+### Parameters
+
+| Name | Description |
+| ---- | ----------- |
+| `model_name` | Model to use, see table above |
+| `selection`  | Use `text` to process the full document text or any selectable UIMA type class name |
 
 # Cite
 
