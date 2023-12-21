@@ -71,7 +71,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 }
 
 @misc{Baumartz:2022,
-  author         = {Baumartz, Daniel},
+  author         = {Abrami, Giuseppe and Baumartz, Daniel},
   title          = {GerVADER as DUUI component},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-gervader}
