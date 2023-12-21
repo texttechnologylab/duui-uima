@@ -13,8 +13,12 @@ class Settings(BaseSettings):
     # Log level
     log_level: Optional[str]
 
+    class Config:
+        env_prefix = 'textimager_duui_vader_sentiment_'
+
+
 # Capabilities
-class DUUICapability(BaseModel):
+class TextImagerCapability(BaseModel):
     # List of supported languages by the annotator
     supported_languages: List[str]
 
@@ -23,7 +27,7 @@ class DUUICapability(BaseModel):
 
 
 # Documentation response
-class DUUIDocumentation(BaseModel):
+class TextImagerDocumentation(BaseModel):
     # Name of this annotator
     annotator_name: str
 
@@ -43,7 +47,7 @@ class DUUIDocumentation(BaseModel):
     parameters: Optional[dict]
 
     # Capabilities of this annotator
-    capability: DUUICapability
+    capability: TextImagerCapability
 
     # Analysis engine XML, if available
     implementation_specific: Optional[str]

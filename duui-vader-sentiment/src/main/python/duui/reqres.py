@@ -5,13 +5,13 @@ from .sentiment import SentimentSelection
 from .uima import UimaSentenceSelection, UimaAnnotationMeta, UimaDocumentModification
 
 
-class DUUIRequest(BaseModel):
+class TextImagerRequest(BaseModel):
     selections: List[UimaSentenceSelection]
     lang: str
     doc_len: int
 
 
-class DUUIResponse(BaseModel):
+class TextImagerResponse(BaseModel):
     selections: List[SentimentSelection]
     meta: Optional[UimaAnnotationMeta]
     modification_meta: Optional[UimaDocumentModification]

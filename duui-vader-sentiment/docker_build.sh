@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export annotator_name=duui-vader-sentiment
-export annotator_version=0.0.1
+export TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_NAME=textimager-duui-vader-sentiment
+export TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION=0.0.2
 
-#export DUUI_VADER_SENTIMENT_LOG_LEVEL=DEBUG
-export log_level=INFO
+#export TEXTIMAGER_DUUI_VADER_SENTIMENT_LOG_LEVEL=DEBUG
+export TEXTIMAGER_DUUI_VADER_SENTIMENT_LOG_LEVEL=INFO
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 
 docker build \
-  --build-arg annotator_name \
-  --build-arg annotator_version \
-  --build-arg log_level \
-  -t ${DOCKER_REGISTRY}${annotator_name}:${annotator_version} \
+  --build-arg TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_NAME \
+  --build-arg TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION \
+  --build-arg TEXTIMAGER_DUUI_VADER_SENTIMENT_LOG_LEVEL \
+  -t ${DOCKER_REGISTRY}${TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_NAME}:${TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION} \
   -f "src/main/docker/Dockerfile" \
-  . --no-cache
+  .
 
 docker tag \
-  ${DOCKER_REGISTRY}${annotator_name}:${annotator_version} \
-  ${DOCKER_REGISTRY}${annotator_name}:latest
+  ${DOCKER_REGISTRY}${TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_NAME}:${TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION} \
+  ${DOCKER_REGISTRY}${TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_NAME}:latest
