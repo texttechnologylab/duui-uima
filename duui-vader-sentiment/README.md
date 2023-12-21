@@ -1,43 +1,34 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-sentiment&message=2.3.3&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-ddc-fasttext/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-vader-sentiment&message=0.0.2&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-vader-sentiment/tags/list)
 
-# text2ddc (DUUI DDC fastText)
+# VADER Sentiment
 
-DUUI implementation for [text2ddc](https://www.texttechnologylab.org/applications/text2ddc/).
+DUUI implementation for [VADER](https://github.com/cjhutto/vaderSentiment)
 
-## Included Models
+## Included Languages
 
-| Name        | Languages |
-| ----------- | --------- |
-| ddc1_dim100 | EN, DE    |
-| ddc1_dim300 | EN, DE    |
-| ddc1_dim100_ml | Multi  |
-| ddc1_dim300_ml | Multi  |
-| ddc2_dim100 | EN, DE    |
-| ddc2_dim300 | EN, DE    |
-| ddc2_dim100_ml | Multi  |
-| ddc2_dim300_ml | Multi  |
-| ddc3_dim100 | EN, DE    |
-| ddc3_dim300 | EN, DE    |
-| ddc3_dim100_ml | Multi  |
-| ddc3_dim300_ml | Multi  |
+| Languages |
+| --------- |
+| EN        |
+| FR        |
+| DE available in https://github.com/texttechnologylab/duui-uima/tree/main/duui-gervader |
 
 # How To Use
 
-For using text2ddc as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+For using VADER as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-ddc-fasttext:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-vader-sentiment:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-ddc-fasttext/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-vader-sentiment/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-ddc-fasttext:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-vader-sentiment:latest")
         .withScale(iWorkers)
         .withImageFetching()
 );
@@ -47,7 +38,6 @@ composer.add(
 
 | Name | Description |
 | ---- | ----------- |
-| `ddc_variant` | DDC variant to use, see model table above |
 | `selection`   | Use `text` to process the full document text or any selectable UIMA type class name |
 
 # Cite
@@ -88,18 +78,9 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 
 @misc{Baumartz:2022,
   author         = {Baumartz, Daniel},
-  title          = {text2ddc as DUUI component},
+  title          = {VADER as DUUI component},
   year           = {2022},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-ddc-fasttext}
-}
-
-@inproceedings{Uslu:Mehler:Baumartz:2019,
-  author = "Uslu, Tolga and Mehler, Alexander and Baumartz, Daniel",
-  booktitle = "{Proceedings of the 20th International Conference on Computational Linguistics and Intelligent Text Processing, (CICLing 2019)}",
-  location = "La Rochelle, France",
-  series = "{CICLing 2019}",
-  title = "{Computing Classifier-based Embeddings with the Help of text2ddc}",
-  year = 2019
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-vader-sentiment}
 }
 ```
 

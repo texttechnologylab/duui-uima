@@ -11,9 +11,9 @@ from fastapi.responses import PlainTextResponse
 from vaderSentiment import vaderSentiment as vaderSentimentEn
 from vaderSentiment_fr import vaderSentiment as vaderSentimentFr
 
-from .duui.reqres import DUUIResponse, DUUIRequest
+from .duui.reqres import TextImagerResponse, TextImagerRequest
 from .duui.sentiment import SentimentSentence, SentimentSelection
-from .duui.service import Settings, DUUIDocumentation, DUUICapability
+from .duui.service import Settings, TextImagerDocumentation, TextImagerCapability
 from .duui.uima import *
 
 # TODO get from source?
@@ -23,11 +23,11 @@ VADER_FR_VERSION = "1.3.4"
 settings = Settings()
 model_lock = Lock()
 analyzer_cache = {}
-supported_languages = sorted(list(["de", "fr"]))
+supported_languages = sorted(list(["en", "fr"]))
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
-logger.info("TTLab DUUI Transformers Vader")
+logger.info("TTLab TextImager DUUI Transformers Vader")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
@@ -38,7 +38,7 @@ with open(typesystem_filename, 'rb') as f:
     logger.debug("Base typesystem:")
     logger.debug(typesystem.to_xml())
 
-lua_communication_script_filename = "src/main/lua/duui_vader_sentiment.lua"
+lua_communication_script_filename = "src/main/lua/textimager_duui_vader_sentiment.lua"
 logger.info("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 with open(lua_communication_script_filename, 'rb') as f:
     lua_communication_script = f.read().decode("utf-8")
@@ -50,7 +50,7 @@ app = FastAPI(
     docs_url="/api",
     redoc_url=None,
     title=settings.annotator_name,
-    description="Vader-based sentiment analysis for TTLab DUUI",
+    description="Vader-based sentiment analysis for TTLab TextImager DUUI",
     version=settings.annotator_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
@@ -71,13 +71,13 @@ def get_communication_layer() -> str:
 
 
 @app.get("/v1/documentation")
-def get_documentation() -> DUUIDocumentation:
-    capabilities = DUUICapability(
+def get_documentation() -> TextImagerDocumentation:
+    capabilities = TextImagerCapability(
         supported_languages=supported_languages,
         reproducible=True
     )
 
-    documentation = DUUIDocumentation(
+    documentation = TextImagerDocumentation(
         annotator_name=settings.annotator_name,
         version=settings.annotator_version,
         implementation_lang="Python",
@@ -133,12 +133,23 @@ def fix_unicode_problems(text):
     # fix emoji in python string and prevent json error on response
     # File "/usr/local/lib/python3.8/site-packages/starlette/responses.py", line 190, in render
     # UnicodeEncodeError: 'utf-8' codec can't encode characters in position xx-yy: surrogates not allowed
-    clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
+    #clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
+
+    # try to fix by single char to prevent length change
+    clean_text = ''
+    for char_ in text:
+        try:
+            char = char_.encode('utf-8').decode('utf-8')
+        except UnicodeEncodeError:
+            char = u"\uFFFD"
+        clean_text += char
+    assert len(clean_text) == len(text)
+
     return clean_text
 
 
 @app.post("/v1/process")
-def process(request: DUUIRequest) -> DUUIResponse:
+def process(request: TextImagerRequest) -> TextImagerResponse:
     processed_selections = []
 
     dt = datetime.now()
@@ -153,17 +164,25 @@ def process(request: DUUIRequest) -> DUUIResponse:
         processed_sentences = []
 
         for sentence in selection.sentences:
-            vs = analyzer.polarity_scores(
-                fix_unicode_problems(sentence.text)
-            )
+            try:
+                vs = analyzer.polarity_scores(
+                    fix_unicode_problems(sentence.text)
+                )
 
-            processed_sentences.append(SentimentSentence(
-                sentence=sentence,
-                compound=vs["compound"],
-                pos=vs["pos"],
-                neu=vs["neu"],
-                neg=vs["neg"],
-            ))
+                processed_sentences.append(SentimentSentence(
+                    # remove text content due to unicode problems
+                    sentence=UimaSentence(
+                        text="",
+                        begin=sentence.begin,
+                        end=sentence.end
+                    ),
+                    compound=vs["compound"],
+                    pos=vs["pos"],
+                    neu=vs["neu"],
+                    neg=vs["neg"],
+                ))
+            except Exception as ex:
+                logger.error("Error while processing sentence \"%s\": %s", sentence.text, ex)
 
         # compute avg for this selection, if >1
         if len(processed_sentences) > 1:
@@ -210,7 +229,7 @@ def process(request: DUUIRequest) -> DUUIResponse:
 
     modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version})"
     modification_meta = UimaDocumentModification(
-        user="DUUI",
+        user="TextImager",
         timestamp=modification_timestamp_seconds,
         comment=modification_meta_comment
     )
@@ -221,7 +240,7 @@ def process(request: DUUIRequest) -> DUUIResponse:
     print(dte, 'Finished processing', flush=True)
     print('Time elapsed', f'{dte-dt}', flush=True)
 
-    return DUUIResponse(
+    return TextImagerResponse(
         selections=processed_selections,
         meta=meta,
         modification_meta=modification_meta

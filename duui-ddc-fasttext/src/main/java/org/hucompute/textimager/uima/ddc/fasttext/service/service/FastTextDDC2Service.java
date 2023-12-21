@@ -27,22 +27,22 @@ public class FastTextDDC2Service extends FastTextService {
 
     private HashMap<String, HashMap<String, String>> ddcNames;
 
-    FastTextDDC2Service(String fasttextLocation,
-                        String fastTextLanguageModelsLabels,
-                        boolean lazyLoad,
-                        int maxLoaded,
-                        boolean useLemma,
-                        boolean addPOS,
-                        String posmapLocation,
-                        boolean removePunct,
-                        boolean removeFunctionwords,
-                        boolean ignoreMissingLemmaPOS,
-                        boolean cutoff,
-                        int fasttextK,
-                        String tags,
-                        String disambigTag,
-                        String disambigLabelReplace,
-                        String disambigLabelReplaceWith
+    protected FastTextDDC2Service(String fasttextLocation,
+                                  String fastTextLanguageModelsLabels,
+                                  boolean lazyLoad,
+                                  int maxLoaded,
+                                  boolean useLemma,
+                                  boolean addPOS,
+                                  String posmapLocation,
+                                  boolean removePunct,
+                                  boolean removeFunctionwords,
+                                  boolean ignoreMissingLemmaPOS,
+                                  boolean cutoff,
+                                  int fasttextK,
+                                  String tags,
+                                  String disambigTag,
+                                  String disambigLabelReplace,
+                                  String disambigLabelReplaceWith
     ) throws Exception {
         super(
             fasttextLocation,
