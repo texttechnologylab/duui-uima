@@ -34,23 +34,23 @@ public class FastTextDDC3Service extends FastTextService {
     protected HashMap<String, ArrayList<CategoryCoveredTaggedSimple>> categoriesLevel2 = new HashMap<>();
     protected HashMap<String, ArrayList<CategoryCoveredTaggedSimple>> categoriesLevel3 = new HashMap<>();
 
-    FastTextDDC3Service(String fasttextLocation,
-                        String fastTextLanguageModelsLabels,
-                        boolean lazyLoad,
-                        int maxLoaded,
-                        boolean useLemma,
-                        boolean addPOS,
-                        String posmapLocation,
-                        boolean removePunct,
-                        boolean removeFunctionwords,
-                        boolean ignoreMissingLemmaPOS,
-                        boolean cutoff,
-                        int fasttextK,
-                        String tagsDDC2,
-                        String tagsDDC3,
-                        String disambigTag,
-                        String disambigLabelReplace,
-                        String disambigLabelReplaceWith
+    protected FastTextDDC3Service(String fasttextLocation,
+                                  String fastTextLanguageModelsLabels,
+                                  boolean lazyLoad,
+                                  int maxLoaded,
+                                  boolean useLemma,
+                                  boolean addPOS,
+                                  String posmapLocation,
+                                  boolean removePunct,
+                                  boolean removeFunctionwords,
+                                  boolean ignoreMissingLemmaPOS,
+                                  boolean cutoff,
+                                  int fasttextK,
+                                  String tagsDDC2,
+                                  String tagsDDC3,
+                                  String disambigTag,
+                                  String disambigLabelReplace,
+                                  String disambigLabelReplaceWith
     ) throws Exception {
         super(
             fasttextLocation,
@@ -236,7 +236,7 @@ public class FastTextDDC3Service extends FastTextService {
         }
         for (CategoryCoveredTagged catgory : categories) {
             // Only consider categories with the correct tag
-            if (catgory.getTags() == null || !catgory.getTags().equals(tagsDDC2)) {
+            if (catgory.getTags() == null || !catgory.getTags().contains(tagsDDC2)) {
                 continue;
             }
 

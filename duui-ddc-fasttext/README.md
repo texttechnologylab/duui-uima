@@ -1,60 +1,105 @@
-# textimager-uima-ddc-fasttext Project
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-sentiment&message=2.3.3&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-ddc-fasttext/tags/list)
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+# text2ddc (DUUI DDC fastText)
 
-If you want to learn more about Quarkus, please visit its website: https://quarkus.io/ .
+DUUI implementation for [text2ddc](https://www.texttechnologylab.org/applications/text2ddc/).
 
-## Running the application in dev mode
+## Included Models
 
-You can run your application in dev mode that enables live coding using:
-```shell script
-./mvnw compile quarkus:dev
+| Name        | Languages |
+| ----------- | --------- |
+| ddc1_dim100 | EN, DE    |
+| ddc1_dim300 | EN, DE    |
+| ddc1_dim100_ml | Multi  |
+| ddc1_dim300_ml | Multi  |
+| ddc2_dim100 | EN, DE    |
+| ddc2_dim300 | EN, DE    |
+| ddc2_dim100_ml | Multi  |
+| ddc2_dim300_ml | Multi  |
+| ddc3_dim100 | EN, DE    |
+| ddc3_dim300 | EN, DE    |
+| ddc3_dim100_ml | Multi  |
+| ddc3_dim300_ml | Multi  |
+
+# How To Use
+
+For using text2ddc as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+
+## Start Docker container
+
+```
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-ddc-fasttext:latest
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at http://localhost:8080/q/dev/.
+Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-ddc-fasttext/tags/list
 
-## Packaging and running the application
+## Run within DUUI
 
-The application can be packaged using:
-```shell script
-./mvnw package
 ```
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
-
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
-```shell script
-./mvnw package -Dquarkus.package.type=uber-jar
+composer.add(
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-ddc-fasttext:latest")
+        .withScale(iWorkers)
+        .withImageFetching()
+);
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+### Parameters
 
-## Creating a native executable
+| Name | Description |
+| ---- | ----------- |
+| `ddc_variant` | DDC variant to use, see model table above |
+| `selection`   | Use `text` to process the full document text or any selectable UIMA type class name |
 
-You can create a native executable using: 
-```shell script
-./mvnw package -Pnative
+# Cite
+
+If you want to use the DUUI image please quote this as follows:
+
+Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (2023). "Unlocking the Heterogeneous Landscape of Big Data NLP with DUUI." Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399. [[LINK](https://aclanthology.org/2023.findings-emnlp.29)] [[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)]
+
+## BibTeX
+
+```
+@inproceedings{Leonhardt:et:al:2023,
+  title     = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
+  author    = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel and Mehler, Alexander},
+  editor    = {Bouamor, Houda and Pino, Juan and Bali, Kalika},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year      = {2023},
+  address   = {Singapore},
+  publisher = {Association for Computational Linguistics},
+  url       = {https://aclanthology.org/2023.findings-emnlp.29},
+  pages     = {385--399},
+  pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf},
+  abstract  = {Automatic analysis of large corpora is a complex task, especially
+               in terms of time efficiency. This complexity is increased by the
+               fact that flexible, extensible text analysis requires the continuous
+               integration of ever new tools. Since there are no adequate frameworks
+               for these purposes in the field of NLP, and especially in the
+               context of UIMA, that are not outdated or unusable for security
+               reasons, we present a new approach to address the latter task:
+               Docker Unified UIMA Interface (DUUI), a scalable, flexible, lightweight,
+               and feature-rich framework for automatic distributed analysis
+               of text corpora that leverages Big Data experience and virtualization
+               with Docker. We evaluate DUUI{'}s communication approach against
+               a state-of-the-art approach and demonstrate its outstanding behavior
+               in terms of time efficiency, enabling the analysis of big text
+               data.}
+}
+
+@misc{Baumartz:2022,
+  author         = {Baumartz, Daniel},
+  title          = {text2ddc as DUUI component},
+  year           = {2022},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-ddc-fasttext}
+}
+
+@inproceedings{Uslu:Mehler:Baumartz:2019,
+  author = "Uslu, Tolga and Mehler, Alexander and Baumartz, Daniel",
+  booktitle = "{Proceedings of the 20th International Conference on Computational Linguistics and Intelligent Text Processing, (CICLing 2019)}",
+  location = "La Rochelle, France",
+  series = "{CICLing 2019}",
+  title = "{Computing Classifier-based Embeddings with the Help of text2ddc}",
+  year = 2019
+}
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using: 
-```shell script
-./mvnw package -Pnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/textimager-uima-ddc-fasttext-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult https://quarkus.io/guides/maven-tooling.
-
-## Related Guides
-
-- SmallRye Health ([guide](https://quarkus.io/guides/microprofile-health)): Monitor service health
-
-## Provided Code
-
-### SmallRye Health
-
-Monitor your application's health using SmallRye Health
-
-[Related guide section...](https://quarkus.io/guides/smallrye-health)

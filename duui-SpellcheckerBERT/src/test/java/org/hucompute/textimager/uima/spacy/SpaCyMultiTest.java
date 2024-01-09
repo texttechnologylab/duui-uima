@@ -8,10 +8,13 @@ import org.apache.uima.fit.util.JCasUtil;
 //import org.hucompute.textimager.uima.util.XmlFormatter;
 import org.apache.uima.jcas.JCas;
 import org.junit.jupiter.api.Test;
+import org.texttechnologylab.annotation.AnnotationComment;
+import org.texttechnologylab.annotation.AnomlySpelling;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
+import org.texttechnologylab.annotation.AnomalySpellingMeta;
 
 import java.util.Collection;
 
@@ -22,6 +25,7 @@ public class SpaCyMultiTest {
     @Test
     public void multiTestEn() throws Exception {
         DUUIComposer composer = new DUUIComposer()
+                .withSkipVerification(true)
                 .withLuaContext(
                         new DUUILuaContext()
                                 .withJsonLibrary()
@@ -33,14 +37,11 @@ public class SpaCyMultiTest {
                 .withTimeout(10000);
         composer.addDriver(dockerDriver);
 
-//        composer.add(
-//                new DUUIRemoteDriver.Component("http://127.0.0.1:9714"),
-//                DUUIRemoteDriver.class
-//        );
+        composer.add(
+                new DUUIRemoteDriver.Component("http://127.0.0.1:9714")
+        );
 
-        composer.add(new DUUIDockerDriver.Component("textimager_duui_spellcheck:0.1.3")
-                        .withScale(1)
-                , DUUIDockerDriver.class);
+//        composer.add(new DUUIDockerDriver.Component("textimager_duui_spellcheck:0.1.3"));
 
         JCas cas = JCasFactory.createText("Ich habe im Landtag3 L34t3 angesprochen , ich Int3ll3g3nt halte!");
         cas.setDocumentLanguage("de");
@@ -75,10 +76,8 @@ public class SpaCyMultiTest {
         composer.shutdown();
 
 //        System.out.println(XmlFormatter.getPrettyString(cas));
-        Collection<Anomaly> all_tokens = JCasUtil.select(cas, Anomaly.class);
-//        Anomaly wrong_token = JCasUtil.selectSingleAt(cas, Anomaly.class, 12, 20);
-//        Anomaly unkown_token1 = JCasUtil.selectSingleAt(cas, Anomaly.class, 21, 26);
-//        Anomaly unkown_token2 = JCasUtil.selectSingleAt(cas, Anomaly.class, 46, 57);
+        Collection<AnomlySpelling> allSpellings = JCasUtil.select(cas, AnomlySpelling.class);
+        AnomalySpellingMeta meta = JCasUtil.selectSingle(cas, AnomalySpellingMeta.class);
         System.out.println("H");
     }
 }

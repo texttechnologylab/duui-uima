@@ -49,7 +49,7 @@ public class GermanSentimentTest {
                     .withScale(iWorkers)
                     .build());
         }else{
-            composer.add(new DUUIRemoteDriver.Component("http://localhost:9716")
+            composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                 .withScale(iWorkers)
                 .build());
         }
@@ -105,7 +105,7 @@ public class GermanSentimentTest {
                     .withScale(workers)
                     .build());
         }else{
-            composer.add(new DUUIRemoteDriver.Component("http://localhost:9716")
+            composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
                 .withScale(workers)
                 .build());
         }

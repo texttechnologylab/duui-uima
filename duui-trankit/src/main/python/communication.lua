@@ -72,15 +72,21 @@ function deserialize(inputCas, inputStream)
             local pos = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS", inputCas)
             pos:setBegin(tok["begin"])
             pos:setEnd(tok["end"])
-            pos:setPosValue(tok["pos"]["PosValue"])
-            pos:setCoarseValue(tok["pos"]["coarseValue"])
+            if tok["pos"]["PosValue"] ~= null then
+                pos:setPosValue(tok["pos"]["PosValue"])
+            end
+            if tok["pos"]["coarseValue"] ~= null then
+                pos:setCoarseValue(tok["pos"]["coarseValue"])
+            end
             pos:addToIndexes()
 
             -- Lemma
             local lemma = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma", inputCas)
             lemma:setBegin(tok["begin"])
             lemma:setEnd(tok["end"])
-            lemma:setValue(tok["lemma"]["value"])
+            if tok["lemma"]["value"] ~= null then
+                lemma:setValue(tok["lemma"]["value"])
+            end
             lemma:addToIndexes()
 
             -- MorphologicalFeatures
@@ -185,3 +191,4 @@ function deserialize(inputCas, inputStream)
         end
     end
 end
+

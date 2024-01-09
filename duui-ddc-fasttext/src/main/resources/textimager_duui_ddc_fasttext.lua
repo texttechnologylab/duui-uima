@@ -15,7 +15,7 @@ function add_parameter_to_cas(cas, parameters, param_name)
         param_anno:setKey(DUUIConfiguratinParameterName)
         param_anno:setValue(param_name .. BORLAND_SEP .. param_value)
         param_anno:addToIndexes()
-        --print("added parameter: " .. param_name)
+        print("added parameter: " .. param_name)
     end
 end
 

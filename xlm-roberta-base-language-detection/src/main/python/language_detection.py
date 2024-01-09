@@ -28,12 +28,12 @@ class PartOfSpeech(BaseModel):
 # Note, this is transformed by the Lua script
 class DUUIRequest(BaseModel):
     part_of_speeches: List[PartOfSpeech]
+    top_k: int
 
 
 # Response of this annotator
 # Note, this is transformed by the Lua script
 class DUUIResponse(BaseModel):
-    # List of Sentiment
     languages: List[Language]
 
 
@@ -47,12 +47,15 @@ except RuntimeError as e:
     language_detector = pipeline("text-classification", model="papluca/xlm-roberta-base-language-detection", top_k=None, device=-1)
 
 
-def analyse(part_of_speeches: List[PartOfSpeech]):
+def analyse(part_of_speeches: List[PartOfSpeech], top_k):
     languages: List[Language] = list()
 
     for part_of_speech in part_of_speeches:
         try:
             detected_languages = language_detector(part_of_speech.text)[0]
+
+            if top_k > 0:
+                detected_languages = detected_languages[:top_k]
 
             for detected_language in detected_languages:
                 language = Language(
@@ -115,7 +118,7 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
-    languages = analyse(request.part_of_speeches)
+    languages = analyse(request.part_of_speeches, request.top_k)
 
     # Return data as JSON
     return DUUIResponse(
