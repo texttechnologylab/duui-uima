@@ -331,6 +331,8 @@ with open(lua_communication_script_filename, 'rb') as f:
 @lru_cache_with_size
 def load_cache_spacy_model(model_name):
     logger.info("Loading spaCy model \"%s\"...", model_name)
+    spacy.prefer_gpu()
+    logger.info("Using GPU if possible")
     nlp = spacy.load(model_name)
     logger.info("Finished loading spaCy model \"%s\"", model_name)
     return nlp
