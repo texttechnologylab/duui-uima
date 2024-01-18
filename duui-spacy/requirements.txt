@@ -41,7 +41,7 @@ requests==2.27.1
 smart-open==5.2.1
 sniffio==1.2.0
 sortedcontainers==2.4.0
-spacy==3.2.2
+spacy[cuda12x]==3.2.2
 spacy-legacy==3.0.8
 spacy-loggers==1.0.1
 spacy-pkuseg==0.0.28
