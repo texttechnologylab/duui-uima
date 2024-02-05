@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.22.1&color=yellow)]()
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.1&color=red)]()
 
-# Transformers Sentiment
+# Transformers Toxic
 
 DUUI implementation for selected Hugging-Face-based transformer [Toxic tools](https://huggingface.co/models?sort=trending&search=sentiment).
 and for [Detoxify](https://github.com/unitaryai/detoxify) model.
