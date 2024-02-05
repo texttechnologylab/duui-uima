@@ -91,7 +91,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Baumartz:2022,
+@misc{Bagci:2024,
   author         = {Bagci, Mevlüt},
   title          = {Hugging-Face-based toxic models  and detoxify models as {DUUI} component},
   year           = {2024},
