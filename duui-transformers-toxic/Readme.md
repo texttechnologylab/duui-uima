@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-toxic&message=0.1&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-transformers-toxic/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-toxic&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-transformers-toxic/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.22.1&color=yellow)]()
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.1&color=red)]()
