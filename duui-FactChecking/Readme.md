@@ -77,7 +77,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Baumartz:2022,
+@misc{Bagci:2024,
   author         = {Bagci, Mevlüt},
   title          = {Fact checking tools as {DUUI} component},
   year           = {2024},
