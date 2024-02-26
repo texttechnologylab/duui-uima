@@ -35,7 +35,6 @@ composer.add(
 
 | Name | Description |
 | ---- | ----------- |
-| `model_name` | Model to use, see table above |
 | `selection`  | Use `text` to process the full document text or any selectable UIMA type class name |
 
 # Cite
