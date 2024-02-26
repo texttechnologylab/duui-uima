@@ -1,11 +1,11 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-toxic&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-transformers-toxic/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-toxic&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-toxic/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.22.1&color=yellow)]()
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.1&color=red)]()
 
 # Transformers Toxic
 
-DUUI implementation for selected Hugging-Face-based transformer [Toxic tools](https://huggingface.co/models?sort=trending&search=sentiment).
+DUUI implementation for selected Hugging-Face-based transformer [Toxic tools](https://huggingface.co/models?sort=trending&search=toxic).
 and for [Detoxify](https://github.com/unitaryai/detoxify) model.
 ## Included Models
 
@@ -33,16 +33,16 @@ For using duui-transformers-toxic as a DUUI image it is necessary to use the [Do
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-transformers-toxic:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-toxic:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-transformers-toxic/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-toxic/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-transformers-toxic:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-toxic:latest")
         .withScale(iWorkers)
         .withImageFetching()
 );
