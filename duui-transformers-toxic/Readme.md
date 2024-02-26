@@ -33,16 +33,16 @@ For using duui-transformers-toxic as a DUUI image it is necessary to use the [Do
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-transformers-toxic:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-toxic:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-transformers-toxic/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-toxic/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-transformers-toxic:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-toxic:latest")
         .withScale(iWorkers)
         .withImageFetching()
 );

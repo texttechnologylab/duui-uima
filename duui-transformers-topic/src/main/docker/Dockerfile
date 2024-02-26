@@ -14,6 +14,7 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='chkla/parlbert-topic-german')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ssharoff/genres')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1')"
 
 
 # log level
