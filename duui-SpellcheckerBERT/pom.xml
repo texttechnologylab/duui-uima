@@ -5,8 +5,48 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.hucompute.textimager.uima</groupId>
-    <artifactId>textimager-uima-spacy</artifactId>
+    <artifactId>textimager-uima-spellcheck</artifactId>
     <version>0.0.1</version>
+
+    <licenses>
+        <license>
+            <name>AGPL-3.0-or-later</name>
+            <url>https://www.gnu.org/licenses/agpl.txt</url>
+            <distribution>repo</distribution>
+            <comments>GNU Affero General Public License v3.0 or later</comments>
+        </license>
+    </licenses>
+
+    <organization>
+        <name>Texttechnology Lab</name>
+        <url>https://www.texttechnologylab.org</url>
+    </organization>
+    <developers>
+        <developer>
+            <id>mehler</id>
+            <name>Prof. Dr. Alexander Mehler</name>
+            <email>mehler@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/alexander-abrami/</url>
+            <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
+            <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
+            <roles>
+                <role>head of department</role>
+            </roles>
+        </developer>
+        <developer>
+            <id>bagci</id>
+            <name>Mevlüt Bagci</name>
+            <email>bagci@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/mevl%c3%bct-bagci/</url>
+            <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
+            <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
+            <roles>
+                <role>lead developer</role>
+            </roles>
+            <timezone>Europe/Berlin</timezone>
+        </developer>
+    </developers>
+
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
