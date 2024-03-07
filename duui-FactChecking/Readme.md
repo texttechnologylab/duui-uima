@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/static/v1?label=duui-FactChecking&message=0.1&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-FactChecking/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-FactChecking&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-FactChecking/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.34.1&color=yellow)]()
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.0&color=red)]()
@@ -19,16 +19,16 @@ For using duui-transformers-toxic as a DUUI image it is necessary to use the [Do
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-FactChecking:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-FactChecking:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-FactChecking/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-FactChecking/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-FactChecking:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-FactChecking:latest")
         .withScale(iWorkers)
         .withImageFetching()
 );
