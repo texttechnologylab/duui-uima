@@ -33,7 +33,7 @@ class NubiaFactCheck:
     def check_i(self, claim: str, evidence: str, six_dim=False, aggregator="agg_two"):
         scores = self.nubia.score(claim, evidence, get_features=True, six_dim=six_dim, aggregator=aggregator)
         labels = {k: v for k, v in scores["features"].items()}
-        return {"nubia_score": scores["nubia_score"], "Labels": labels}
+        return {"consistency": scores["nubia_score"], "Labels": labels}
 
     def check(self, claims: List[str], evidences: List[str], six_dim=False, aggregator="agg_two"):
         out_i = []

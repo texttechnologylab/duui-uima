@@ -114,12 +114,30 @@ function deserialize(inputCas, inputStream)
 --     print("begin_deserialize")
 
     if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["consistency"] ~= nil then
+        print("GetInfo")
+        local source = results["model_source"]
+        local model_version = results["model_version"]
+        local model_name = results["model_name"]
+        local model_lang = results["model_lang"]
+        print("meta")
         local modification_meta = results["modification_meta"]
         local modification_anno = luajava.newInstance("org.texttechnologylab.annotation.DocumentModification", inputCas)
         modification_anno:setUser(modification_meta["user"])
         modification_anno:setTimestamp(modification_meta["timestamp"])
         modification_anno:setComment(modification_meta["comment"])
         modification_anno:addToIndexes()
+
+        print("setMetaData")
+        local model_meta = luajava.newInstance("org.texttechnologylab.annotation.model.MetaData", inputCas)
+        model_meta:setModelVersion(model_version)
+        print(model_version)
+        model_meta:setModelName(model_name)
+        print(model_name)
+        model_meta:setSource(source)
+        print(source)
+        model_meta:setLang(model_lang)
+        print(model_lang)
+        model_meta:addToIndexes()
 
         local meta = results["meta"]
 --         print("meta")
@@ -155,6 +173,8 @@ function deserialize(inputCas, inputStream)
 --             print("fact")
             factcheck_i:setConsistency(cons)
 --             print("cons")
+            factcheck_i:setModel(model_meta)
+--             print("setModel")
             factcheck_i:addToIndexes()
 --             print(factcheck_i)
         end

@@ -70,7 +70,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <dkpro.core.version>2.4.0</dkpro.core.version>
 <!--        <ttlab.duui.version>f68ca579ab553074f76d061623dc9b00cf508276</ttlab.duui.version>-->
-<!--        <ttlab.typesystem.version>033beaa593a99c005400f4021ea8d6fa8957e6c3</ttlab.typesystem.version>-->
+        <ttlab.typesystem.version>2789ba29fa1f236b64b0402315ffe1cf5d81b654</ttlab.typesystem.version>
     </properties>
 
     <repositories>
@@ -98,34 +98,34 @@
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
             <version>${ttlab.duui.version}</version>
         </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.texttechnologylab</groupId>-->
-<!--            <artifactId>DockerUnifiedUIMAInterface</artifactId>-->
-<!--            <version>1.0</version>-->
-<!--        </dependency>-->
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>DockerUnifiedUIMAInterface</artifactId>
+            <version>7cef2433b5</version>
+        </dependency>
 <!--        <dependency>-->
 <!--            <groupId>com.github.texttechnologylab.textimager-uima</groupId>-->
 <!--            <artifactId>textimager-uima-util</artifactId>-->
 <!--            <version>${ttlab.textimager.typesystem.version}</version>-->
 <!--        </dependency>-->
 
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>2789ba29f</version>
+        </dependency>
+
 <!--        <dependency>-->
-<!--            <groupId>com.github.texttechnologylab</groupId>-->
-<!--            <artifactId>UIMATypeSystem</artifactId>-->
-<!--            <version>${ttlab.typesystem.version}</version>-->
+<!--            <groupId>org.texttechnologylab.annotation</groupId>-->
+<!--            <artifactId>typesystem</artifactId>-->
+<!--            <version>3.0.1</version>-->
 <!--        </dependency>-->
 
-        <dependency>
-            <groupId>org.texttechnologylab.annotation</groupId>
-            <artifactId>typesystem</artifactId>
-            <version>3.0.1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.texttechnologylab</groupId>
-            <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>1.3</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.texttechnologylab</groupId>-->
+<!--            <artifactId>DockerUnifiedUIMAInterface</artifactId>-->
+<!--            <version>1.3</version>-->
+<!--        </dependency>-->
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>

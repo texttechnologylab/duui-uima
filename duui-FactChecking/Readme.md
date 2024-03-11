@@ -1,7 +1,8 @@
-[![Version](https://img.shields.io/static/v1?label=duui-FactChecking&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-FactChecking/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-factchecking-unieval&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-factchecking-unieval/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-factchecking-nubia&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/textimager-duui-factchecking-nubia/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.34.1&color=yellow)]()
-[![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.0&color=red)]()
+[![Version](https://img.shields.io/static/v1?label=Torch&message=2.2.0&color=red)]()
 
 # Transformers FactChecking
 
@@ -10,11 +11,11 @@ DUUI implementation for selected FactChecking Tools: [UniEval](https://github.co
 
 | Name                                                       | Revision                                 | Languages                              |
 |------------------------------------------------------------|------------------------------------------|----------------------------------------|
-| UniEval                                                    | ba6569605671e88217a14b2b218ce6974be73775 | EN                                     |
+| UniEval                                                    | d33e7b6cfebe97b2bafe435adbd818230d5a416a | EN                                     |
 | NUBIA                                                      | ba6569605671e88217a14b2b218ce6974be73775 | EN                                     |
 # How To Use
 
-For using duui-transformers-toxic as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+For using duui-FactChecking as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Start Docker container
 
@@ -22,24 +23,19 @@ For using duui-transformers-toxic as a DUUI image it is necessary to use the [Do
 docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-FactChecking:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-FactChecking/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-factchecking-unieval/tags/list
+and 
+https://docker.texttechnologylab.org/v2/duui-factchecking-nubia/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-FactChecking:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-factchecking-[modelname]:latest")
         .withScale(iWorkers)
         .withImageFetching()
 );
 ```
-
-### Parameters
-
-| Name | Description |
-| ---- | ----------- |
-| `model_name` | Model to use, see table above |
-| `selection`  | Use `text` to process the full document text or any selectable UIMA type class name |
 
 # Cite
 

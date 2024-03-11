@@ -8,12 +8,23 @@ from cassis import load_typesystem
 import torch
 from functools import lru_cache
 from factchecker import UniEvalFactCheck, NubiaFactCheck
+from threading import Lock
 # from sp_correction import SentenceBestPrediction
 
 # Settings
 # These are automatically loaded from env variables
 from starlette.responses import PlainTextResponse
+model_lock = Lock()
 
+sources = {
+    "nubia": "https://github.com/wl-research/nubia",
+    "unieval": "https://github.com/maszhongming/UniEval"
+}
+
+languages = {
+    "nubia": "en",
+    "unieval": "en"
+}
 
 class Settings(BaseSettings):
     # Name of this annotator
@@ -101,6 +112,10 @@ class TextImagerResponse(BaseModel):
     begin_facts: List[int]
     end_facts: List[int]
     consistency: List[float]
+    model_name: str
+    model_version: str
+    model_source: str
+    model_lang: str
 
 
 
@@ -169,6 +184,8 @@ def post_process(request: TextImagerRequest):
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
     try:
+        model_source = sources[settings.fact_model_name]
+        model_lang = languages[settings.fact_model_name]
         # set meta Informations
         meta = AnnotationMeta(
             name=settings.fact_annotator_name,
@@ -185,65 +202,66 @@ def post_process(request: TextImagerRequest):
         )
         claims = request.claims_all
         facts = request.facts_all
-        model_run = load_model(settings.fact_model_name)
-        claim_list = []
-        fact_list = []
-        counters = []
-        for c, claim in enumerate(claims):
-            for fc, fact_i in enumerate(claim["facts"]):
-                claim_list.append(claim["text"])
-                fact_list.append(fact_i["text"])
-                counters.append(f"{c}_{fc}")
-        factchecked = model_run.check(claim_list, fact_list)
-        for c, fact_check_i in enumerate(factchecked):
-            checkfacts[counters[c]] = fact_check_i
-        # check fact_list
-        claim_list = []
-        fact_list = []
-        counters = []
-        factscheck = {}
-        for fc, fact_i in enumerate(facts):
-            for c, claim in enumerate(fact_i["claims"]):
-                if f"{c}_{fc}" not in checkfacts:
+        with model_lock:
+            model_run = load_model(settings.fact_model_name)
+            claim_list = []
+            fact_list = []
+            counters = []
+            for c, claim in enumerate(claims):
+                for fc, fact_i in enumerate(claim["facts"]):
                     claim_list.append(claim["text"])
                     fact_list.append(fact_i["text"])
                     counters.append(f"{c}_{fc}")
-        if len(claim_list) > 0:
             factchecked = model_run.check(claim_list, fact_list)
-        else:
-            factchecked = {}
-        for c, fact_check_i in enumerate(factchecked):
-            factscheck[counters[c]] = fact_check_i
-        for key_i in checkfacts:
-            key_claim = int(key_i.split("_")[0])
-            key_facts = int(key_i.split("_")[1])
-            cons = checkfacts[key_i]['consistency']
-            consistency.append(cons)
-            claim_i = claims[key_claim]
-            begin_claims.append(claim_i["begin"])
-            end_claims.append(claim_i["end"])
-            fact_i = claim_i["facts"][key_facts]
-            begin_facts.append(fact_i["begin"])
-            end_facts.append(fact_i["end"])
-        for key_i in factscheck:
-            key_claim = int(key_i.split("_")[0])
-            key_facts = int(key_i.split("_")[1])
-            cons = checkfacts[key_i]['consistency']
-            consistency.append(cons)
-            fact_i = facts[key_facts]
-            claim_i = fact_i["claims"][key_claim]
-            begin_claims.append(claim_i["begin"])
-            end_claims.append(claim_i["end"])
-            begin_facts.append(fact_i["begin"])
-            end_facts.append(fact_i["end"])
+            for c, fact_check_i in enumerate(factchecked):
+                checkfacts[counters[c]] = fact_check_i
+            # check fact_list
+            claim_list = []
+            fact_list = []
+            counters = []
+            factscheck = {}
+            for fc, fact_i in enumerate(facts):
+                for c, claim in enumerate(fact_i["claims"]):
+                    if f"{c}_{fc}" not in checkfacts:
+                        claim_list.append(claim["text"])
+                        fact_list.append(fact_i["text"])
+                        counters.append(f"{c}_{fc}")
+            if len(claim_list) > 0:
+                factchecked = model_run.check(claim_list, fact_list)
+            else:
+                factchecked = {}
+            for c, fact_check_i in enumerate(factchecked):
+                factscheck[counters[c]] = fact_check_i
+            for key_i in checkfacts:
+                key_claim = int(key_i.split("_")[0])
+                key_facts = int(key_i.split("_")[1])
+                cons = checkfacts[key_i]['consistency']
+                consistency.append(cons)
+                claim_i = claims[key_claim]
+                begin_claims.append(claim_i["begin"])
+                end_claims.append(claim_i["end"])
+                fact_i = claim_i["facts"][key_facts]
+                begin_facts.append(fact_i["begin"])
+                end_facts.append(fact_i["end"])
+            for key_i in factscheck:
+                key_claim = int(key_i.split("_")[0])
+                key_facts = int(key_i.split("_")[1])
+                cons = checkfacts[key_i]['consistency']
+                consistency.append(cons)
+                fact_i = facts[key_facts]
+                claim_i = fact_i["claims"][key_claim]
+                begin_claims.append(claim_i["begin"])
+                end_claims.append(claim_i["end"])
+                begin_facts.append(fact_i["begin"])
+                end_facts.append(fact_i["end"])
     except Exception as ex:
         logger.exception(ex)
-    return TextImagerResponse(meta=meta, modification_meta=modification_meta, consistency=consistency, begin_claims=begin_claims, end_claims=end_claims, begin_facts=begin_facts, end_facts=end_facts)
+    return TextImagerResponse(meta=meta, modification_meta=modification_meta, consistency=consistency, begin_claims=begin_claims, end_claims=end_claims, begin_facts=begin_facts, end_facts=end_facts, model_name=settings.fact_model_name, model_version=settings.fact_model_version, model_source=model_source, model_lang=model_lang)
 
 @lru_cache_with_size
 def load_model(model_name):
 
-    if model_name == "Nubia":
+    if model_name == "nubia":
         model_i = NubiaFactCheck()
     else:
         model_i = UniEvalFactCheck(device=device)
