@@ -20,7 +20,7 @@ For using duui-FactChecking as a DUUI image it is necessary to use the [Docker U
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-FactChecking:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-factchecking-[modelname]:latest
 ```
 
 Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-factchecking-unieval/tags/list
