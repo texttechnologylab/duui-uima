@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.texttechnologylab.duui</groupId>
-    <artifactId>duui-FactChecking</artifactId>
+    <artifactId>duui-transformers-emotion</artifactId>
     <version>0.1.0</version>
 
     <licenses>
@@ -109,17 +109,17 @@
         <!--            <version>${ttlab.textimager.typesystem.version}</version>-->
         <!--        </dependency>-->
 
-        <!--        <dependency>-->
-        <!--            <groupId>com.github.texttechnologylab</groupId>-->
-        <!--            <artifactId>UIMATypeSystem</artifactId>-->
-        <!--            <version>${ttlab.typesystem.version}</version>-->
-        <!--        </dependency>-->
-
         <dependency>
-            <groupId>org.texttechnologylab.annotation</groupId>
-            <artifactId>typesystem</artifactId>
-            <version>3.0.1</version>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>05913ec35</version>
         </dependency>
+
+<!--        <dependency>-->
+<!--            <groupId>org.texttechnologylab.annotation</groupId>-->
+<!--            <artifactId>typesystem</artifactId>-->
+<!--            <version>3.0.1</version>-->
+<!--        </dependency>-->
 
         <!--        <dependency>-->
         <!--            <groupId>org.texttechnologylab</groupId>-->
