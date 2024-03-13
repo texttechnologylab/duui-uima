@@ -6,7 +6,7 @@
 # Transformers Complexity
 
 DUUI implementation for selected Hugging-Face-based transformer [Complexity tools](https://huggingface.co/models?sort=trending&search=fill-mask) as a DUUI component.
-You can take transformer Model.
+The embeddings will be use to compute the complexity of the text. The complexities are the following metrics: euclidean,cosine,wasserstein,distance,jensenshannon,bhattacharyya.
 ## Included Models
 
 | Name                               | Revision                                  | Languages    |
