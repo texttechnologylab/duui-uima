@@ -1,54 +1,58 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-emotion&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list)
-[![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
-[![Version](https://img.shields.io/static/v1?label=Transformers&message=4.27.4&color=yellow)]()
-[![Version](https://img.shields.io/static/v1?label=Torch&message=1.13.1&color=red)]()
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-complexity&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-complexity/tags/list)
+[![Version](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
+[![Version](https://img.shields.io/static/v1?label=Transformers&message=4.38.1color=yellow)]()
+[![Version](https://img.shields.io/static/v1?label=Torch&message=2.2.0&color=red)]()
 
-# Transformers Emotion
+# Transformers Complexity
 
-DUUI implementation for selected Hugging-Face-based transformer [Emotion tools](https://huggingface.co/models?sort=trending&search=emotion) models and [pol_emo_mDeBERTa](https://github.com/tweedmann/pol_emo_mDeBERTa2).
+DUUI implementation for selected Hugging-Face-based transformer [Complexity tools](https://huggingface.co/models?sort=trending&search=fill-mask) as a DUUI component.
+You can take transformer Model.
 ## Included Models
 
-| Name                                                  | Revision                                 | Languages    |
-|-------------------------------------------------------|------------------------------------------|--------------|
-| 02shanky/finetuned-twitter-xlm-roberta-base-emotion   | 28e6d080e9f73171b574dd88ac768da9e6622c36 | Multilingual |
-| DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence | b3487623ec2dd4b9bd0644d8266291afb9956e9f | Multilingual |
-| pol_emo_mDeBERTa                           | 523da7dc2523631787ef0712bad53bfe2ac46840 | Multilingual |
-| MilaNLProc/xlm-emo-t                                       | a6ee7c9fad08d60204e7ae437d41d392381496f0 | Multilingual |
- | j-hartmann/emotion-english-distilroberta-base | 0e1cd914e3d46199ed785853e12b57304e04178b | EN           |
- | michellejieli/emotion_text_classifier | dc4df5597fcda82589511c3900fedbe1c0ffec82 | EN           |
- | cardiffnlp/twitter-roberta-base-emotion | 2848306ad936b7cd47c76c2c4e14d694a41e0f54 | EN           |
- | finiteautomata/bertweet-base-emotion-analysis | c482c9e1750a29dcc393234816bcf468ff77cd2d | EN           |
+| Name                               | Revision                                  | Languages    |
+|------------------------------------|-------------------------------------------|--------------|
+| intfloat/multilingual-e5-base      | d13f1b27baf31030b7fd040960d60d909913633f  | Multilingual |
+| google-bert/bert-base-multilingual-cased | 3f076fdb1ab68d5b2880cb87a0886f315b8146f8  | Multilingual |
+| FacebookAI/xlm-roberta-large       | c23d21b0620b635a76227c604d44e43a9f0ee389  | Multilingual |
+| cardiffnlp/twitter-xlm-roberta-base | 4c365f1490cb329b52150ad72f922ea467b5f4e6  | Multilingual |
+| facebook/xlm-v-base                | 068c75dd7733d2640b3a98114e3e94196dc543fe1 |  Multilingual  |
+| setu4993/LEALLA-small              | 8fadf81fe3979f373ba9922ab616468a4184b266  |  Multilingual |
+| sentence-transformers/LaBSE        | 5513ed8dd44a9878c7d4fe8646d4dd9df2836b7b  |  Multilingual    |
+| Twitter/twhin-bert-large           | 2786782c0f659550e3492093e4aab963d495243 |  Multilingual  |
+| sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 | 543dcf585e1eb6d4ece18c2e0c29474d9c5146b70  |  Multilingual |
+| sentence-transformers/distiluse-base-multilingual-cased-v2  | 501a2afbd9deb9f028b175cc6060f38bb5055ce4  | Multilingual |
 # How To Use
 
-For using duui-transformers-emotion as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+For using duui-transformers-complexity as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-emotion:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-complexity:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-complexity/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-emotion:latest")
-        .withScale(iWorkers)
-        .withImageFetching()
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-complexity:latest")
+        .withParameter("model_name", model)
+        .withParameter("model_art", "bert")
+        .withParameter("complexity_compute", complexities)
+        .withParameter("embeddings_keep", "1")
 );
 ```
 
 ### Parameters
 
-| Name | Description |
-| ---- | ----------- |
-| `model_name` | Model to use, see table above |
-| `selection`  | Use `text` to process the full document text or any selectable UIMA type class name |
-
-## Building
-Before build download [pol_emo_mDeBERTa2.zip](https://github.com/tweedmann/pol_emo_mDeBERTa2/releases/download/v.1.0.0/pol_emo_mDeBERTa2.zip) and save the folder pol_emo_DeBERTa under the python directory.
+| Name      | Description                                                                                               |
+|-----------|-----------------------------------------------------------------------------------------------------------|
+| `model_name` | Model to use, see table above                                                                             |
+| `model_art` | Bert for BertTransformers, Sentence for sentence-Transformer, BertSentence for Bert Sentence Transformers |
+| `complexity_compute` | euclidean,cosine,wasserstein,distance,jensenshannon,bhattacharyya                                         |
+| `embeddings_keep` | 1 keep emmbeding                                                                                          |
 
 # Cite
 
@@ -88,7 +92,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 
 @misc{Bagci:2024,
   author         = {Bagci, Mevlüt},
-  title          = {Hugging-Face-based emotion models as {DUUI} component},
+  title          = {Hugging-Face-based complexity models as {DUUI} component},
   year           = {2023},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-Complexity}
 }

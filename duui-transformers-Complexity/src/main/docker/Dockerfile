@@ -17,13 +17,15 @@ RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='02shanky/finetuned-twitter-xlm-roberta-base-emotion')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/xlm-emo-t')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='j-hartmann/emotion-english-distilroberta-base')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='michellejieli/emotion_text_classifier')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/bertweet-base-emotion-analysis')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='intfloat/multilingual-e5-base')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='google-bert/bert-base-multilingual-cased')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='FacebookAI/xlm-roberta-large')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='facebook/xlm-v-base')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='cardiffnlp/twitter-xlm-roberta-base')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='setu4993/LEALLA-small')"
+RUN python -c "from transformers import pipeline; pipeline('fill-mask', model='Twitter/twhin-bert-large')"
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('distiluse-base-multilingual-cased-v2')"
 
 # log level
 ARG COMPLEXITY_LOG_LEVEL="DEBUG"
@@ -40,8 +42,16 @@ ARG COMPLEXITY_ANNOTATOR_VERSION="unset"
 ENV COMPLEXITY_ANNOTATOR_VERSION=$COMPLEXITY_ANNOTATOR_VERSION
 
 # Model Info
+#ARG COMPLEXITY_MODEL_NAME=""
+#ENV COMPLEXITY_MODEL_NAME=$COMPLEXITY_MODEL_NAME
 ARG COMPLEXITY_MODEL_VERSION=0.1
 ENV COMPLEXITY_MODEL_VERSION=$COMPLEXITY_MODEL_VERSION
+#ARG COMPLEXITY_MODEL_ART=""
+#ENV COMPLEXITY_MODEL_ART=$COMPLEXITY_MODEL_ART
+#ARG COMPLEXITY_MODEL_SOURCE=""
+#ENV COMPLEXITY_MODEL_SOURCE=$COMPLEXITY_MODEL_SOURCE
+#ARG COMPLEXITY_MODEL_LANG=""
+#ENV COMPLEXITY_MODEL_LANG=$COMPLEXITY_MODEL_LANG
 
 # offline mode for huggingface
 #ARG TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1

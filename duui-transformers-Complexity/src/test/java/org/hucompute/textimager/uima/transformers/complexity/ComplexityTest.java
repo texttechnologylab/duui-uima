@@ -33,7 +33,8 @@ public class ComplexityTest {
     static JCas cas;
 
     static String url = "http://127.0.0.1:8000";
-    static String model = "google-bert/bert-base-multilingual-cased";
+//    static String model = "google-bert/bert-base-multilingual-cased";
+    static String model = "paraphrase-multilingual-MiniLM-L12-v2";
 //    static String model = "pol_emo_mDeBERTa";
     static String complexities = "euclidean,cosine,wasserstein,distance,jensenshannon,bhattacharyya";
 
@@ -93,7 +94,7 @@ public class ComplexityTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
-                        .withParameter("model_art", "bert")
+                        .withParameter("model_art", "Sentence")
                         .withParameter("complexity_compute", complexities)
                         .withParameter("embeddings_keep", "1")
         );
