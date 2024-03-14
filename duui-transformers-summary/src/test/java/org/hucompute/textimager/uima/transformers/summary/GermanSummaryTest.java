@@ -108,7 +108,6 @@ public class GermanSummaryTest {
 
         Collection<Summary> summaries = JCasUtil.select(cas, Summary.class);
 
-        System.out.println("H");
         for (Summary summary : summaries) {
             System.out.println(summary.getSummary());
         }
