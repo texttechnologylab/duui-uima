@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.hucompute.textimager.uima</groupId>
-    <artifactId>textimager-uima-transformers-summary</artifactId>
-    <version>0.0.2</version>
+    <groupId>org.texttechnologylab.duui</groupId>
+    <artifactId>duui-transformers-Complexity</artifactId>
+    <version>0.1.0</version>
 
     <licenses>
         <license>
@@ -109,17 +109,17 @@
         <!--            <version>${ttlab.textimager.typesystem.version}</version>-->
         <!--        </dependency>-->
 
-<!--        <dependency>-->
-<!--            <groupId>com.github.texttechnologylab</groupId>-->
-<!--            <artifactId>UIMATypeSystem</artifactId>-->
-<!--            <version>a8fad895d</version>-->
-<!--        </dependency>-->
-
         <dependency>
-            <groupId>org.texttechnologylab.annotation</groupId>
-            <artifactId>typesystem</artifactId>
-            <version>3.0.1</version>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>a8fad895d</version>
         </dependency>
+
+<!--        <dependency>-->
+<!--            <groupId>org.texttechnologylab.annotation</groupId>-->
+<!--            <artifactId>typesystem</artifactId>-->
+<!--            <version>3.0.1</version>-->
+<!--        </dependency>-->
 
         <!--        <dependency>-->
         <!--            <groupId>org.texttechnologylab</groupId>-->

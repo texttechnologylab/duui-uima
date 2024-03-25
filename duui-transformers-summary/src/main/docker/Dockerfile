@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM python:3.10
 
 WORKDIR /usr/src/app
 
@@ -6,35 +6,38 @@ EXPOSE 9714
 
 # dependencies
 RUN pip install setuptools wheel
+COPY ./requirements.txt ./requirements.txt
+RUN pip install -r requirements.txt
 
-
-RUN pip install symspellpy fastapi uvicorn[standard] dkpro-cassis
-RUN pip install torch==1.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
-RUN pip install torchserve==0.7.1
-RUN pip install transformers==4.9.1
-RUN pip install chardet==5.1.0
-RUN pip install numpy
-RUN pip install scikit-learn==0.22.1
-RUN pip install pyhocon graphviz tensorboard pydantic
-RUN pip install tqdm==4.56.0
-
-# log level
-ARG TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_LOG_LEVEL="DEBUG"
-ENV TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_LOG_LEVEL=$TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_LOG_LEVEL
-
-# config
-ARG TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_MODEL_CACHE_SIZE=1
-ENV TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_MODEL_CACHE_SIZE=$TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_MODEL_CACHE_SIZE
-
-# meta data
-ARG TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_ANNOTATOR_NAME="textimager-duui-transformers-summary"
-ENV TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_ANNOTATOR_NAME=$TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_ANNOTATOR_NAME
-ARG TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_ANNOTATOR_VERSION="0.0.1"
-ENV TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_ANNOTATOR_VERSION=$TEXTIMAGER_DUUI_TRANSFORMERS_SUMMARY_ANNOTATOR_VERSION
+RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='csebuetnlp/mT5_multilingual_XLSum')"
+RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-base')"
+RUN python -c "from mdmls import Summarizer; Summarizer(device=-1)"
 
 # copy scripts
-COPY ./src/main/python/ ./
-RUN ls -la ./*
+COPY ./src/main/python/TypeSystemSummary.xml ./TypeSystemSummary.xml
+COPY ./src/main/python/duui_summary.lua ./duui_summary.lua
+COPY ./src/main/python/summarization.py ./summarization.py
+COPY ./src/main/python/duui_transformers_summary.py ./duui_transformers_summary.py
 
-ENTRYPOINT ["uvicorn", "textimager_duui_transformers_summary:app", "--host", "0.0.0.0", "--port" ,"9714"]
+
+# log level
+ARG SUMMARY_LOG_LEVEL="DEBUG"
+ENV SUMMARY_LOG_LEVEL=$SUMMARY_LOG_LEVEL
+
+# config
+ARG SUMMARY_MODEL_CACHE_SIZE=3
+ENV SUMMARY_MODEL_CACHE_SIZE=$SUMMARY_MODEL_CACHE_SIZE
+
+# meta data
+ARG SUMMARY_ANNOTATOR_NAME="duui-transformers-complexity"
+ENV SUMMARY_ANNOTATOR_NAME=$SUMMARY_ANNOTATOR_NAME
+ARG SUMMARY_ANNOTATOR_VERSION="unset"
+ENV SUMMARY_ANNOTATOR_VERSION=$SUMMARY_ANNOTATOR_VERSION
+
+# Model Info
+ARG SUMMARY_MODEL_VERSION=0.1
+ENV SUMMARY_MODEL_VERSION=$SUMMARY_MODEL_VERSION
+
+
+ENTRYPOINT ["uvicorn", "duui_transformers_summary:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
