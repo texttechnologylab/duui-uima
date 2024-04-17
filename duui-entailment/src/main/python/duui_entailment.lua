@@ -6,7 +6,7 @@ EntailmentSentence = luajava.bindClass("org.texttechnologylab.annotation.Entailm
 Entailment = luajava.bindClass("org.texttechnologylab.annotation.Entailment")
 
 function serialize(inputCas, outputStream, parameters)
-    print("start")
+--     print("start")
     local doc_text = inputCas:getDocumentText()
     local chatgpt_key = parameters["chatgpt_key"]
     if chatgpt_key == nil or chatgpt_key == "" then
@@ -20,9 +20,9 @@ function serialize(inputCas, outputStream, parameters)
         local premise = annotation_i:getPremise()
         local hypothesis = annotation_i:getHypothesis()
         local premise_text = premise:getCoveredText()
-        print(premise_text)
+--         print(premise_text)
         local hypothesis_text = hypothesis:getCoveredText()
-        print(hypothesis_text)
+--         print(hypothesis_text)
         entailments[counter] = {}
         entailments[counter]["premise"] = premise_text
         entailments[counter]["hypothesis"] = hypothesis_text
@@ -57,7 +57,7 @@ function deserialize(inputCas, inputStream)
       meta_anno:setModelName(meta["modelName"])
       meta_anno:setModelVersion(meta["modelVersion"])
       meta_anno:addToIndexes()
---       print("meta")
+-- --       print("meta")
 
       local source = results["model_source"]
       local model_version = results["model_version"]
@@ -65,11 +65,11 @@ function deserialize(inputCas, inputStream)
       local model_lang = results["model_lang"]
       local model_meta = luajava.newInstance("org.texttechnologylab.annotation.model.MetaData", inputCas)
       model_meta:setModelVersion(model_version)
---       print(model_version)
+-- --       print(model_version)
       model_meta:setModelName(model_name)
---       print(model_name)
+-- --       print(model_name)
       model_meta:setSource(source)
---       print(source)
+-- --       print(source)
       model_meta:setLang(model_lang)
       model_meta:addToIndexes()
 
@@ -82,11 +82,11 @@ function deserialize(inputCas, inputStream)
         if meta["modelName"] ~= "gpt3.5" and meta["modelName"] ~= "gpt4" then
             local entailment_i =  luajava.newInstance("org.texttechnologylab.annotation.Entailment", inputCas)
             entailment_i:setReference(annotation_i)
-            print(annotation_i:getHypothesis():getCoveredText())
+--             print(annotation_i:getHypothesis():getCoveredText())
             local entailment = prediction_i["entailment"]
-            print(entailment)
+--             print(entailment)
             local non = prediction_i["non_entailment"]
-            print(non)
+--             print(non)
             entailment_i:setEntailment(entailment)
             entailment_i:setContradiction(non)
             entailment_i:setModel(model_meta)
@@ -95,12 +95,12 @@ function deserialize(inputCas, inputStream)
         else
             local entailment_i =  luajava.newInstance("org.texttechnologylab.annotation.EntailmentGPT", inputCas)
             entailment_i:setReference(annotation_i)
-            print(annotation_i:getHypothesis():getCoveredText())
+--             print(annotation_i:getHypothesis():getCoveredText())
             local label = prediction_i["label"]
---                 print(label)
+-- --                 print(label)
             entailment_i:setLabel(label)
             local reason = prediction_i["reason"]
---                 print(reason)
+-- --                 print(reason)
             entailment_i:setReason(reason)
             local confidence = prediction_i["confidence"]
             entailment_i:setConfidence(confidence)

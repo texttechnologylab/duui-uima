@@ -21,6 +21,8 @@ model_lock = Lock()
 labels_to_name = {
     0: "Non-Entailment",
     1: "Entailment",
+    "0": "Non-Entailment",
+    "1": "Entailment",
 }
 
 class UimaSentence(BaseModel):
