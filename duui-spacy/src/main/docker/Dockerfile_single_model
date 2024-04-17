@@ -1,11 +1,15 @@
-FROM python:3.8
+FROM python:3.11
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 WORKDIR /usr/src/app
 
 EXPOSE 9714
 
 # dependencies
-RUN pip install setuptools wheel
+RUN pip install pip setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
 
@@ -30,10 +34,14 @@ ENV TEXTIMAGER_SPACY_LOG_LEVEL=$TEXTIMAGER_SPACY_LOG_LEVEL
 ARG TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=3
 ENV TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=$TEXTIMAGER_SPACY_MODEL_CACHE_SIZE
 
+# variant
+ARG TEXTIMAGER_SPACY_VARIANT=""
+ENV TEXTIMAGER_SPACY_VARIANT=$TEXTIMAGER_SPACY_VARIANT
+
 # service script
 COPY ./src/main/python/TypeSystemSpacy.xml ./TypeSystemSpacy.xml
 COPY ./src/main/python/textimager_duui_spacy.py ./textimager_duui_spacy.py
 COPY ./src/main/python/textimager_duui_spacy.lua ./textimager_duui_spacy.lua
 
-ENTRYPOINT ["uvicorn", "textimager_duui_spacy:app", "--host", "0.0.0.0", "--port" ,"9714"]
+ENTRYPOINT ["uvicorn", "textimager_duui_spacy:app", "--host", "0.0.0.0", "--port" ,"9714", "--use-colors"]
 CMD ["--workers", "1"]

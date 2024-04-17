@@ -1,6 +1,8 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
-
+JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
+Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
+Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
 --  - inputCas: The actual CAS object to serialize
@@ -13,12 +15,67 @@ function serialize(inputCas, outputStream, parameters)
     local doc_text = inputCas:getDocumentText()
     local doc_lang = inputCas:getDocumentLanguage()
 
+    -- Should use tokens directly?
+    local tokens = nil
+    local spaces = nil
+    local sent_starts = nil
+    local use_existing_tokens = false
+    local use_existing_sentences = false
+    if parameters["use_existing_tokens"] ~= nil then
+        use_existing_tokens = parameters["use_existing_tokens"] == "true"
+    end
+    if parameters["use_existing_sentences"] ~= nil then
+        use_existing_sentences = parameters["use_existing_sentences"] == "true"
+    end
+    if use_existing_tokens then
+        tokens = {}
+        spaces = {}
+        sent_starts = {}
+
+        local tokens_count = 1
+        local tokens_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Token)):listIterator()
+        local sentences = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Sentence))
+        while tokens_it:hasNext() do
+            local token = tokens_it:next()
+            tokens[tokens_count] = token:getCoveredText()
+            -- try to get next to see if space is needed
+            has_space = false
+            if tokens_it:hasNext() then
+                local next_token = tokens_it:next()
+                has_space = next_token:getBegin() ~= token:getEnd()
+                tokens_it:previous()
+            end
+            spaces[tokens_count] = has_space
+            if use_existing_sentences then
+                local sentences_it = sentences:listIterator()
+                sent_starts[tokens_count] = false
+                while sentences_it:hasNext() do
+                    local sentence = sentences_it:next()
+                    if sentence:getBegin() == token:getBegin() then
+                        sent_starts[tokens_count] = true
+                        break
+                    elseif sentence:getBegin() > token:getBegin() then
+                        break
+                    end
+                end
+            end
+
+            tokens_count = tokens_count + 1
+        end
+
+        -- reset text
+        doc_text = ""
+    end
+
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
         text = doc_text,
         lang = doc_lang,
-        parameters = parameters
+        parameters = parameters,
+        tokens = tokens,
+        spaces = spaces,
+        sent_starts = sent_starts
     }))
 end
 
@@ -43,6 +100,9 @@ function deserialize(inputCas, inputStream)
 
     -- Get meta data, this is the same for every annotation
     local meta = results["meta"]
+
+    -- If was pretokenized, use existing tokens
+    local is_pretokenized = results["is_pretokenized"]
 
     -- Add sentences
     for i, sent in ipairs(results["sentences"]) do
@@ -73,15 +133,47 @@ function deserialize(inputCas, inputStream)
     -- Add tokens
     -- Save all tokens, to allow for retrieval in dependencies
     local all_tokens = {}
+    if is_pretokenized then
+        local tokens_count = 0
+        local tokens_it = JCasUtil:select(inputCas, Token):iterator()
+        while tokens_it:hasNext() do
+            local token = tokens_it:next()
+            all_tokens[tokens_count] = token
+            tokens_count = tokens_count + 1
+        end
+    end
     for i, token in ipairs(results["tokens"]) do
         -- Save current token
         local token_anno = nil
-        if token["write_token"] then
+        if is_pretokenized then
+            -- Use existing token if pretokenized
+            token_anno = all_tokens[i-1]
+        elseif token["write_token"] then
             -- Create token annotation
             token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", inputCas)
             token_anno:setBegin(token["begin"])
             token_anno:setEnd(token["end"])
             token_anno:addToIndexes()
+
+            -- URL detection
+            if token["like_url"] then
+                url_anno = luajava.newInstance("org.texttechnologylab.type.id.URL", inputCas)
+                url_anno:setBegin(token["begin"])
+                url_anno:setEnd(token["end"])
+
+                -- optional url might be split in parts
+                if token["url_parts"] ~= nil then
+                    url_anno:setScheme(token["url_parts"]["scheme"])
+                    url_anno:setUser(token["url_parts"]["user"])
+                    url_anno:setPassword(token["url_parts"]["password"])
+                    url_anno:setHost(token["url_parts"]["host"])
+                    url_anno:setPort(token["url_parts"]["port"])
+                    url_anno:setPath(token["url_parts"]["path"])
+                    url_anno:setQuery(token["url_parts"]["query"])
+                    url_anno:setFragment(token["url_parts"]["fragment"])
+                end
+                url_anno:addToIndexes()
+            end
 
             -- Save current token using its index
             -- Note: Lua starts counting at 1
