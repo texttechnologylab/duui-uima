@@ -1,43 +1,56 @@
-from sys import version as sys_version
-from platform import python_version
-from time import time
-from functools import lru_cache
-from threading import Lock
-from typing import List, Optional
 import logging
+from functools import lru_cache
+from platform import python_version
+from sys import version as sys_version
+from threading import Lock
+from time import time
+from typing import List, Optional, Union
+from urllib.parse import urlparse
+
 import spacy
 from cassis import load_typesystem
+from cassis.cas import Utf16CodepointOffsetConverter
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseSettings, BaseModel
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
+from spacy.tokens import Doc
 
 
 # Settings
 # These are automatically loaded from env variables
 class Settings(BaseSettings):
+    # Variant, i.e. what to run in pipeline
+    variant: str
     # Name of this annotator
-    textimager_spacy_annotator_name: str
+    annotator_name: str
     # Version of this annotator
-    textimager_spacy_annotator_version: str
+    annotator_version: str
     # Log level
-    textimager_spacy_log_level: str
+    log_level: str
     # Model LRU cache size
-    textimager_spacy_model_cache_size: int
+    model_cache_size: int
     # This is set to the model if only one single model is in the Docker image
-    textimager_spacy_single_model: Optional[str]
+    single_model: Optional[str] = None
     # This is set to the language of the single model
-    textimager_spacy_single_model_lang: Optional[str]
+    single_model_lang: Optional[str] = None
+
+    class Config:
+        env_prefix = 'textimager_spacy_'
 
 
 # Load settings from env vars
 settings = Settings()
 
 # Init logger
-logging.basicConfig(level=settings.textimager_spacy_log_level)
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=settings.log_level,
+    datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 logger.info("TTLab TextImager DUUI spaCy")
-logger.info("Name: %s", settings.textimager_spacy_annotator_name)
-logger.info("Version: %s", settings.textimager_spacy_annotator_version)
+logger.info("Name: %s", settings.annotator_name)
+logger.info("Version: %s", settings.annotator_version)
 
 # Type names needed by this annotator
 UIMA_TYPE_SENTENCE = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
@@ -49,17 +62,36 @@ UIMA_TYPE_DEPENDENCY = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency
 UIMA_TYPE_DEPENDENCY_ROOT = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT"
 UIMA_TYPE_NAMED_ENTITY = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity"
 
+# validate variant setting
+VARIANT_SETTINGS = {
+    "": [UIMA_TYPE_SENTENCE, UIMA_TYPE_TOKEN, UIMA_TYPE_LEMMA, UIMA_TYPE_POS, UIMA_TYPE_MORPH, UIMA_TYPE_DEPENDENCY, UIMA_TYPE_NAMED_ENTITY],
+    "-tokenizer": [UIMA_TYPE_TOKEN],
+    "-sentencizer": [UIMA_TYPE_SENTENCE],
+    "-lemmatizer": [UIMA_TYPE_LEMMA],
+    "-tagger": [UIMA_TYPE_POS],
+    "-ner": [UIMA_TYPE_NAMED_ENTITY],
+    "-parser": [UIMA_TYPE_DEPENDENCY, UIMA_TYPE_DEPENDENCY_ROOT],
+    "-morphologizer": [UIMA_TYPE_MORPH],
+}
+if settings.variant not in VARIANT_SETTINGS.keys():
+    raise ValueError("Invalid variant setting: %s" % settings.variant)
+
 # Types this annotator produces
 # Note: Without any extra meta types or subtypes
-TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = [
-    UIMA_TYPE_SENTENCE,
-    UIMA_TYPE_TOKEN,
-    UIMA_TYPE_LEMMA,
-    UIMA_TYPE_POS,
-    UIMA_TYPE_MORPH,
-    UIMA_TYPE_DEPENDENCY,
-    UIMA_TYPE_NAMED_ENTITY
-]
+TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = set(VARIANT_SETTINGS[settings.variant])
+
+# TODO this is just a test! add final values for spacy tools
+TEXTIMAGER_ANNOTATOR_INPUT_TYPES = {
+    "": [""],
+    "-tokenizer": [""],
+    "-sentencizer": [""],
+    "-lemmatizer": [UIMA_TYPE_TOKEN],
+    "-tagger": [UIMA_TYPE_TOKEN, UIMA_TYPE_LEMMA, UIMA_TYPE_MORPH],
+    "-ner": [UIMA_TYPE_TOKEN, UIMA_TYPE_LEMMA],
+    "-parser": [UIMA_TYPE_TOKEN, UIMA_TYPE_LEMMA],
+    "-morphologizer": [UIMA_TYPE_TOKEN],
+}
+TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings.variant])
 
 # spaCy models
 # Supporting the efficient and accurate variants
@@ -69,14 +101,17 @@ SPACY_MODELS = {
     "efficiency": {
         "ca": "ca_core_news_sm",    # Catalan
         "zh": "zh_core_web_sm",     # Chinese
+        "hr": "hr_core_news_sm",    # Croatian
         "da": "da_core_news_sm",    # Danish
         "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
+        "fi": "fi_core_news_sm",    # Finnish
         "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
         "el": "el_core_news_sm",    # Greek
         "it": "it_core_news_sm",    # Italian
         "ja": "ja_core_news_sm",    # Japanese
+        "ko": "ko_core_news_sm",    # Korean
         "lt": "lt_core_news_sm",    # Lithuanian
         "mk": "mk_core_news_sm",    # Macedonian
         "nb": "nb_core_news_sm",    # Norwegian Bokmal
@@ -84,20 +119,26 @@ SPACY_MODELS = {
         "pt": "pt_core_news_sm",    # Portugese
         "ro": "ro_core_news_sm",    # Romanian
         "ru": "ru_core_news_sm",    # Russian
+        "sl": "sl_core_news_sm",    # Slovenian
         "es": "es_core_news_sm",    # Spanish
+        "sv": "sv_core_news_sm",    # Swedish
+        "uk": "uk_core_news_sm",    # Ukrainian
         "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
     "accuracy": {
         "ca": "ca_core_news_trf",
         "zh": "zh_core_web_trf",
+        "hr": "hr_core_news_lg",
         "da": "da_core_news_trf",
         "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
+        "fi": "fi_core_news_lg",
         "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
         "el": "el_core_news_lg",
         "it": "it_core_news_lg",
         "ja": "ja_core_news_trf",
+        "ko": "ko_core_news_lg",
         "lt": "lt_core_news_lg",
         "mk": "mk_core_news_lg",
         "nb": "nb_core_news_lg",
@@ -105,16 +146,19 @@ SPACY_MODELS = {
         "pt": "pt_core_news_lg",
         "ro": "ro_core_news_lg",
         "ru": "ru_core_news_lg",
+        "sl": "sl_core_news_trf",
         "es": "es_dep_news_trf",
-        "xx": "xx_sent_ud_sm",
+        "sv": "sv_core_news_lg",
+        "uk": "uk_core_news_trf",
+        "xx": "xx_ent_wiki_sm",
     }
 }
 
 # Collect list of supported languages and models
 SPACY_SUPPORTED_LANGS = set()
-if settings.textimager_spacy_single_model is not None:
-    SPACY_SUPPORTED_MODELS = {settings.textimager_spacy_single_model}
-    SPACY_SUPPORTED_LANGS = {settings.textimager_spacy_single_model_lang}
+if settings.single_model is not None:
+    SPACY_SUPPORTED_MODELS = {settings.single_model}
+    SPACY_SUPPORTED_LANGS = {settings.single_model_lang}
     SPACY_SUPPORTED_MODEL_VARIANTS = set()
 else:
     SPACY_SUPPORTED_MODELS = set()
@@ -127,8 +171,6 @@ else:
 # TODO more elaborate mapping on iso codes
 SPACY_LANGUAGE_MAPPINGS = {
     "x-unspecified": "xx",
-    "arz": "ar",
-    "uk": "ru"
 }
 
 
@@ -137,11 +179,13 @@ SPACY_LANGUAGE_MAPPINGS = {
 class TextImagerRequest(BaseModel):
     # The text to process
     text: str
+    # Alternatively, list of tokens and spaces instead of text in case of pre-tokenized text
+    tokens: Optional[List[str]] = None
+    spaces: Optional[List[bool]] = None
+    sent_starts: Optional[List[bool]] = None
     # The texts language
     lang: str
-    # Optional map/dict of parameters
-    # TODO how with lua?
-    parameters: Optional[dict]
+    parameters: Optional[dict] = None
 
 
 # UIMA type: adds metadata to each annotation
@@ -168,17 +212,19 @@ class Token(BaseModel):
     begin: int
     end: int
     ind: int
-    write_token: Optional[bool]
-    lemma: Optional[str]
-    write_lemma: Optional[bool]
-    pos: Optional[str]
-    pos_coarse: Optional[str]
-    write_pos: Optional[bool]
-    morph: Optional[str]
-    morph_details: Optional[dict]
-    write_morph: Optional[bool]
-    parent_ind: Optional[int]
-    write_dep: Optional[bool]
+    write_token: bool = None
+    lemma: str = None
+    write_lemma: bool = None
+    pos: str = None
+    pos_coarse: str = None
+    write_pos: bool = None
+    morph: str = None
+    morph_details: dict = None
+    write_morph: bool = None
+    parent_ind: int = None
+    write_dep: bool = None
+    like_url: bool = None
+    url_parts: Union[None, dict] = None
 
 
 # Dependency
@@ -220,9 +266,11 @@ class TextImagerResponse(BaseModel):
     entities: List[Entity]
     # Annotation meta, containing model name, version and more
     # Note: Same for each annotation, so only returned once
-    meta: Optional[AnnotationMeta]
+    meta: Optional[AnnotationMeta] = None
     # Modification meta, one per document
-    modification_meta: Optional[DocumentModification]
+    modification_meta: Optional[DocumentModification] = None
+    # Whether the document was pre-tokenized
+    is_pretokenized: bool
 
 
 # Capabilities
@@ -243,17 +291,23 @@ class TextImagerDocumentation(BaseModel):
     # Version of this annotator
     version: str
     # Annotator implementation language (Python, Java, ...)
-    implementation_lang: Optional[str]
+    implementation_lang: Optional[str] = None
     # Optional map of additional meta data
-    meta: Optional[dict]
+    meta: Optional[dict] = None
     # Docker container id, if any
-    docker_container_id: Optional[str]
+    docker_container_id: Optional[str] = None
     # Optional map of supported parameters
-    parameters: Optional[dict]
+    parameters: Optional[dict] = None
     # Capabilities of this annotator
     capability: TextImagerCapability
     # Analysis engine XML, if available
-    implementation_specific: Optional[str]
+    implementation_specific: Optional[str] = None
+
+
+# Input/Output description
+class TextImagerInputOutput(BaseModel):
+    inputs: List[str]
+    outputs: List[str]
 
 
 # Get spaCy model from language
@@ -262,7 +316,7 @@ def get_spacy_model_name(document_lang, parameters):
     if parameters is not None and "model_name" in parameters:
         model_name = parameters["model_name"]
         logger.debug("Model name from parameters: \"%s\"", model_name)
-        return model_name
+        return model_name, document_lang
 
     # Get model variant, use efficient if not in parameters
     model_variant = "efficiency"
@@ -301,11 +355,11 @@ def get_spacy_model_name(document_lang, parameters):
     # 2) Use language from CAS provided in meta data
     model_name = SPACY_MODELS[model_variant][document_lang]
     logger.debug("Mapped model name from document language \"%s\": \"%s\"", document_lang, model_name)
-    return model_name
+    return model_name, document_lang
 
 
 # Create LRU cache with max size for model
-lru_cache_with_size = lru_cache(maxsize=settings.textimager_spacy_model_cache_size)
+lru_cache_with_size = lru_cache(maxsize=settings.model_cache_size)
 
 # Lock for model loading
 model_load_lock = Lock()
@@ -315,8 +369,10 @@ typesystem_filename = 'TypeSystemSpacy.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
+    typesystem_xml = typesystem.to_xml()
+    typesystem_xml_content = typesystem_xml.encode("utf-8")
     logger.debug("Base typesystem:")
-    logger.debug(typesystem.to_xml())
+    logger.debug(typesystem_xml)
 
 # Load the Lua communication script
 lua_communication_script_filename = "textimager_duui_spacy.lua"
@@ -329,23 +385,32 @@ with open(lua_communication_script_filename, 'rb') as f:
 
 # Load/cache spaCy model
 @lru_cache_with_size
-def load_cache_spacy_model(model_name):
+def load_cache_spacy_model(model_name, model_lang, enabled_tools):
+    # What tools to enable in the pipeline?
+    enabled_tools = None
+    if settings.variant:
+        # handle special case for sentencizer
+        if settings.variant == "-sentencizer":
+            return load_cache_spacy_sentencizer_model(model_lang)
+
+        # at the moment, only one tool is supported and no dynamic loading
+        enabled_tools = [settings.variant[1:]]
+    logger.info("Enabled tools in pipeline: %s", ", ".join(enabled_tools) if enabled_tools is not None else "all")
+
     logger.info("Loading spaCy model \"%s\"...", model_name)
-    spacy.prefer_gpu()
-    logger.info("Using GPU if possible")
-    nlp = spacy.load(model_name)
+    nlp = spacy.load(model_name, enable=enabled_tools)
     logger.info("Finished loading spaCy model \"%s\"", model_name)
     return nlp
 
 
 # Load spaCy model using LRU cached function
-def load_spacy_model(model_name):
+def load_spacy_model(model_name, model_lang, enabled_tools):
     model_load_lock.acquire()
 
     err = None
     try:
         logger.info("Getting spaCy model \"%s\"...", model_name)
-        nlp = load_cache_spacy_model(model_name)
+        nlp = load_cache_spacy_model(model_name, model_lang, enabled_tools)
     except Exception as ex:
         nlp = None
         err = str(ex)
@@ -390,17 +455,14 @@ def load_spacy_sentencizer_model(model_lang):
 # TODO openapi types are not shown?
 # TODO self host swagger files: https://fastapi.tiangolo.com/advanced/extending-openapi/#self-hosting-javascript-and-css-for-docs
 app = FastAPI(
-    openapi_url="/openapi.json",
-    docs_url="/api",
-    redoc_url=None,
-    title=settings.textimager_spacy_annotator_name,
+    title=settings.annotator_name,
     description="spaCy implementation for TTLab TextImager DUUI",
-    version=settings.textimager_spacy_annotator_version,
+    version=settings.annotator_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
-        "name": "TTLab Team",
+        "name": "TTLab Team - Daniel Baumartz",
         "url": "https://texttechnologylab.org",
-        "email": "baumartz@stud.uni-frankfurt.de",
+        "email": "baumartz@em.uni-frankfurt.de",
     },
     license_info={
         "name": "AGPL",
@@ -424,8 +486,8 @@ def get_documentation() -> TextImagerDocumentation:
     )
 
     documentation = TextImagerDocumentation(
-        annotator_name=settings.textimager_spacy_annotator_name,
-        version=settings.textimager_spacy_annotator_version,
+        annotator_name=settings.annotator_name,
+        version=settings.annotator_version,
         implementation_lang="Python",
         meta={
             "python_version": python_version(),
@@ -473,14 +535,50 @@ def get_documentation() -> TextImagerDocumentation:
 # Get typesystem of this annotator
 @app.get("/v1/typesystem")
 def get_typesystem() -> Response:
-    # TODO remove cassis dependency, as only needed for typesystem at the moment?
-    xml = typesystem.to_xml()
-    xml_content = xml.encode("utf-8")
-
     return Response(
-        content=xml_content,
+        content=typesystem_xml_content,
         media_type="application/xml"
     )
+
+
+# Get annotators input/output types
+@app.get("/v1/details/input_output")
+def get_input_output() -> TextImagerInputOutput:
+    # TODO for now, just use all and ignore parameters
+    ins = TEXTIMAGER_ANNOTATOR_INPUT_TYPES
+    outs = TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES
+
+    return TextImagerInputOutput(
+        inputs=ins,
+        outputs=outs
+    )
+
+
+def utf16_to_utf8(text):
+    # TODO move to separate duui lib
+    clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
+    return clean_text
+
+
+def parse_url(url):
+    try:
+        parts = urlparse(url)
+        return {
+            "scheme": parts.scheme,
+            "user": parts.username,
+            "password": parts.password,
+            "host": parts.hostname,
+            "port": parts.port,
+            "path": parts.path,
+            "query": parts.query,
+            "fragment": parts.fragment,
+            # unused in type system
+            "netloc": parts.netloc,
+            "params": parts.params,
+        }
+    except Exception as ex:
+        logger.exception("Failed to parse URL: %s", ex)
+        return None
 
 
 # Process request from DUUI
@@ -493,31 +591,33 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     entities = []
     meta = None
     modification_meta = None
+    is_pretokenized = False
 
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
 
     try:
         # Get CAS from XMI string
-        logger.debug("Received:")
-        logger.debug(request)
+        #logger.debug("Received:")
+        #logger.debug(request)
 
         # Params, set here to empty dict to allow easier access later
         if request.parameters is None:
             request.parameters = {}
 
         # Get spaCy model if not in single model mode
-        if settings.textimager_spacy_single_model is None:
+        if settings.single_model is None:
             # Resolve model name
-            model_name = get_spacy_model_name(request.lang, request.parameters)
+            model_name, model_lang = get_spacy_model_name(request.lang, request.parameters)
         else:
             # In single mode we always use the single specified model!
-            model_name = settings.textimager_spacy_single_model
+            model_name = settings.single_model
+            model_lang = settings.single_model_lang
             logger.info("Using single model image: \"%s\"", model_name)
         logger.info("Using spaCy model: \"%s\"", model_name)
 
         # Load model, this is cached
-        nlp, nlp_err = load_spacy_model(model_name)
+        nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant)
         if nlp is None:
             raise Exception(f"spaCy model \"{model_name}\" could not be loaded: {nlp_err}")
 
@@ -529,60 +629,86 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         texts = None
         texts_meta = None
         text_len = len(request.text)
-        logger.debug("spaCy max size: %d", nlp.max_length)
-        logger.debug("Text size: %d", text_len)
-        if nlp.max_length < text_len:
-            # Allow splitting of large texts?
-            split_large_texts = (request.parameters["split_large_texts"].lower() != "false") if ("split_large_texts" in request.parameters) else False
-            if split_large_texts:
-                # Try to split based on sentences first
-                model_lang = spacy_meta["lang"]
-                logger.info(f"Splitting text into sentences using \"{model_lang}\" sentencizer...")
-                try:
-                    # Load cached sentencizer model
-                    nlp_sents, nlp_sents_err = load_spacy_sentencizer_model(model_lang)
-                    if nlp_sents is None:
-                        raise Exception(f"spaCy sentencizer model \"{model_lang}\" could not loaded: {nlp_sents_err}")
-                    doc_sents = nlp_sents(request.text)
-                    texts = []
-                    texts_meta = []
-                    for sent in doc_sents.sents:
-                        texts.append(sent.text)
-                        texts_meta.append({
-                            "begin": sent.start_char,
-                            "end": sent.end_char,
-                        })
-                except Exception as ex:
-                    # Splitting sentences failed, fallback to full text
-                    # TODO try to split using "."
-                    texts = None
-                    texts_meta = None
-                    logger.exception("Failed to split sentences: %s", ex)
-            else:
-                logger.warning("Text is too large, but splitting is disabled, this might be slow to process...")
+
+        # only if not pretokenized
+        is_pretokenized = request.tokens is not None and len(request.tokens) > 0 \
+                          and request.spaces is not None and len(request.spaces) > 0 \
+                          and len(request.tokens) == len(request.spaces)
+
+        has_sentences = request.sent_starts is not None and len(request.sent_starts) > 0
+
+        logger.info("Input is pretokenized: %s", "yes" if is_pretokenized else "no")
+        if not is_pretokenized:
+            # TODO add splitting for pretokenized texts?
+            #  or remove completely -> should better be solved by DUUI segmentation
+            logger.debug("spaCy max size: %d", nlp.max_length)
+            logger.debug("Text size: %d", text_len)
+            force_split_text = (request.parameters["force_split_text"].lower() != "false") if ("force_split_text" in request.parameters) else False
+            if force_split_text or nlp.max_length < text_len:
+                # Allow splitting of large texts?
+                split_large_texts = (request.parameters["split_large_texts"].lower() != "false") if ("split_large_texts" in request.parameters) else False
+                if split_large_texts:
+                    # Try to split based on sentences first
+                    # NOTE this does not support utf16 conversion as this will be removed and handled by duui later!
+                    model_lang = spacy_meta["lang"]
+                    logger.info(f"Splitting text into sentences using \"{model_lang}\" sentencizer...")
+                    try:
+                        # Load cached sentencizer model
+                        nlp_sents, nlp_sents_err = load_spacy_sentencizer_model(model_lang)
+                        if nlp_sents is None:
+                            raise Exception(f"spaCy sentencizer model \"{model_lang}\" could not be loaded: {nlp_sents_err}")
+                        doc_sents = nlp_sents(request.text)
+                        texts = []
+                        texts_meta = []
+                        for sent in doc_sents.sents:
+                            texts.append(sent.text)
+                            texts_meta.append({
+                                "begin": sent.start_char,
+                                "end": sent.end_char,
+                            })
+                    except Exception as ex:
+                        # Splitting sentences failed, fallback to full text
+                        # TODO try to split using "."
+                        texts = None
+                        texts_meta = None
+                        logger.exception("Failed to split sentences: %s", ex)
+                else:
+                    logger.warning("Text is too large, but splitting is disabled, this might be slow to process...")
 
         # Use full text, if not set
         if texts is None:
-            texts = [request.text]
+            # fix utf16 surrogates
+            text = utf16_to_utf8(request.text)
+            logger.info("Text size after utf16 conversion: %d", len(text))
+            #logger.debug("Text after utf16 conversion: %s", text)
+
+            # init converter
+            utf16_converter = Utf16CodepointOffsetConverter()
+            utf16_converter.create_offset_mapping(text)
+
+            # use full text
+            texts = [text]
             texts_meta = [{
-                "begin": 0,
-                "end": len(request.text),
+                "begin": utf16_converter.external_to_python(0),
+                "end": utf16_converter.external_to_python(len(request.text)),
+                "utf16_converter": utf16_converter,
             }]
         logger.info(f"Found {len(texts)} texts to process.")
 
         # Abort if no texts found
-        if len(texts) == 0:
-            logger.warning("No texts found, aborting...")
+        if len(texts) == 0 and not is_pretokenized:
+            logger.warning("No texts found and not pretokenized, aborting...")
         else:
-            # Find max text length
+            # Find max text length, if not pretokenized
             max_length_new = None
-            for text in texts:
-                text_len = len(text)
-                if nlp.max_length < text_len:
-                    if max_length_new is None:
-                        max_length_new = text_len + 100
-                    else:
-                        max_length_new = max(max_length_new, text_len+100)
+            if not is_pretokenized:
+                for text in texts:
+                    text_len = len(text)
+                    if nlp.max_length < text_len:
+                        if max_length_new is None:
+                            max_length_new = text_len + 100
+                        else:
+                            max_length_new = max(max_length_new, text_len+100)
 
             # Increase max length, if needed
             max_length_before = None
@@ -593,8 +719,21 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
             # Process text with spaCy
             logger.debug("Start processing...")
-            docs = list(nlp.pipe(texts))
-            logger.debug("Procesed %d texts into %d documents.", len(texts), len(docs))
+
+            if is_pretokenized and has_sentences:
+                logger.debug(" Using pretokenized text with sentences...")
+                tokdoc = Doc(nlp.vocab, words=request.tokens, spaces=request.spaces, sent_starts=request.sent_starts)
+                docs = list(nlp.pipe([tokdoc]))
+                logger.debug("Procesed pretokenized %d tokens into %d documents.", len(request.tokens), len(docs))
+            elif is_pretokenized:
+                logger.debug(" Using pretokenized text...")
+                tokdoc = Doc(nlp.vocab, words=request.tokens, spaces=request.spaces)
+                docs = list(nlp.pipe([tokdoc]))
+                logger.debug("Procesed pretokenized %d tokens into %d documents.", len(request.tokens), len(docs))
+            else:
+                logger.debug(" Using full text...")
+                docs = list(nlp.pipe(texts))
+                logger.debug("Procesed %d texts into %d documents.", len(texts), len(docs))
 
             # Reset max length, if changed
             if max_length_before is not None:
@@ -604,8 +743,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             # Build a "annotation comment" annotation
             # Can be used for each annotation
             meta = AnnotationMeta(
-                    name=settings.textimager_spacy_annotator_name,
-                    version=settings.textimager_spacy_annotator_version,
+                    name=settings.annotator_name,
+                    version=settings.annotator_version,
                     modelName=spacy_meta["name"],
                     modelVersion=spacy_meta["version"],
                     spacyVersion=spacy.__version__,
@@ -621,8 +760,23 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             else:
                 write_types = set(TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES)
 
+            # dont write tokens if pretokenized
+            if is_pretokenized:
+                write_types.discard(UIMA_TYPE_TOKEN)
+                if has_sentences:
+                    write_types.discard(UIMA_TYPE_SENTENCE)
+
             # TODO test splitting in multiple texts
             for doc_meta, doc in zip(texts_meta, docs):
+                if "utf16_converter" in doc_meta:
+                    utf16_converter = doc_meta["utf16_converter"]
+                else:
+                    utf16_converter = None
+                    logger.warning("No utf16 converter found, this should not happen!")
+
+                def utf16_to_ext(idx):
+                    return utf16_converter.python_to_external(idx) if utf16_converter is not None else idx
+
                 # Get starting position of this sentence
                 doc_begin = doc_meta["begin"]
 
@@ -630,11 +784,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 logger.debug("Writing Sentences...")
                 try:
                     # Can fail, e.g. with multilang model
+                    # or if no sentencizer is requested
                     # TODO add_pipe("sentencizer") seems to work, check later!
                     for sent in doc.sents:
                         sentences.append(Sentence(
-                            begin=doc_begin+sent.start_char,
-                            end=doc_begin+sent.end_char,
+                            begin=utf16_to_ext(doc_begin+sent.start_char),
+                            end=utf16_to_ext(doc_begin+sent.end_char),
                             write_sentence=UIMA_TYPE_SENTENCE in write_types,
                         ))
                 except Exception as ex:
@@ -699,8 +854,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                         # Create token data
                         current_token = Token(
-                            begin=doc_begin+token_begin,
-                            end=doc_begin+token_end,
+                            begin=utf16_to_ext(doc_begin+token_begin),
+                            end=utf16_to_ext(doc_begin+token_end),
 
                             # Token
                             ind=token_ind,
@@ -719,7 +874,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                             # Morph
                             morph="|".join(token.morph),
                             morph_details=morph_details,
-                            write_morph=UIMA_TYPE_MORPH in write_types
+                            write_morph=UIMA_TYPE_MORPH in write_types,
+
+                            # URL
+                            like_url=token.like_url,
+                            url_parts=parse_url(token.text) if token.like_url else None
                         )
                         tokens.append(current_token)
                         token_ind += 1
@@ -753,8 +912,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                             # Create dependency
                             current_dep = Dependency(
-                                begin=doc_begin+token_begin,
-                                end=doc_begin+token_end,
+                                begin=utf16_to_ext(doc_begin+token_begin),
+                                end=utf16_to_ext(doc_begin+token_end),
                                 type=token.dep_.upper(),
                                 flavor="basic",
                                 dependent_ind=uima_token.ind,
@@ -772,8 +931,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 try:
                     for ent in doc.ents:
                         entities.append(Entity(
-                            begin=doc_begin+ent.start_char,
-                            end=doc_begin+ent.end_char,
+                            begin=utf16_to_ext(doc_begin+ent.start_char),
+                            end=utf16_to_ext(doc_begin+ent.end_char),
                             value=ent.label_,
                             write_entity=UIMA_TYPE_NAMED_ENTITY in write_types
                         ))
@@ -781,9 +940,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     logger.exception("Error accessing named entities: %s", ex)
 
                 # Add modification info
-                modification_meta_comment = f"{settings.textimager_spacy_annotator_name} ({settings.textimager_spacy_annotator_version}), spaCy ({spacy.__version__}), {spacy_meta['lang']} {spacy_meta['name']} ({spacy_meta['version']})"
+                modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version}), spaCy ({spacy.__version__}), {spacy_meta['lang']} {spacy_meta['name']} ({spacy_meta['version']})"
                 modification_meta = DocumentModification(
-                    user=settings.textimager_spacy_annotator_name,
+                    user=settings.annotator_name,
                     timestamp=modification_timestamp_seconds,
                     comment=modification_meta_comment
                  )
@@ -798,5 +957,6 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         dependencies=dependencies,
         entities=entities,
         meta=meta,
-        modification_meta=modification_meta
+        modification_meta=modification_meta,
+        is_pretokenized=is_pretokenized
     )

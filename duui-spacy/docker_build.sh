@@ -1,11 +1,29 @@
-export TEXTIMAGER_SPACY_ANNOTATOR_NAME=textimager-duui-spacy
-export TEXTIMAGER_SPACY_ANNOTATOR_VERSION=0.1.6
+# All
+export TEXTIMAGER_SPACY_VARIANT=
+# Tokenization
+#export TEXTIMAGER_SPACY_VARIANT=-tokenizer
+# Sentence segmentation
+#export TEXTIMAGER_SPACY_VARIANT=-sentencizer
+# Lemmatization
+#export TEXTIMAGER_SPACY_VARIANT=-lemmatizer
+# Part of Speech (POS) tagging
+#export TEXTIMAGER_SPACY_VARIANT=-tagger
+# Named Entity Recognition (NER)
+#export TEXTIMAGER_SPACY_VARIANT=-ner
+# Dependency parsing (DEP)
+#export TEXTIMAGER_SPACY_VARIANT=-parser
+# Morphological features and coarse-grained POS
+#export TEXTIMAGER_SPACY_VARIANT=-morphologizer
+
+export TEXTIMAGER_SPACY_ANNOTATOR_NAME=duui-spacy${TEXTIMAGER_SPACY_VARIANT}
+export TEXTIMAGER_SPACY_ANNOTATOR_VERSION=0.4.2
 export TEXTIMAGER_SPACY_LOG_LEVEL=DEBUG
 export TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=3
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 
 docker build \
+  --build-arg TEXTIMAGER_SPACY_VARIANT \
   --build-arg TEXTIMAGER_SPACY_ANNOTATOR_NAME \
   --build-arg TEXTIMAGER_SPACY_ANNOTATOR_VERSION \
   --build-arg TEXTIMAGER_SPACY_LOG_LEVEL \
