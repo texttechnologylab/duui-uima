@@ -9,11 +9,13 @@
     <version>0.0.1</version>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <ttlab.duui.version>f68ca579ab553074f76d061623dc9b00cf508276</ttlab.duui.version>
         <ttlab.textimager.typesystem.version>b10db8275163d19d63b9512cc20ca5872e52499b</ttlab.textimager.typesystem.version>
-        <ttlab.typesystem.version>29fe3e0ab56c14b1e8af402b3df25d91e1f41d94</ttlab.typesystem.version>
+        <ttlab.typesystem.version>b89f2d93516d2c07c66ebca6c7c7f92533cad1bd</ttlab.typesystem.version>
     </properties>
 
     <repositories>
@@ -29,6 +31,11 @@
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
             <version>${ttlab.duui.version}</version>
         </dependency>-->
+        <dependency>
+            <groupId>org.hucompute.textimager.uima</groupId>
+            <artifactId>textimager-uima-heideltime-biofid</artifactId>
+            <version>0.3.0</version>
+        </dependency>
         <dependency>
             <groupId>org.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
