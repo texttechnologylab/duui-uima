@@ -598,8 +598,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
     try:
         # Get CAS from XMI string
-        #logger.debug("Received:")
-        #logger.debug(request)
+        logger.debug("Received:")
+        logger.debug(request)
 
         # Params, set here to empty dict to allow easier access later
         if request.parameters is None:
@@ -661,6 +661,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                         texts = []
                         texts_meta = []
                         for sent in doc_sents.sents:
+                            # TODO add fix for utf16 for all splits
                             texts.append(sent.text)
                             texts_meta.append({
                                 "begin": sent.start_char,
@@ -677,6 +678,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # Use full text, if not set
         if texts is None:
+            # note that this will "fail" for pretokenized texts, as we only have access to the tokens,
+            # in this case the conversion is performed after spaCy processing
+
             # fix utf16 surrogates
             text = utf16_to_utf8(request.text)
             logger.info("Text size after utf16 conversion: %d", len(text))
@@ -720,14 +724,21 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             # Process text with spaCy
             logger.debug("Start processing...")
 
+            # if pretokenized, convert tokens to utf8 before processing
+            if is_pretokenized:
+                logger.debug("Converting %d pretokenized input to UTF-8", len(request.tokens))
+                request_tokens = [utf16_to_utf8(token) for token in request.tokens]
+            else:
+                request_tokens = None
+
             if is_pretokenized and has_sentences:
                 logger.debug(" Using pretokenized text with sentences...")
-                tokdoc = Doc(nlp.vocab, words=request.tokens, spaces=request.spaces, sent_starts=request.sent_starts)
+                tokdoc = Doc(nlp.vocab, words=request_tokens, spaces=request.spaces, sent_starts=request.sent_starts)
                 docs = list(nlp.pipe([tokdoc]))
                 logger.debug("Procesed pretokenized %d tokens into %d documents.", len(request.tokens), len(docs))
             elif is_pretokenized:
                 logger.debug(" Using pretokenized text...")
-                tokdoc = Doc(nlp.vocab, words=request.tokens, spaces=request.spaces)
+                tokdoc = Doc(nlp.vocab, words=request_tokens, spaces=request.spaces)
                 docs = list(nlp.pipe([tokdoc]))
                 logger.debug("Procesed pretokenized %d tokens into %d documents.", len(request.tokens), len(docs))
             else:
@@ -768,6 +779,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
             # TODO test splitting in multiple texts
             for doc_meta, doc in zip(texts_meta, docs):
+                # generate utf16 converter for each doc on the fly if using pretokenized data
+                if is_pretokenized:
+                    utf16_converter = Utf16CodepointOffsetConverter()
+                    utf16_converter.create_offset_mapping(doc.text)
+                    doc_meta["utf16_converter"] = utf16_converter
+
                 if "utf16_converter" in doc_meta:
                     utf16_converter = doc_meta["utf16_converter"]
                 else:
