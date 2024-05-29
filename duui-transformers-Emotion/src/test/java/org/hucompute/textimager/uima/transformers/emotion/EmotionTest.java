@@ -8,10 +8,7 @@ import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.FSArray;
 import org.apache.uima.util.XmlCasSerializer;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
@@ -22,18 +19,18 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import org.texttechnologylab.annotation.Emotion;
 import org.texttechnologylab.annotation.AnnotationComment;
+
+import static org.junit.Assert.assertEquals;
 
 public class EmotionTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
     static String model = "02shanky/finetuned-twitter-xlm-roberta-base-emotion";
 //    static String model = "pol_emo_mDeBERTa";
 
@@ -82,7 +79,7 @@ public class EmotionTest {
     }
 
     @Test
-    public void sentencesTest() throws Exception {
+    public void EnglishTest() throws Exception {
 //        composer.add(new DUUIDockerDriver.
 //                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
 //                .withParameter("model_name", model)
@@ -94,31 +91,37 @@ public class EmotionTest {
                         .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
-
-        String text_i = "Das Sachgebiet Investive Ausgaben des Bundes Bundesfinanzminister Apel hat gemäß BMF Finanznachrichten vom 1. Januar erklärt, die Investitionsquote des Bundes sei in den letzten zehn Jahren nahezu konstant geblieben.\",\n Bei dieser Anlagenart ersetzt die Photovoltaikanlage Teile der Gebäudehülle, also der Fassadenverkleidung und/oder der Dacheindeckung.";
-
         List<String> sentences = Arrays.asList(
-                "Das Sachgebiet Investive Ausgaben des Bundes Bundesfinanzminister Apel hat gemäß BMF Finanznachrichten vom 1. Januar erklärt, die Investitionsquote des Bundes sei in den letzten zehn Jahren nahezu konstant geblieben.",
-                "Bei dieser Anlagenart ersetzt die Photovoltaikanlage Teile der Gebäudehülle, also der Fassadenverkleidung und/oder der Dacheindeckung."
+                "I hate You. I'm very angry.",
+                "I very happy to be here. I love this place."
         );
 
-        createCas("de", sentences);
-        Emotion e1 = new Emotion(cas, 0, 20);
-        e1.setEmotions(new FSArray(cas, 20));
-        AnnotationComment t1 = new AnnotationComment(cas);
-        t1.setKey("test");
-        t1.setValue("t2");
-        e1.setEmotions(0, t1);
+        createCas("en", sentences);
+
         composer.run(cas);
 
         Collection<Emotion> all_emotions = JCasUtil.select(cas, Emotion.class);
 //        System.out.println(topics.size());
+        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
         for (Emotion emotion: all_emotions){
             System.out.println(emotion.getCoveredText());
+            Map<String, Float> emotions = new HashMap<String, Float>();
             FSArray<AnnotationComment> emotions_all = emotion.getEmotions();
             for (AnnotationComment comment_i: emotions_all){
+                emotions.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
                 System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
+            expected.add(emotions);
+        }
+
+        // expected values
+        ArrayList<String> expected_emotions = new ArrayList<String>();
+        expected_emotions.add("anger");
+        expected_emotions.add("joy");
+        for (Map<String, Float> emotion: expected){
+            // highest value
+            String key = Collections.max(emotion.entrySet(), Map.Entry.comparingByValue()).getKey();
+            Assertions.assertEquals(expected_emotions.get(expected.indexOf(emotion)), key);
         }
 //
 //        // 1 sentiment per sentence, +1 for average
@@ -128,5 +131,100 @@ public class EmotionTest {
 //        Double[] expectedSentiments = new Double[]{ 0d, 1d, -1d };
 //        Double[] actualSentiments = sentiments.stream().map(Sentiment::getSentiment).toArray(Double[]::new);
 //        assertArrayEquals(expectedSentiments, actualSentiments);
+    }
+
+    @Test
+    public void GermanTest() throws Exception {
+//        composer.add(new DUUIDockerDriver.
+//                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
+//                .withParameter("model_name", model)
+//                .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+//                .withScale(1)
+//                .withImageFetching());
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+        List<String> sentences = Arrays.asList(
+                "I hasse dich. ich bin richtig wütend.",
+                "Ich bin sehr glücklich hier zu sein. Ich liebe diesen Ort."
+        );
+
+        createCas("de", sentences);
+
+        composer.run(cas);
+
+        Collection<Emotion> all_emotions = JCasUtil.select(cas, Emotion.class);
+//        System.out.println(topics.size());
+        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
+        for (Emotion emotion: all_emotions){
+            System.out.println(emotion.getCoveredText());
+            Map<String, Float> emotions = new HashMap<String, Float>();
+            FSArray<AnnotationComment> emotions_all = emotion.getEmotions();
+            for (AnnotationComment comment_i: emotions_all){
+                emotions.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
+            }
+            expected.add(emotions);
+        }
+
+        // expected values
+        ArrayList<String> expected_emotions = new ArrayList<String>();
+        expected_emotions.add("anger");
+        expected_emotions.add("joy");
+        for (Map<String, Float> emotion: expected){
+            // highest value
+            String key = Collections.max(emotion.entrySet(), Map.Entry.comparingByValue()).getKey();
+            Assertions.assertEquals(expected_emotions.get(expected.indexOf(emotion)), key);
+        }
+    }
+
+
+    @Test
+    public void TurkishTest() throws Exception {
+//        composer.add(new DUUIDockerDriver.
+//                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
+//                .withParameter("model_name", model)
+//                .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+//                .withScale(1)
+//                .withImageFetching());
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+        List<String> sentences = Arrays.asList(
+                "Seni nefret ediyorum. Çok sinirliyim.",
+                "Burada olmaktan çok mutluyum. Bu yeri seviyorum."
+        );
+
+        createCas("tr", sentences);
+
+        composer.run(cas);
+
+        Collection<Emotion> all_emotions = JCasUtil.select(cas, Emotion.class);
+//        System.out.println(topics.size());
+        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
+        for (Emotion emotion: all_emotions){
+            System.out.println(emotion.getCoveredText());
+            Map<String, Float> emotions = new HashMap<String, Float>();
+            FSArray<AnnotationComment> emotions_all = emotion.getEmotions();
+            for (AnnotationComment comment_i: emotions_all){
+                emotions.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
+            }
+            expected.add(emotions);
+        }
+
+        // expected values
+        ArrayList<String> expected_emotions = new ArrayList<String>();
+        expected_emotions.add("anger");
+        expected_emotions.add("joy");
+        for (Map<String, Float> emotion: expected){
+            // highest value
+            String key = Collections.max(emotion.entrySet(), Map.Entry.comparingByValue()).getKey();
+            Assertions.assertEquals(expected_emotions.get(expected.indexOf(emotion)), key);
+        }
     }
 }
