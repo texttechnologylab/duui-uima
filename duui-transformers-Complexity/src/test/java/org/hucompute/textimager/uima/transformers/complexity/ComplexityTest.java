@@ -27,14 +27,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class ComplexityTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
 //    static String model = "google-bert/bert-base-multilingual-cased";
-    static String model = "paraphrase-multilingual-MiniLM-L12-v2";
+    static String model = "intfloat/multilingual-e5-base";
 //    static String model = "pol_emo_mDeBERTa";
     static String complexities = "euclidean,cosine,wasserstein,distance,jensenshannon,bhattacharyya";
 
@@ -83,7 +84,7 @@ public class ComplexityTest {
     }
 
     @Test
-    public void sentencesTest() throws Exception {
+    public void EnTest() throws Exception {
 
 //        composer.add(new DUUIDockerDriver.
 //                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
@@ -99,47 +100,19 @@ public class ComplexityTest {
                         .withParameter("embeddings_keep", "1")
         );
 
-        JCas cas = JCasFactory.createText("Justine Bateman is a producer. Justine Tanya Bateman (born February 19, 1966) is an American writer, producer, and actress . She is best known for her regular role as Mallory Keaton on the sitcom Family Ties (1982 -- 1989). Until recently, Bateman ran a production and consulting company, SECTION 5 . In the fall of 2012, she started studying computer science at UCLA. Jane is an engineer. Jane writes code for Huggingface.");
+        JCas cas = JCasFactory.createText("The quick brown fox jumps over the lazy dog. I hate this place.");
         cas.setDocumentLanguage("en");
 
 
-        Annotation a1 = new Annotation(cas, 0, 30);
+        Annotation a1 = new Annotation(cas, 0, 44);
         a1.addToIndexes();
-        Annotation a2 = new Annotation(cas, 31, 368);
+        Annotation a2 = new Annotation(cas, 45, 63);
         a2.addToIndexes();
-        Annotation a3 = new Annotation(cas, 369, 389);
-        a3.addToIndexes();
-        Annotation a4 = new Annotation(cas, 390, 423);
-        a4.addToIndexes();
         SentenceComparison sc1 = new SentenceComparison(cas);
         sc1.setSentenceI(a1);
         sc1.setSentenceJ(a2);
         sc1.addToIndexes();
         //
-        SentenceComparison sc2 = new SentenceComparison(cas);
-        sc2.setSentenceI(a1);
-        sc2.setSentenceJ(a3);
-        sc2.addToIndexes();
-
-        SentenceComparison sc3 = new SentenceComparison(cas);
-        sc3.setSentenceI(a1);
-        sc3.setSentenceJ(a4);
-        sc3.addToIndexes();
-
-        SentenceComparison sc4 = new SentenceComparison(cas);
-        sc4.setSentenceI(a2);
-        sc4.setSentenceJ(a3);
-        sc4.addToIndexes();
-
-        SentenceComparison sc5 = new SentenceComparison(cas);
-        sc5.setSentenceI(a2);
-        sc5.setSentenceJ(a4);
-        sc5.addToIndexes();
-
-        SentenceComparison sc6 = new SentenceComparison(cas);
-        sc6.setSentenceI(a3);
-        sc6.setSentenceJ(a4);
-        sc6.addToIndexes();
         Collection<SentenceComparison> all_sc = JCasUtil.select(cas, SentenceComparison.class);
 
         System.out.println("Run Composer");
@@ -151,14 +124,75 @@ public class ComplexityTest {
         System.out.println("h");
 
         Collection<Complexity> allcomplex = JCasUtil.select(cas, Complexity.class);
-        assert allcomplex.size() == 36;
-//
-//        // 1 sentiment per sentence, +1 for average
-//        assertEquals(sentences.size()+1, sentiments.size());
-//
-//        // Sentiments should be neu (average), pos (sentence 1), neg (s2)
-//        Double[] expectedSentiments = new Double[]{ 0d, 1d, -1d };
-//        Double[] actualSentiments = sentiments.stream().map(Sentiment::getSentiment).toArray(Double[]::new);
-//        assertArrayEquals(expectedSentiments, actualSentiments);
+//        assert allcomplex.size() == 36;
+        for (Complexity c : allcomplex) {
+            String kind = c.getKind();
+            double value = c.getOutput();
+            switch (kind) {
+                case "euclidean", "cosine", "distance" -> {
+                    assert value > 0.5;
+                }
+                case "wasserstein" -> {
+                    assert value < 0.1;
+                }
+                case "jensenshannon", "bhattacharyya" -> {
+                    assert value == 0.0;
+                }
+            }
+        }
+    }
+
+
+    @Test
+    public void DeTest() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("model_art", "Sentence")
+                        .withParameter("complexity_compute", complexities)
+                        .withParameter("embeddings_keep", "1")
+        );
+
+        JCas cas = JCasFactory.createText("Der schnelle braune Fuchs springt über den faulen Hund. Ich hasse diesen Ort.");
+        cas.setDocumentLanguage("de");
+
+
+        Annotation a1 = new Annotation(cas, 0, 55);
+        a1.addToIndexes();
+        Annotation a2 = new Annotation(cas, 56, 77);
+        a2.addToIndexes();
+        SentenceComparison sc1 = new SentenceComparison(cas);
+        sc1.setSentenceI(a1);
+        sc1.setSentenceJ(a2);
+        sc1.addToIndexes();
+        //
+        Collection<SentenceComparison> all_sc = JCasUtil.select(cas, SentenceComparison.class);
+
+        System.out.println("Run Composer");
+
+        composer.run(cas);
+
+        composer.shutdown();
+
+        System.out.println("h");
+
+        Collection<Complexity> allcomplex = JCasUtil.select(cas, Complexity.class);
+//        assert allcomplex.size() == 36;
+        for (Complexity c : allcomplex) {
+            String kind = c.getKind();
+            double value = c.getOutput();
+            switch (kind) {
+                case "euclidean", "cosine", "distance" -> {
+                    assert value > 0.5;
+                }
+                case "wasserstein" -> {
+                    assert value < 0.1;
+                }
+                case "jensenshannon", "bhattacharyya" -> {
+                    assert value == 0.0;
+                }
+            }
+        }
     }
 }
