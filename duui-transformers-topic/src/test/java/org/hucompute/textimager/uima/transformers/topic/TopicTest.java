@@ -23,10 +23,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -85,13 +82,7 @@ public class TopicTest {
     }
 
     @Test
-    public void sentencesTest() throws Exception {
-//        composer.add(new DUUIDockerDriver.
-//                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
-//                .withParameter("model_name", model)
-//                .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-//                .withScale(1)
-//                .withImageFetching());
+    public void DeTest() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
@@ -99,25 +90,83 @@ public class TopicTest {
         );
 
         List<String> sentences = Arrays.asList(
-                "Das Sachgebiet Investive Ausgaben des Bundes Bundesfinanzminister Apel hat gemäß BMF Finanznachrichten vom 1. Januar erklärt, die Investitionsquote des Bundes sei in den letzten zehn Jahren nahezu konstant geblieben.",
-                "Bei dieser Anlagenart ersetzt die Photovoltaikanlage Teile der Gebäudehülle, also der Fassadenverkleidung und/oder der Dacheindeckung."
+                "Ich bin ein Profi-Fußballspieler und spiele bei FC Barcelona in Spanien.",
+                "Das sind die Aktuellen Neuigkeiten aus den USA. Joe Biden hat die Wahl gewonnen."
         );
 
         createCas("de", sentences);
         composer.run(cas);
-
+        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
         Collection<CategoryCoveredTagged> topics = JCasUtil.select(cas, CategoryCoveredTagged.class);
 //        System.out.println(topics.size());
         for (CategoryCoveredTagged topic: topics){
-            System.out.println(topic.getCoveredText()+" ,"+topic.getValue()+" ,"+topic.getScore());
+            int start = topic.getBegin();
+            int end = topic.getEnd();
+            String coveredText = topic.getCoveredText();
+            String value = topic.getValue();
+            double score = topic.getScore();
+            String key1 = start + "_" + end;
+            HashMap<String, Double> value1 = new HashMap<>();
+            value1.put(value, score);
+            if (expected.containsKey(key1)){
+                expected.get(key1).put(value, score);
+            } else {
+                expected.put(key1, value1);
+            }
         }
-//
-//        // 1 sentiment per sentence, +1 for average
-//        assertEquals(sentences.size()+1, sentiments.size());
-//
-//        // Sentiments should be neu (average), pos (sentence 1), neg (s2)
-//        Double[] expectedSentiments = new Double[]{ 0d, 1d, -1d };
-//        Double[] actualSentiments = sentiments.stream().map(Sentiment::getSentiment).toArray(Double[]::new);
-//        assertArrayEquals(expectedSentiments, actualSentiments);
+        HashMap<String, String> expected1 = new HashMap<>();
+        expected1.put("0_72", "Information/Explanation");
+        expected1.put("73_153", "News");
+        for (Map.Entry<String, HashMap<String, Double>> entry: expected.entrySet()){
+            String key = Collections.max(entry.getValue().entrySet(), Map.Entry.comparingByValue()).getKey();
+            // compare the expected with same index in the actual
+            String expectedValue = expected1.get(entry.getKey());
+            assertEquals(expectedValue, key);
+        }
+    }
+
+    @Test
+    public void EnTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+
+        List<String> sentences = Arrays.asList(
+                "I will guide through the Labyrinth. First you need to find the entrance. Then you need to find the exit.",
+                "These are the latest news from the USA. Joe Biden has won the election."
+        );
+
+        createCas("de", sentences);
+        composer.run(cas);
+        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
+        Collection<CategoryCoveredTagged> topics = JCasUtil.select(cas, CategoryCoveredTagged.class);
+//        System.out.println(topics.size());
+        for (CategoryCoveredTagged topic: topics){
+            int start = topic.getBegin();
+            int end = topic.getEnd();
+            String coveredText = topic.getCoveredText();
+            String value = topic.getValue();
+            double score = topic.getScore();
+            String key1 = start + "_" + end;
+            HashMap<String, Double> value1 = new HashMap<>();
+            value1.put(value, score);
+            if (expected.containsKey(key1)){
+                expected.get(key1).put(value, score);
+            } else {
+                expected.put(key1, value1);
+            }
+        }
+        HashMap<String, String> expected1 = new HashMap<>();
+        expected1.put("0_104", "Instruction");
+        expected1.put("105_176", "News");
+        for (Map.Entry<String, HashMap<String, Double>> entry: expected.entrySet()){
+            String key = Collections.max(entry.getValue().entrySet(), Map.Entry.comparingByValue()).getKey();
+            // compare the expected with same index in the actual
+            String expectedValue = expected1.get(entry.getKey());
+            assertEquals(expectedValue, key);
+        }
+
     }
 }
