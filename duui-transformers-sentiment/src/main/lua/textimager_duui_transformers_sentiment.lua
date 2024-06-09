@@ -13,6 +13,16 @@ function serialize(inputCas, outputStream, parameters)
     local model_name = parameters["model_name"]
     local selection_types = parameters["selection"]
 
+    local ignore_max_length_truncation_padding = parameters["ignore_max_length_truncation_padding"]
+    if ignore_max_length_truncation_padding == nil then
+        ignore_max_length_truncation_padding = false
+    end
+
+    local batch_size = parameters["batch_size"]
+    if batch_size == nil then
+        batch_size = 128
+    end
+
     local selections = {}
     local selections_count = 1
     for selection_type in string.gmatch(selection_types, "([^,]+)") do
@@ -52,7 +62,9 @@ function serialize(inputCas, outputStream, parameters)
         selections = selections,
         lang = doc_lang,
         doc_len = doc_len,
-        model_name = model_name
+        model_name = model_name,
+        batch_size = batch_size,
+        ignore_max_length_truncation_padding = ignore_max_length_truncation_padding
     }))
 end
 
