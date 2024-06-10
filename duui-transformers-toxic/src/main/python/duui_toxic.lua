@@ -57,8 +57,13 @@ end
 function deserialize(inputCas, inputStream)
     local inputString = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
-
-    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["selections"] ~= nil then
+    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["results"] ~= nil then
+--         print("GetInfo")
+        local source = results["model_source"]
+        local model_version = results["model_version"]
+        local model_name = results["model_name"]
+        local model_lang = results["model_lang"]
+--         print("meta")
         local modification_meta = results["modification_meta"]
         local modification_anno = luajava.newInstance("org.texttechnologylab.annotation.DocumentModification", inputCas)
         modification_anno:setUser(modification_meta["user"])
@@ -66,34 +71,53 @@ function deserialize(inputCas, inputStream)
         modification_anno:setComment(modification_meta["comment"])
         modification_anno:addToIndexes()
 
+--         print("setMetaData")
+        local model_meta = luajava.newInstance("org.texttechnologylab.annotation.model.MetaData", inputCas)
+        model_meta:setModelVersion(model_version)
+--         print(model_version)
+        model_meta:setModelName(model_name)
+--         print(model_name)
+        model_meta:setSource(source)
+--         print(source)
+        model_meta:setLang(model_lang)
+--         print(model_lang)
+        model_meta:addToIndexes()
+        print(model_meta)
+
         local meta = results["meta"]
-
-        for i, selection in ipairs(results["selections"]) do
-            local selection_type = selection["selection"]
-            for j, sentence in ipairs(selection["sentences"]) do
-                for k, toxic in ipairs(sentence["toxics"]) do
-                    local toxic_anno = luajava.newInstance("org.hucompute.textimager.uima.type.category.CategoryCoveredTagged", inputCas)
-                    toxic_anno:setBegin(sentence["sentence"]["begin"])
-                    toxic_anno:setEnd(sentence["sentence"]["end"])
-                    toxic_anno:setValue(toxic["label"])
-                    toxic_anno:setScore(toxic["score"])
-                    toxic_anno:addToIndexes()
-
-                    local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)
-                    meta_anno:setReference(toxic_anno)
-                    meta_anno:setName(meta["name"])
-                    meta_anno:setVersion(meta["version"])
-                    meta_anno:setModelName(meta["modelName"])
-                    meta_anno:setModelVersion(meta["modelVersion"])
-                    meta_anno:addToIndexes()
-
-                    local meta_selection = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-                    meta_selection:setReference(toxic_anno)
-                    meta_selection:setKey("selection")
-                    meta_selection:setValue(selection_type)
-                    meta_selection:addToIndexes()
-                end
-            end
+--        print("meta")
+        local begin_toxic = results["begin_toxic"]
+        local end_toxic = results["end_toxic"]
+        local res_out = results["results"]
+--        print("results")
+        local res_len = results["len_results"]
+--        print("Len_results")
+        local factors = results["factors"]
+--        print(factors)
+        for index_i, res in ipairs(res_out) do
+--            print(res)
+            local begin_toxic_i = begin_toxic[index_i]
+--            print(begin_toxic_i)
+            local end_toxic_i = end_toxic[index_i]
+--            print(end_toxic_i)
+            local len_i = res_len[index_i]
+--             print(len_i)
+--             print(type(len_i))
+            local toxic_i = luajava.newInstance("org.texttechnologylab.annotation.Toxic", inputCas, begin_toxic_i, end_toxic_i)
+--             print(emotion_i)
+            local counter = 0
+            local factor_i = factors[index_i]
+--            print(factor_i)
+            local non_toxic = factor_i["non toxic"]
+--            print(non_toxic)
+            toxic_i:setNonToxic(non_toxic)
+            local toxic = factor_i["toxic"]
+--            print(toxic)
+            toxic_i:setToxic(toxic)
+            toxic_i:setModel(model_meta)
+            toxic_i:addToIndexes()
+--             print("add")
         end
     end
+--     print("end")
 end
