@@ -6,14 +6,10 @@ import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
+import org.apache.uima.jcas.cas.FSArray;
 import org.apache.uima.util.XmlCasSerializer;
-import org.hucompute.textimager.uima.type.category.CategoryCoveredTagged;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.xml.sax.SAXException;
@@ -23,21 +19,21 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.texttechnologylab.annotation.Emotion;
+import org.texttechnologylab.annotation.Toxic;
+import org.texttechnologylab.annotation.AnnotationComment;
+
+import static org.junit.Assert.assertEquals;
 
 public class ToxicTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:9714";
-    static String model = "classla/xlm-roberta-base-multilingual-text-genre-classifier";
+    static String url = "http://127.0.0.1:8000";
+    static String model = "citizenlab/distilbert-base-multilingual-cased-toxicity";
+//    static String model = "pol_emo_mDeBERTa";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException, CompressorException {
@@ -84,9 +80,9 @@ public class ToxicTest {
     }
 
     @Test
-    public void sentencesTest() throws Exception {
+    public void EnglishTest() throws Exception {
 //        composer.add(new DUUIDockerDriver.
-//                Component("docker.texttechnologylab.org/textimager-duui-transformers-toxic:0.0.1")
+//                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
 //                .withParameter("model_name", model)
 //                .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 //                .withScale(1)
@@ -96,19 +92,34 @@ public class ToxicTest {
                         .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
-
         List<String> sentences = Arrays.asList(
-                "Das Sachgebiet Investive Ausgaben des Bundes Bundesfinanzminister Apel hat gemäß BMF Finanznachrichten vom 1. Januar erklärt, die Investitionsquote des Bundes sei in den letzten zehn Jahren nahezu konstant geblieben.",
-                "Bei dieser Anlagenart ersetzt die Photovoltaikanlage Teile der Gebäudehülle, also der Fassadenverkleidung und/oder der Dacheindeckung."
+                "I hate You. I'm very angry.",
+                "I very happy to be here. I love this place."
         );
 
-        createCas("de", sentences);
+        createCas("en", sentences);
+
         composer.run(cas);
 
-        Collection<CategoryCoveredTagged> toxics = JCasUtil.select(cas, CategoryCoveredTagged.class);
-//        System.out.println(toxics.size());
-        for (CategoryCoveredTagged toxic: toxics){
-            System.out.println(toxic.getCoveredText()+" ,"+toxic.getValue()+" ,"+toxic.getScore());
+        Collection<Toxic> all_toxic = JCasUtil.select(cas, Toxic.class);
+//        System.out.println(topics.size());
+        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
+        for (Toxic toxic: all_toxic){
+            System.out.println(toxic.getCoveredText());
+            Map<String, Double> toxics = new HashMap<String, Double>();
+            toxics.put("Toxic", toxic.getNonToxic());
+            toxics.put("NonToxic", toxic.getNonToxic());
+        }
+
+        // expected values
+        ArrayList<String> expected_toxic = new ArrayList<String>();
+        expected_toxic.add("Toxic");
+        expected_toxic.add("NonToxic");
+        for (Map<String, Float> toxic: expected){
+            // highest value
+            String key = Collections.max(toxic.entrySet(), Map.Entry.comparingByValue()).getKey();
+            System.out.println(key);
+            Assertions.assertEquals(expected_toxic.get(expected.indexOf(toxic)), key);
         }
 //
 //        // 1 sentiment per sentence, +1 for average
