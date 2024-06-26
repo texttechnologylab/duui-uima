@@ -455,7 +455,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         logger.debug(model_data)
 
         for selection in request.selections:
-            processed_sentences = process_selection(request.model_name, model_data, selection, request.doc_len)
+            processed_sentences = process_selection(request.model_name, model_data, selection, request.doc_len, request.batch_size, request.ignore_max_length_truncation_padding)
 
             processed_selections.append(
                 SentimentSelection(
@@ -574,7 +574,7 @@ def fix_unicode_problems(text):
     return clean_text
 
 
-def process_selection(model_name, model_data, selection, doc_len):
+def process_selection(model_name, model_data, selection, doc_len, batch_size, ignore_max_length_truncation_padding):
     for s in selection.sentences:
         s.text = fix_unicode_problems(s.text)
 
@@ -599,9 +599,14 @@ def process_selection(model_name, model_data, selection, doc_len):
         else:
             sentiment_analysis = load_model(model_name, model_data["version"], len(model_data["mapping"]))
 
-        results = sentiment_analysis(
-            texts, truncation=True, padding=True, max_length=model_data["max_length"], batch_size=128
-        )
+        if ignore_max_length_truncation_padding:
+            results = sentiment_analysis(
+                texts, batch_size=batch_size
+            )
+        else:
+            results = sentiment_analysis(
+                texts, truncation=True, padding=True, max_length=model_data["max_length"], batch_size=batch_size
+            )
 
     processed_sentences = [
         map_sentiment(r, model_data["mapping"], model_data["3sentiment"], s)
