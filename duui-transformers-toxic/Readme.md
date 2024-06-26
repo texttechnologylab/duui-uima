@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-toxic&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-toxic/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-toxic&message=0.2.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-toxic/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.22.1&color=yellow)]()
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.1&color=red)]()
@@ -15,13 +15,6 @@ and for [Detoxify](https://github.com/unitaryai/detoxify) model.
 | EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus      | 0126552291025f2fc854f5acdbe45b2212eabf4a | Multilingual                           |
 | FredZhang7/one-for-all-toxicity-v3         | a2996bd4495269071eaf5daf73512234c33cb3d2 | Multilingual                           |
 | citizenlab/distilbert-base-multilingual-cased-toxicity               | b4532a8b095d1886a7b5dff818331ecc88a855ae | EN, FR, NL, PT, IT, SP, DE, PL, DA, AF |
-| tomh/toxigen_hatebert                   | c260d78a7867bb9a9748184afaf454d6ccf28129 | EN                                     |
-| GroNLP/hateBERT         | 1d439ddf8a588fc8c44c4169ff9e102f3e839cca | EN                                     |
-| pysentimiento/bertweet-hate-speech    | d9925de199f48face0d7026f07c3b492c423bbc0 | EN                                     |
-| Hate-speech-CNERG/bert-base-uncased-hatexplain                 | e487c81b768c7532bf474bd5e486dedea4cf3848 | EN                                     |
-| cardiffnlp/twitter-roberta-base-hate-latest                    | c74b0534df96af8232f6a3ffdb90d9a72223d7b7 | EN                                     |
-| Hate-speech-CNERG/dehatebert-mono-german       | 53a24df030e8e20e7880a161494fb5922ce34617 | DE                |
-| deepset/bert-base-german-cased-hatespeech-GermEval18Coarse                        | 70e4821931a8a685d83bc0e8bd8877157bdb3883 | DE                                     |
 | martin-ha/toxic-comment-model | 9842c08b35a4687e7b211187d676986c8c96256d | EN                 |
 | nicholasKluge/ToxicityModel                | d40cd71847981a0868aa3554c96c0aaf8c189753 | EN                                     |
 | EIStakovskii/german_toxicity_classifier_plus_v2                | 1bcb7d11ffc9267111c7be1dad0d7ca2fbf73928          | EN                                     |
@@ -43,8 +36,8 @@ Find all available image tags here: https://docker.texttechnologylab.org/v2/duui
 ```
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-toxic:latest")
-        .withScale(iWorkers)
-        .withImageFetching()
+        .withParameter("model_name", model)
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 );
 ```
 
