@@ -35,11 +35,7 @@ function serialize(inputCas, outputStream, parameters)
         local tokens_count = 1
         local tokens_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Token)):listIterator()
         local sentences = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Sentence))
-        print("sentences")
-        print(sentences:size())
         while tokens_it:hasNext() do
-            print("tokens")
-            print(tokens_count)
             local token = tokens_it:next()
             tokens[tokens_count] = token:getCoveredText()
             -- try to get next to see if space is needed
