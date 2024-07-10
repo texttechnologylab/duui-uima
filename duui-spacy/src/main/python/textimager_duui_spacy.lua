@@ -197,7 +197,13 @@ function deserialize(inputCas, inputStream)
             local lemma_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma", inputCas)
             lemma_anno:setBegin(token["begin"])
             lemma_anno:setEnd(token["end"])
-            lemma_anno:setValue(token["lemma"])
+            if token["lemma"] == nil or token["lemma"] == "" then
+                if token_anno ~= nil then
+                    lemma_anno:setValue(token_anno:getCoveredText())
+                end
+            else
+                lemma_anno:setValue(token["lemma"])
+            end
             lemma_anno:addToIndexes()
 
             -- If there is a token, i.e. writing is not disabled for tokens, add this lemma infos to the token
