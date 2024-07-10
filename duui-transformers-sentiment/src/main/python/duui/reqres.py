@@ -10,6 +10,8 @@ class TextImagerRequest(BaseModel):
     lang: str
     doc_len: int
     model_name: str
+    batch_size: int
+    ignore_max_length_truncation_padding: bool
 
 
 class TextImagerResponse(BaseModel):
