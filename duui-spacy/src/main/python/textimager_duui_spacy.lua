@@ -35,11 +35,7 @@ function serialize(inputCas, outputStream, parameters)
         local tokens_count = 1
         local tokens_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Token)):listIterator()
         local sentences = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Sentence))
-        print("sentences")
-        print(sentences:size())
         while tokens_it:hasNext() do
-            print("tokens")
-            print(tokens_count)
             local token = tokens_it:next()
             tokens[tokens_count] = token:getCoveredText()
             -- try to get next to see if space is needed
@@ -201,7 +197,13 @@ function deserialize(inputCas, inputStream)
             local lemma_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma", inputCas)
             lemma_anno:setBegin(token["begin"])
             lemma_anno:setEnd(token["end"])
-            lemma_anno:setValue(token["lemma"])
+            if token["lemma"] == nil or token["lemma"] == "" then
+                if token_anno ~= nil then
+                    lemma_anno:setValue(token_anno:getCoveredText())
+                end
+            else
+                lemma_anno:setValue(token["lemma"])
+            end
             lemma_anno:addToIndexes()
 
             -- If there is a token, i.e. writing is not disabled for tokens, add this lemma infos to the token

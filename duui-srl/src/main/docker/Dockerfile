@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 EXPOSE 9714
 
 # dependencies
-
+RUN pip install --upgrade pip
 RUN pip install symspellpy fastapi uvicorn[standard] dkpro-cassis
 RUN pip install setuptools wheel
 RUN pip install pathos omegaconf
@@ -37,11 +37,16 @@ ARG TEXTIMAGER_DUUI_TRANSFORMERS_OFFLINE=1
 ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_OFFLINE
 # service script
 COPY ./src/main/python/TypeSystemSRL.xml ./TypeSystemSRL.xml
-COPY ./src/main/python/TypeSystemSRL.xml ./TypeSystemSRL.xml
+#COPY ./src/main/python/TypeSystemSRL.xml ./TypeSystemSRL.xml
 #COPY ./src/main/python/uima_docker_wrapper_spacy.py ./uima_docker_wrapper_spacy.py
+COPY ./src/main/python/srl.py ./srl.py
 COPY ./src/main/python/textimager_duui_srl.lua ./textimager_duui_srl.lua
 COPY ./src/main/python/textimager_duui_srl.py ./textimager_duui_srl.py
 
+COPY ./src/main/python/requirements.txt ./requirements.txt
+
+# requirements
+RUN python3 -m pip install -r requirements.txt
 
 #ENTRYPOINT ["uvicorn", "uima_docker_wrapper_spacy:app", "--host", "0.0.0.0", "--port" ,"9714"]
 ENTRYPOINT ["uvicorn", "textimager_duui_srl:app", "--host", "0.0.0.0", "--port" ,"9714", "--use-colors"]

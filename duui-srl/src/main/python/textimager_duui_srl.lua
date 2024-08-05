@@ -2,6 +2,7 @@
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+Entity = luajava.bindClass("org.texttechnologylab.annotation.semaf.isobase.Entity")
 util = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -71,12 +72,22 @@ function deserialize(inputCas, inputStream)
 
     for i, ent in ipairs(entities) do
         if ent["write"] then
-            local cas_ent = luajava.newInstance("org.texttechnologylab.annotation.semaf.isobase.Entity", inputCas)
             b = ent["begin"]
             e = ent["end"]
-            cas_ent:setBegin(b)
-            cas_ent:setEnd(e)
-            cas_ent:addToIndexes()
+
+            local cas_ent = nil
+
+            local eCheck = util:selectAt(inputCas, Entity, b, e):count()
+
+            if eCheck == 1 then
+                cas_ent = util:selectSingleAt(inputCas, Entity, b, e)
+            else
+                cas_ent = luajava.newInstance("org.texttechnologylab.annotation.semaf.isobase.Entity", inputCas)
+                cas_ent:setBegin(b)
+                cas_ent:setEnd(e)
+                cas_ent:addToIndexes()
+            end
+
             cas_entities[b] = {}
             cas_entities[b][e] = cas_ent
 
