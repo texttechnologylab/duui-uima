@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- (Artifact) Name and version of the Java project, note that this is not reflected in the Docker image -->
+    <groupId>org.texttechnologylab.duui</groupId>
+    <artifactId>duui-transformers-sentiment-example</artifactId>
+    <version>0.0.1</version>
+
+    <properties>
+        <!-- Java 17 is needed -->
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+
+        <!-- DUUI and TTLab typesystem minimal versions -->
+        <ttlab.duui.version>1.3</ttlab.duui.version>
+        <ttlab.typesystem.version>3.0.3</ttlab.typesystem.version>
+    </properties>
+
+    <build>
+        <plugins>
+            <!-- Prevent errors for Java tests by allowing modules access -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>2.22.0</version>
+                <configuration>
+                    <argLine>
+                        --illegal-access=permit
+                        --add-opens java.base/java.util=ALL-UNNAMED
+                        --add-opens java.util/java.base=ALL-UNNAMED
+                    </argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <repositories>
+        <!-- Add Jitpack to allow direct Maven integration of GitHub-hosted projects -->
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- DUUI dependency -->
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>DockerUnifiedUIMAInterface</artifactId>
+            <version>${ttlab.duui.version}</version>
+        </dependency>
+
+        <!-- TTLab typesystem dependency -->
+        <dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>${ttlab.typesystem.version}</version>
+        </dependency>
+
+        <!-- Java test dependency -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.9.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
