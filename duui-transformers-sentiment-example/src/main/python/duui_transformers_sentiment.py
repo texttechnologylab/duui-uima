@@ -1,15 +1,11 @@
 import logging
-from platform import python_version
-from sys import version as sys_version
-from time import time
-from typing import List, Optional
+from typing import Optional
 
-import torch
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseSettings, BaseModel
-from transformers import pipeline, __version__ as transformers_version
+from transformers import pipeline
 
 
 class Settings(BaseSettings):
@@ -33,77 +29,6 @@ class Settings(BaseSettings):
 
         # Prefix for environment variables, note that env vars have to be provided fully uppercase
         env_prefix = 'ttlab_duui_transformers_sentiment_example_'
-
-
-class DUUICapability(BaseModel):
-    """
-    Provides information about the capabilities of the annotator, this can be accessed via the "capability" field in /v1/documentation endpoint.
-    """
-
-    # List of supported languages by the annotator
-    supported_languages: List[str]
-
-    # Are results on same inputs reproducible without side effects?
-    reproducible: bool
-
-
-class DUUIDocumentation(BaseModel):
-    """
-    Provides information about the annotator, this can be accessed via the /v1/documentation endpoint.
-    """
-
-    # Name of this annotator
-    annotator_name: str
-
-    # Version of this annotator
-    version: str
-
-    # Annotator implementation language (Python, Java, ...)
-    implementation_lang: Optional[str]
-
-    # Optional map of additional meta data
-    meta: Optional[dict]
-
-    # Docker container id, if any
-    docker_container_id: Optional[str]
-
-    # Optional map of supported parameters
-    parameters: Optional[dict]
-
-    # Capabilities of this annotator
-    capability: DUUICapability
-
-    # Analysis engine XML, if available
-    implementation_specific: Optional[str]
-
-
-class UimaAnnotationMeta(BaseModel):
-    """
-    Metadata that is added to each annotation, this is used to track the annotator and model version.
-    """
-
-    # Name and version of the annotator
-    name: str
-    version: str
-
-    # Name and version of the internal model used
-    modelName: str
-    modelVersion: str
-
-
-class UimaDocumentModification(BaseModel):
-    """
-    Metadata that is added to the document once per tool, this can be used to track changes to the document.
-    """
-
-    # User that modified the document, at the moment this is always "DUUI" but should be set by DUUI internally automatically to the actual user
-    user: str
-
-    # Timestamp of the modification in seconds since epoch
-    timestamp: int
-
-    # Comment about the modification, e.g. this could contain the name and version of the tool, more relevant if the user can modify the comment later
-    comment: str
 
 
 class DUUIRequest(BaseModel):
@@ -132,15 +57,11 @@ class DUUIResponse(BaseModel):
     # The sentiment score, i.e. the confidence of the sentiment
     sentiment_score: float
 
-    # Metadata
-    meta: Optional[UimaAnnotationMeta]
-    modification_meta: Optional[UimaDocumentModification]
-
 
 # Initialize settings, this will pull the settings from the environment
 settings = Settings()
 
-# Set up logging
+# Set up logging using the log level provided in the settings
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 logger.info("TTLab DUUI Transformers Sentiment Example")
@@ -199,38 +120,6 @@ def get_communication_layer() -> str:
     return lua_communication_script
 
 
-@app.get("/v1/documentation")
-def get_documentation() -> DUUIDocumentation:
-    """
-    This is a DUUI API endpoint that needs to be present in every tool.
-    :return: Documentation about the annotator in a structured format
-    """
-    capabilities = DUUICapability(
-        supported_languages=["ar", "en", "fr", "de", "hi", "it", "sp", "pt"],
-        reproducible=True
-    )
-
-    documentation = DUUIDocumentation(
-        annotator_name=settings.annotator_name,
-        version=settings.annotator_version,
-        implementation_lang="Python",
-        meta={
-            "python_version": python_version(),
-            "python_version_full": sys_version,
-            "transformers_version": transformers_version,
-            "torch_version": torch.__version__,
-        },
-        docker_container_id="[TODO]",
-        parameters={
-            "model_name": "cardiffnlp/twitter-xlm-roberta-base-sentiment",
-        },
-        capability=capabilities,
-        implementation_specific=None,
-    )
-
-    return documentation
-
-
 @app.get("/v1/typesystem")
 def get_typesystem() -> Response:
     """
@@ -253,14 +142,10 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     :param request: The request object containing the data transformed by Lua.
     :return: The processed data.
     """
-    meta = None
-    modification_meta = None
     sentiment_label = None
     sentiment_score = None
 
     try:
-        modification_timestamp_seconds = int(time())
-
         logger.debug("Received:")
         logger.debug(request)
 
@@ -285,29 +170,11 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         }
         sentiment_label = sentiment_mapping[label]
 
-        # Add annotation metadata, this is used to track the annotator and model version
-        meta = UimaAnnotationMeta(
-            name=settings.annotator_name,
-            version=settings.annotator_version,
-            modelName="cardiffnlp/twitter-xlm-roberta-base-sentiment",
-            modelVersion="f3e34b6c30bf27b6649f72eca85d0bbe79df1e55",
-        )
-
-        # Add document modification info, this can be useful to track changes to the document
-        modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version})"
-        modification_meta = UimaDocumentModification(
-            user="DUUI",
-            timestamp=modification_timestamp_seconds,
-            comment=modification_meta_comment
-        )
-
     except Exception as ex:
         logger.exception(ex)
 
     # Return the response back to DUUI where it will be transformed using Lua
     return DUUIResponse(
         sentiment_label=sentiment_label,
-        sentiment_score=sentiment_score,
-        meta=meta,
-        modification_meta=modification_meta
+        sentiment_score=sentiment_score
     )
