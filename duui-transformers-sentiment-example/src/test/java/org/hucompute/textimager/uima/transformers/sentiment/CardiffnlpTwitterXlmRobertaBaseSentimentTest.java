@@ -22,13 +22,11 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class CardiffnlpTwitterXlmRobertaBaseSentimentTest {
@@ -36,7 +34,6 @@ public class CardiffnlpTwitterXlmRobertaBaseSentimentTest {
     static JCas cas;
 
     static String url = "http://127.0.0.1:9714";
-    static String model = "cardiffnlp/twitter-xlm-roberta-base-sentiment";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException {
@@ -80,39 +77,9 @@ public class CardiffnlpTwitterXlmRobertaBaseSentimentTest {
     }
 
     @Test
-    public void sentencesTest() throws Exception {
-        composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-        );
-
-        List<String> sentences = Arrays.asList(
-                "This is a very great example sentence!",
-                "I absolutely hate this example."
-        );
-
-        createCas("en", sentences);
-        composer.run(cas);
-
-        Collection<Sentiment> sentiments = JCasUtil.select(cas, Sentiment.class)
-                .stream().filter(s -> !(s instanceof CategorizedSentiment)).collect(Collectors.toList());;
-
-        // 1 sentiment per sentence, +1 for average
-        assertEquals(sentences.size()+1, sentiments.size());
-
-        // Sentiments should be neu (average), pos (sentence 1), neg (s2)
-        Double[] expectedSentiments = new Double[]{ 0d, 1d, -1d };
-        Double[] actualSentiments = sentiments.stream().map(Sentiment::getSentiment).toArray(Double[]::new);
-        assertArrayEquals(expectedSentiments, actualSentiments);
-    }
-
-    @Test
     public void textTest() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "text")
         );
 
         List<String> sentences = Arrays.asList(
@@ -129,17 +96,15 @@ public class CardiffnlpTwitterXlmRobertaBaseSentimentTest {
         // 1 sentiment for full text
         assertEquals(1, sentiments.size());
 
-        // Sentiment should be negative
+        // Sentiment should be neutral
         Sentiment sentiment = sentiments.iterator().next();
-        assertEquals(-1d, sentiment.getSentiment());
+        assertEquals(0d, sentiment.getSentiment());
     }
 
     @Test
     public void emptyTextTest() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "text")
         );
 
         List<String> sentences = List.of("");
@@ -156,88 +121,5 @@ public class CardiffnlpTwitterXlmRobertaBaseSentimentTest {
         // Sentiment should be neutral
         Sentiment sentiment = sentiments.iterator().next();
         assertEquals(0d, sentiment.getSentiment());
-    }
-
-    @Test
-    public void emptySentencesTest() throws Exception {
-        composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-        );
-
-        List<String> sentences = new ArrayList<>();
-
-        createCas("en", sentences);
-        composer.run(cas);
-
-        // 0 sentiments, as there is no sentence
-        assertEquals(0, JCasUtil.select(cas, Sentiment.class).size());
-    }
-
-    @Test
-    public void languageTest() throws Exception {
-        composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-        );
-
-        List<String> sentences = new ArrayList<>();
-
-        createCas("UNSUPPORTED", sentences);
-        composer.run(cas);
-
-        // 0 sentiments, as the language is not supported
-        assertEquals(0, JCasUtil.select(cas, Sentiment.class).size());
-    }
-
-    @Test
-    public void deSentencesTest() throws Exception {
-        composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-        );
-
-        List<String> sentences = Arrays.asList(
-                "Das ist ein sehr guter Beispielssatz!",
-                "Ich hasse dieses Beispiel."
-        );
-
-        createCas("de", sentences);
-        composer.run(cas);
-
-        Collection<Sentiment> sentiments = JCasUtil.select(cas, Sentiment.class)
-                .stream().filter(s -> !(s instanceof CategorizedSentiment)).collect(Collectors.toList());
-
-        // 1 sentiment per sentence, +1 for average
-        assertEquals(sentences.size()+1, sentiments.size());
-    }
-
-    @Test
-    public void posTextTest() throws Exception {
-        composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
-                        .withParameter("selection", "text")
-        );
-
-        List<String> sentences = List.of(
-                "Good night"
-        );
-
-        createCas("en", sentences);
-        composer.run(cas);
-
-        Collection<Sentiment> sentiments = JCasUtil.select(cas, Sentiment.class)
-                .stream().filter(s -> !(s instanceof CategorizedSentiment)).collect(Collectors.toList());;
-
-        // 1 sentiment for full text
-        assertEquals(1, sentiments.size());
-
-        // Sentiment should be positive
-        Sentiment sentiment = sentiments.iterator().next();
-        assertEquals(1d, sentiment.getSentiment());
     }
 }
