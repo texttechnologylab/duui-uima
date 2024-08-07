@@ -11,17 +11,11 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
 
 # Preload Models during Docker build
-COPY ./src/main/python/models/preload_models.py ./src/main/python/models/preload_models.py
-COPY ./src/main/python/models/cardiffnlp_twitter_xlm_roberta_base_sentiment.py ./src/main/python/models/cardiffnlp_twitter_xlm_roberta_base_sentiment.py
-RUN ["python3", "./src/main/python/models/cardiffnlp_twitter_xlm_roberta_base_sentiment.py"]
+RUN python3 -c 'from transformers import pipeline; pipeline("sentiment-analysis", model="cardiffnlp/twitter-xlm-roberta-base-sentiment", tokenizer="cardiffnlp/twitter-xlm-roberta-base-sentiment", revision="f3e34b6c30bf27b6649f72eca85d0bbe79df1e55")'
 
 # Log level
 ARG TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_LOG_LEVEL="DEBUG"
 ENV TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_LOG_LEVEL=$TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_LOG_LEVEL
-
-# Model cache size
-ARG TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_MODEL_CACHE_SIZE=1
-ENV TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_MODEL_CACHE_SIZE=$TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_MODEL_CACHE_SIZE
 
 # Meta data
 ARG TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_ANNOTATOR_NAME="duui-transformers-sentiment-example"
@@ -35,8 +29,6 @@ ENV TRANSFORMERS_OFFLINE=$TTLAB_DUUI_TRANSFORMERS_SENTIMENT_EXAMPLE_TRANSFORMERS
 
 # Copy all needed scripts
 COPY ./src/main/resources/TypeSystemSentiment.xml ./src/main/resources/TypeSystemSentiment.xml
-COPY ./src/main/python/__init__.py ./src/main/python/__init__.py
-COPY ./src/main/python/duui/ ./src/main/python/duui/
 COPY ./src/main/python/duui_transformers_sentiment.py ./src/main/python/duui_transformers_sentiment.py
 COPY ./src/main/lua/duui_transformers_sentiment.lua ./src/main/lua/duui_transformers_sentiment.lua
 
