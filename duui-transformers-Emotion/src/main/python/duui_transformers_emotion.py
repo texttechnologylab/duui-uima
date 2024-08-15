@@ -8,7 +8,7 @@ from cassis import load_typesystem
 import torch
 from threading import Lock
 from functools import lru_cache
-from EmotionDetection import EmotionCheck
+from EmotionDetection import EmotionCheck, PySentimientoCheck, EmoAtlas
 from Emo_mDeBERTa2 import DebertaEmoCheck
 # from sp_correction import SentenceBestPrediction
 
@@ -24,7 +24,12 @@ sources = {
     "j-hartmann/emotion-english-distilroberta-base": "https://huggingface.co/j-hartmann/emotion-english-distilroberta-base",
     "michellejieli/emotion_text_classifier": "https://huggingface.co/michellejieli/emotion_text_classifier",
     "cardiffnlp/twitter-roberta-base-emotion": "https://huggingface.co/cardiffnlp/twitter-roberta-base-emotion",
-    "finiteautomata/bertweet-base-emotion-analysis": "https://huggingface.co/finiteautomata/bertweet-base-emotion-analysis"
+    "finiteautomata/bertweet-base-emotion-analysis": "https://huggingface.co/finiteautomata/bertweet-base-emotion-analysis",
+    "ActivationAI/distilbert-base-uncased-finetuned-emotion": "https://huggingface.co/ActivationAI/distilbert-base-uncased-finetuned-emotion",
+    "SamLowe/roberta-base-go_emotions": "https://huggingface.co/SamLowe/roberta-base-go_emotions",
+    "mrm8488/t5-base-finetuned-emotion": "https://huggingface.co/mrm8488/t5-base-finetuned-emotion",
+    "EmoAtlas": "https://github.com/alfonsosemeraro/emoatlas",
+    "pysentimiento": "https://github.com/pysentimiento/pysentimiento/",
 }
 
 languages = {
@@ -35,7 +40,12 @@ languages = {
     "j-hartmann/emotion-english-distilroberta-base": "en",
     "michellejieli/emotion_text_classifier": "en",
     "cardiffnlp/twitter-roberta-base-emotion": "en",
-    "finiteautomata/bertweet-base-emotion-analysis": "en"
+    "finiteautomata/bertweet-base-emotion-analysis": "en",
+    "pysentimiento": "en, es, it, pt",
+    "EmoAtlas": "en",
+    "mrm8488/t5-base-finetuned-emotion": "en",
+    "SamLowe/roberta-base-go_emotions": "en",
+    "ActivationAI/distilbert-base-uncased-finetuned-emotion": "en",
 }
 
 versions = {
@@ -46,7 +56,12 @@ versions = {
     "j-hartmann/emotion-english-distilroberta-base": "0e1cd914e3d46199ed785853e12b57304e04178b",
     "michellejieli/emotion_text_classifier": "dc4df5597fcda82589511c3900fedbe1c0ffec82",
     "cardiffnlp/twitter-roberta-base-emotion": "2848306ad936b7cd47c76c2c4e14d694a41e0f54",
-    "finiteautomata/bertweet-base-emotion-analysis": "c482c9e1750a29dcc393234816bcf468ff77cd2d"
+    "finiteautomata/bertweet-base-emotion-analysis": "c482c9e1750a29dcc393234816bcf468ff77cd2d",
+    "ActivationAI/distilbert-base-uncased-finetuned-emotion": "dbf4470880ff3b73f22975241cd309bdf8e2195f",
+    "SamLowe/roberta-base-go_emotions": "58b6c5b44a7a12093f782442969019c7e2982299",
+    "mrm8488/t5-base-finetuned-emotion": "e44a316825f11230724b36412fbf1899c76e82de",
+    "EmoAtlas": "adae44a80dd55c1d1c467c4e72bdb2d8cf63bf28",
+    "pysentimiento": "60822acfd805ad5d95437c695daa33c18dbda060",
 }
 
 
@@ -81,7 +96,8 @@ lru_cache_with_size = lru_cache(maxsize=settings.emotion_model_cache_size)
 logging.basicConfig(level=settings.emotion_log_level)
 logger = logging.getLogger(__name__)
 
-device = 0 if torch.cuda.is_available() else "cpu"
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
+# device = "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
 typesystem_filename = 'TypeSystemEmotion.xml'
@@ -201,9 +217,16 @@ def get_documentation():
     return "Test"
 
 @lru_cache_with_size
-def load_model(model_name):
+def load_model(model_name, language="en"):
     if model_name == "pol_emo_mDeBERTa":
         model_i = DebertaEmoCheck(f"{model_name}/model/pytorch_model.pt", device)
+    elif model_name == "EmoAtlas":
+        model_i = EmoAtlas("english")
+    elif model_name == "pysentimiento":
+        if language == "en" or language == "es" or language == "it" or language == "pt":
+            model_i = PySentimientoCheck(language)
+        else:
+            model_i = PySentimientoCheck("en")
     else:
         model_i = EmotionCheck(model_name, device)
     return model_i
@@ -216,7 +239,7 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
-def process_selection(model_name, selection, doc_len):
+def process_selection(model_name, selection, doc_len, lang_document):
     begin = []
     end = []
     results_out = []
@@ -233,7 +256,7 @@ def process_selection(model_name, selection, doc_len):
     logger.debug(texts)
 
     with model_lock:
-        classifier = load_model(model_name)
+        classifier = load_model(model_name, lang_document)
 
         results = classifier.emotion_prediction(texts)
         for c, res in enumerate(results):
@@ -259,7 +282,7 @@ def process_selection(model_name, selection, doc_len):
         "factors": factors
     }
 
-    return output, classifier.model._version
+    return output, versions[model_name]
 
 # Process request from DUUI
 @app.post("/v1/process")
@@ -277,6 +300,7 @@ def post_process(request: TextImagerRequest):
         model_source = sources[request.model_name]
         model_lang = languages[request.model_name]
         model_version = versions[request.model_name]
+        lang_document = request.lang
         # set meta Informations
         meta = AnnotationMeta(
             name=settings.emotion_annotator_name,
@@ -294,7 +318,7 @@ def post_process(request: TextImagerRequest):
         mv = ""
 
         for selection in request.selections:
-            processed_sentences, model_version_2 = process_selection(request.model_name, selection, request.doc_len)
+            processed_sentences, model_version_2 = process_selection(request.model_name, selection, request.doc_len, lang_document)
             begin = begin+ processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]

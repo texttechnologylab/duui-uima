@@ -1,11 +1,11 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-emotion&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list)
-[![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
-[![Version](https://img.shields.io/static/v1?label=Transformers&message=4.27.4&color=yellow)]()
-[![Version](https://img.shields.io/static/v1?label=Torch&message=1.13.1&color=red)]()
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-emotion&message=0.2.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list)
+[![Version](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
+[![Version](https://img.shields.io/static/v1?label=Transformers&message=4.41.2&color=yellow)]()
+[![Version](https://img.shields.io/static/v1?label=Torch&message=2.3.0&color=red)]()
 
 # Transformers Emotion
 
-DUUI implementation for selected Hugging-Face-based transformer [Emotion tools](https://huggingface.co/models?sort=trending&search=emotion) models and [pol_emo_mDeBERTa](https://github.com/tweedmann/pol_emo_mDeBERTa2).
+DUUI implementation for selected Hugging-Face-based transformer [Emotion tools](https://huggingface.co/models?sort=trending&search=emotion) models,  [pol_emo_mDeBERTa](https://github.com/tweedmann/pol_emo_mDeBERTa2), [pysentimiento](https://github.com/pysentimiento/pysentimiento/) and [EmoAtlas](https://github.com/alfonsosemeraro/emoatlas).
 ## Included Models
 
 | Name                                                  | Revision                                 | Languages    |
@@ -18,6 +18,11 @@ DUUI implementation for selected Hugging-Face-based transformer [Emotion tools](
  | michellejieli/emotion_text_classifier | dc4df5597fcda82589511c3900fedbe1c0ffec82 | EN           |
  | cardiffnlp/twitter-roberta-base-emotion | 2848306ad936b7cd47c76c2c4e14d694a41e0f54 | EN           |
  | finiteautomata/bertweet-base-emotion-analysis | c482c9e1750a29dcc393234816bcf468ff77cd2d | EN           |
+| ActivationAI/distilbert-base-uncased-finetuned-emotion | dbf4470880ff3b73f22975241cd309bdf8e2195f | EN           |
+ | SamLowe/roberta-base-go_emotions | 58b6c5b44a7a12093f782442969019c7e2982299 | EN           |
+ | mrm8488/t5-base-finetuned-emotion | e44a316825f11230724b36412fbf1899c76e82de | EN           |
+ | EmoAtlas | adae44a80dd55c1d1c467c4e72bdb2d8cf63bf28    | EN           |
+ | pysentimiento | 60822acfd805ad5d95437c695daa33c18dbda060 | EN, ES, IT, PT |
 # How To Use
 
 For using duui-transformers-emotion as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
@@ -25,7 +30,7 @@ For using duui-transformers-emotion as a DUUI image it is necessary to use the [
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-emotion:latest
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-transformers-emotion:latest
 ```
 
 Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list
@@ -35,8 +40,8 @@ Find all available image tags here: https://docker.texttechnologylab.org/v2/duui
 ```
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-emotion:latest")
-        .withScale(iWorkers)
-        .withImageFetching()
+        .withParameter("model_name", "MilaNLProc/xlm-emo-t")
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 );
 ```
 
@@ -49,6 +54,7 @@ composer.add(
 
 ## Building
 Before build download [pol_emo_mDeBERTa2.zip](https://github.com/tweedmann/pol_emo_mDeBERTa2/releases/download/v.1.0.0/pol_emo_mDeBERTa2.zip) and save the folder pol_emo_DeBERTa under the python directory.
+Also download the nltk wordnet with nltk.download('wordnet', download_dir="nltk_data") and save it under the python directory.
 
 # Cite
 
@@ -88,8 +94,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 
 @misc{Bagci:2024,
   author         = {Bagci, Mevlüt},
-  title          = {Hugging-Face-based emotion models as {DUUI} component},
-  year           = {2023},
+  title          = {Emotion models as {DUUI} component},
+  year           = {2024},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-Emotion}
 }
 
