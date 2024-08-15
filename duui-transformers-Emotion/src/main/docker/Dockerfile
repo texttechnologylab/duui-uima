@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM python:3.10
 
 WORKDIR /usr/src/app
 
@@ -12,11 +12,14 @@ COPY ./src/main/python/Emo_mDeBERTa2.py ./Emo_mDeBERTa2.py
 COPY ./src/main/python/EmotionDetection.py ./EmotionDetection.py
 COPY ./src/main/python/duui_transformers_emotion.py ./duui_transformers_emotion.py
 COPY ./src/main/python/duui_emotion.lua ./duui_emotion.lua
+COPY ./src/main/python/nltk_data/ ./nltk_data/
 
 # dependencies
 RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
+
+RUN python -m spacy download en_core_web_lg
 
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='02shanky/finetuned-twitter-xlm-roberta-base-emotion')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence')"
@@ -25,6 +28,9 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='michellejieli/emotion_text_classifier')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/bertweet-base-emotion-analysis')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ActivationAI/distilbert-base-uncased-finetuned-emotion')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='SamLowe/roberta-base-go_emotions')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='mrm8488/t5-base-finetuned-emotion')"
 
 # log level
 ARG EMOTION_LOG_LEVEL="DEBUG"

@@ -31,7 +31,7 @@ public class EmotionTest {
     static JCas cas;
 
     static String url = "http://127.0.0.1:9714";
-    static String model = "02shanky/finetuned-twitter-xlm-roberta-base-emotion";
+    static String model = "MilaNLProc/xlm-emo-t";
 //    static String model = "pol_emo_mDeBERTa";
 
     @BeforeAll

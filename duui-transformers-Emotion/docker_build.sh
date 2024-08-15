@@ -5,7 +5,7 @@ export EMOTION_ANNOTATOR_CUDA=
 #export EMOTION_ANNOTATOR_CUDA="-cuda"
 
 export EMOTION_ANNOTATOR_NAME=duui-transformers-emotion
-export EMOTION_ANNOTATOR_VERSION=0.1.0
+export EMOTION_ANNOTATOR_VERSION=0.2.0
 export EMOTION_LOG_LEVEL=DEBUG
 export EMOTION_MODEL_CACHE_SIZE=3
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
