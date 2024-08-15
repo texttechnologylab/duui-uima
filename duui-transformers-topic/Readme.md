@@ -1,19 +1,23 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-topic&message=0.1.3&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-topic/tags/list)
-[![Version](https://img.shields.io/static/v1?label=Python&message=3.8&color=green)]()
-[![Version](https://img.shields.io/static/v1?label=Transformers&message=4.22.1&color=yellow)]()
-[![Version](https://img.shields.io/static/v1?label=Torch&message=2.1.1&color=red)]()
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-topic&message=0.2.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-topic/tags/list)
+[![Version](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
+[![Version](https://img.shields.io/static/v1?label=Transformers&message=4.41.2&color=yellow)]()
+[![Version](https://img.shields.io/static/v1?label=Torch&message=2.3.0&color=red)]()
 
 # Transformers Topic
 
 DUUI implementation for selected Hugging-Face-based transformer [Topic tools](https://huggingface.co/models?sort=trending&search=topic) models.
 ## Included Models
 
-| Name                                                   | Revision                                  | Languages                              |
-|--------------------------------------------------------|-------------------------------------------|----------------------------------------|
-| cardiffnlp/tweet-topic-latest-multi      | 508b2b9e4bf7fd4c71abf685b3b0792fbba63428  | EN                                     |
-| classla/xlm-roberta-base-multilingual-text-genre-classifier   | 9b8116e365c9d27f3a1f18f974bdf077ae844658  | Multilingual                           |
-| chkla/parlbert-topic-german       | 61b1b398e5862b087a2bf8db8e9e77f8722e1589 | DE                                     |
-| ssharoff/genres           | dc9cb7ef031abc96081d9ea96aa0e2ee1636ce04 | EN |
+| Name                                                                           | Revision                               | Languages |
+|--------------------------------------------------------------------------------|----------------------------------------|----------|
+| cardiffnlp/tweet-topic-latest-single                                           | 0ff86a9d19a5bb4045dd7ebced3714796890cfbe | EN       |
+| classla/xlm-roberta-base-multilingual-text-genre-classifier                    | de7ed0ff1063e1e4bd3fd1bdda54e3ad85fb5419 | Multilingual |
+| chkla/parlbert-topic-german                                                    | df343699abeb22e08c096ab3974cfd35877ce47f | DE       |
+| ssharoff/genres                                                                | dc9cb7ef031abc96081d9ea96aa0e2ee1636ce04 | EN       |
+ | KnutJaegersberg/topic-classification-IPTC-subject-labels                       | fe1fb726c12850b1e2f6ed3fa379a0a6c4558a4c | Multilingual |
+ | poltextlab/xlm-roberta-large-manifesto-cap                                     | 5f19b49c412d504c1c8357a31367a65c0302717e | Multilingual |
+| manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1  | 06c046795a3b7b9822755f0a73776f8fabec3977 | Multilingual |
+ 
 # How To Use
 
 For using duui-transformers-topic as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
@@ -21,7 +25,7 @@ For using duui-transformers-topic as a DUUI image it is necessary to use the [Do
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-topic:latest
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-transformers-topic:latest
 ```
 
 Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-topic/tags/list
@@ -31,8 +35,8 @@ Find all available image tags here: https://docker.texttechnologylab.org/v2/duui
 ```
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-topic:latest")
-        .withScale(iWorkers)
-        .withImageFetching()
+        .withParameter("model_name", "cardiffnlp/tweet-topic-latest-single")
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 );
 ```
 
@@ -82,7 +86,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 @misc{Bagci:2024,
   author         = {Bagci, Mevlüt},
   title          = {Hugging-Face-based topic models as {DUUI} component},
-  year           = {2023},
+  year           = {2024},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-topic}
 }
 
