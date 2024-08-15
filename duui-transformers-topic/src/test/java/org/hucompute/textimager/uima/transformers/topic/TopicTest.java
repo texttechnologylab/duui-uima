@@ -6,14 +6,11 @@ import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
+import org.apache.uima.jcas.cas.FSArray;
 import org.apache.uima.util.XmlCasSerializer;
 import org.hucompute.textimager.uima.type.category.CategoryCoveredTagged;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.xml.sax.SAXException;
@@ -24,10 +21,12 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.texttechnologylab.annotation.Topic;
+import org.texttechnologylab.annotation.AnnotationComment;
 
 public class TopicTest {
     static DUUIComposer composer;
@@ -35,7 +34,7 @@ public class TopicTest {
 
     static String url = "http://127.0.0.1:9714";
 //    static String model = "chkla/parlbert-topic-german";
-    static String model = "classla/xlm-roberta-base-multilingual-text-genre-classifier";
+    static String model = "chkla/parlbert-topic-german";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException, CompressorException {
@@ -83,6 +82,11 @@ public class TopicTest {
 
     @Test
     public void DeTest() throws Exception {
+        HashMap<String, ArrayList<String>> expected1 = new HashMap<>();
+        ArrayList<String> expected2 = new ArrayList<>();
+        expected2.add("Domestic");
+        expected2.add("Technology");
+        expected1.put("chkla/parlbert-topic-german", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
@@ -96,37 +100,50 @@ public class TopicTest {
 
         createCas("de", sentences);
         composer.run(cas);
-        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
-        Collection<CategoryCoveredTagged> topics = JCasUtil.select(cas, CategoryCoveredTagged.class);
-//        System.out.println(topics.size());
-        for (CategoryCoveredTagged topic: topics){
-            int start = topic.getBegin();
-            int end = topic.getEnd();
-            String coveredText = topic.getCoveredText();
-            String value = topic.getValue();
-            double score = topic.getScore();
-            String key1 = start + "_" + end;
-            HashMap<String, Double> value1 = new HashMap<>();
-            value1.put(value, score);
-            if (expected.containsKey(key1)){
-                expected.get(key1).put(value, score);
-            } else {
-                expected.put(key1, value1);
+
+        Collection<Topic> all_topics = JCasUtil.select(cas, Topic.class);
+        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
+        for (Topic topic: all_topics){
+            System.out.println(topic.getCoveredText());
+            Map<String, Float> topics = new HashMap<String, Float>();
+            FSArray<AnnotationComment> topics_all = topic.getTopics();
+            for (AnnotationComment comment_i: topics_all){
+                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
+            expected.add(topics);
         }
-        HashMap<String, String> expected1 = new HashMap<>();
-        expected1.put("0_72", "Information/Explanation");
-        expected1.put("73_153", "News");
-        for (Map.Entry<String, HashMap<String, Double>> entry: expected.entrySet()){
-            String key = Collections.max(entry.getValue().entrySet(), Map.Entry.comparingByValue()).getKey();
-            // compare the expected with same index in the actual
-            String expectedValue = expected1.get(entry.getKey());
-            assertEquals(expectedValue, key);
+
+        for (Map<String, Float> topic: expected){
+            // highest value
+            String key = Collections.max(topic.entrySet(), Map.Entry.comparingByValue()).getKey();
+            Assertions.assertEquals(expected1.get(model).get(expected.indexOf(topic)), key);
         }
     }
 
     @Test
     public void EnTest() throws Exception {
+        HashMap<String, ArrayList<String>> expected1 = new HashMap<>();
+        ArrayList<String> expected2 = new ArrayList<>();
+        expected2.add("603 - Traditional Morality: Positive");
+        expected2.add("305 - Political Authority");
+        expected1.put("manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("Others");
+        expected2.add("Others");
+        expected1.put("poltextlab/xlm-roberta-large-manifesto-cap", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("daily_life");
+        expected2.add("pop_culture");
+        expected1.put("cardiffnlp/tweet-topic-latest-single", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("Instruction");
+        expected2.add("News");
+        expected1.put("classla/xlm-roberta-base-multilingual-text-genre-classifier", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("A7");
+        expected2.add("A8");
+        expected1.put("ssharoff/genres", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
@@ -140,33 +157,53 @@ public class TopicTest {
 
         createCas("de", sentences);
         composer.run(cas);
-        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
-        Collection<CategoryCoveredTagged> topics = JCasUtil.select(cas, CategoryCoveredTagged.class);
-//        System.out.println(topics.size());
-        for (CategoryCoveredTagged topic: topics){
-            int start = topic.getBegin();
-            int end = topic.getEnd();
-            String coveredText = topic.getCoveredText();
-            String value = topic.getValue();
-            double score = topic.getScore();
-            String key1 = start + "_" + end;
-            HashMap<String, Double> value1 = new HashMap<>();
-            value1.put(value, score);
-            if (expected.containsKey(key1)){
-                expected.get(key1).put(value, score);
-            } else {
-                expected.put(key1, value1);
+
+        Collection<Topic> all_topics = JCasUtil.select(cas, Topic.class);
+        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
+        for (Topic topic: all_topics){
+            System.out.println(topic.getCoveredText());
+            Map<String, Float> topics = new HashMap<String, Float>();
+            FSArray<AnnotationComment> topics_all = topic.getTopics();
+            for (AnnotationComment comment_i: topics_all){
+                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
+            expected.add(topics);
         }
-        HashMap<String, String> expected1 = new HashMap<>();
-        expected1.put("0_104", "Instruction");
-        expected1.put("105_176", "News");
-        for (Map.Entry<String, HashMap<String, Double>> entry: expected.entrySet()){
-            String key = Collections.max(entry.getValue().entrySet(), Map.Entry.comparingByValue()).getKey();
-            // compare the expected with same index in the actual
-            String expectedValue = expected1.get(entry.getKey());
-            assertEquals(expectedValue, key);
+
+        for (Map<String, Float> topic: expected){
+            // highest value
+            String key = Collections.max(topic.entrySet(), Map.Entry.comparingByValue()).getKey();
+            Assertions.assertEquals(expected1.get(model).get(expected.indexOf(topic)), key);
         }
+
+//        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
+//        Collection<CategoryCoveredTagged> topics = JCasUtil.select(cas, CategoryCoveredTagged.class);
+////        System.out.println(topics.size());
+//        for (CategoryCoveredTagged topic: topics){
+//            int start = topic.getBegin();
+//            int end = topic.getEnd();
+//            String coveredText = topic.getCoveredText();
+//            String value = topic.getValue();
+//            double score = topic.getScore();
+//            String key1 = start + "_" + end;
+//            HashMap<String, Double> value1 = new HashMap<>();
+//            value1.put(value, score);
+//            if (expected.containsKey(key1)){
+//                expected.get(key1).put(value, score);
+//            } else {
+//                expected.put(key1, value1);
+//            }
+//        }
+//        HashMap<String, String> expected1 = new HashMap<>();
+//        expected1.put("0_104", "Instruction");
+//        expected1.put("105_176", "News");
+//        for (Map.Entry<String, HashMap<String, Double>> entry: expected.entrySet()){
+//            String key = Collections.max(entry.getValue().entrySet(), Map.Entry.comparingByValue()).getKey();
+//            // compare the expected with same index in the actual
+//            String expectedValue = expected1.get(entry.getKey());
+//            assertEquals(expectedValue, key);
+//        }
 
     }
 }
