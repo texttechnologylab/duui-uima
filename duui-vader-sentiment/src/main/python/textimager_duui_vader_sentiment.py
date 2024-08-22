@@ -10,6 +10,7 @@ from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from vaderSentiment import vaderSentiment as vaderSentimentEn
 from vaderSentiment_fr import vaderSentiment as vaderSentimentFr
+from gervader import vaderSentimentGER
 
 from .duui.reqres import TextImagerResponse, TextImagerRequest
 from .duui.sentiment import SentimentSentence, SentimentSelection
@@ -19,11 +20,12 @@ from .duui.uima import *
 # TODO get from source?
 VADER_EN_VERSION = "3.3.2"
 VADER_FR_VERSION = "1.3.4"
+VADER_DE_VERSION = "4d6e5a4ba9a294a38b1257999f627b5c0fe15809"
 
 settings = Settings()
 model_lock = Lock()
 analyzer_cache = {}
-supported_languages = sorted(list(["en", "fr"]))
+supported_languages = sorted(list(["en", "fr", "de"]))
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
@@ -86,10 +88,11 @@ def get_documentation() -> TextImagerDocumentation:
             "python_version_full": sys_version,
             "vader_en_version": VADER_EN_VERSION,
             "vader_fr_version": VADER_FR_VERSION,
+            "vader_der_version": VADER_DE_VERSION,
         },
         docker_container_id="[TODO]",
         parameters={
-            "model_name": ["vader-en", "vader-fr"]
+            "model_name": ["vader-en", "vader-fr", "vader-de"]
         },
         capability=capabilities,
         implementation_specific=None,
@@ -118,6 +121,10 @@ def load_analyzer(lang: str):
             analyzer = vaderSentimentFr.SentimentIntensityAnalyzer()
             model_name = "vader-fr"
             model_version = VADER_FR_VERSION
+        elif lang == "de":
+            analyzer = vaderSentimentGER.SentimentIntensityAnalyzer()
+            model_name = "vader-de"
+            model_version = VADER_DE_VERSION
         else:
             # use en as default
             # TODO error instead?

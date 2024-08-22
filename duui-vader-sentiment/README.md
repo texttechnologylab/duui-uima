@@ -2,15 +2,15 @@
 
 # VADER Sentiment
 
-DUUI implementation for [VADER](https://github.com/cjhutto/vaderSentiment)
+DUUI implementation for [VADER](https://github.com/cjhutto/vaderSentiment) and [GerVADER](https://github.com/KarstenAMF/GerVADER)
 
 ## Included Languages
 
-| Languages |
-| --------- |
-| EN        |
-| FR        |
-| DE available in https://github.com/texttechnologylab/duui-uima/tree/main/duui-gervader |
+| Languages (auto selected)                                                 |
+|---------------------------------------------------------------------------|
+| EN (NOTE that EN is selected by default on unknown/unsupported languages) |
+| FR                                                                        |
+| DE                                                                        |
 
 # How To Use
 
@@ -19,16 +19,16 @@ For using VADER as a DUUI image it is necessary to use the [Docker Unified UIMA 
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/textimager-duui-vader-sentiment:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-vader-sentiment:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/textimager-duui-vader-sentiment/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-vader-sentiment/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/textimager-duui-vader-sentiment:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-vader-sentiment:latest")
         .withScale(iWorkers)
         .withImageFetching()
 );

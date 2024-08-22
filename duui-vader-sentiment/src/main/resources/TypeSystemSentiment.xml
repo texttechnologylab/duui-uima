@@ -134,5 +134,11 @@
             <supertypeName>org.hucompute.textimager.uima.type.CategorizedSentiment</supertypeName>
             <features/>
         </typeDescription>
+        <typeDescription>
+            <name>org.hucompute.textimager.uima.type.GerVaderSentiment</name>
+            <description/>
+            <supertypeName>org.hucompute.textimager.uima.type.VaderSentiment</supertypeName>
+            <features/>
+        </typeDescription>
     </types>
 </typeSystemDescription>

@@ -6,8 +6,9 @@ import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.util.XmlCasSerializer;
-import org.hucompute.textimager.uima.type.CategorizedSentiment;
+import org.hucompute.textimager.uima.type.GerVaderSentiment;
 import org.hucompute.textimager.uima.type.Sentiment;
+import org.hucompute.textimager.uima.type.VaderSentiment;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -22,13 +23,9 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class VaderSentimentTest {
@@ -101,6 +98,11 @@ public class VaderSentimentTest {
         for (Sentiment sentiment : JCasUtil.select(cas, Sentiment.class)) {
             System.out.println(sentiment.getCoveredText() + " -> " + sentiment.getSentiment());
         }
+
+        // 1 -> full text
+        // 1 -> sentence average
+        // 6 -> per sentences
+        assertEquals(6+1+1, JCasUtil.select(cas, VaderSentiment.class).size());
     }
 
     @Test
@@ -126,5 +128,39 @@ public class VaderSentimentTest {
         for (Sentiment sentiment : JCasUtil.select(cas, Sentiment.class)) {
             System.out.println(sentiment.getCoveredText() + " -> " + sentiment.getSentiment());
         }
+
+        // 1 -> full text
+        // 1 -> sentence average
+        // 6 -> per sentences
+        assertEquals(6+1+1, JCasUtil.select(cas, VaderSentiment.class).size());
+    }
+
+    @Test
+    public void deTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+
+        List<String> sentences = Arrays.asList(
+                "Das gefällt mir durchaus.",
+                "Nein, das mag ich nicht.",
+                "Ich hasse dieses Auto.",
+                "Dieses Auto mag ich nicht.",
+                "Ich liebe dieses Auto."
+        );
+
+        createCas("de", sentences);
+
+        composer.run(cas);
+
+        for (Sentiment sentiment : JCasUtil.select(cas, Sentiment.class)) {
+            System.out.println(sentiment.getCoveredText() + " -> " + sentiment.getSentiment());
+        }
+
+        // 1 -> full text
+        // 1 -> sentence average
+        // 5 -> per sentences
+        assertEquals(5+1+1, JCasUtil.select(cas, GerVaderSentiment.class).size());
     }
 }

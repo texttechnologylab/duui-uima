@@ -69,8 +69,14 @@ function deserialize(inputCas, inputStream)
         for i, selection in ipairs(results["selections"]) do
             local selection_type = selection["selection"]
             for j, sentence in ipairs(selection["sentences"]) do
+                -- different type if "GerVADER" is used
+                type_name = "org.hucompute.textimager.uima.type.VaderSentiment"
+                if meta["modelName"] == "vader-de" then
+                    type_name = "org.hucompute.textimager.uima.type.GerVaderSentiment"
+                end
+
                 -- vader sentiment
-                local sentiment_anno = luajava.newInstance("org.hucompute.textimager.uima.type.VaderSentiment", inputCas)
+                local sentiment_anno = luajava.newInstance(type_name, inputCas)
                 sentiment_anno:setBegin(sentence["sentence"]["begin"])
                 sentiment_anno:setEnd(sentence["sentence"]["end"])
                 sentiment_anno:setSentiment(sentence["compound"])

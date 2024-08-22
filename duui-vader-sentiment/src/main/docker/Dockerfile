@@ -21,6 +21,7 @@ ARG TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION="unset"
 ENV TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION=$TEXTIMAGER_DUUI_VADER_SENTIMENT_ANNOTATOR_VERSION
 
 # copy scripts
+COPY ./src/main/python/gervader ./gervader
 COPY ./src/main/resources/TypeSystemSentiment.xml ./src/main/resources/TypeSystemSentiment.xml
 COPY ./src/main/python/__init__.py ./src/main/python/__init__.py
 COPY ./src/main/python/duui/ ./src/main/python/duui/

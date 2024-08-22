@@ -1,3 +1,3 @@
-[submodule "duui-gervader/src/main/docker/python/gervader"]
-	path = duui-gervader/src/main/docker/python/gervader
+[submodule "duui-vader-sentiment/src/main/python/gervader"]
+	path = duui-vader-sentiment/src/main/python/gervader
 	url = https://github.com/Myyyvothrr/GerVADER
