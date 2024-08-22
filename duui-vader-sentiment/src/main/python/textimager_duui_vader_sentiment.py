@@ -125,12 +125,12 @@ def load_analyzer(lang: str):
             analyzer = vaderSentimentGER.SentimentIntensityAnalyzer()
             model_name = "vader-de"
             model_version = VADER_DE_VERSION
-        else:
-            # use en as default
-            # TODO error instead?
+        elif lang == "en":
             analyzer = vaderSentimentEn.SentimentIntensityAnalyzer()
             model_name = "vader-en"
             model_version = VADER_EN_VERSION
+        else:
+            raise ValueError(f"Unsupported language: {lang}")
 
         analyzer_cache[lang] = analyzer, model_name, model_version
         return analyzer, model_name, model_version

@@ -20,6 +20,7 @@ import org.xml.sax.SAXException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InvalidObjectException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class VaderSentimentTest {
     static DUUIComposer composer;
@@ -162,5 +164,29 @@ public class VaderSentimentTest {
         // 1 -> sentence average
         // 5 -> per sentences
         assertEquals(5+1+1, JCasUtil.select(cas, GerVaderSentiment.class).size());
+    }
+
+    @Test
+    public void unknownLangTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("selection", "text")
+        );
+
+        List<String> sentences = Arrays.asList(
+                "Das gefällt mir durchaus.",
+                "Nein, das mag ich nicht.",
+                "Ich hasse dieses Auto.",
+                "Dieses Auto mag ich nicht.",
+                "Ich liebe dieses Auto."
+        );
+
+        createCas("es", sentences);
+
+        assertThrows(InvalidObjectException.class, () -> composer.run(cas));
+
+        for (Sentiment sentiment : JCasUtil.select(cas, Sentiment.class)) {
+            System.out.println(sentiment.getCoveredText() + " -> " + sentiment.getSentiment());
+        }
     }
 }
