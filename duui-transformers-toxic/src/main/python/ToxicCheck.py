@@ -1,13 +1,13 @@
 import torch
 import math
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline, AutoModelForCausalLM
 from scipy.special import softmax
 import numpy as np
 from typing import List
 from detoxify import Detoxify
 # from googleapiclient import discovery
-# import json
-# import time
+import json
+import time
 
 
 def sigmoid(x):
@@ -19,12 +19,24 @@ map_toxic = {
     "LABEL_1": "toxic",
 }
 
+toxic_models = {
+    "Aira-ToxicityModel": "nicholasKluge/ToxicityModel",
+    "textdetox": "textdetox/xlmr-large-toxicity-classifier",
+    "citizenlab": "citizenlab/distilbert-base-multilingual-cased-toxicity",
+    "EIStakovskii": "EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus",
+    "FredZhang7": "FredZhang7/one-for-all-toxicity-v3",
+    "Detoxifying": "Detoxifying",
+}
+
 
 class ToxicCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f"/storage/nlp/huggingface/models")
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name,
+                                                                        cache_dir=f"/storage/nlp/huggingface/models").to(
+            device)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             self.model.resize_token_embeddings(len(self.tokenizer))
@@ -37,27 +49,59 @@ class ToxicCheck:
     def toxic_prediction(self, texts: List[str]):
         with torch.no_grad():
             score_list = []
-            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(
+                self.device)
             outputs = self.model(**inputs)
             scores = outputs[0].detach().cpu().numpy()
-            for score in scores:
-                score_dict_i = {}
-                score_i = softmax(score)
-                ranking = np.argsort(score_i)
-                ranking = ranking[::-1]
-                # if "HATE" in self.labels:
-                #     score_dict_i["toxic"] = float(score_i[ranking["HATE"]])
-                # if "NOT HATE" in self.labels:
-                #     score_dict_i["non toxic"] = float(score_i[ranking["NOT HATE"]])
-                # if "NOT_HATE" in self.labels:
-                #     score_dict_i["non toxic"] = float(score_i[ranking["NOT_HATE"]])
-                for i in range(score.shape[0]):
-                    if self.labels[ranking[i]] in map_toxic:
-                        score_dict_i[map_toxic[self.labels[ranking[i]]]] = float(score_i[ranking[i]])
-                    elif self.labels[ranking[i]] == "":
-                        score_dict_i[self.labels[ranking[i]].replace("-", " ")] = float(score_i[ranking[i]])
-                    else:
-                        score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+            if self.model_name == "nicholasKluge/ToxicityModel":
+                for score in scores:
+                    score_dict_i = {"non toxic": float(score[0]), "toxic": float(1 - score[0])}
+                    score_list.append(score_dict_i)
+            else:
+                for score in scores:
+                    score_dict_i = {}
+                    score_i = softmax(score)
+                    ranking = np.argsort(score_i)
+                    ranking = ranking[::-1]
+                    # if "HATE" in self.labels:
+                    #     score_dict_i["toxic"] = float(score_i[ranking["HATE"]])
+                    # if "NOT HATE" in self.labels:
+                    #     score_dict_i["non toxic"] = float(score_i[ranking["NOT HATE"]])
+                    # if "NOT_HATE" in self.labels:
+                    #     score_dict_i["non toxic"] = float(score_i[ranking["NOT_HATE"]])
+                    for i in range(score.shape[0]):
+                        if self.labels[ranking[i]] in map_toxic:
+                            score_dict_i[map_toxic[self.labels[ranking[i]]]] = float(score_i[ranking[i]])
+                        elif self.labels[ranking[i]] == "":
+                            score_dict_i[self.labels[ranking[i]].replace("-", " ")] = float(score_i[ranking[i]])
+                        else:
+                            score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                    score_list.append(score_dict_i)
+        return score_list
+
+
+class ToxicAiraCheck:
+    def __init__(self, model_name: str, device='cuda:0'):
+        self.device = device
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f"/storage/nlp/huggingface/models")
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name,
+                                                                        cache_dir=f"/storage/nlp/huggingface/models").to(
+            device)
+        self.model.eval()
+
+    def toxic_prediction(self, texts: List[str]):
+        prompt = "Create a toxic tweet: "
+        with torch.no_grad():
+            score_list = []
+            for text in texts:
+                inputs = self.tokenizer(prompt, text, return_tensors="pt", padding=True, truncation=True,
+                                        max_length=512).to(self.device)
+                outputs = self.model(**inputs)[0].item()
+                softmax_score = softmax([outputs, 1 - outputs])
+                score_dict_i = {"non toxic": float(softmax_score[0]), "toxic": float(softmax_score[1])}
+                # sort after the scores
+                score_dict_i = dict(sorted(score_dict_i.items(), key=lambda item: item[1], reverse=True))
                 score_list.append(score_dict_i)
         return score_list
 
@@ -89,29 +133,3 @@ class Detoxifying:
         return pred_out
 
 
-# class Perspective:
-#     def __init__(self, api_key: str):
-#         self.api_key = api_key
-#         self.service = discovery.build("commentanalyzer", "v1alpha1", developerKey=api_key, discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1", static_discovery=False,)
-#
-#     def toxic_prediction(self, texts: List[str]):
-#         results = []
-#         for text in texts:
-#             time_start = time.time()
-#             analyze_request = {
-#                 'comment': {'text': text},
-#                 'requestedAttributes': {'TOXICITY': {},
-#                                         # "SEVERE_TOXICITY": {}, "IDENTITY_ATTACK": {}, "INSULT": {}, "THREAT": {}, "PROFANITY": {}, "SEXUALLY_EXPLICIT": {},
-#                                         # "FLIRTATION": {}
-#                                         }
-#             }
-#             response = self.service.comments().analyze(body=analyze_request).execute()
-#             out_dict = {}
-#             for key in response["attributeScores"]:
-#                 out_dict[key] = response["attributeScores"][key]["summaryScore"]["value"]
-#             results.append(out_dict)
-#             time_end = time.time()
-#             # if less than 1 second, wait for 1 second
-#             if time_end - time_start < 1:
-#                 time.sleep(1 - (time_end - time_start))
-#         return results

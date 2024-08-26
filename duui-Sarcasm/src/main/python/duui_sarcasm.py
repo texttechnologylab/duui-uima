@@ -7,7 +7,7 @@ from fastapi import FastAPI, Response
 from cassis import load_typesystem
 import torch
 from functools import lru_cache
-from hatechecker import HateCheck
+from sarcasm_detection import SarcasmCheck
 from threading import Lock
 # from sp_correction import SentenceBestPrediction
 
@@ -15,16 +15,6 @@ from threading import Lock
 # These are automatically loaded from env variables
 from starlette.responses import PlainTextResponse
 model_lock = Lock()
-
-sources = {
-    "tomh": "tomh/toxigen_hatebert",
-    "gronlp": "GroNLP/hateBERT"
-}
-
-languages = {
-    "tomh": "en",
-    "gronlp": "en"
-}
 
 class Settings(BaseSettings):
     # Name of this annotator
@@ -54,7 +44,7 @@ logger = logging.getLogger(__name__)
 device = 0 if torch.cuda.is_available() else "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'TypeSystemHate.xml'
+typesystem_filename = 'TypeSystemSarcasm.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
@@ -62,7 +52,7 @@ with open(typesystem_filename, 'rb') as f:
     logger.debug(typesystem.to_xml())
 
 # Load the Lua communication script
-lua_communication_script_filename = "duui_hate.lua"
+lua_communication_script_filename = "duui_Sarcasm.lua"
 logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 
 class UimaSentence(BaseModel):
@@ -111,8 +101,8 @@ def fix_unicode_problems(text):
 def process_selection(model_name, selection):
     begin = []
     end = []
-    non_hate = []
-    hate = []
+    non_sarcasm = []
+    sarcasm = []
     for s in selection.sentences:
         s.text = fix_unicode_problems(s.text)
 
@@ -122,17 +112,17 @@ def process_selection(model_name, selection):
     ]
     with model_lock:
         classifier = load_model(model_name)
-        results = classifier.hate_prediction(texts)
+        results = classifier.sarcasm_prediction(texts)
         for c, res in enumerate(results):
             sentence = selection.sentences[c]
             for r in res:
-                if r["label"] == "NOT HATE":
-                    non_hate.append(r["score"])
+                if r["label"] == "NOT SARCASM":
+                    non_sarcasm.append(r["score"])
                 else:
-                    hate.append(r["score"])
+                    sarcasm.append(r["score"])
             begin.append(sentence.begin)
             end.append(sentence.end)
-    return {"begin": begin, "end": end, "non_hate": non_hate, "hate": hate}
+    return {"begin": begin, "end": end, "non_sarcasm": non_sarcasm, "sarcasm": sarcasm}
 
 
 
@@ -152,8 +142,8 @@ class DUUIResponse(BaseModel):
     modification_meta: DocumentModification
     begins: List[int]
     ends: List[int]
-    non_hate: List[float]
-    hate: List[float]
+    non_sarcasm: List[float]
+    sarcasm: List[float]
     model_name: str
     model_version: str
     model_source: str
@@ -166,7 +156,7 @@ app = FastAPI(
     docs_url="/api",
     redoc_url=None,
     title=settings.annotator_name,
-    description="Hate annotator",
+    description="Sarcasm annotator",
     version=settings.model_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
@@ -213,14 +203,14 @@ def get_documentation():
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: TextImagerRequest):
+def post_process(request: DUUIRequest):
     # Return data
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
     begins = []
     ends = []
-    non_hate = []
-    hate = []
+    non_sarcasm = []
+    sarcasm = []
 
     try:
         model_source = settings.model_source
@@ -244,14 +234,14 @@ def post_process(request: TextImagerRequest):
             output = process_selection(settings.model_name, selection)
             begins.extend(output["begin"])
             ends.extend(output["end"])
-            non_hate.extend(output["non_hate"])
-            hate.extend(output["hate"])
+            non_sarcasm.extend(output["non_sarcasm"])
+            sarcasm.extend(output["sarcasm"])
     except Exception as ex:
         logger.exception(ex)
-    return DUUIResponse(meta=meta, modification_meta=modification_meta, begins=begins, ends=ends, non_hate=non_hate, hate=hate, model_name=settings.model_name, model_version=settings.model_version, model_source=settings.model_source, model_lang=settings.model_lang)
+    return DUUIResponse(meta=meta, modification_meta=modification_meta, begins=begins, ends=ends, non_sarcasm=non_sarcasm,sarcasm=sarcasm, model_name=settings.model_name, model_version=settings.model_version, model_source=settings.model_source, model_lang=settings.model_lang)
 
 @lru_cache_with_size
-def load_model(model_name):
-    model_i = HateCheck(model_name, device)
+def load_model(model_name) -> SarcasmCheck:
+    model_i = SarcasmCheck(model_name, device)
     return model_i
 

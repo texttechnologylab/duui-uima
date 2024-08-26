@@ -5,8 +5,8 @@ set -euo pipefail
 export ANNOTATOR_CUDA="-cuda"
 
 export ANNOTATOR_NAME=duui-transformers-toxic
-export ANNOTATOR_VERSION=0.2.0
-export MODEL_VERSION="0.2.0"
+export ANNOTATOR_VERSION=0.3.0
+export MODEL_VERSION="0.3.0"
 export LOG_LEVEL=DEBUG
 export MODEL_CACHE_SIZE=3
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
