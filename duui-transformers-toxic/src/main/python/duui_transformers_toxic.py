@@ -23,6 +23,8 @@ versions = {
     "martin-ha/toxic-comment-model": "9842c08b35a4687e7b211187d676986c8c96256d",
     "nicholasKluge/ToxicityModel": "d40cd71847981a0868aa3554c96c0aaf8c189753",
     "EIStakovskii/german_toxicity_classifier_plus_v2": "1bcb7d11ffc9267111c7be1dad0d7ca2fbf73928",
+    "textdetox/xlmr-large-toxicity-classifier": "4e7bb4af12318b16a6a04b14ca3420e47bad1586",
+    "tomh/toxigen_roberta": "0e65216a558feba4bb167d47e49f9a9e229de6ab",
 }
 
 languages = {
@@ -32,7 +34,9 @@ languages = {
     "citizenlab/distilbert-base-multilingual-cased-toxicity": "EN, FR, NL, PT, IT, SP, DE, PL, DA, AF",
     "martin-ha/toxic-comment-model": "EN",
     "nicholasKluge/ToxicityModel": "EN",
-    "EIStakovskii/german_toxicity_classifier_plus_v2": "DE"
+    "EIStakovskii/german_toxicity_classifier_plus_v2": "DE",
+    "textdetox/xlmr-large-toxicity-classifier": "Multi",
+    "tomh/toxigen_roberta": "EN"
 }
 
 sources = {
@@ -42,7 +46,9 @@ sources = {
     "citizenlab/distilbert-base-multilingual-cased-toxicity": "https://huggingface.co/citizenlab/distilbert-base-multilingual-cased-toxicity",
     "martin-ha/toxic-comment-model": "https://huggingface.co/martin-ha/toxic-comment-model",
     "nicholasKluge/ToxicityModel": "https://huggingface.co/nicholasKluge/ToxicityModel",
-    "EIStakovskii/german_toxicity_classifier_plus_v2": "https://huggingface.co/EIStakovskii/german_toxicity_classifier_plus_v2"
+    "EIStakovskii/german_toxicity_classifier_plus_v2": "https://huggingface.co/EIStakovskii/german_toxicity_classifier_plus_v2",
+    "textdetox/xlmr-large-toxicity-classifier": "https://huggingface.co/textdetox/xlmr-large-toxicity-classifier",
+    "tomh/toxigen_roberta": "https://huggingface.co/tomh/toxigen_roberta",
 }
 
 

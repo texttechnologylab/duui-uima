@@ -9,16 +9,17 @@ DUUI implementation for selected Hugging-Face-based transformer [Toxic tools](ht
 and for [Detoxify](https://github.com/unitaryai/detoxify) model.
 ## Included Models
 
-| Name                                                    | Revision                                 | Languages                              |
-|---------------------------------------------------------|------------------------------------------|----------------------------------------|
-| Detoxify                                                | 773203c10bcf0e8d801b4be8c93cfd97ffe5c2e0 | EN, FR, ES, IT, PT, TR, RU             |
-| EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus      | 0126552291025f2fc854f5acdbe45b2212eabf4a | Multilingual                           |
-| FredZhang7/one-for-all-toxicity-v3         | a2996bd4495269071eaf5daf73512234c33cb3d2 | Multilingual                           |
-| citizenlab/distilbert-base-multilingual-cased-toxicity               | b4532a8b095d1886a7b5dff818331ecc88a855ae | EN, FR, NL, PT, IT, SP, DE, PL, DA, AF |
-| martin-ha/toxic-comment-model | 9842c08b35a4687e7b211187d676986c8c96256d | EN                 |
-| nicholasKluge/ToxicityModel                | d40cd71847981a0868aa3554c96c0aaf8c189753 | EN                                     |
-| EIStakovskii/german_toxicity_classifier_plus_v2                | 1bcb7d11ffc9267111c7be1dad0d7ca2fbf73928          | EN                                     |
-| nicholasKluge/ToxicityModel                | d40cd71847981a0868aa3554c96c0aaf8c189753 | EN                                     |
+| Name                                                                                                                                                 | Model-Name                                                   | Revision                                 | Languages                              |
+|------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|------------------------------------------|----------------------------------------|
+| [Detoxify](https://github.com/unitaryai/detoxify)                                                                                                    | Detoxify                                                                   | 773203c10bcf0e8d801b4be8c93cfd97ffe5c2e0 | EN, FR, ES, IT, PT, TR, RU             |
+| [xlm_roberta_base_multilingual_toxicity_classifier_plus](https://huggingface.co/EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus) | EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus        | 0126552291025f2fc854f5acdbe45b2212eabf4a | Multilingual                           |
+| [one-for-all-toxicity-v3](https://huggingface.co/FredZhang7/one-for-all-toxicity-v3)                                                                 | FredZhang7/one-for-all-toxicity-v3                                         | a2996bd4495269071eaf5daf73512234c33cb3d2 | Multilingual                           |
+| [CitizenLabDotCo toxic model](https://huggingface.co/citizenlab/distilbert-base-multilingual-cased-toxicity)                                         | citizenlab/distilbert-base-multilingual-cased-toxicity                     | b4532a8b095d1886a7b5dff818331ecc88a855ae | EN, FR, NL, PT, IT, SP, DE, PL, DA, AF |
+| [toxic-comment-model](https://huggingface.co/martin-ha/toxic-comment-model)                                                                          | martin-ha/toxic-comment-model                                              | 9842c08b35a4687e7b211187d676986c8c96256d | EN                                     |
+| [german_toxicity_classifier_plus_v2](https://huggingface.co/EIStakovskii/german_toxicity_classifier_plus_v2)                                         | EIStakovskii/german_toxicity_classifier_plus_v2                            | 1bcb7d11ffc9267111c7be1dad0d7ca2fbf73928          | EN                                     |
+| [Aira-ToxicityModel](https://huggingface.co/nicholasKluge/ToxicityModel)                                                                             | nicholasKluge/ToxicityModel                                                | d40cd71847981a0868aa3554c96c0aaf8c189753 | EN                                     |
+ | [Overview of the Multilingual Text Detoxification Task at PAN 2024](https://huggingface.co/textdetox/xlmr-large-toxicity-classifier)                 | textdetox/xlmr-large-toxicity-classifier | 4e7bb4af12318b16a6a04b14ca3420e47bad1586 | Multilingual                           |
+| [ToxiGen](https://huggingface.co/tomh/toxigen_roberta)                                                                                                                                          | tomh/toxigen_roberta | 0e65216a558feba4bb167d47e49f9a9e229de6ab | EN                                     |
 # How To Use
 
 For using duui-transformers-toxic as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).

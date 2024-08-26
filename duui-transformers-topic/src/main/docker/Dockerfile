@@ -16,13 +16,13 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
 
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='KnutJaegersberg/topic-classification-IPTC-subject-labels')"
-RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-manifesto-cap', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
-RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='chkla/parlbert-topic-german')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ssharoff/genres')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='KnutJaegersberg/topic-classification-IPTC-subject-labels')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-manifesto-cap', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='chkla/parlbert-topic-german')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ssharoff/genres')"
 
 # log level
 ARG LOG_LEVEL="DEBUG"

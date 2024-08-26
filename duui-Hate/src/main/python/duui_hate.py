@@ -77,7 +77,7 @@ class UimaSentenceSelection(BaseModel):
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
-class TextImagerRequest(BaseModel):
+class DUUIRequest(BaseModel):
     # The texts language
     doc_len: int
     #
@@ -138,7 +138,7 @@ def process_selection(model_name, selection):
 
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
-class TextImagerResponse(BaseModel):
+class DUUIResponse(BaseModel):
     # Symspelloutput
     # List of Sentence with every token
     # Every token is a dictionary with following Infos:
@@ -248,7 +248,7 @@ def post_process(request: TextImagerRequest):
             hate.extend(output["hate"])
     except Exception as ex:
         logger.exception(ex)
-    return TextImagerResponse(meta=meta, modification_meta=modification_meta, begins=begins, ends=ends, non_hate=non_hate, hate=hate, model_name=settings.model_name, model_version=settings.model_version, model_source=settings.model_source, model_lang=settings.model_lang)
+    return DUUIResponse(meta=meta, modification_meta=modification_meta, begins=begins, ends=ends, non_hate=non_hate, hate=hate, model_name=settings.model_name, model_version=settings.model_version, model_source=settings.model_source, model_lang=settings.model_lang)
 
 @lru_cache_with_size
 def load_model(model_name):

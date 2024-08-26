@@ -14,6 +14,7 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='FredZhang7/one-for-all-toxicity-v3')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='citizenlab/distilbert-base-multilingual-cased-toxicity')"
 RUN python -c "from detoxify import Detoxify; Detoxify('multilingual')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='textdetox/xlmr-large-toxicity-classifier')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='tomh/toxigen_hatebert')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='GroNLP/hateBERT')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='pysentimiento/bertweet-hate-speech')"
