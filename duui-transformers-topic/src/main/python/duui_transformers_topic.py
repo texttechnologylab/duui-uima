@@ -65,12 +65,16 @@ class Settings(BaseSettings):
     annotator_version: str
     # Log level
     log_level: str
-    # # model_name
-    # model_name: str
+    # model_name
+    model_name: str
     # Name of this annotator
     model_version: str
-    # cach_size
+    #cach_size
     model_cache_size: int
+    # url of the model
+    model_source: str
+    # language of the model
+    model_lang: str
 
 
 # Load settings from env vars
@@ -102,8 +106,6 @@ class DUUIRequest(BaseModel):
     doc_len: int
     #
     lang: str
-    #
-    model_name: str
     #
     selections: List[UimaSentenceSelection]
     #
@@ -259,7 +261,7 @@ def process_selection(model_name, selection):
         "factors": factors
     }
 
-    return output, versions[model_name]
+    return output
 
 
 # Process request from DUUI
@@ -275,15 +277,14 @@ def post_process(request: DUUIRequest):
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
     try:
-        model_source = sources[request.model_name]
-        model_lang = languages[request.model_name]
-        model_version = versions[request.model_name]
-        lang_document = request.lang
+        model_source = settings.model_source
+        model_lang = settings.model_lang
+        model_version = settings.model_version
         # set meta Informations
         meta = AnnotationMeta(
             name=settings.annotator_name,
             version=settings.annotator_version,
-            modelName=request.model_name,
+            modelName=settings.model_name,
             modelVersion=model_version,
         )
         # Add modification info
@@ -296,7 +297,7 @@ def post_process(request: DUUIRequest):
         mv = ""
 
         for selection in request.selections:
-            processed_sentences, model_version_2 = process_selection(request.model_name, selection)
+            processed_sentences = process_selection(settings.model_name, selection)
             begin = begin + processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]
@@ -305,5 +306,5 @@ def post_process(request: DUUIRequest):
     except Exception as ex:
         logger.exception(ex)
     return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, results=results,
-                        len_results=len_results, factors=factors, model_name=request.model_name,
+                        len_results=len_results, factors=factors, model_name=settings.model_name,
                         model_version=model_version, model_source=model_source, model_lang=model_lang)

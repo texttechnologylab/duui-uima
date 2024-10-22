@@ -34,7 +34,6 @@ public class TopicTest {
 
     static String url = "http://127.0.0.1:9714";
 //    static String model = "chkla/parlbert-topic-german";
-    static String model = "chkla/parlbert-topic-german";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException, CompressorException {
@@ -86,10 +85,9 @@ public class TopicTest {
         ArrayList<String> expected2 = new ArrayList<>();
         expected2.add("Domestic");
         expected2.add("Technology");
-        expected1.put("chkla/parlbert-topic-german", expected2);
+        expected1.put("test", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
 
@@ -117,7 +115,7 @@ public class TopicTest {
         for (Map<String, Float> topic: expected){
             // highest value
             String key = Collections.max(topic.entrySet(), Map.Entry.comparingByValue()).getKey();
-            Assertions.assertEquals(expected1.get(model).get(expected.indexOf(topic)), key);
+            Assertions.assertEquals(expected1.get("test").get(expected.indexOf(topic)), key);
         }
     }
 
@@ -144,9 +142,28 @@ public class TopicTest {
         expected2.add("A7");
         expected2.add("A8");
         expected1.put("ssharoff/genres", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("arts, culture, entertainment and media");
+        expected2.add("politics");
+        expected1.put("classla/multilingual-IPTC-news-topic-classifier", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("Culture");
+        expected2.add("Government Operations");
+        expected1.put("poltextlab/xlm-roberta-large-english-cap-v3", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("Others");
+        expected2.add("Others");
+        expected1.put("poltextlab/xlm-roberta-large-party-cap-v3", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("arts_&_culture");
+        expected2.add("pop_culture");
+        expected1.put("cardiffnlp/roberta-large-tweet-topic-single-all", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("other_hobbies");
+        expected2.add("news_&_social_concern");
+        expected1.put("cardiffnlp/tweet-topic-large-multilingual", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
 
@@ -163,18 +180,15 @@ public class TopicTest {
         for (Topic topic: all_topics){
             System.out.println(topic.getCoveredText());
             Map<String, Float> topics = new HashMap<String, Float>();
+            String model_name = topic.getModel().getModelName();
             FSArray<AnnotationComment> topics_all = topic.getTopics();
             for (AnnotationComment comment_i: topics_all){
                 topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
                 System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
             expected.add(topics);
-        }
-
-        for (Map<String, Float> topic: expected){
-            // highest value
-            String key = Collections.max(topic.entrySet(), Map.Entry.comparingByValue()).getKey();
-            Assertions.assertEquals(expected1.get(model).get(expected.indexOf(topic)), key);
+            String key = Collections.max(topics.entrySet(), Map.Entry.comparingByValue()).getKey();
+            Assertions.assertEquals(expected1.get(model_name).get(expected.indexOf(topics)), key);
         }
 
 //        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
