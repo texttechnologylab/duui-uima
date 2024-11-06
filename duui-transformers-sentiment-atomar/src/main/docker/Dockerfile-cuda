@@ -1,0 +1,74 @@
+FROM nvidia/cuda:11.8.0-base-ubuntu22.04
+
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.10 python3-pip python3-setuptools python3-distutils && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN python -m pip install --upgrade pip
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+
+# copy scripts
+COPY ./src/main/python/TypeSystemSentiment.xml ./TypeSystemSentiment.xml
+COPY ./src/main/python/duui_transformers_sentiment.py ./duui_transformers_sentiment.py
+COPY ./src/main/python/duui_transformers_sentiment.lua ./duui_transformers_sentiment.lua
+COPY ./src/main/python/SentimentSpeech.py ./SentimentSpeech.py
+
+# dependencies
+COPY ./requirements.txt ./requirements.txt
+RUN pip install -r requirements.txt
+
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='KnutJaegersberg/topic-classification-IPTC-subject-labels')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-manifesto-cap', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='chkla/parlbert-topic-german')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ssharoff/genres')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/multilingual-IPTC-news-topic-classifier')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-english-cap-v3', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-party-cap-v3', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-large-multilingual')"
+
+# log level
+ARG LOG_LEVEL="DEBUG"
+ENV LOG_LEVEL=$LOG_LEVEL
+
+# config
+ARG MODEL_CACHE_SIZE=3
+ENV MODEL_CACHE_SIZE=$MODEL_CACHE_SIZE
+
+# meta data
+ARG ANNOTATOR_NAME="duui-transformers-topic"
+ENV ANNOTATOR_NAME=$ANNOTATOR_NAME
+ARG ANNOTATOR_VERSION="unset"
+ENV ANNOTATOR_VERSION=$ANNOTATOR_VERSION
+
+# Model Info
+ARG MODEL_VERSION=0.1
+ENV MODEL_VERSION=$MODEL_VERSION
+ARG MODEL_NAME=""
+ENV MODEL_NAME=$MODEL_NAME
+ARG MODEL_SOURCE=""
+ENV MODEL_SOURCE=$MODEL_SOURCE
+ARG MODEL_LANG=""
+ENV MODEL_LANG=$MODEL_LANG
+
+# offline mode for huggingface
+#ARG TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1
+#ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE
+
+
+
+
+ENTRYPOINT ["uvicorn", "duui_transformers_sentiment:app", "--host", "0.0.0.0", "--port" ,"9714"]
+CMD ["--workers", "1"]
