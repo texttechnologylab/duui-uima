@@ -93,7 +93,7 @@ function deserialize(inputCas, inputStream)
         local positive = results["positive"]
         local neutral = results["neutral"]
         for index_i, res in ipairs(res_output) do
-            local sentiment_i = luajava.newInstance("org.texttechnologylab.annotation.SentimentBert", inputCas)
+            local sentiment_i = luajava.newInstance("org.texttechnologylab.annotation.SentimentModel", inputCas)
             sentiment_i:setBegin(begins[index_i])
             sentiment_i:setEnd(ends[index_i])
             local factor_i = factors[index_i]
@@ -108,6 +108,7 @@ function deserialize(inputCas, inputStream)
                     sentiment_i:setProbabilityNeutral(factor_j)
                 end
             end
+            sentiment_i:setModel(model_meta)
             sentiment_i:addToIndexes()
         end
      end

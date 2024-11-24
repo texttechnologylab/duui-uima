@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-transformers-sentiment-atomar
-export ANNOTATOR_VERSION=0.3.0
+export ANNOTATOR_VERSION=0.4.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
@@ -45,22 +45,22 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-#export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
-#export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
-#export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
-#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
-#export MODEL_LANG="Multi"
-###--------------------------------------------------------------------
-
-
 ##---------------------------------------------------------------------
-export MODEL_NAME="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
-export MODEL_SPECNAME="citizenlab-twitter-xlm-roberta-base-sentiment-finetunned"
-export MODEL_VERSION="a9381f1d9e6f8aac74155964c2f6ea9a63a9e9a6"
-export MODEL_SOURCE="https://huggingface.co/citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
+export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
+export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
+export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
+export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
 export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
+
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
+#export MODEL_SPECNAME="citizenlab-twitter-xlm-roberta-base-sentiment-finetunned"
+#export MODEL_VERSION="a9381f1d9e6f8aac74155964c2f6ea9a63a9e9a6"
+#export MODEL_SOURCE="https://huggingface.co/citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
 
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
