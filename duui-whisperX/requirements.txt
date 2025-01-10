@@ -1,0 +1,9 @@
+tokenizers==0.15.2
+transformers==4.39.3
+faster-whisper==1.0.0
+whisperx==3.2.0
+fastapi==0.115.5
+pydantic==2.9.2
+pydantic-settings==2.6.1
+uvicorn==0.32.0
+dkpro-cassis==0.9.1
