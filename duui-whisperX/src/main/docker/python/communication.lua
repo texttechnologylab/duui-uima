@@ -52,6 +52,6 @@ function deserialize(inputCas, inputStream)
 
         end
 
-        inputCas:setDocumentText(entireText)
+        inputCas:setSofaDataString(entireText, "text/text")
     end
 end
