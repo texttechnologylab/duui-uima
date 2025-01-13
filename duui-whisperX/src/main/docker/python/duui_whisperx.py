@@ -149,8 +149,11 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     # Load different pipeline depending on CUDA availability
     if torch.cuda.is_available():
         model = whisperx.load_model("large-v2", "cuda", compute_type="float16", language="de")
+        print("CUDA available")
     else:
         model = whisperx.load_model("large-v2", "cpu", compute_type="int8", language="de")
+        print("CUDA not available")
+
 
     audio = whisperx.load_audio("tempAudio")
     result = model.transcribe(audio, batch_size=16)
