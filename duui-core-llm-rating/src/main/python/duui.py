@@ -32,20 +32,19 @@ logger.info("TTLab TextImager DUUI CORE LLM Rating")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
-UIMA_TYPE_SENTENCE = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
+TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = [
+    "org.texttechnologylab.type.llm.prompt.Result"
+]
 
-TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = {
-    UIMA_TYPE_SENTENCE
-}
+TEXTIMAGER_ANNOTATOR_INPUT_TYPES = [
+    "org.texttechnologylab.type.llm.prompt.Prompt",
+    "org.texttechnologylab.type.llm.prompt.Message"
+]
 
-TEXTIMAGER_ANNOTATOR_INPUT_TYPES = {
-    ""  # Text
-}
+SUPPORTED_LANGS = [
+    # all
+]
 
-SUPPORTED_LANGS = {
-    "en",
-    "de",
-}
 
 class LLMMessage(BaseModel):
     role: str
@@ -55,6 +54,12 @@ class LLMMessage(BaseModel):
 class LLMPrompt(BaseModel):
     messages: List[LLMMessage]
     args: str  # json string
+    ref: int   # internal cas annotation id
+
+
+class LLMResult(BaseModel):
+    content: str
+    meta: str  # json string
     ref: int   # internal cas annotation id
 
 
@@ -76,9 +81,8 @@ class DocumentModification(BaseModel):
     comment: str
 
 
-
 class TextImagerResponse(BaseModel):
-    llm_results: List[dict]
+    llm_results: List[LLMResult]
     meta: Optional[AnnotationMeta]
     modification_meta: Optional[DocumentModification]
 
@@ -144,7 +148,7 @@ def get_communication_layer() -> str:
 @app.get("/v1/documentation")
 def get_documentation() -> TextImagerDocumentation:
     capabilities = TextImagerCapability(
-        supported_languages=sorted(list(SUPPORTED_LANGS)),
+        supported_languages=SUPPORTED_LANGS,
         reproducible=True
     )
 
@@ -175,7 +179,6 @@ def get_typesystem() -> Response:
 
 @app.get("/v1/details/input_output")
 def get_input_output() -> TextImagerInputOutput:
-    # TODO
     return TextImagerInputOutput(
         inputs=TEXTIMAGER_ANNOTATOR_INPUT_TYPES,
         outputs=TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES
@@ -211,18 +214,24 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                         message.content
                     ))
 
-                prompt = ChatPromptTemplate.from_messages(prompt_messages)
-                chain = prompt | llm
+                prompt_messages = ChatPromptTemplate.from_messages(prompt_messages)
+                chain = prompt_messages | llm
 
                 llm_result = chain.invoke(prompt_args)
                 llm_result = message_to_dict(llm_result)
+
+                llm_content = llm_result["data"]["content"]
+                del llm_result["data"]["content"]
                 llm_result = {
                     **llm_result,
-                    "prompt_ref": prompt.ref,
                     "llm_args": local_llm_args,
                 }
 
-                llm_results.append(llm_result)
+                llm_results.append(LLMResult(
+                    content=llm_content,
+                    meta=json.dumps(llm_result),
+                    ref=prompt.ref
+                ))
 
         try:
             model_name, _, model_version = llm_args["model"].partition(":")

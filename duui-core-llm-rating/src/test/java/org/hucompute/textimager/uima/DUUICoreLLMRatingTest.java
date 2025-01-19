@@ -1,7 +1,5 @@
 package org.hucompute.textimager.uima;
 
-import org.apache.commons.compress.compressors.CompressorException;
-import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
@@ -10,43 +8,47 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
-import org.texttechnologylab.type.llm.prompt.Message;
 import org.texttechnologylab.type.llm.prompt.Prompt;
-import org.xml.sax.SAXException;
+import org.texttechnologylab.type.llm.prompt.Result;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.*;
-import java.net.URISyntaxException;
-import java.util.Iterator;
 import java.util.zip.GZIPInputStream;
 
 public class DUUICoreLLMRatingTest {
     @Test
     public void testPrompt() throws Exception {
         long RANDOM_SEED = 1732975931;
+        int runs = 2;
 
         DUUIComposer composer = new DUUIComposer()
+                .withWorkers(1)
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
 
-        DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
-        composer.addDriver(remoteDriver);
+        //DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
+        //composer.addDriver(remoteDriver);
+        DUUIDockerDriver dockerDriver = new DUUIDockerDriver();
+        composer.addDriver(dockerDriver);
 
         JSONObject llmArgsJson = new JSONObject();
-        llmArgsJson.put("base_url", "localhost:12438");
+//        llmArgsJson.put("base_url", "localhost:11434");
+        llmArgsJson.put("base_url", "172.17.0.1:11434");
         llmArgsJson.put("model", "llama3.2:3b-instruct-q4_K_M");
         llmArgsJson.put("temperature", 1);
         llmArgsJson.put("num_ctx", 2048);
         llmArgsJson.put("num_predict", -2);
         llmArgsJson.put("seed", RANDOM_SEED);
-        llmArgsJson.put("runs", 5);
-        llmArgsJson.put("keep_alive", 3600);
+        llmArgsJson.put("runs", runs);
+        //llmArgsJson.put("keep_alive", 3600);
 
         composer.add(
-                new DUUIRemoteDriver.Component("http://localhost:8000")
+                //new DUUIRemoteDriver.Component("http://localhost:8000")
+                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-core-llm-rating:latest")
                         .withParameter("llm_args", llmArgsJson.toString())
+                        .withScale(1)
                         .build()
                         .withTimeout(1000L)
         );
@@ -57,27 +59,19 @@ public class DUUICoreLLMRatingTest {
                 jCas.getCas()
         );
 
-        for (Prompt prompt : JCasUtil.select(jCas, Prompt.class)) {
-            System.out.println(prompt.getVersion());
-            Iterator<Message> it = prompt.getMessages().iterator();
-            while (it.hasNext()) {
-                Message message = it.next();
-                System.out.println(message.getRole());
-            }
-        }
-
         composer.run(jCas);
         composer.shutdown();
-    }
 
-//    @AfterEach
-//    public void afterEach() throws IOException, SAXException {
-//        composer.resetPipeline();
-//
-//        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-//        XmlCasSerializer.serialize(cas.getCas(), null, stream);
-//        System.out.println(stream.toString(StandardCharsets.UTF_8));
-//
-//        cas.reset();
-//    }
+        // 1 output result each run for each input prompt
+        assertEquals(
+                JCasUtil.select(jCas, Prompt.class).size()*runs,
+                JCasUtil.select(jCas, Result.class).size()
+        );
+
+        // result references prompt
+        Prompt prompt = JCasUtil.select(jCas, Prompt.class).iterator().next();
+        for (Result result : JCasUtil.select(jCas, Result.class)) {
+            assertEquals(result.getPrompt(), prompt);
+        }
+    }
 }
