@@ -1,0 +1,29 @@
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.10 python3-pip python3-setuptools python3-distutils && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN python -m pip install --upgrade pip
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+COPY ./src/main/docker/python/communication.lua ./communication.lua
+COPY ./src/main/docker/python/duui_whisperx.py ./duui_whisperx.py
+COPY ./src/main/docker/python/typesystem.xml ./typesystem.xml
+COPY ./requirements.txt ./requirements.txt
+
+RUN apt-get update
+RUN apt-get install ffmpeg -y
+
+RUN pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118
+RUN pip install -r requirements.txt
+
+ENTRYPOINT ["uvicorn", "duui_whisperx:app", "--host", "0.0.0.0", "--port" ,"9714"]
+CMD ["--workers", "1"]
