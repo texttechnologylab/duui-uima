@@ -33,8 +33,16 @@ public class Jcal24Test {
 
         long RANDOM_SEED = 1732975931;
         int runs = 5;
+
+//        String model = "llama3.2:3b-instruct-q4_K_M";
+//        String model = "gemma2:27b-instruct-q4_0";
+        String model = "llama3.3:70b-instruct-q4_K_M";
+//        String model = "nemotron:70b-instruct-q4_K_M";
 //        String model = "deepseek-r1:70b";
-        String model = "llama3.2:3b-instruct-q4_K_M";
+//        String model = "mistral:7b-instruct-v0.3-q4_0";
+//        String model = "mixtral:8x7b-instruct-v0.1-q4_0";
+//        String model = "llama3.2:3b-instruct-fp16";
+//        String model = "minicpm-v:8b-2.6-fp16";
 
         JSONObject llmArgsJson = new JSONObject();
         llmArgsJson.put("base_url", "gondor.hucompute.org:12440");
@@ -45,6 +53,7 @@ public class Jcal24Test {
         llmArgsJson.put("seed", RANDOM_SEED);
         llmArgsJson.put("runs", runs);
         llmArgsJson.put("keep_alive", 3600);
+        llmArgsJson.put("format", "json");
 
         composer.add(
                 new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-core-llm-rating:0.0.2")
