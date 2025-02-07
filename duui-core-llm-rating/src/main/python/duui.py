@@ -200,7 +200,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         for run in range(runs):
             local_llm_args = {
                 **llm_args,
-                "seed": llm_args["seed"] + run
+                "seed": llm_args["seed"] + run,
+                "run": run
             }
             llm = ChatOllama(**local_llm_args)
 
