@@ -9,6 +9,7 @@ from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from langchain_core.messages.base import message_to_dict
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
@@ -210,10 +211,24 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                 prompt_messages = []
                 for message in prompt.messages:
-                    prompt_messages.append((
-                        message.role,
-                        message.content
-                    ))
+                    if "_class" in message.role:
+                        if "system" in message.role:
+                            prompt_messages.append(
+                                SystemMessage(
+                                    content=json.loads(message.content)
+                                )
+                            )
+                        elif "human" in message:
+                            prompt_messages.append(
+                                HumanMessage(
+                                    content=json.loads(message.content)
+                                )
+                            )
+                    else:
+                        prompt_messages.append((
+                            message.role,
+                            message.content
+                        ))
 
                 prompt_messages = ChatPromptTemplate.from_messages(prompt_messages)
                 chain = prompt_messages | llm
