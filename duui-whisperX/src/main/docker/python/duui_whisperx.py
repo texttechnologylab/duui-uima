@@ -28,8 +28,8 @@ class AudioToken(BaseModel):
 # Note, this is transformed by the Lua script
 class DUUIRequest(BaseModel):
     # audio in base64
-        audio: str
-
+    audio: str
+    language: str
 
 # Response of this annotator
 # Note, this is transformed by the Lua script
@@ -67,7 +67,7 @@ app = FastAPI(
     redoc_url=None,
     title="WhisperX audio transcription",
     description="Audio transcription for TTLab DUUI",
-    version="0.1",
+    version="1.0",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "Daniel Bundan",
@@ -135,11 +135,10 @@ def get_documentation() -> DUUIDocumentation:
     return documentation
 
 
-
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
-    
+        
     try:
         with open("tempAudio", "wb") as f:
             f.write(base64.b64decode(request.audio))
@@ -148,11 +147,17 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         
     # Load different pipeline depending on CUDA availability
     if torch.cuda.is_available():
-        model = whisperx.load_model("large-v2", "cuda", compute_type="float16", language="de")
         print("CUDA available")
+        if(request.language):
+            model = whisperx.load_model("large-v2", "cuda", compute_type="float16", language=request.language)
+        else:
+            model = whisperx.load_model("large-v2", "cuda", compute_type="float16")
     else:
-        model = whisperx.load_model("large-v2", "cpu", compute_type="int8", language="de")
         print("CUDA not available")
+        if(request.language):
+            model = whisperx.load_model("large-v2", "cpu", compute_type="int8", language=request.language)
+        else:
+            model = whisperx.load_model("large-v2", "cpu", compute_type="int8")
 
 
     audio = whisperx.load_audio("tempAudio")
@@ -191,4 +196,4 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 
 #if __name__ == "__main__":
-#   uvicorn.run("duui_whisperx:app", host="0.0.0.0", port=9714, workers=1)
+#  uvicorn.run("duui_whisperx:app", host="0.0.0.0", port=9714, workers=1)
