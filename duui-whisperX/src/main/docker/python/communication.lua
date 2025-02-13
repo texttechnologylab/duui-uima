@@ -10,10 +10,12 @@ function serialize(inputCas, outputStream, params)
     -- Get data from CAS
 
     local audioBase64 = inputCas:getSofaDataString() --inputCas:getView(audioView):getSofaDataString()
+    local language = params["language"]
 
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         audio = audioBase64,
+        language = language
     }))
 end
 
@@ -52,6 +54,6 @@ function deserialize(inputCas, inputStream)
 
         end
 
-        inputCas:setSofaDataString(entireText, "text/text")
+        inputCas:setSofaDataString(entireText, "text/plain")
     end
 end
