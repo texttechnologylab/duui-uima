@@ -23,8 +23,28 @@ function serialize(inputCas, outputStream, parameters)
             local message = messages_it:next()
             messages[messages_count] = {
                 role = message:getRole(),
-                content = message:getContent()
+                content = message:getContent(),
+                ref = message:getAddress()
             }
+
+            -- the message might contain module/class info
+            if message:getClassModule() ~= nil then
+                messages[messages_count]["class_module"] = message:getClassModule()
+            end
+            if message:getClassName() ~= nil then
+                messages[messages_count]["class_name"] = message:getClassName()
+            end
+
+            -- check if "fillable" message
+            if  message:getType():getName() == "org.texttechnologylab.type.llm.prompt.FillableMessage" then
+                messages[messages_count]["fillable"] = true
+
+                -- check if "context_name" is set, only on fillable messages
+                if message:getContextName() ~= nil then
+                    messages[messages_count]["context_name"] = message:getContextName()
+                end
+            end
+
             messages_count = messages_count + 1
         end
 
@@ -47,7 +67,7 @@ function deserialize(inputCas, inputStream)
     local inputString = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
 
-    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["llm_results"] ~= nil then
+    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["llm_results"] ~= nil and results["prompts"] ~= nil then
         local modification_meta = results["modification_meta"]
         local modification_anno = luajava.newInstance("org.texttechnologylab.annotation.DocumentModification", inputCas)
         modification_anno:setUser(modification_meta["user"])
@@ -55,13 +75,24 @@ function deserialize(inputCas, inputStream)
         modification_anno:setComment(modification_meta["comment"])
         modification_anno:addToIndexes()
 
+        -- "fill" the messages of the prompts
+        for i, prompt in ipairs(results["prompts"]) do
+            for j, message in pairs(prompt["messages"]) do
+                if message["fillable"] == true then
+                    local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(message["ref"])
+                    msg_anno:setContent(message["content"])
+                end
+            end
+        end
+
         local meta = results["meta"]
-        for j, llm_result in ipairs(results["llm_results"]) do
+        for i, llm_result in ipairs(results["llm_results"]) do
             local llm_anno = luajava.newInstance("org.texttechnologylab.type.llm.prompt.Result", inputCas)
-            llm_anno:setContent(llm_result["content"])
             llm_anno:setMeta(llm_result["meta"])
-            local prompt_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["ref"])
+            local prompt_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["prompt_ref"])
             llm_anno:setPrompt(prompt_anno)
+            local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["message_ref"])
+            llm_anno:setMessage(msg_anno)
             llm_anno:addToIndexes()
 
             local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)
