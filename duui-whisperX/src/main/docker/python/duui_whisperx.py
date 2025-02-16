@@ -37,6 +37,7 @@ class DUUIResponse(BaseModel):
     # List of annotated:
     # - audiotoken
     audio_token: List[AudioToken]
+    language: str
 
 # Documentation response
 class DUUIDocumentation(BaseModel):
@@ -67,7 +68,7 @@ app = FastAPI(
     redoc_url=None,
     title="WhisperX audio transcription",
     description="Audio transcription for TTLab DUUI",
-    version="1.0",
+    version="2.0",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "Daniel Bundan",
@@ -146,52 +147,65 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         print(str(e))
         
     # Load different pipeline depending on CUDA availability
-    if torch.cuda.is_available():
-        print("CUDA available")
-        if(request.language):
-            model = whisperx.load_model("large-v2", "cuda", compute_type="float16", language=request.language)
-        else:
-            model = whisperx.load_model("large-v2", "cuda", compute_type="float16")
+    asr_options = {"word_timestamps":True}
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    if(request.language):
+        model = whisperx.load_model("large-v2", device, compute_type="float16", language=request.language, asr_options=asr_options)
     else:
-        print("CUDA not available")
-        if(request.language):
-            model = whisperx.load_model("large-v2", "cpu", compute_type="int8", language=request.language)
-        else:
-            model = whisperx.load_model("large-v2", "cpu", compute_type="int8")
+        model = whisperx.load_model("large-v2", device, compute_type="float16", asr_options=asr_options)
 
 
     audio = whisperx.load_audio("tempAudio")
+    
     result = model.transcribe(audio, batch_size=16)
+
+    language = request.language
+    if(not language):
+        language = result["language"]
+
+
+    alignment_model, metadata = whisperx.load_align_model(language_code=language, device=device)
+    aligned_result = whisperx.align(result["segments"], alignment_model, metadata, "tempAudio", device)
+
+    print(aligned_result)
+
+    for segment in aligned_result["segments"]:
+        for word in segment["words"]:
+            print(f"Word: {word['word']}, Start: {word['start']}, End: {word['end']}")
+
 
     results = []
 
     current_length = 0
     
-    for segment in result["segments"]:
+    for word in aligned_result["word_segments"]:
         
-        audio_start = segment.get("start")
-        audio_end = segment.get("end")
-        text = segment.get("text").strip()
-        
-        if((len(text)) == 0 and audio_start == audio_end):  # If segment contains no information
-            continue
-        
-        segment.get("start")
-        results.append(AudioToken(
-            timeStart=float(audio_start),
-            timeEnd=float(audio_end),
-            text=text,
-            begin=current_length,
-            end=current_length + len(text)
-        ))
-        
-        if(len(text) > 0):  
-            current_length += len(text) + 1
+            audio_start = word.get("start")
+            audio_end = word.get("end")
+            text = word.get("word").strip()
+            
+            if((len(text)) == 0 and audio_start == audio_end):  # If segment contains no information
+                continue
+            
+            word.get("start")
+            results.append(AudioToken(
+                timeStart=float(audio_start),
+                timeEnd=float(audio_end),
+                text=text,
+                begin=current_length,
+                end=current_length + len(text)
+            ))
+            
+            if(len(text) > 0):  
+                current_length += len(text) + 1
     
 
 
     return DUUIResponse(
         audio_token=results,
+        language=language
     )
 
 
