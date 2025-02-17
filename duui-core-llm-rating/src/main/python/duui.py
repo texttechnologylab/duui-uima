@@ -224,7 +224,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 # check if this message should be filled by the model
                 # only fill if no content (== json encoded empty string) is available
                 if message.fillable is True and message.content == "\"\"":
+                    llm_t_start = time()
                     llm_result = _query_llm(prompt_messages, llm, context)
+                    llm_t_end = time()
+                    llm_t_duration = llm_t_end - llm_t_start
                     llm_content = llm_result["data"]["content"]
 
                     # add the result to this message
@@ -237,6 +240,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                         **llm_result,
                         "prompt_args": context,
                         "llm_args": llm_args,
+                        "llm_t_start": llm_t_start,
+                        "llm_t_end": llm_t_end,
+                        "llm_t_duration": llm_t_duration
                     }
                     llm_results.append(LLMResult(
                         meta=json.dumps(llm_result),

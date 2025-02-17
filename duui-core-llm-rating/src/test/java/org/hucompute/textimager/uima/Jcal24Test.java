@@ -9,9 +9,12 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.DUUIAsynchronousProcessor;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.reader.DUUIFileReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
+
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.dkpro.core.io.xmi.XmiWriter;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.pipeline_storage.sqlite.DUUISqliteStorageBackend;
 
 
 import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
@@ -25,18 +28,6 @@ public class Jcal24Test {
         for (int run = 0; run < runs; run++) {
             long local_seed = RANDOM_SEED + run;
 
-            DUUIComposer composer = new DUUIComposer()
-                    .withWorkers(1)
-                    .withSkipVerification(true)
-                    .withLuaContext(new DUUILuaContext().withJsonLibrary());
-
-            DUUIDockerDriver dockerDriver = new DUUIDockerDriver();
-            composer.addDriver(dockerDriver);
-            DUUIUIMADriver uimaDriver = new DUUIUIMADriver();
-            composer.addDriver(uimaDriver);
-            DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
-            composer.addDriver(remoteDriver);
-
             String model = "llama3.2:3b-instruct-q4_K_M";
             // String model = "gemma2:27b-instruct-q4_0";
             // String model = "llama3.3:70b-instruct-q4_K_M";
@@ -46,25 +37,6 @@ public class Jcal24Test {
             // String model = "mixtral:8x7b-instruct-v0.1-q4_0";
             // String model = "llama3.2:3b-instruct-fp16";
             // String model = "minicpm-v:8b-2.6-fp16";
-
-            JSONObject llmArgsJson = new JSONObject();
-            llmArgsJson.put("base_url", "gondor.hucompute.org:12440");
-            llmArgsJson.put("model", model);
-            llmArgsJson.put("temperature", 0.8);
-            llmArgsJson.put("num_ctx", 2048);
-            llmArgsJson.put("num_predict", -2);
-            llmArgsJson.put("seed", local_seed);
-            llmArgsJson.put("keep_alive", 3600);
-            llmArgsJson.put("format", "json");
-
-            composer.add(
-//                    new DUUIRemoteDriver.Component("http://localhost:8000")
-                            new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-core-llm-rating:0.0.3")
-                            .withParameter("llm_args", llmArgsJson.toString())
-                            .withScale(1)
-                            .build()
-                            .withTimeout(1000000000L)
-            );
 
             Path baseDir = Paths.get("/storage/projects/baumartz/jcal_2024_textannotator/xmi/");
             String promptName = "ECO_NUDGING_SIMPLE";
@@ -86,6 +58,46 @@ public class Jcal24Test {
                     .resolve(promptVersion)
                     .resolve(model.replaceAll("/", "_").replace(":", "_"))
                     .resolve("run_" + run);
+            Files.createDirectories(outDir);
+
+            Path sqlitePath = outDir.resolve("_stats.db");
+            DUUISqliteStorageBackend sqlite = new DUUISqliteStorageBackend(sqlitePath.toString())
+                    .withConnectionPoolSize(1);
+
+            DUUIComposer composer = new DUUIComposer()
+                    .withWorkers(1)
+                    .withSkipVerification(true)
+                    .withStorageBackend(sqlite)
+                    .withLuaContext(new DUUILuaContext().withJsonLibrary());
+
+            DUUIDockerDriver dockerDriver = new DUUIDockerDriver();
+            composer.addDriver(dockerDriver);
+            DUUIUIMADriver uimaDriver = new DUUIUIMADriver();
+            composer.addDriver(uimaDriver);
+            DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
+            composer.addDriver(remoteDriver);
+            
+            String baseUrl = "gondor.hucompute.org:12440";
+
+            JSONObject llmArgsJson = new JSONObject();
+            llmArgsJson.put("base_url", baseUrl);
+            llmArgsJson.put("system", baseUrl);  // in case we use local port forwarding or similar...
+            llmArgsJson.put("model", model);
+            llmArgsJson.put("temperature", 0.8);
+            llmArgsJson.put("num_ctx", 2048);
+            llmArgsJson.put("num_predict", -2);
+            llmArgsJson.put("seed", local_seed);
+            llmArgsJson.put("keep_alive", 3600);
+            llmArgsJson.put("format", "json");
+
+            composer.add(
+//                    new DUUIRemoteDriver.Component("http://localhost:8000")
+                            new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-core-llm-rating:0.0.4")
+                            .withParameter("llm_args", llmArgsJson.toString())
+                            .withScale(1)
+                            .build()
+                            .withTimeout(1000000000L)
+            );
 
             DUUIAsynchronousProcessor reader = new DUUIAsynchronousProcessor(new DUUIFileReader(
                     inDir.toString(),
