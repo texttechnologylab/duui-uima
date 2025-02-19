@@ -12,6 +12,14 @@ function serialize(inputCas, outputStream, params)
     local audioBase64 = inputCas:getSofaDataString() --inputCas:getView(audioView):getSofaDataString()
     local language = params["language"]
 
+    if language == nil then
+        language = inputCas:getDocumentLanguage()
+
+        if language == nil or language == "x-unspecified" then
+            language = ""
+        end
+    end
+
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         audio = audioBase64,
@@ -55,5 +63,9 @@ function deserialize(inputCas, inputStream)
         end
 
         inputCas:setSofaDataString(entireText, "text/plain")
+    end
+
+    if results["language"] ~= nil then
+        inputCas:setDocumentLanguage(results["language"])
     end
 end
