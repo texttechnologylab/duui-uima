@@ -68,7 +68,7 @@ app = FastAPI(
     redoc_url=None,
     title="WhisperX audio transcription",
     description="Audio transcription for TTLab DUUI",
-    version="2.0",
+    version="2.1",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "Daniel Bundan",
@@ -150,11 +150,12 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     asr_options = {"word_timestamps":True}
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    
+    compute_type = "float16" if torch.cuda.is_available() else "int8"
+
     if(request.language):
-        model = whisperx.load_model("large-v2", device, compute_type="float16", language=request.language, asr_options=asr_options)
+        model = whisperx.load_model("large-v2", device, compute_type=compute_type, language=request.language, asr_options=asr_options)
     else:
-        model = whisperx.load_model("large-v2", device, compute_type="float16", asr_options=asr_options)
+        model = whisperx.load_model("large-v2", device, compute_type=compute_type, asr_options=asr_options)
 
 
     audio = whisperx.load_audio("tempAudio")
@@ -165,16 +166,8 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     if(not language):
         language = result["language"]
 
-
     alignment_model, metadata = whisperx.load_align_model(language_code=language, device=device)
     aligned_result = whisperx.align(result["segments"], alignment_model, metadata, "tempAudio", device)
-
-    print(aligned_result)
-
-    for segment in aligned_result["segments"]:
-        for word in segment["words"]:
-            print(f"Word: {word['word']}, Start: {word['start']}, End: {word['end']}")
-
 
     results = []
 
