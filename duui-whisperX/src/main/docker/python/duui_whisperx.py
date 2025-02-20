@@ -185,7 +185,6 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         if((len(text)) == 0 and audio_start == audio_end):  # If segment contains no information
             continue
         
-        word.get("start")
         results.append(AudioToken(
             timeStart=float(audio_start),
             timeEnd=float(audio_end),
@@ -197,8 +196,6 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         if(len(text) > 0):  
             current_length += len(text) + 1
     
-
-
     return DUUIResponse(
         audio_token=results,
         language=language
