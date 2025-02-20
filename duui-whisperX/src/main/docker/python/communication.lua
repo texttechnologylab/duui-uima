@@ -66,6 +66,8 @@ function deserialize(inputCas, inputStream)
     end
 
     if results["language"] ~= nil then
-        inputCas:setDocumentLanguage(results["language"])
+        if inputCas:getDocumentLanguage() == nil or inputCas:getDocumentLanguage() == "x-unspecified" then
+            inputCas:setDocumentLanguage(results["language"])
+        end
     end
 end
