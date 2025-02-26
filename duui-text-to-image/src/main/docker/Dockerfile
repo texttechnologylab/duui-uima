@@ -16,8 +16,10 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
 # download models
-RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('OFA-Sys/small-stable-diffusion-v0')"
-#RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('black-forest-labs/FLUX.1-dev')"
+RUN #python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('OFA-Sys/small-stable-diffusion-v0')"
+RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('stabilityai/stable-diffusion-xl-base-1.0')"
+RUN #python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('Shakker-Labs/Lumatales-FL')"
+RUN #python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('RunDiffusion/Juggernaut-XL-v6')"
 
 
 # log level

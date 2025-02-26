@@ -1,4 +1,4 @@
-package org.hucompute.textimager.uima.transformers.emotion;
+package org.hucompute.textimager.uima.diffusion.texttoimage;
 
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import org.apache.commons.compress.compressors.CompressorException;
@@ -83,6 +83,25 @@ public class TextToImageTest {
         cas.setDocumentText(sb.toString());
     }
 
+    // Helper method to save Base64 string back to an image file
+    private static void saveBase64ToImage(String base64String, String outputPath) {
+        try {
+            // Decode the Base64 string into a byte array
+            byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+
+            // Create an image from the byte array
+            InputStream inputStream = new ByteArrayInputStream(decodedBytes);
+            BufferedImage image = ImageIO.read(inputStream);
+
+            // Save the image to the specified output file
+            File outputFile = new File(outputPath);
+            ImageIO.write(image, "png", outputFile);
+
+            System.out.println("Image saved as: " + outputPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
     // Helper method to convert image file to Base64 string
     private static String convertImageToBase64(String imagePath) {
         try {
@@ -91,7 +110,7 @@ public class TextToImageTest {
 
             // Convert the image to byte array
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            ImageIO.write(bufferedImage, "PNG", byteArrayOutputStream);
+            ImageIO.write(bufferedImage, "png", byteArrayOutputStream);
             byte[] imageBytes = byteArrayOutputStream.toByteArray();
 
             // Encode the byte array to Base64
@@ -103,7 +122,8 @@ public class TextToImageTest {
     }
 
     @Test
-    public void EnglishTest() throws Exception {
+    public void SimpleTest() throws Exception {
+        String model = "OFA-Sys/small-stable-diffusion-v0";
 //        composer.add(new DUUIDockerDriver.
 //                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
 //                .withParameter("model_name", model)
@@ -117,7 +137,9 @@ public class TextToImageTest {
         );
         List<String> sentences = Arrays.asList(
                 "toryboard sketch of a zombie basketball player dunking with both hands, action shot, motion blur, hero.",
-                "frankfurt as a future city. I love this place."
+                "frankfurt as a future city. I love this place.",
+                "A pencil sketch of A ballerina dancing swan lake, realistic",
+                "A color pencil sketch of a woman wearing red dress, realistic, close up, minimalist, impressionism, negative space"
         );
 
         createCas("en", sentences);
@@ -133,11 +155,68 @@ public class TextToImageTest {
             all_images_base64.add(image.getSrc());
         }
 
+        // Convert all Base64 strings back to images and save them as output_[idx].png
+//        int idx = 0;
+//        for (String base64 : all_images_base64) {
+//            saveBase64ToImage(base64, "output_" + idx + ".png");
+//            idx++;
+//        }
+
         // expected values
         ArrayList<String> expected_images = new ArrayList<String>();
         // Reading the image files and converting them to base64
-        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/first.png"));
-        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/sec.png"));
+//        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/original_0.png"));
+//        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/original_1.png"));
+        // add the base64 string of the image to the expected_emotions list
+
+        // compare the expected_images list with the all_images_base64 list
+        // Compare the expected_images list with the all_images_base64 list
+//        assert all_images_base64.equals(expected_images);
+        if (all_images_base64.equals(expected_images)) {
+            System.out.println("Test Passed: All images match.");
+        } else {
+            System.out.println("Test Failed: Images do not match.");
+        }
+    }
+
+    @Test
+    public void SketchTest() throws Exception {
+        String model = "RunDiffusion/Juggernaut-XL-v6";
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+        List<String> sentences = Arrays.asList(
+                "A pencil sketch of A ballerina dancing swan lake, realistic",
+                "A color pencil sketch of a woman wearing red dress, realistic, close up, minimalist, impressionism, negative space"
+        );
+
+        createCas("en", sentences);
+
+        composer.run(cas);
+
+        Collection<Image> all_images = JCasUtil.select(cas, Image.class);
+
+        Collection<String> all_images_base64 = new ArrayList<String>();
+
+        for (Image image: all_images){
+//            System.out.println(image.getCoveredText());
+            all_images_base64.add(image.getSrc());
+        }
+
+        // Convert all Base64 strings back to images and save them as output_[idx].png
+        int idx = 0;
+        for (String base64 : all_images_base64) {
+            saveBase64ToImage(base64, "output_" + idx + ".png");
+            idx++;
+        }
+
+        // expected values
+        ArrayList<String> expected_images = new ArrayList<String>();
+        // Reading the image files and converting them to base64
+        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/original_0.png"));
+        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/original_1.png"));
         // add the base64 string of the image to the expected_emotions list
 
         // compare the expected_images list with the all_images_base64 list
@@ -149,99 +228,4 @@ public class TextToImageTest {
 //            System.out.println("Test Failed: Images do not match.");
 //        }
     }
-
-//    @Test
-//    public void GermanTest() throws Exception {
-////        composer.add(new DUUIDockerDriver.
-////                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
-////                .withParameter("model_name", model)
-////                .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-////                .withScale(1)
-////                .withImageFetching());
-//        composer.add(
-//                new DUUIRemoteDriver.Component(url)
-//                        .withParameter("model_name", model)
-//                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-//        );
-//        List<String> sentences = Arrays.asList(
-//                "I hasse dich. ich bin richtig wütend.",
-//                "Ich bin sehr glücklich hier zu sein. Ich liebe diesen Ort."
-//        );
-//
-//        createCas("de", sentences);
-//
-//        composer.run(cas);
-//
-//        Collection<Emotion> all_emotions = JCasUtil.select(cas, Emotion.class);
-////        System.out.println(topics.size());
-//        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-//        for (Emotion emotion: all_emotions){
-//            System.out.println(emotion.getCoveredText());
-//            Map<String, Float> emotions = new HashMap<String, Float>();
-//            FSArray<AnnotationComment> emotions_all = emotion.getEmotions();
-//            for (AnnotationComment comment_i: emotions_all){
-//                emotions.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
-//                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
-//            }
-//            expected.add(emotions);
-//        }
-//
-//        // expected values
-//        ArrayList<String> expected_emotions = new ArrayList<String>();
-//        expected_emotions.add("anger");
-//        expected_emotions.add("joy");
-//        for (Map<String, Float> emotion: expected){
-//            // highest value
-//            String key = Collections.max(emotion.entrySet(), Map.Entry.comparingByValue()).getKey();
-//            Assertions.assertEquals(expected_emotions.get(expected.indexOf(emotion)), key);
-//        }
-//    }
-//
-//
-//    @Test
-//    public void TurkishTest() throws Exception {
-////        composer.add(new DUUIDockerDriver.
-////                Component("docker.texttechnologylab.org/textimager-duui-transformers-topic:0.0.1")
-////                .withParameter("model_name", model)
-////                .withParameter("selection", "text,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-////                .withScale(1)
-////                .withImageFetching());
-//        composer.add(
-//                new DUUIRemoteDriver.Component(url)
-//                        .withParameter("model_name", model)
-//                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-//        );
-//        List<String> sentences = Arrays.asList(
-//                "Seni nefret ediyorum. Çok sinirliyim.",
-//                "Burada olmaktan çok mutluyum. Bu yeri seviyorum."
-//        );
-//
-//        createCas("tr", sentences);
-//
-//        composer.run(cas);
-//
-//        Collection<Emotion> all_emotions = JCasUtil.select(cas, Emotion.class);
-////        System.out.println(topics.size());
-//        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-//        for (Emotion emotion: all_emotions){
-//            System.out.println(emotion.getCoveredText());
-//            Map<String, Float> emotions = new HashMap<String, Float>();
-//            FSArray<AnnotationComment> emotions_all = emotion.getEmotions();
-//            for (AnnotationComment comment_i: emotions_all){
-//                emotions.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
-//                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
-//            }
-//            expected.add(emotions);
-//        }
-//
-//        // expected values
-//        ArrayList<String> expected_emotions = new ArrayList<String>();
-//        expected_emotions.add("anger");
-//        expected_emotions.add("joy");
-//        for (Map<String, Float> emotion: expected){
-//            // highest value
-//            String key = Collections.max(emotion.entrySet(), Map.Entry.comparingByValue()).getKey();
-//            Assertions.assertEquals(expected_emotions.get(expected.indexOf(emotion)), key);
-//        }
-//    }
 }

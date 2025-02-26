@@ -20,21 +20,27 @@ from starlette.responses import PlainTextResponse
 model_lock = Lock()
 sources = {
     "OFA-Sys/small-stable-diffusion-v0": "https://huggingface.co/OFA-Sys/small-stable-diffusion-v0",
-    "hassanelmghari/shou_xin": "https://huggingface.co/hassanelmghari/shou_xin",
+    "stabilityai/stable-diffusion-xl-base-1.0": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0",
+    "Shakker-Labs/Lumatales-FL": "https://huggingface.co/Shakker-Labs/Lumatales-FL",
+    "RunDiffusion/Juggernaut-XL-v6": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v6",
 }
 
 languages = {
     "OFA-Sys/small-stable-diffusion-v0": "en",
-    "hassanelmghari/shou_xin": "en",
+    "stabilityai/stable-diffusion-xl-base-1.0": "en",
+    "Shakker-Labs/Lumatales-FL": "en",
+    "RunDiffusion/Juggernaut-XL-v6": "en",
 }
 
 versions = {
     "OFA-Sys/small-stable-diffusion-v0": "38e10e5e71e8fbf717a47a81e7543cd01c1a8140",
-    "hassanelmghari/shou_xin": "a1551631da706873a17c15e0ed0d266d8522655d",
+    "stabilityai/stable-diffusion-xl-base-1.0": "462165984030d82259a11f4367a4eed129e94a7b",
+    "Shakker-Labs/Lumatales-FL": "8a07771494f995f4a39dd8afde023012195217a5",
+    "RunDiffusion/Juggernaut-XL-v6": "3c3746c9e41e5543cd01e5f56c024d381ad11c2c",
 }
 
 lora_models = {
-    "hassanelmghari/shou_xin": "hassanelmghari/shou_xin",
+    # "hassanelmghari/shou_xin": "hassanelmghari/shou_xin",
 }
 
 class UimaSentence(BaseModel):
@@ -279,8 +285,8 @@ def post_process(request: TextImagerRequest):
             idx = 0
             for image in processed_sentences["results"]:
                 image = image[0]
-                image.save(f"original_{idx}.png")
-                idx += 1
+                # image.save(f"original_{idx}.png")
+                # idx += 1
                 # Convert image to base64
                 buffered = BytesIO()
                 image.save(buffered, format="PNG")
