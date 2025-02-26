@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.texttechnologylab.duui</groupId>
-    <artifactId>duui-transformers-emotion</artifactId>
+    <artifactId>duui_text_to_image</artifactId>
     <version>0.1.0</version>
 
     <licenses>
@@ -34,14 +34,14 @@
             </roles>
         </developer>
         <developer>
-            <id>bagci</id>
-            <name>Mevlüt Bagci</name>
-            <email>bagci@em.uni-frankfurt.de</email>
-            <url>https://www.texttechnologylab.org/team/mevl%c3%bct-bagci/</url>
+            <id>aabusale</id>
+            <name>Ali Abusaleh</name>
+            <email>a.abusaleh@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/ali-abusaleh/</url>
             <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
             <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
             <roles>
-                <role>lead developer</role>
+                <role>Research assistant</role>
             </roles>
             <timezone>Europe/Berlin</timezone>
         </developer>
@@ -101,7 +101,7 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>7cef2433b5</version>
+            <version>1.4</version>
         </dependency>
         <!--        <dependency>-->
         <!--            <groupId>com.github.texttechnologylab.textimager-uima</groupId>-->
@@ -112,7 +112,7 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>05913ec35</version>
+            <version>3.0.5</version>
         </dependency>
 
 <!--        <dependency>-->
