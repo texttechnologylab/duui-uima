@@ -2,7 +2,6 @@ StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
-FactCheck = luajava.bindClass("org.texttechnologylab.annotation.Emotion")
 
 function serialize(inputCas, outputStream, parameters)
 --     print("start")
@@ -12,10 +11,10 @@ function serialize(inputCas, outputStream, parameters)
 --     print(doc_len)
 
     local model_name = parameters["model_name"]
-    print(model_name)
+    --print(model_name)
     local selection_types = parameters["selection"]
-    print(selection_types)
-    print(string.gmatch(selection_types, "([^,]+)"))
+    --print(selection_types)
+    --print(string.gmatch(selection_types, "([^,]+)"))
     local selections = {}
     local selections_count = 1
     for selection_type in string.gmatch(selection_types, "([^,]+)") do
@@ -28,7 +27,7 @@ function serialize(inputCas, outputStream, parameters)
            }
            sentences[1] = s
        else
-           print("start")
+           --print("start")
            local sentences_count = 1
            local clazz = Class:forName(selection_type);
            local sentences_it = JCasUtil:select(inputCas, clazz):iterator()
@@ -39,7 +38,7 @@ function serialize(inputCas, outputStream, parameters)
                    begin = sentence:getBegin(),
                    ['end'] = sentence:getEnd()
                }
-               print(sentence:getCoveredText())
+               --print(sentence:getCoveredText())
                sentences[sentences_count] = s
                sentences_count = sentences_count + 1
            end
@@ -62,11 +61,11 @@ function serialize(inputCas, outputStream, parameters)
 end
 
 function deserialize(inputCas, inputStream)
-    print("start deserialize")
+    --print("start deserialize")
     local inputString = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
-    print("results")
-    print(results)
+    --print("results")
+    --print(results)
     if results["results"] ~= nil then
 --         print("GetInfo")
         local source = results["model_source"]
@@ -100,13 +99,13 @@ function deserialize(inputCas, inputStream)
 
 --         print(factors)
         for index_i, res in ipairs(res_out) do
-            print("starting res_out loop")
+            --print("starting res_out loop")
             --print(res["src"])
-            print("starting .............")
+            --print("starting .............")
             local begin_img_i = begin_img[index_i]
-            print(begin_img_i)
+            --print(begin_img_i)
             local end_img_i = end_img[index_i]
-            print(end_img_i)
+            --print(end_img_i)
             local len_i = res_len[index_i]
             local image_i = luajava.newInstance("org.texttechnologylab.annotation.type.Image", inputCas, begin_img_i, end_img_i)
             image_i:setSrc(res["src"])

@@ -155,12 +155,12 @@ public class TextToImageTest {
             all_images_base64.add(image.getSrc());
         }
 
-        // Convert all Base64 strings back to images and save them as output_[idx].png
-//        int idx = 0;
-//        for (String base64 : all_images_base64) {
-//            saveBase64ToImage(base64, "output_" + idx + ".png");
-//            idx++;
-//        }
+//         Convert all Base64 strings back to images and save them as output_[idx].png
+        int idx = 0;
+        for (String base64 : all_images_base64) {
+            saveBase64ToImage(base64, "output_" + idx + ".png");
+            idx++;
+        }
 
         // expected values
         ArrayList<String> expected_images = new ArrayList<String>();
@@ -188,8 +188,58 @@ public class TextToImageTest {
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
         List<String> sentences = Arrays.asList(
-                "A pencil sketch of A ballerina dancing swan lake, realistic",
-                "A color pencil sketch of a woman wearing red dress, realistic, close up, minimalist, impressionism, negative space"
+                "toryboard sketch of a zombie basketball player dunking with both hands, action shot, motion blur, hero.",
+                "frankfurt as a future city. I love this place."
+        );
+
+        createCas("en", sentences);
+
+        composer.run(cas);
+
+        Collection<Image> all_images = JCasUtil.select(cas, Image.class);
+
+        Collection<String> all_images_base64 = new ArrayList<String>();
+
+        for (Image image: all_images){
+//            System.out.println(image.getCoveredText());
+            all_images_base64.add(image.getSrc());
+        }
+
+        // Convert all Base64 strings back to images and save them as output_[idx].png
+        int idx = 0;
+        for (String base64 : all_images_base64) {
+            saveBase64ToImage(base64, "output_" + idx + ".png");
+            idx++;
+        }
+
+        // expected values
+        ArrayList<String> expected_images = new ArrayList<String>();
+        // Reading the image files and converting them to base64
+        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/original_0.png"));
+        expected_images.add(convertImageToBase64("/home/staff_homes/aabusale/duui-uima/duui-text-to-image/src/main/python/original_1.png"));
+        // add the base64 string of the image to the expected_emotions list
+
+        // compare the expected_images list with the all_images_base64 list
+        // Compare the expected_images list with the all_images_base64 list
+        assert all_images_base64.equals(expected_images);
+//        if (all_images_base64.equals(expected_images)) {
+//            System.out.println("Test Passed: All images match.");
+//        } else {
+//            System.out.println("Test Failed: Images do not match.");
+//        }
+    }
+
+    @Test
+    public void DavinciTest() throws Exception {
+        String model = "stabilityai/stable-diffusion-xl-base-1.0";
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+        List<String> sentences = Arrays.asList(
+                "toryboard sketch of a zombie basketball player dunking with both hands, action shot, motion blur, hero.",
+                "frankfurt as a future city. I love this place."
         );
 
         createCas("en", sentences);
