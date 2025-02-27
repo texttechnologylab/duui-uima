@@ -16,6 +16,8 @@ import torch
 import time
 import gc
 
+import warnings
+
 # Settings
 # These are automatically loaded from env variables
 from starlette.responses import PlainTextResponse
@@ -99,6 +101,8 @@ with open(typesystem_filename, 'rb') as f:
 lua_communication_script_filename = "duui_text_to_image.lua"
 logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 
+
+
 class Image(BaseModel):
     """
     org.texttechnologylab.annotation.type.Image
@@ -118,7 +122,13 @@ class TextImagerRequest(BaseModel):
     model_name: str
     #
     selections:  List[UimaSentenceSelection]
-    #
+
+    # model configurations
+    image_width: Optional[int] = 512
+    image_height: Optional[int] = 512
+    num_inference_steps: Optional[int] = 50
+    number_of_images: Optional[int] = 1
+    low_cpu_mem_usage: Optional[bool] = True
 
 
 
@@ -144,6 +154,7 @@ class TextImagerResponse(BaseModel):
     model_version: str
     model_source: str
     model_lang: str
+    errors: List[str]
 
 
 
@@ -196,17 +207,69 @@ def get_communication_layer() -> str:
 def get_documentation():
     return "Test"
 
+
+
+def check_and_tokenize_input(pipe, input_text):
+    """
+    Checks the token sequence length and ensures it is within the model's allowed max sequence length.
+    If the sequence exceeds the max length, truncates it.
+    Returns the tokenized input and an error message if applicable.
+    """
+    # Tokenize the input with truncation enabled
+    inputs = pipe.tokenizer(input_text, return_tensors="pt", truncation=False, padding=True)
+
+    # Capture the token sequence length
+    token_sequence_length = len(inputs['input_ids'][0])
+
+    # Get the model's maximum token length
+    max_sequence_length = pipe.tokenizer.model_max_length
+
+    # Initialize error message
+    error_message = None
+
+    # Check if the token sequence length exceeds the model's maximum length
+    if token_sequence_length > max_sequence_length:
+        error_message = f"Token indices sequence length is longer than the specified maximum sequence length for this model ({token_sequence_length} > {max_sequence_length})."
+        # The truncation is already handled by the tokenizer, but you could also explicitly truncate here
+        # Re-tokenize with truncation if it's not already done
+        inputs = pipe.tokenizer(input_text, return_tensors="pt", truncation=True, padding=True)
+
+    return inputs, error_message
+
 @lru_cache_with_size
-def load_model(model_name, language="en"):
+def load_model(model_name, low_cpu_mem_usage, input_text=None):
+    """
+    Load the model and optionally check the input sequence length if input_text is provided.
+    Automatically truncates the input if it exceeds the model's max sequence length.
+    """
     if model_name in lora_models:
-        login(token=settings.text_to_image_hugging_face_token)
-        pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", low_cpu_mem_usage=True, torch_dtype=torch.float16)
+        # Login to Hugging Face (make sure the token is correct)
+        login(token=settings['text_to_image_hugging_face_token'])
+
+        # Load the lora model
+        pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", low_cpu_mem_usage=low_cpu_mem_usage, torch_dtype=torch.float16)
         pipe.load_lora_weights("hassanelmghari/shou_xin")
     else:
-        pipe = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=True,  torch_dtype=torch.float16)
+        # Load the specified model
+        pipe = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=low_cpu_mem_usage, torch_dtype=torch.float16)
 
+    # Move the pipeline to the appropriate device
     pipe.to(device)
+
     return pipe
+
+
+# @lru_cache_with_size
+# def load_model(model_name, low_cpu_mem_usage):
+#     if model_name in lora_models:
+#         login(token=settings.text_to_image_hugging_face_token)
+#         pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", low_cpu_mem_usage=low_cpu_mem_usage, torch_dtype=torch.float16)
+#         pipe.load_lora_weights("hassanelmghari/shou_xin")
+#     else:
+#         pipe = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=low_cpu_mem_usage,  torch_dtype=torch.float16)
+#
+#     pipe.to(device)
+#     return pipe
 
 
 def fix_unicode_problems(text):
@@ -217,12 +280,13 @@ def fix_unicode_problems(text):
     return clean_text
 
 
-def process_selection(model_name, selection, doc_len, lang_document):
+def process_selection(model_name, selection, doc_len, lang_document, model_config=None):
     begin = []
     end = []
     results_out = []
     factors = []
     len_results = []
+    errors_list = []
     for s in selection.sentences:
         s.text = fix_unicode_problems(s.text)
 
@@ -234,43 +298,75 @@ def process_selection(model_name, selection, doc_len, lang_document):
     logger.debug(texts)
 
     with model_lock:
-        pipe = load_model(model_name, lang_document)
+        pipe = load_model(model_name, low_cpu_mem_usage=model_config["low_cpu_mem_usage"])
         logger.debug("Model loaded, starting inference")
+        # move model to gpu/cpu
+        pipe.to(device)
 
         generator = torch.Generator("cuda").manual_seed(1024) if device == "cuda" else None
-        results = pipe(texts, num_inference_steps=50, generator=generator)
+        for c, text in enumerate(texts):
+            # Use catch_warnings to capture the warnings
+
+            # Turn on the filter to always show warnings
+            inputs, error_message = check_and_tokenize_input(pipe, text)
+
+            if error_message:
+                print(error_message)  # You can handle this as needed, like logging or raising an exception
+            else:
+                print("Input is within the allowed sequence length.")
+                # Proceed as normal with the tokenized input
+            results = pipe(text,
+                           num_inference_steps=model_config["num_inference_steps"],
+                           num_images_per_prompt=model_config["number_of_images"],
+                           image_width=model_config["image_width"],
+                           image_height=model_config["image_height"],
+                           generator=generator)
+            errors_list.append(error_message)
+            for image in enumerate(results['images']):
+                res_i = []
+                factor_i = []
+                sentence_i = selection.sentences[c]
+                begin_i = sentence_i.begin
+                end_i = sentence_i.end
+                len_rel = 1  # Since we are generating one image per text
+                begin.append(begin_i)
+                end.append(end_i)
+                res_i.append(image)
+                factor_i.append(1.0)  # Dummy factor for image generation
+                len_results.append(len_rel)
+                results_out.append(res_i)
+                factors.append(factor_i)
         logger.debug("Inference done")
         # move model to cpu to free memory
         pipe.to("cpu")
-        # free memory
-        del pipe
-        gc.collect()
 
-        torch.cuda.empty_cache()
         # print("Memory cleaned")
-        for c, image in enumerate(results['images']):
-            res_i = []
-            factor_i = []
-            sentence_i = selection.sentences[c]
-            begin_i = sentence_i.begin
-            end_i = sentence_i.end
-            len_rel = 1  # Since we are generating one image per text
-            begin.append(begin_i)
-            end.append(end_i)
-            res_i.append(image)
-            factor_i.append(1.0)  # Dummy factor for image generation
-            len_results.append(len_rel)
-            results_out.append(res_i)
-            factors.append(factor_i)
+        # for c, image in enumerate(results['images']):
+        #     res_i = []
+        #     factor_i = []
+        #     sentence_i = selection.sentences[c]
+        #     begin_i = sentence_i.begin
+        #     end_i = sentence_i.end
+        #     len_rel = 1  # Since we are generating one image per text
+        #     begin.append(begin_i)
+        #     end.append(end_i)
+        #     res_i.append(image)
+        #     factor_i.append(1.0)  # Dummy factor for image generation
+        #     len_results.append(len_rel)
+        #     results_out.append(res_i)
+        #     factors.append(factor_i)
     output = {
         "begin": begin,
         "end": end,
         "len_results": len_results,
         "results": results_out,
-        "factors": factors
+        "factors": factors,
+        "errors": errors_list
     }
 
     return output, versions[model_name]
+
+#
 
 # Process request from DUUI
 @app.post("/v1/process")
@@ -279,12 +375,21 @@ def post_process(request: TextImagerRequest):
     model_source = sources[request.model_name]
     model_lang = languages[request.model_name]
     model_version = versions[request.model_name]
+    # configurations
+    model_config = {
+    "image_width" : request.image_width ,
+    "image_height" : request.image_height,
+    "num_inference_steps" : request.num_inference_steps,
+    "number_of_images" : request.number_of_images,
+    "low_cpu_mem_usage": request.low_cpu_mem_usage,
+    }
 
     begin = []
     end = []
     len_results = []
     results = []
     factors = []
+    errors_list = []
     # Save modification start time for later
     try:
         model_source = sources[request.model_name]
@@ -293,14 +398,15 @@ def post_process(request: TextImagerRequest):
         lang_document = request.lang
 
         for selection in request.selections:
-            processed_sentences, model_version_2 = process_selection(request.model_name, selection, request.doc_len, lang_document)
+            processed_sentences, model_version_2 = process_selection(request.model_name, selection, request.doc_len, lang_document, model_config=model_config)
             begin = begin + processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]
             idx = 0
             for image in processed_sentences["results"]:
-                image = image[0]
-                # image.save(f"original_{idx}.png")
+                idx = image[0][0]
+                image = image[0][1]
+                # image.save(f"original_{image[idx}.png")
                 # idx += 1
                 # Convert image to base64
                 buffered = BytesIO()
@@ -317,9 +423,17 @@ def post_process(request: TextImagerRequest):
                 results.append(result_image)
             # results = results + processed_sentences["results"]
             factors = factors + processed_sentences["factors"]
+            errors_list = errors_list + processed_sentences["errors"]
     except Exception as ex:
         logger.exception(ex)
-    return TextImagerResponse(begin_img=begin, end_img=end, results=results, len_results=len_results, factors=factors, model_name=request.model_name, model_version=model_version, model_source=model_source, model_lang=model_lang)
+    finally:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
+    return TextImagerResponse(begin_img=begin, end_img=end, results=results,
+                              len_results=len_results, factors=factors,
+                              model_name=request.model_name, model_version=model_version,
+                              model_source=model_source, model_lang=model_lang, errors=errors_list)
 
 
 
