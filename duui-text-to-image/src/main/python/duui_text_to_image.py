@@ -12,7 +12,9 @@ from functools import lru_cache
 from io import BytesIO
 import base64
 from huggingface_hub import login
-
+import torch
+import time
+import gc
 
 # Settings
 # These are automatically loaded from env variables
@@ -198,7 +200,7 @@ def load_model(model_name, language="en"):
         pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", low_cpu_mem_usage=True)
         pipe.load_lora_weights("hassanelmghari/shou_xin")
     else:
-        pipe = DiffusionPipeline.from_pretrained(model_name)
+        pipe = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=True,  torch_dtype=torch.float16)
 
     pipe.to(device)
     return pipe
@@ -230,8 +232,19 @@ def process_selection(model_name, selection, doc_len, lang_document):
 
     with model_lock:
         pipe = load_model(model_name, lang_document)
+        print("Model loaded, starting inference")
 
-        results = pipe(texts)
+        generator = torch.Generator("cuda").manual_seed(1024) if device == "cuda" else None
+        results = pipe(texts, num_inference_steps=50, generator=generator)
+        print("Inference done")
+        # move model to cpu to free memory
+        pipe.to("cpu")
+        # free memory
+        del pipe
+        gc.collect()
+
+        torch.cuda.empty_cache()
+        print("Memory cleaned")
         for c, image in enumerate(results['images']):
             res_i = []
             factor_i = []
@@ -270,7 +283,6 @@ def post_process(request: TextImagerRequest):
     results = []
     factors = []
     # Save modification start time for later
-    modification_timestamp_seconds = int(time())
     try:
         model_source = sources[request.model_name]
         model_lang = languages[request.model_name]
@@ -296,6 +308,9 @@ def post_process(request: TextImagerRequest):
                     width=image.size[0],
                     height=image.size[0]
                 )
+                # free memory
+                image.close()
+                del image
                 results.append(result_image)
             # results = results + processed_sentences["results"]
             factors = factors + processed_sentences["factors"]
