@@ -25,6 +25,7 @@ sources = {
     "stabilityai/stable-diffusion-xl-base-1.0": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0",
     "Shakker-Labs/Lumatales-FL": "https://huggingface.co/Shakker-Labs/Lumatales-FL",
     "RunDiffusion/Juggernaut-XL-v6": "https://huggingface.co/RunDiffusion/Juggernaut-XL-v6",
+    "hassanelmghari/shou_xin": "https://huggingface.co/hassanelmghari/shou_xin",
 }
 
 languages = {
@@ -32,6 +33,7 @@ languages = {
     "stabilityai/stable-diffusion-xl-base-1.0": "en",
     "Shakker-Labs/Lumatales-FL": "en",
     "RunDiffusion/Juggernaut-XL-v6": "en",
+    "hassanelmghari/shou_xin": "en",
 }
 
 versions = {
@@ -39,10 +41,11 @@ versions = {
     "stabilityai/stable-diffusion-xl-base-1.0": "462165984030d82259a11f4367a4eed129e94a7b",
     "Shakker-Labs/Lumatales-FL": "8a07771494f995f4a39dd8afde023012195217a5",
     "RunDiffusion/Juggernaut-XL-v6": "3c3746c9e41e5543cd01e5f56c024d381ad11c2c",
+    "hassanelmghari/shou_xin": "a1551631da706873a17c15e0ed0d266d8522655d",
 }
 
 lora_models = {
-    # "hassanelmghari/shou_xin": "hassanelmghari/shou_xin",
+    "hassanelmghari/shou_xin": "hassanelmghari/shou_xin",
 }
 
 class UimaSentence(BaseModel):
@@ -197,7 +200,7 @@ def get_documentation():
 def load_model(model_name, language="en"):
     if model_name in lora_models:
         login(token=settings.text_to_image_hugging_face_token)
-        pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", low_cpu_mem_usage=True)
+        pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.1-dev", low_cpu_mem_usage=True, torch_dtype=torch.float16)
         pipe.load_lora_weights("hassanelmghari/shou_xin")
     else:
         pipe = DiffusionPipeline.from_pretrained(model_name, low_cpu_mem_usage=True,  torch_dtype=torch.float16)
@@ -232,11 +235,11 @@ def process_selection(model_name, selection, doc_len, lang_document):
 
     with model_lock:
         pipe = load_model(model_name, lang_document)
-        print("Model loaded, starting inference")
+        logger.debug("Model loaded, starting inference")
 
         generator = torch.Generator("cuda").manual_seed(1024) if device == "cuda" else None
         results = pipe(texts, num_inference_steps=50, generator=generator)
-        print("Inference done")
+        logger.debug("Inference done")
         # move model to cpu to free memory
         pipe.to("cpu")
         # free memory
@@ -244,7 +247,7 @@ def process_selection(model_name, selection, doc_len, lang_document):
         gc.collect()
 
         torch.cuda.empty_cache()
-        print("Memory cleaned")
+        # print("Memory cleaned")
         for c, image in enumerate(results['images']):
             res_i = []
             factor_i = []
