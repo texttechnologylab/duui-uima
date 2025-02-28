@@ -87,7 +87,8 @@ function deserialize(inputCas, inputStream)
         end
     end
     print("---------------------- Finished errors ----------------------")
-    if results["results"] ~= nil then
+
+    if results["results"] ~= nil and results["begin_img"] ~= nil and results["end_img"] ~= nil and results["len_results"] ~= nil and results["factors"] ~= nil and results["model_source"] ~= nil and results["model_version"] ~= nil and results["model_name"] ~= nil and results["model_lang"] ~= nil and results["config"] ~= nil then
 --         print("GetInfo")
         local source = results["model_source"]
         local model_version = results["model_version"]

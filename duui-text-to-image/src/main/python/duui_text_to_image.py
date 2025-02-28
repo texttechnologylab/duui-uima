@@ -137,15 +137,6 @@ class TextImagerRequest(BaseModel):
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
 class TextImagerResponse(BaseModel):
-    # Symspelloutput
-    # List of Sentence with every token
-    # Every token is a dictionary with following Infos:
-    # Symspelloutput right if the token is correct, wrong if the token is incorrect, skipped if the token was skipped, unkownn if token can corrected with Symspell
-    # If token is unkown it will be predicted with BERT Three output pos:
-    # 1. Best Prediction with BERT MASKED
-    # 2. Best Cos-sim with Sentence-Bert and with perdicted words of BERT MASK
-    # 3. Option 1 and 2 together
-    # images: List[Image]
     begin_img: List[int]
     end_img: List[int]
     results: List[Image]
