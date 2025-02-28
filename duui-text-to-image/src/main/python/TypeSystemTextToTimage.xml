@@ -28,24 +28,6 @@
                 </featureDescription>
             </features>
         </typeDescription>
-        <typeDescription>
-            <name>org.texttechnologylab.annotation.type.SubImage</name>
-            <description/>
-            <supertypeName>uima.tcas.Annotation</supertypeName>
-            <features>
-                <featureDescription>
-                    <name>coordinates</name>
-                    <description/>
-                    <rangeTypeName>uima.cas.FSArray</rangeTypeName>
-                    <elementType>org.texttechnologylab.annotation.type.Coordinate</elementType>
-                </featureDescription>
-                <featureDescription>
-                    <name>parent</name>
-                    <description/>
-                    <rangeTypeName>org.texttechnologylab.annotation.type.Image</rangeTypeName>
-                </featureDescription>
-            </features>
-        </typeDescription>
 
         <typeDescription>
             <name>org.texttechnologylab.annotation.ModelAnnotation</name>
@@ -56,6 +38,61 @@
                     <name>ModelReference</name>
                     <description>Reference to the Model</description>
                     <rangeTypeName>org.texttechnologylab.annotation.MetaData</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+
+            <name>org.texttechnologylab.annotation.MetaData</name>
+
+            <description/>
+
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+
+            <features>
+
+                <featureDescription>
+
+                    <name>Lang</name>
+
+                    <description>Language of the method or the Model</description>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+                <featureDescription>
+
+                    <name>Source</name>
+
+                    <description>Link of the used resource</description>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+            </features>
+
+        </typeDescription>
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.AnnotationComment</name>
+            <description/>
+            <supertypeName>uima.cas.AnnotationBase</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>reference</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.TOP</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>value</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>key</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
                 </featureDescription>
             </features>
         </typeDescription>
