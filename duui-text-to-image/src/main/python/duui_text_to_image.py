@@ -201,34 +201,6 @@ def get_documentation():
     return "Test"
 
 
-
-def check_and_tokenize_input(pipe, input_text):
-    """
-    Checks the token sequence length and ensures it is within the model's allowed max sequence length.
-    If the sequence exceeds the max length, truncates it.
-    Returns the tokenized input and an error message if applicable.
-    """
-    # Tokenize the input with truncation enabled
-    inputs = pipe.tokenizer(input_text, return_tensors="pt", truncation=False, padding=True)
-
-    # Capture the token sequence length
-    token_sequence_length = len(inputs['input_ids'][0])
-
-    # Get the model's maximum token length
-    max_sequence_length = pipe.tokenizer.model_max_length
-
-    # Initialize error message
-    error_message = None
-
-    # Check if the token sequence length exceeds the model's maximum length
-    if token_sequence_length > max_sequence_length:
-        error_message = f"Token indices sequence length is longer than the specified maximum sequence length for this model ({token_sequence_length} > {max_sequence_length})."
-        # The truncation is already handled by the tokenizer, but you could also explicitly truncate here
-        # Re-tokenize with truncation if it's not already done
-        inputs = pipe.tokenizer(input_text, return_tensors="pt", truncation=True, padding=True)
-
-    return inputs, error_message
-
 @lru_cache_with_size
 def load_model(model_name, low_cpu_mem_usage, input_text=None):
     """
@@ -261,7 +233,60 @@ def fix_unicode_problems(text):
     return clean_text
 
 
-def process_selection(model_name, selection, doc_len, lang_document, model_config=None):
+
+def check_and_tokenize_input(pipe, input_text, truncate):
+    """
+    Checks token sequence length and truncates it if the truncate flag is True.
+    If truncate is False and sequence exceeds max length, returns an error.
+    """
+    max_length = pipe.tokenizer.model_max_length
+
+    # Tokenize the input
+    inputs = pipe.tokenizer(input_text, return_tensors="pt", truncation=truncate, padding=True)
+    
+    token_sequence_length = len(inputs['input_ids'][0])
+
+    if token_sequence_length > max_length and not truncate:
+        return None, f"Input exceeds model max length ({token_sequence_length} > {max_length})"
+    
+    return inputs, None
+
+
+def calculate_embedding(pipe, prompt, truncate_text=False):
+    """
+    calculate the embeddings of the prompt and return the values
+    The prompt is split into chunks of max_length and the embeddings are concatenated
+    Use the model tokenizer to tokenize the prompt and the negative prompt
+    #TODO: add a more appropriate way to handle the negative prompt
+    """
+    
+    # clacualte the embeddiings of the prompt and return the values
+    max_length = pipe.tokenizer.model_max_length
+
+    input_ids = pipe.tokenizer(prompt, truncation=truncate_text, return_tensors="pt").input_ids
+    input_ids = input_ids.to(device)
+
+    negative_ids = pipe.tokenizer("", truncation=truncate_text, padding="max_length", max_length=input_ids.shape[-1], return_tensors="pt").input_ids                                                                                                     
+    negative_ids = negative_ids.to(device)
+
+    concat_embeds = []
+    neg_embeds = []
+    for i in range(0, input_ids.shape[-1], max_length):
+        concat_embeds.append(pipe.text_encoder(input_ids[:, i: i + max_length])[0])
+        neg_embeds.append(pipe.text_encoder(negative_ids[:, i: i + max_length])[0])
+
+    prompt_embeds = torch.cat(concat_embeds, dim=1)
+    negative_prompt_embeds = torch.cat(neg_embeds, dim=1)
+    
+    return prompt_embeds, negative_prompt_embeds
+
+
+def process_selection(model_name, selection, model_config=None):
+    """
+    Process a selection of sentences and return the results.
+    handle long prompts by splitting them into chunks of max_length
+    """
+    
     # Initialize output containers
     begin, end, results_out, factors, len_results, errors_list = [], [], [], [], [], []
 
@@ -280,17 +305,18 @@ def process_selection(model_name, selection, doc_len, lang_document, model_confi
 
             for c, sentence in enumerate(selection.sentences):
                 text = texts[c]
-                inputs, error_message = check_and_tokenize_input(pipe, text)
+                inputs, error_message = check_and_tokenize_input(pipe, text, model_config["truncate_text"])
 
-                # Handle errors related to tokenization
-                if error_message:
-                    print(error_message)
-                    if not model_config["truncate_text"]:
-                        errors_list.append(error_message)
-                        continue
-                    else:
-                        print("Input is within the allowed sequence length.")
+                # Handle errors related to tokenization if the text is not truncated
+                if error_message and not model_config["truncate_text"]:
+                    errors_list.append(error_message)
+                    continue
+                else:
+                    print("Input is within the allowed sequence length.")
 
+                # anycase we need to calculate the embeddings
+                prompt_embeds, negative_prompt_embeds = calculate_embedding(pipe, text, model_config["truncate_text"])
+                
                 # Initialize variables for this sentence
                 begin.append(sentence.begin)
                 end.append(sentence.end)
@@ -298,17 +324,17 @@ def process_selection(model_name, selection, doc_len, lang_document, model_confi
                 len_results.append(1)  # One image per text
 
                 # Perform inference if there are no tokenization errors
-                if not error_message or model_config["truncate_text"]:
-                    results = pipe(
-                        text,
-                        num_inference_steps=model_config["num_inference_steps"],
-                        num_images_per_prompt=model_config["number_of_images"],
-                        image_width=model_config["image_width"],
-                        image_height=model_config["image_height"],
-                        generator=generator
-                    )
+                results = pipe(
+                    prompt_embeds=prompt_embeds, 
+                    negative_prompt_embeds=negative_prompt_embeds,
+                    num_inference_steps=model_config["num_inference_steps"],
+                    num_images_per_prompt=model_config["number_of_images"],
+                    image_width=model_config["image_width"],
+                    image_height=model_config["image_height"],
+                    generator=generator
+                )
 
-                    results_out.append([image for image in results['images']])
+                results_out.append([image for image in results['images']])
 
             logger.debug("Inference done")
             pipe.to("cpu")  # Free memory by moving the model back to CPU
@@ -353,7 +379,7 @@ def post_process(request: TextImagerRequest):
         # Loop over selections in the request
         for selection in request.selections:
             # Process selection and extract results
-            processed_sentences, _ = process_selection(request.model_name, selection, request.doc_len, request.lang, model_config=model_config)
+            processed_sentences, _ = process_selection(request.model_name, selection, model_config=model_config)
 
             # Accumulate processed data
             begin.extend(processed_sentences["begin"])
