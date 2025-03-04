@@ -4,23 +4,23 @@ WORKDIR /usr/src/app
 
 EXPOSE 9714
 
-
-# copy scripts
-COPY ./src/main/python/TypeSystemTextToTimage.xml ./TypeSystemTextToTimage.xml
-COPY ./src/main/python/duui_text_to_image.py ./duui_text_to_image.py
-COPY ./src/main/python/duui_text_to_image.lua ./duui_text_to_image.lua
-
 # dependencies
+RUN pip install --upgrade pip
 RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
-# download models
-RUN #python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('OFA-Sys/small-stable-diffusion-v0')"
-RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('stabilityai/stable-diffusion-xl-base-1.0')"
-RUN #python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('Shakker-Labs/Lumatales-FL')"
-RUN #python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('RunDiffusion/Juggernaut-XL-v6')"
 
+# download models
+#RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('OFA-Sys/small-stable-diffusion-v0')"
+RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('stabilityai/stable-diffusion-xl-base-1.0')"
+#RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('Shakker-Labs/Lumatales-FL')"
+#RUN python -c "from diffusers import DiffusionPipeline; DiffusionPipeline.from_pretrained('RunDiffusion/Juggernaut-XL-v6')"
+
+# copy scripts
+COPY ./src/main/python/TypeSystemTextToImage.xml ./TypeSystemTextToImage.xml
+COPY ./src/main/python/duui_text_to_image.py ./duui_text_to_image.py
+COPY ./src/main/python/duui_text_to_image.lua ./duui_text_to_image.lua
 
 # log level
 ARG TEXT_TO_IMAGE_LOG_LEVEL="DEBUG"

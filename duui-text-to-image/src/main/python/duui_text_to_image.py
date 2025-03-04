@@ -90,7 +90,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'TypeSystemTextToTimage.xml'
+typesystem_filename = 'TypeSystemTextToImage.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
@@ -160,7 +160,7 @@ app = FastAPI(
     version=settings.text_to_image_annotator_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
-        "name": "TTLab Team",
+        "name": "Ali Abusaleh, TTLab",
         "url": "https://texttechnologylab.org",
         "email": "a.abusaleh@em.uni-frankfurt.de",
     },
