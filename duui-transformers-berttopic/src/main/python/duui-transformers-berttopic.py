@@ -157,7 +157,7 @@ app = FastAPI(
 )
 
 # Load the Lua communication script
-lua_communication_script_filename = "duui_transformers_berttopic.lua"
+lua_communication_script_filename = "duui-transformers-berttopic.lua"
 logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 
 

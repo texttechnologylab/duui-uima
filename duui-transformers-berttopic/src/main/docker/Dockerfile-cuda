@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.8.0-base-ubuntu22.04
+FROM nvidia/cuda:12.4.0-base-ubuntu22.04
 
 RUN apt update && \
     DEBIAN_FRONTEND=noninteractive \
@@ -18,16 +18,21 @@ EXPOSE 9714
 # copy scripts
 COPY ./src/main/python/config.yaml ./config.yaml
 COPY ./src/main/python/TypeSystemBertTopic.xml ./TypeSystemBertTopic.xml
-COPY ./src/main/python/duui_transformers_berttopic.py ./duui_transformers_berttopic.py
-COPY ./src/main/python/duui_transformers_berttopic.lua ./duui_transformers_berttopic.lua
+COPY ./src/main/python/duui-transformers-berttopic.py ./duui-transformers-berttopic.py
+COPY ./src/main/python/duui-transformers-berttopic.lua ./duui-transformers-berttopic.lua
+
 
 
 # dependencies
+# Fix for blinker 1.4 error, source: https://github.com/googlecolab/colabtools/issues/3976
+RUN apt-get remove python3-blinker -y
+RUN pip install blinker==1.6.2
+
 RUN pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu118
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
 
 
-ENTRYPOINT ["uvicorn", "duui_transformers_berttopic:app", "--host", "0.0.0.0", "--port" ,"9714"]
+ENTRYPOINT ["uvicorn", "duui-transformers-berttopic:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
