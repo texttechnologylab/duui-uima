@@ -15,26 +15,24 @@ For using duui-transformers-berttopic as a DUUI image it is necessary to use the
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-topic-[modelname]:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-berttopic:latest
 
 ```
-
-Find all available image tags here: [https://docker.texttechnologylab.org/v2/duui-transformers-topic-[modelname]/tags/list](https://docker.texttechnologylab.org/v2/duui-transformers-topic-[modelname]/tags/list)
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-topic-[modelname]:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-berttopic:latest")
         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 );
 ```
 
 ### Parameters
 
-| Name | Description |
-| ---- | ----------- |
-| `selection`  | Use `text` to process the full document text or any selectable UIMA type class name |
+| Name | Description  |
+| ---- |--------------|
+| `selection`  | Segmentation type to be used for the selection of text segments in the input text |
 
 # Cite
 
@@ -73,10 +71,10 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 }
 
 @misc{Bagci:2024,
-  author         = {Bagci, Mevlüt},
-  title          = {Hugging-Face-based topic models as {DUUI} component},
-  year           = {2024},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-topic}
+  author         = {Verma, Bhuvanesh},
+  title          = {BERTopic based topic models as {DUUI} component},
+  year           = {2025},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-berttopic}
 }
 
 ```
