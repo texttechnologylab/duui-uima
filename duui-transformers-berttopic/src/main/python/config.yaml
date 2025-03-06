@@ -1,0 +1,12 @@
+model:
+  name: MaartenGr/BERTopic_Wikipedia
+  source: https://huggingface.co/MaartenGr/BERTopic_Wikipedia
+  version: 8071645598487f882580afe477835215c47a8ea1
+  lang: EN
+  cache_size: 3
+
+annotation:
+  name: test
+  version: 1
+
+log_level: DEBUG
