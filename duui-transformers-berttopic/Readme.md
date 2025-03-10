@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.3.0&color=red)]()
 [![Version](https://img.shields.io/static/v1?label=BERTopic&message=0.16.4&color=purple)]()
 
-# Transformers Topic
+# Transformers BERTopic
 
 DUUI implementation for a trained [BERTopic](https://github.com/MaartenGr/BERTopic) model. This implementation
 uses [BERTopic model](https://huggingface.co/MaartenGr/BERTopic_Wikipedia) trained on wikipedia pages.
@@ -15,15 +15,18 @@ For using duui-transformers-berttopic as a DUUI image it is necessary to use the
 ## Start Docker container
 
 ```
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-berttopic:latest
+## CPU container
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-bertopic:latest
 
+## CUDA container
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-berttopic-cuda:latest
 ```
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-berttopic:latest")
+    new DUUIRemoteDriver.Component("docker.texttechnologylab.org/duui-transformers-bertopic:latest")
         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 );
 ```
