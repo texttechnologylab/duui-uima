@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Union
 import logging
 from time import time
 from fastapi import FastAPI, Response
+from fastapi.encoders import jsonable_encoder
 from cassis import load_typesystem
 import torch
 from threading import Lock
@@ -20,7 +21,7 @@ import warnings
 
 # Settings
 # These are automatically loaded from env variables
-from starlette.responses import PlainTextResponse
+from starlette.responses import PlainTextResponse, JSONResponse
 model_lock = Lock()
 sources = {
     "OFA-Sys/small-stable-diffusion-v0": "https://huggingface.co/OFA-Sys/small-stable-diffusion-v0",
@@ -137,6 +138,24 @@ class TextImagerRequest(BaseModel):
 
 
 
+# Documentation response
+class TextImagerDocumentation(BaseModel):
+    # Name of this annotator
+    annotator_name: str
+
+    # Version of this annotator
+    version: str
+
+    # Annotator implementation language (Python, Java, ...)
+    implementation_lang: Optional[str]
+
+    # Optional map of additional meta data
+    meta: Optional[dict]
+
+    # Optional map of supported parameters
+    parameters: Optional[dict]
+
+
 
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
@@ -160,7 +179,7 @@ app = FastAPI(
     docs_url="/api",
     redoc_url=None,
     title=settings.text_to_image_annotator_name,
-    description="Factuality annotator",
+    description="Text To Image Component",
     version=settings.text_to_image_annotator_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
@@ -202,7 +221,35 @@ def get_communication_layer() -> str:
 # Return documentation info
 @app.get("/v1/documentation")
 def get_documentation():
-    return "Test"
+    return TextImagerDocumentation(
+        annotator_name=settings.text_to_image_annotator_name,
+        version=settings.text_to_image_annotator_version,
+        implementation_lang="Python",
+        meta={"source": sources,
+                "languages": languages,
+                "versions": versions},
+        parameters={
+            "image_width": "Width of the generated images",
+            "image_height": "Height of the generated images",
+            "num_inference_steps": "Number of inference steps",
+            "number_of_images": "Number of images to generate",
+            "low_cpu_mem_usage": "Whether to use low CPU memory usage",
+            "truncate_text": "Whether to truncate the text if it exceeds the model's maximum length",
+        }
+    )
+
+
+# Get input / output of the annotator
+@app.get("/v1/details/input_output")
+def get_input_output() -> JSONResponse:
+    json_item = {
+        "inputs": ["string", "org.texttechnologylab.annotation.type.Image"],
+        "outputs": ["string", "org.texttechnologylab.annotation.type.Image"]
+    }
+
+    json_compatible_item_data = jsonable_encoder(json_item)
+    return JSONResponse(content=json_compatible_item_data)
+
 
 
 @lru_cache_with_size
