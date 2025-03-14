@@ -172,30 +172,30 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     results = []
 
     current_length = 0
-    
+
     for word in aligned_result["word_segments"]:
+
+        audio_start = word.get("start")
+        audio_end = word.get("end")
+        text = word.get("word").strip()
         
-            audio_start = word.get("start")
-            audio_end = word.get("end")
-            text = word.get("word").strip()
-            
-            if((len(text)) == 0 and audio_start == audio_end):  # If segment contains no information
-                continue
-            
-            word.get("start")
-            results.append(AudioToken(
-                timeStart=float(audio_start),
-                timeEnd=float(audio_end),
-                text=text,
-                begin=current_length,
-                end=current_length + len(text)
-            ))
-            
-            if(len(text) > 0):  
-                current_length += len(text) + 1
+        if(audio_start is None or audio_end is None):  # If segment is not spoken out loud, such as '-'
+            continue
+        
+        if((len(text)) == 0 and audio_start == audio_end):  # If segment contains no information
+            continue
+        
+        results.append(AudioToken(
+            timeStart=float(audio_start),
+            timeEnd=float(audio_end),
+            text=text,
+            begin=current_length,
+            end=current_length + len(text)
+        ))
+        
+        if(len(text) > 0):  
+            current_length += len(text) + 1
     
-
-
     return DUUIResponse(
         audio_token=results,
         language=language
