@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+
+    <name>TypeSystemBertTopic</name>
+
+    <description/>
+
+    <version>1.0</version>
+
+    <vendor/>
+
+    <types>
+
+        <typeDescription>
+
+            <name>org.texttechnologylab.annotation.MetaData</name>
+
+            <description/>
+
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+
+            <features>
+
+                <featureDescription>
+
+                    <name>Lang</name>
+
+                    <description>Language of the method or the Model</description>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+                <featureDescription>
+
+                    <name>Source</name>
+
+                    <description>Link of the used resource</description>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+            </features>
+
+        </typeDescription>
+        <typeDescription>
+
+            <name>org.texttechnologylab.annotation.model.MetaData</name>
+
+            <description/>
+
+            <supertypeName>org.texttechnologylab.annotation.MetaData</supertypeName>
+
+            <features>
+
+                <featureDescription>
+
+                    <name>ModelVersion</name>
+
+                    <description>Version of the Model</description>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+                <featureDescription>
+
+                    <name>ModelName</name>
+
+                    <description>Name of the Model</description>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+            </features>
+
+        </typeDescription>
+        <typeDescription>
+
+
+            <name>org.texttechnologylab.annotation.BertTopic</name>
+
+
+            <description/>
+
+
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+
+
+            <features>
+
+                <featureDescription>
+
+                    <name>Topics</name>
+
+                    <description>Set of Topic with key and Value</description>
+
+                    <rangeTypeName>uima.cas.FSArray</rangeTypeName>
+
+                    <elementType>org.texttechnologylab.annotation.TopicValue</elementType>
+
+                </featureDescription>
+
+                <featureDescription>
+
+                    <name>model</name>
+
+                    <description/>
+
+                    <rangeTypeName>org.texttechnologylab.annotation.model.MetaData</rangeTypeName>
+
+                </featureDescription>
+
+            </features>
+
+
+        </typeDescription>
+
+        <typeDescription>
+
+            <name>org.texttechnologylab.annotation.TopicValue</name>
+
+            <description/>
+
+            <supertypeName>uima.cas.AnnotationBase</supertypeName>
+
+            <features>
+
+                <featureDescription>
+
+                    <name>value</name>
+
+                    <description/>
+
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+
+                </featureDescription>
+
+                <featureDescription>
+
+                    <name>probability</name>
+
+                    <description/>
+
+                    <rangeTypeName>uima.cas.Double</rangeTypeName>
+
+                </featureDescription>
+
+            </features>
+
+        </typeDescription>
+    </types>
+</typeSystemDescription>
