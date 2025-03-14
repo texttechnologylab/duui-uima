@@ -11,6 +11,8 @@ function serialize(inputCas, outputStream, params)
 
     local audioBase64 = inputCas:getSofaDataString() --inputCas:getView(audioView):getSofaDataString()
     local language = params["language"]
+    local model = params["model"]
+    local batch_size = params["batch_size"]
 
     if language == nil then
         language = inputCas:getDocumentLanguage()
@@ -23,7 +25,9 @@ function serialize(inputCas, outputStream, params)
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         audio = audioBase64,
-        language = language
+        language = language,
+        model = model,
+        batch_size = batch_size
     }))
 end
 
