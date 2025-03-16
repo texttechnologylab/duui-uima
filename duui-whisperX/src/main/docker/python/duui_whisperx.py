@@ -1,8 +1,10 @@
 import base64
 import logging
+from functools import lru_cache
 from platform import python_version
 from sys import version as sys_version
 from tempfile import NamedTemporaryFile
+from threading import Lock
 from time import time
 from typing import List, Optional
 
@@ -16,9 +18,18 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from starlette.responses import JSONResponse
 
+try:
+    from src.main.docker.python.model_preloader import SUPPORTED_LANGUAGES, MODEL_DIR, SUPPORTED_MODELS
+except ModuleNotFoundError:
+    from model_preloader import SUPPORTED_LANGUAGES, MODEL_DIR, SUPPORTED_MODELS
 
-# TODO keep up to date with requirements.txt
-whisperx_version = "3.3.1"
+
+whisperx_version = "unknown"
+with open("requirements.txt", "r", encoding="UTF-8") as fp:
+    for line in fp:
+        if line.startswith("whisperx=="):
+            whisperx_version = line.split("==")[1].strip()
+            break
 
 
 # Token
@@ -54,6 +65,7 @@ class DUUIRequest(BaseModel):
     language: str
     model: str = "large-v2"
     batch_size: int = 16
+    allow_download: bool = False  # allow model download
 
 
 # Response of this annotator
@@ -63,6 +75,8 @@ class DUUIResponse(BaseModel):
     # - audiotoken
     audio_token: List[AudioToken]
     language: str
+    meta: Optional[AnnotationMeta]
+    modification_meta: Optional[DocumentModification]
 
 
 class DUUICapability(BaseModel):
@@ -100,25 +114,6 @@ logger.info("TTLab TextImager DUUI whisperX")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
-# Start fastapi
-app = FastAPI(
-    docs_url="/api",
-    redoc_url=None,
-    title="WhisperX audio transcription",
-    description="Audio transcription for TTLab DUUI",
-    version="2.1",
-    terms_of_service="https://www.texttechnologylab.org/legal_notice/",
-    contact={
-        "name": "Daniel Bundan",
-        "url": "bundan.me",
-        "email": "s1486849@stud.uni-frankfurt.de",
-    },
-    license_info={
-        "name": "AGPL",
-        "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
-    },
-)
-
 # Load the Lua communication script
 communication = "communication.lua"
 logger.debug("Loading Lua communication script from \"%s\"", communication)
@@ -135,6 +130,40 @@ with open(typesystem_filename, 'rb') as f:
     typesystem_xml_content = typesystem.to_xml().encode("utf-8")
     logger.debug("Base typesystem:")
     logger.debug(typesystem_xml_content)
+
+lru_cache_with_size_model = lru_cache(maxsize=3)
+lru_cache_with_size_align_model = lru_cache(maxsize=3)
+model_load_lock = Lock()
+model_align_load_lock = Lock()
+
+# TODO detect only once at startup?
+device = "cuda" if torch.cuda.is_available() else "cpu"
+logger.info("Device: %s", device)
+
+# TODO preload models with both variants?
+compute_type = "float16" if torch.cuda.is_available() else "int8"
+
+# Load different pipeline depending on CUDA availability
+asr_options = {"word_timestamps": True}
+
+# Start fastapi
+app = FastAPI(
+    docs_url="/api",
+    redoc_url=None,
+    title=settings.annotator_name,
+    description="Audio transcription for TTLab DUUI",
+    version=settings.annotator_version,
+    terms_of_service="https://www.texttechnologylab.org/legal_notice/",
+    contact={
+        "name": "Daniel Bundan",
+        "url": "http://bundan.me",
+        "email": "s1486849@stud.uni-frankfurt.de",
+    },
+    license_info={
+        "name": "AGPL",
+        "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
+    },
+)
 
 
 # Get input / output of the annotator
@@ -168,8 +197,8 @@ def get_communication_layer() -> str:
 @app.get("/v1/documentation")
 def get_documentation() -> DUUIDocumentation:
     capabilities = DUUICapability(
-        supported_languages=SUPPORTED_LANGS,
-        reproducible=True
+        supported_languages=sorted(SUPPORTED_LANGUAGES),
+        reproducible=True  # really?
     )
 
     documentation = DUUIDocumentation(
@@ -182,12 +211,49 @@ def get_documentation() -> DUUIDocumentation:
             "whisperx_version": whisperx_version
         },
         docker_container_id="[TODO]",
-        parameters={},
+        parameters={
+            "language": sorted(SUPPORTED_LANGUAGES),
+            "model": sorted(SUPPORTED_MODELS),
+            "batch_size": "int",
+            "allow_download": "bool",
+        },
         capability=capabilities,
         implementation_specific=None,
     )
 
     return documentation
+
+
+@lru_cache_with_size_model
+def load_cache_model(model_name, language, local_files_only):
+    logger.info("Loading model %s for language %s on device %s", model_name, language, device)
+    return whisperx.load_model(
+        model_name,
+        device,
+        compute_type=compute_type,
+        language=language,
+        asr_options=asr_options,
+        local_files_only=local_files_only,
+        download_root=MODEL_DIR
+    )
+
+
+def load_model(model_name, language, local_files_only):
+    with model_load_lock:
+        return load_cache_model(model_name, language, local_files_only)
+
+
+@lru_cache_with_size_align_model
+def load_cache_align_model(language):
+    logger.info("Loading aligned model for language %s on device %s", language, device)
+    return whisperx.load_align_model(
+        language_code=language, device=device, model_dir=MODEL_DIR
+    )
+
+
+def load_align_model(language):
+    with model_align_load_lock:
+        return load_cache_align_model(language)
 
 
 # Process request from DUUI
@@ -202,35 +268,24 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     language = None
     if request.language:
         language = request.language
-    print("Language:", language)
-
-    # TODO detect only once at startup?
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Device:", device)
-
-    compute_type = "float16" if torch.cuda.is_available() else "int8"
-
-    # Load different pipeline depending on CUDA availability
-    asr_options = {"word_timestamps": True}
+    logger.info("Language: %s", language)
 
     with NamedTemporaryFile() as audio_file:
         # if this fails we stop processing
         with open(audio_file.name, "wb") as fp:
             fp.write(base64.b64decode(request.audio))
 
-        model = whisperx.load_model(
-            request.model, device, compute_type=compute_type, language=language, asr_options=asr_options,
-            local_files_only=True, download_root="/tmp/whisperx"
-        )
+        model = load_model(request.model, language, not request.allow_download)
         audio = whisperx.load_audio(audio_file.name)
+        # TODO language param
         result = model.transcribe(audio, batch_size=request.batch_size)
 
         # use language detected by the model if not provided
         if not language:
             language = result["language"]
-            print("Using detected language:", language)
+            logger.info("Using detected language: %s", language)
 
-        alignment_model, metadata = whisperx.load_align_model(language_code=language, device=device)
+        alignment_model, metadata = load_align_model(language)
         aligned_result = whisperx.align(result["segments"], alignment_model, metadata, audio_file.name, device)
 
         current_length = 0
@@ -256,18 +311,18 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             if len(text) > 0:
                 current_length += len(text) + 1
 
-            meta = AnnotationMeta(
-                name=settings.annotator_name,
-                version=settings.annotator_version,
-                modelName=f"whisperX {request.model}",
-                modelVersion=whisperx_version
-            )
+        meta = AnnotationMeta(
+            name=settings.annotator_name,
+            version=settings.annotator_version,
+            modelName=f"whisperX {request.model}",
+            modelVersion=whisperx_version
+        )
 
-            modification_meta = DocumentModification(
-                user=settings.annotator_name,
-                timestamp=modification_timestamp_seconds,
-                comment=f"{settings.annotator_name} ({settings.annotator_version}), whisperX ({whisperx_version})"
-            )
+        modification_meta = DocumentModification(
+            user=settings.annotator_name,
+            timestamp=modification_timestamp_seconds,
+            comment=f"{settings.annotator_name} ({settings.annotator_version}), whisperX ({whisperx_version})"
+        )
 
     logger.debug(meta)
     logger.debug(modification_meta)
@@ -277,9 +332,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     
     return DUUIResponse(
         audio_token=results,
-        language=language
+        language=language,
+        meta=meta,
+        modification_meta=modification_meta
     )
-
-
-#if __name__ == "__main__":
-#  uvicorn.run("duui_whisperx:app", host="0.0.0.0", port=9714, workers=1)
