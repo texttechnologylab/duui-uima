@@ -6,4 +6,4 @@ pydantic-settings==2.0.3
 pydantic_core==2.10.1
 starlette==0.27.0
 uvicorn==0.23.2
-whisperx==3.2.0
+whisperx==3.3.1
