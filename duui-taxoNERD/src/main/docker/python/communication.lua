@@ -1,7 +1,5 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
---Taxon = luajava.bindClass("org.texttechnologylab.annotation.type.Taxon")
---AnnotationComment = luajava.bindClass("org.texttechnologylab.annotation.AnnotationComment")
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -9,14 +7,27 @@ StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 function serialize(inputCas, outputStream, params)
     -- Get data from CAS
-    -- For spaCy, we need the documents text and its language
-    -- TODO add additional params?
+
     local doc_text = inputCas:getDocumentText()
+    local linking = "gbif_backbone"
+    local threshold = 0.7
+    if params["linking"] ~= nil then
+        linking = params["linking"]
+    end
+    if params["threshold"] ~= nil then
+        threshold = params["threshold"]
+    end
+
+    print(linking)
+    print(doc_text)
+    print(threshold)
 
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
-        text = doc_text
+        text = doc_text,
+        linking = linking,
+        threshold = threshold
     }))
 end
 

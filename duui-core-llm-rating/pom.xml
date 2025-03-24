@@ -12,8 +12,53 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <ttlab.duui.version>1.4.1</ttlab.duui.version>
-        <ttlab.typesystem.version>c67430363d4ee088f181e3ee2541b29ad95171a6</ttlab.typesystem.version>
+        <ttlab.typesystem.version>9806cc024d08aa3164bbe1bd00adc09d408cdf0b</ttlab.typesystem.version>
     </properties>
+
+    <profiles>
+        <profile>
+            <id>anduin</id>
+            <build>
+                <directory>./targetAnduin</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>anduin2</id>
+            <build>
+                <directory>./targetAnduin2</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>anduin3</id>
+            <build>
+                <directory>./targetAnduin3</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>anduin4</id>
+            <build>
+                <directory>./targetAnduin4</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>rohan</id>
+            <build>
+                <directory>./targetRohan</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>rohan2</id>
+            <build>
+                <directory>./targetRohan2</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>default2</id>
+            <build>
+                <directory>./target2</directory>
+            </build>
+        </profile>
+    </profiles>
 
     <build>
         <plugins>
@@ -51,15 +96,38 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.github.Myyyvothrr</groupId>
-            <artifactId>UIMATypeSystem</artifactId>
-            <version>${ttlab.typesystem.version}</version>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-xmi-asl</artifactId>
+            <version>2.5.0</version>
         </dependency>
 
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
+            <groupId>com.github.Myyyvothrr</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>${ttlab.typesystem.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>net.minidev</groupId>
+                    <artifactId>json-smart</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+<!--        <dependency>-->
+<!--            <groupId>com.github.texttechnologylab</groupId>-->
+<!--            <artifactId>DockerUnifiedUIMAInterface</artifactId>-->
+<!--            <version>${ttlab.duui.version}</version>-->
+<!--            <exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.github.texttechnologylab</groupId>-->
+<!--                    <artifactId>UIMATypeSystem</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
+<!--        </dependency>-->
+        <dependency>
+            <groupId>org.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>${ttlab.duui.version}</version>
+            <version>1.4.2-dev</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.github.texttechnologylab</groupId>

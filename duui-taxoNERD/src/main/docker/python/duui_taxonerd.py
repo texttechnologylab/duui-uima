@@ -1,12 +1,16 @@
 from typing import List, Optional
+
+from attr.filters import exclude
 from cassis import *
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 from starlette.responses import JSONResponse
 from taxonerd import *
 from functools import lru_cache
+import uvicorn
 
 
 class GBIF(BaseModel):
@@ -27,6 +31,10 @@ class Taxon(BaseModel):
 class DUUIRequest(BaseModel):
     # The text to process
     text: str
+    # Linking parameter
+    linking: str
+    # Threshold
+    threshold: float
 
 
 # Response of this annotator
@@ -39,23 +47,37 @@ class DUUIResponse(BaseModel):
 class Settings(BaseSettings):
     # Name of the Model
     model: str
-    # Name of the linking
-    linking: str
 
 # settings + cache
 settings = Settings()
 lru_cache_with_size = lru_cache(maxsize=3)
 
-config = {"prefer_gpu": False,
-          "with_abbrev": True,
-          "model": settings.model,
-          "with_linking": settings.linking}
+# config = {"prefer_gpu": True,
+#           "model": settings.model,
+#           "with_linking": "gbif_backbone"}
 
-@lru_cache_with_size
-def load_taxonerd(**kwargs):
+config = {"prefer_gpu": False}
+model_settings = {'model': settings.model,
+         'linker': 'gbif_backbone',
+         'threshold': 0.7,
+          'exclude':[
+              'tagger',
+              'parser',
+              'taxo_abbrev_detector',
+              'taxon_linker',
+              'pysbd_sentencizer'
+          ]
+         }
+
+ner = TaxoNERD(prefer_gpu=True)
+
+# @lru_cache(maxsize=1)
+def load_taxonerd(settings):
     # Add with_linking="gbif_backbone" or with_linking="taxref" to activate entity linking
-    return TaxoNERD(**kwargs)
-
+    # ner.load(model="en_ner_eco_biobert", linker=request.linking, threshold=request.threshold)
+    print(settings)
+    ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
+    return ner
 
 def analyse(text, ner):
 
@@ -63,7 +85,6 @@ def analyse(text, ner):
     print(result)
 
     taxons = []
-
 
     for index, row in result.iterrows():
         offset = row['offsets'].split(" ")
@@ -88,19 +109,16 @@ def analyse(text, ner):
     return taxons
 
 
-# Start fastapi
-# TODO openapi types are not shown?
-# TODO self host swagger files: https://fastapi.tiangolo.com/advanced/extending-openapi/#self-hosting-javascript-and-css-for-docs
 app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
     title="TaxoNERD",
-    description="TaxoNERD implementation for TTLab TextImager DUUI",
+    description="TaxoNERD implementation for TTLab DUUI",
     version="0.1",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
-        "name": "TTLab Team",
+        "name": "Giuseppe Abrami, TTLab Team",
         "url": "https://texttechnologylab.org",
         "email": "abrami@em.uni-frankfurt.de",
     },
@@ -117,7 +135,7 @@ with open(communication, 'rb') as f:
 
 
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'dkpro-core-types.xml'
+typesystem_filename = 'types.xml'
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
 
@@ -147,11 +165,6 @@ def get_typesystem() -> Response:
     )
 
 
-# #@app.before_first_request
-# @app.on_event("startup")
-# def setup():
-#     global ner
-
 
 # Return Lua communication script
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
@@ -162,8 +175,16 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
+    print(request)
+
     text = request.text
-    ner = load_taxonerd(**config)
+    model_settings["linker"]=request.linking
+    model_settings["threshold"]=request.threshold
+    # print(config)
+    # print(model)
+    ner = load_taxonerd(model_settings)
+
+    print("Finish Loading")
     taxons = analyse(text, ner)
 
     # Return data as JSON
@@ -174,4 +195,4 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 if __name__ == "__main__":
 
-    uvicorn.run("duui_taxonerd:app", host="0.0.0.0", port=9715, workers=2)
+    uvicorn.run("duui_taxonerd:app", host="0.0.0.0", port=9714, workers=1)

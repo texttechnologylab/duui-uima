@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging
 from platform import python_version
@@ -9,6 +10,7 @@ from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from langchain_core.messages.base import message_to_dict
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel
@@ -47,8 +49,13 @@ SUPPORTED_LANGS = [
 
 
 class LLMMessage(BaseModel):
-    role: str
+    role: str = None
     content: str
+    class_module: str = None
+    class_name: str = None
+    fillable: bool = False
+    context_name: str = None
+    ref: int   # internal cas annotation id
 
 
 class LLMPrompt(BaseModel):
@@ -58,9 +65,9 @@ class LLMPrompt(BaseModel):
 
 
 class LLMResult(BaseModel):
-    content: str
     meta: str  # json string
-    ref: int   # internal cas annotation id
+    prompt_ref: int   # internal cas annotation id
+    message_ref: int   # internal cas annotation id
 
 
 class TextImagerRequest(BaseModel):
@@ -83,6 +90,7 @@ class DocumentModification(BaseModel):
 
 class TextImagerResponse(BaseModel):
     llm_results: List[LLMResult]
+    prompts: List[LLMPrompt]
     meta: Optional[AnnotationMeta]
     modification_meta: Optional[DocumentModification]
 
@@ -185,6 +193,15 @@ def get_input_output() -> TextImagerInputOutput:
     )
 
 
+def _query_llm(prompt_messages, llm, prompt_args):
+    prompt_messages = ChatPromptTemplate.from_messages(prompt_messages)
+    chain = prompt_messages | llm
+
+    llm_result = chain.invoke(prompt_args)
+    llm_result = message_to_dict(llm_result)
+    return llm_result
+
+
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
@@ -195,43 +212,77 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
     try:
         llm_args = json.loads(request.llm_args)
+        llm = ChatOllama(**llm_args)
 
-        runs = llm_args["runs"] if "runs" in llm_args else 1
-        for run in range(runs):
-            local_llm_args = {
-                **llm_args,
-                "seed": llm_args["seed"] + run
-            }
-            llm = ChatOllama(**local_llm_args)
+        for prompt in request.prompts:
+            # context data that is given to llm invocation
+            # consists of "global" prompt arguments and additionally extracted content from messages
+            context = json.loads(prompt.args)
 
-            for prompt in request.prompts:
-                prompt_args = json.loads(prompt.args)
+            prompt_messages = []
+            for message in prompt.messages:
+                # check if this message should be filled by the model
+                # only fill if no content (== json encoded empty string) is available
+                if message.fillable is True and message.content == "\"\"":
+                    llm_t_start = time()
+                    llm_result = _query_llm(prompt_messages, llm, context)
+                    llm_t_end = time()
+                    llm_t_duration = llm_t_end - llm_t_start
+                    llm_content = llm_result["data"]["content"]
 
-                prompt_messages = []
-                for message in prompt.messages:
+                    # add the result to this message
+                    # NOTE that we always encode the content as json, as we expect for all "Langchain" messages
+                    message.content = json.dumps(llm_content)
+
+                    # add results to output
+                    del llm_result["data"]["content"]
+                    llm_result = {
+                        **llm_result,
+                        "prompt_args": context,
+                        "llm_args": llm_args,
+                        "llm_t_start": llm_t_start,
+                        "llm_t_end": llm_t_end,
+                        "llm_t_duration": llm_t_duration
+                    }
+                    llm_results.append(LLMResult(
+                        meta=json.dumps(llm_result),
+                        prompt_ref=prompt.ref,
+                        message_ref=message.ref
+                    ))
+
+                # if set, extract this messages content into the context
+                if message.context_name is not None:
+                    if message.context_name in context:
+                        logger.warning("Context name \"%s\" already exists, overwriting", message.context_name)
+                    # content is always json encoded on Langchain-class-messages
+                    context[message.context_name] = json.loads(message.content)
+
+                # add message to prompt
+                # we support three types of messages:
+                # - simple tuple consisting of content and role, this supports placeholders
+                # - message-class based, consisting of content (and implicit role), this does not support placeholder resolution
+                # - template-class based, consisting of content with support for placeholders
+                if message.class_module is not None and message.class_name is not None:
+                    # create Langchain-class-based message
+                    module = importlib.import_module(message.class_module)
+                    constructor = getattr(module, message.class_name)
+
+                    # content is always json encoded on Langchain-class-messages
+                    msg_content = json.loads(message.content)
+
+                    if "prompt" in constructor.model_fields:
+                        prompt_messages.append(
+                            constructor.from_template(msg_content)
+                        )
+                    elif "content" in constructor.model_fields:
+                        prompt_messages.append(
+                            constructor(content=msg_content)
+                        )
+                else:
                     prompt_messages.append((
                         message.role,
                         message.content
                     ))
-
-                prompt_messages = ChatPromptTemplate.from_messages(prompt_messages)
-                chain = prompt_messages | llm
-
-                llm_result = chain.invoke(prompt_args)
-                llm_result = message_to_dict(llm_result)
-
-                llm_content = llm_result["data"]["content"]
-                del llm_result["data"]["content"]
-                llm_result = {
-                    **llm_result,
-                    "llm_args": local_llm_args,
-                }
-
-                llm_results.append(LLMResult(
-                    content=llm_content,
-                    meta=json.dumps(llm_result),
-                    ref=prompt.ref
-                ))
 
         try:
             model_name, _, model_version = llm_args["model"].partition(":")
@@ -263,6 +314,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
     return TextImagerResponse(
         llm_results=llm_results,
+        prompts=request.prompts,
         meta=meta,
         modification_meta=modification_meta,
     )
