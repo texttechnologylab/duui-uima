@@ -28,7 +28,7 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-party-cap-v3', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-xlm-roberta-base-sentiment')"
-RUN #python -c "from transformers import pipeline; pipeline('text-classification', model='citizenlab/twitter-xlm-roberta-base-sentiment-finetunned')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='citizenlab/twitter-xlm-roberta-base-sentiment-finetunned')"
 
 # log level
 ARG LOG_LEVEL="DEBUG"

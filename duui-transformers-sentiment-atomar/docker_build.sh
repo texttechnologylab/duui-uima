@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-transformers-sentiment-atomar
-export ANNOTATOR_VERSION=0.4.0
+export ANNOTATOR_VERSION=0.5.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
