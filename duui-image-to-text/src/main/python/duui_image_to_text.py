@@ -170,7 +170,7 @@ class Settings(BaseSettings):
 
 
 # Documentation response
-class TextImagerDocumentation(BaseModel):
+class ImageToTextDocumentation(BaseModel):
     # Name of this annotator
     annotator_name: str
 
@@ -224,7 +224,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'TypeSystemImageToText.xml'
+typesystem_filename = './resources/TypeSystemImageToText.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 with open(typesystem_filename, 'rb') as f:
@@ -240,7 +240,7 @@ logger.debug("Loading Lua communication script from \"%s\"", lua_communication_s
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
-class TextImagerRequest(BaseModel):
+class ImageToTextRequest(BaseModel):
 
     # list of images
     images: List[ImageType]
@@ -262,7 +262,7 @@ class TextImagerRequest(BaseModel):
 
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
-class TextImagerResponse(BaseModel):
+class ImageToTextResponse(BaseModel):
     # list of processed text
     processed_text: str
     # list of entities (bounding boxes)
@@ -342,7 +342,7 @@ def get_input_output() -> JSONResponse:
 # Return documentation info
 @app.get("/v1/documentation")
 def get_documentation():
-    return TextImagerDocumentation(
+    return ImageToTextDocumentation(
         annotator_name=settings.image_to_text_annotator_name,
         version=settings.image_to_text_model_version,
         implementation_lang="Python",
@@ -435,7 +435,7 @@ def process_image(model_name, image, prompt):
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: TextImagerRequest):
+def post_process(request: ImageToTextRequest):
     # Fetch model-related information
     model_source = sources.get(request.model_name, "Unknown source")
     model_lang = languages.get(request.model_name, "Unknown language")
@@ -470,7 +470,7 @@ def post_process(request: TextImagerRequest):
             print(processed_text)
             result_images.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text)))
         # Return the processed data in response
-        return TextImagerResponse(
+        return ImageToTextResponse(
             processed_text=processed_text,
             entities=result_entities,
             images=result_images,
@@ -484,7 +484,7 @@ def post_process(request: TextImagerRequest):
 
     except Exception as ex:
         logger.exception(ex)
-        return TextImagerResponse(
+        return ImageToTextResponse(
             processed_text=[],
             entities=[],
             images=[],
