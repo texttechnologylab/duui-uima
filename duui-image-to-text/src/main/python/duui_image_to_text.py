@@ -224,7 +224,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = './resources/TypeSystemImageToText.xml'
+typesystem_filename = '../resources/TypeSystemImageToText.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 with open(typesystem_filename, 'rb') as f:

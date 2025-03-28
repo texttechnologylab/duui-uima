@@ -12,30 +12,45 @@ function serialize(inputCas, outputStream, parameters)
     -- get the parameters promopt or default
     local prompt = parameters["prompt"] if parameters["prompt"] == nil then prompt = "<grounding>An image of" end
     local model_name = parameters["model_name"] if parameters["model_name"] == nil then model_name = "microsoft/kosmos-2-patch14-224" end
+    local selection_types = parameters["selections"] if parameters["selections"] == nil then selection_types="org.texttechnologylab.annotation.type.Image" end
     --print("truncate_text: ", truncate_text)
     print("start")
+    local images = {}
+    local number_of_images = 1
+    for selection_type in string.gmatch(selection_types, "([^,]+)") do
+        print("selection_type: ", selection_type)
+        if selection_type == 'text' then
+            local doc_text = inputCas:getDocumentText()
+            local doc_len = TopicUtils:getDocumentTextLength(inputCas)
+            images[number_of_images] = {
+                src = doc_text,
+                height = 0,
+                width = 0,
+                begin = 0,
+                ['end'] = doc_len
+            }
+            number_of_images = number_of_images + 1
+        else
+            local class = Class:forName(selection_type);
+            local image_it = JCasUtil:select(inputCas, class):iterator()
+            while image_it:hasNext() do
+                local image = image_it:next()
+                images[number_of_images] = {
+                    src = image:getSrc(),
+                    height = image:getHeight(),
+                    width = image:getWidth(),
+                    begin = image:getBegin(),
+                    ['end'] = image:getEnd()
+                }
+                number_of_images = number_of_images + 1
+            end
 
-    -- loop over the images and get the image annotations
-    local image_it = JCasUtil:select(inputCas, luajava.bindClass("org.texttechnologylab.annotation.type.Image")):iterator()
-    local number_of_images = 0
-    local images_out = {}
-    print("hello")
-    while image_it:hasNext() do
-        print("image_it")
-        print("number_of_images: ", number_of_images)
-        local image = image_it:next()
-        number_of_images = number_of_images + 1
-        images_out[number_of_images] = {
-            src = image:getSrc(),
-            height = image:getHeight(),
-            width = image:getWidth(),
-            begin = image:getBegin(),
-            ['end']= image:getEnd()
-        }
-    end
+        end
+
+        end
 
     outputStream:write(json.encode({
-        images = images_out,
+        images = images,
         number_of_images = number_of_images,
         prompt = prompt,
         doc_lang = doc_lang,
