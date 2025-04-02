@@ -1,14 +1,23 @@
-FROM python:3.10
+#FROM python:3.10
+FROM nvidia/cuda:12.1.1-runtime-ubuntu20.04
+ARG DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /usr/src/app
 
-#RUN pip install --upgrade pip
-RUN pip install setuptools wheel
-COPY ./requirements.txt ./requirements.txt
-#RUN pip install --no-deps -r ./requirements.txt
-RUN pip install -r ./requirements.txt
+RUN apt-get update && \
+    apt-get install -y python3.10 python3-pip python3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN pip install git+https://github.com/abrami/taxonerd
+RUN pip install --upgrade pip
+RUN pip install setuptools wheel
+RUN pip install setuptools pip
+COPY ./requirements-cuda.txt ./requirements-cuda.txt
+#RUN pip install --no-deps -r ./requirements.txt
+
+# RUN CUDA_PATH=/opt/nvidia/cuda pip install cupy==13.0.0a1
+
+RUN pip install taxonerd[cuda12x]
+
 RUN pip install --no-binary :all: nmslib
 
 # The possible models
@@ -16,6 +25,8 @@ RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.
 RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_biobert_weak-1.1.0.tar.gz
 #RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_md-1.1.0.tar.gz
 #RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_md_weak-1.1.0.tar.gz
+
+RUN pip install -r ./requirements-cuda.txt
 
 # vars
 #ARG MODEL="en_ner_eco_md"
