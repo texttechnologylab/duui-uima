@@ -1,0 +1,4 @@
+fastapi==0.110.0
+dkpro-cassis==0.9.1
+uvicorn[standard]==0.27.1
+pydantic-settings==2.0.2
