@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-transformers-topic
-export ANNOTATOR_VERSION=0.3.0
+export ANNOTATOR_VERSION=0.4.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
@@ -11,11 +11,11 @@ eport MODEL_CACHE_SIZE=3
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="classla/multilingual-IPTC-news-topic-classifier"
-#export MODEL_SPECNAME="multilingual-iptc-media-topic-classifier"
-#export MODEL_VERSION="ad2fac9ca58ad554021c0f244f15a9d556976229"
-#export MODEL_SOURCE="https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier"
-#export MODEL_LANG="Multi"
+export MODEL_NAME="classla/multilingual-IPTC-news-topic-classifier"
+export MODEL_SPECNAME="multilingual-iptc-media-topic-classifier"
+export MODEL_VERSION="ad2fac9ca58ad554021c0f244f15a9d556976229"
+export MODEL_SOURCE="https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier"
+export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 
@@ -46,11 +46,11 @@ eport MODEL_CACHE_SIZE=3
 ###--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="cardiffnlp/tweet-topic-large-multilingual"
-export MODEL_SPECNAME="tweet-topic-large-multilingual"
-export MODEL_VERSION="e68d741bf72c67d78806cf49a1f8831ffebd63f8"
-export MODEL_SOURCE="https://huggingface.co/cardiffnlp/tweet-topic-large-multilingual"
-export MODEL_LANG="EN,ES,El,JA"
+#export MODEL_NAME="cardiffnlp/tweet-topic-large-multilingual"
+#export MODEL_SPECNAME="tweet-topic-large-multilingual"
+#export MODEL_VERSION="e68d741bf72c67d78806cf49a1f8831ffebd63f8"
+#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/tweet-topic-large-multilingual"
+#export MODEL_LANG="EN,ES,El,JA"
 ##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"

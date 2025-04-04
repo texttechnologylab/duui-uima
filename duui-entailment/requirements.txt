@@ -1,8 +1,8 @@
 tqdm==4.66.1
 transformers==4.38.2
-torch==2.2.0
-torchvision==0.17.0
-torchaudio==2.2.0
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
 openai==1.14.3
 dkpro-cassis==0.9.1
 fastapi==0.110.0
