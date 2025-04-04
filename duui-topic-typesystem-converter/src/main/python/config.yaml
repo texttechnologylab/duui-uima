@@ -1,0 +1,6 @@
+
+annotation:
+  name: test
+  version: 1
+
+log_level: DEBUG
