@@ -76,7 +76,8 @@ def load_taxonerd(settings):
     # Add with_linking="gbif_backbone" or with_linking="taxref" to activate entity linking
     # ner.load(model="en_ner_eco_biobert", linker=request.linking, threshold=request.threshold)
     print(settings)
-    ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
+    #ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
+    ner.load(model=settings["model"], exclude=[], linker=settings["linker"], threshold=settings["threshold"])
     return ner
 
 def analyse(text, ner):
