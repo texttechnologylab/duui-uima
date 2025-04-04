@@ -11,7 +11,7 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='kornosk/bert-election2020-twitter-stance-trump')"
-#RUN python -c "from transformers import pipeline; pipeline('zero-shot-classification', model='mlburnham/deberta-v3-base-polistance-affect-v1.0')"
+RUN python -c "from transformers import pipeline; pipeline('zero-shot-classification', model='mlburnham/deberta-v3-base-polistance-affect-v1.0')"
 
 # copy scripts
 COPY ./src/main/python/duui_stance.lua ./duui_stance.lua
