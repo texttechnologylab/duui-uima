@@ -76,6 +76,7 @@ public class TestTTSConverter {
 
 
         Collection<UnifiedTopic> all_topics = JCasUtil.select(cas, UnifiedTopic.class);
+        Assertions.assertEquals(all_topics.size(), 2);
         for (UnifiedTopic topic : all_topics) {
             System.out.println(topic.getCoveredText());
             Integer idx = ((ArrayList) all_topics).indexOf(topic);
@@ -90,6 +91,7 @@ public class TestTTSConverter {
                     }
                 }
             }
+            Assertions.assertEquals(topics.size(), 10);
 
             // Get the key with the highest score
             if (!topics.isEmpty()) {
@@ -124,6 +126,8 @@ public class TestTTSConverter {
 
 
         Collection<UnifiedTopic> all_topics = JCasUtil.select(cas, UnifiedTopic.class);
+
+        Assertions.assertEquals(all_topics.size(), 2);
         for (UnifiedTopic topic : all_topics) {
             System.out.println(topic.getCoveredText());
             Integer idx = ((ArrayList) all_topics).indexOf(topic);
@@ -138,6 +142,7 @@ public class TestTTSConverter {
                     }
                 }
             }
+            Assertions.assertEquals(topics.size(), 21);
 
             // Get the key with the highest score
             if (!topics.isEmpty()) {
@@ -172,6 +177,7 @@ public class TestTTSConverter {
 
 
         Collection<UnifiedTopic> all_topics = JCasUtil.select(cas, UnifiedTopic.class);
+        Assertions.assertEquals(all_topics.size(), 2);
         for (UnifiedTopic topic : all_topics) {
             System.out.println(topic.getCoveredText());
             Integer idx = ((ArrayList) all_topics).indexOf(topic);
@@ -186,6 +192,114 @@ public class TestTTSConverter {
                     }
                 }
             }
+
+            Assertions.assertEquals(topics.size(), 1);
+
+            // Get the key with the highest score
+            if (!topics.isEmpty()) {
+                String key = Collections.max(topics.entrySet(), Map.Entry.comparingByValue()).getKey();
+                System.out.println(key);
+                Assertions.assertEquals(expected1.get(idx), key);
+
+            }
+        }
+
+
+    }
+
+
+    @Test
+    public void TestTransformerTopicAndBERTopicToUnifiedTopic() throws Exception {
+        String data_file = "src/test/resources/multi_anns_bt_tt.xml";
+
+        CasIOUtils.load(
+                new FileInputStream(data_file),
+                cas.getCas()
+        );
+
+
+        composer.add((new DUUIRemoteDriver.Component(url))
+                .withParameter("remove_old", "true")
+                .withParameter("selection", "org.texttechnologylab.annotation.BertTopic;org.texttechnologylab.annotation.Topic").build().withTimeout(1000L));
+        composer.run(cas);
+
+        ArrayList<String> expected1 = new ArrayList<>();
+        expected1.add("2374_entrances_subterranean_tunnel_stairs");
+        expected1.add("daily_life");
+        expected1.add("9_reelection_election_republican_elections");
+        expected1.add("pop_culture");
+
+
+        Collection<UnifiedTopic> all_topics = JCasUtil.select(cas, UnifiedTopic.class);
+        Assertions.assertEquals(all_topics.size(), 4);
+        for (UnifiedTopic topic : all_topics) {
+            System.out.println(topic.getCoveredText());
+            Integer idx = ((ArrayList) all_topics).indexOf(topic);
+            Map<String, Double> topics = new HashMap<>();
+            FSArray topicArray = topic.getTopics();
+
+            if (topicArray != null) {
+                for (int i = 0; i < topicArray.size(); i++) {
+                    if (topicArray.get(i) instanceof TopicValueBaseWithScore) {
+                        TopicValueBaseWithScore topicValue = (TopicValueBaseWithScore) topicArray.get(i);
+                        topics.put(topicValue.getValue(), topicValue.getScore());
+                    }
+                }
+            }
+
+
+            // Get the key with the highest score
+            if (!topics.isEmpty()) {
+                String key = Collections.max(topics.entrySet(), Map.Entry.comparingByValue()).getKey();
+                System.out.println(key);
+                Assertions.assertEquals(expected1.get(idx), key);
+
+            }
+        }
+
+
+    }
+
+
+    @Test
+    public void TestCategoryTopicAndBERTopicToUnifiedTopic() throws Exception {
+        String data_file = "src/test/resources/multi_anns_bt_cct.xml";
+
+        CasIOUtils.load(
+                new FileInputStream(data_file),
+                cas.getCas()
+        );
+
+
+        composer.add((new DUUIRemoteDriver.Component(url))
+                .withParameter("remove_old", "true")
+                .withParameter("selection", "org.texttechnologylab.annotation.BertTopic;org.hucompute.textimager.uima.type.category.CategoryCoveredTagged").build().withTimeout(1000L));
+        composer.run(cas);
+
+        ArrayList<String> expected1 = new ArrayList<>();
+        expected1.add("9_reelection_election_republican_elections");
+        expected1.add("__label_ddc__700");
+        expected1.add("2374_entrances_subterranean_tunnel_stairs");
+        expected1.add("__label_ddc__100");
+
+
+        Collection<UnifiedTopic> all_topics = JCasUtil.select(cas, UnifiedTopic.class);
+        Assertions.assertEquals(all_topics.size(), 4);
+        for (UnifiedTopic topic : all_topics) {
+            System.out.println(topic.getCoveredText());
+            Integer idx = ((ArrayList) all_topics).indexOf(topic);
+            Map<String, Double> topics = new HashMap<>();
+            FSArray topicArray = topic.getTopics();
+
+            if (topicArray != null) {
+                for (int i = 0; i < topicArray.size(); i++) {
+                    if (topicArray.get(i) instanceof TopicValueBaseWithScore) {
+                        TopicValueBaseWithScore topicValue = (TopicValueBaseWithScore) topicArray.get(i);
+                        topics.put(topicValue.getValue(), topicValue.getScore());
+                    }
+                }
+            }
+
 
             // Get the key with the highest score
             if (!topics.isEmpty()) {

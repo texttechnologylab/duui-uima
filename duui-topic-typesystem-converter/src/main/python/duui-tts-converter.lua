@@ -3,83 +3,111 @@ Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
 
+function get_topics(selection, selection_type)
+    --print(selection)
+    local topics = selection:getTopics()
+    --print(topics)
+    local topics_it = topics:iterator()
+    local tops = {}
+    local topics_count = 1
+    while topics_it:hasNext() do
+        local topic = topics_it:next()
+
+        if selection_type == "org.texttechnologylab.annotation.BertTopic" then
+            --print(selection_type)
+            --print(topic:getValue())
+            local s = {
+                                value = topic:getValue(),
+                                score = topic:getProbability(),
+                            }
+            tops[topics_count] = s
+            topics_count = topics_count + 1
+        else
+            --print(selection_type)
+            --print(topic:getValue())
+            local s = {
+                                value = topic:getKey(),
+                                score = topic:getValue(),
+                            }
+            tops[topics_count] = s
+            topics_count = topics_count + 1
+        end
+    end
+    return tops
+end
 
 function serialize(inputCas, outputStream, parameters)
     local doc_lang = inputCas:getDocumentLanguage()
     local doc_text = inputCas:getDocumentText()
     local doc_len = TopicUtils:getDocumentTextLength(inputCas)
 
-    local selection_type = parameters["selection"]
+    --local selection_type = parameters["selection"]
+    local selection_types = parameters["selection"]
     local remove = parameters["remove_old"]
 
     --local sents = getSentences(inputCas)
     --local paras = getParagraphs(inputCas)
 
-    local anns ={}
-    local clazz = Class:forName(selection_type);
-    selection_it = JCasUtil:select(inputCas, clazz):iterator()
+
+    selections = {}
     local selection_count = 1
-    while selection_it:hasNext() do
-        local selection = selection_it:next()
-        if selection_type == "org.hucompute.textimager.uima.type.category.CategoryCoveredTagged" then
+    for selection_type in string.gmatch(selection_types, "([^;]+)") do
+        print(selection_type)
+        local anns ={}
+        local ann_count = 1
+        local clazz = Class:forName(selection_type);
+        selection_it = JCasUtil:select(inputCas, clazz):iterator()
+        while selection_it:hasNext() do
+            local selection = selection_it:next()
+            if selection_type == "org.hucompute.textimager.uima.type.category.CategoryCoveredTagged" then
 
-            local s = {
-                       value = selection:getValue(),
-                       score = selection:getScore(),
-                       tags = selection:getTags(),
-                      begin = selection:getBegin(),
-                      ['end'] = selection:getEnd()
-                   }
-           anns[selection_count] = s
-           selection_count = selection_count + 1
-        end
-        if selection_type == "org.texttechnologylab.annotation.Topic" or selection_type == "org.texttechnologylab.annotation.BertTopic" then
-            --print(selection)
-            local topics = selection:getTopics()
-            local topics_it = topics:iterator()
-            local tops = {}
-            local topics_count = 1
-            while topics_it:hasNext() do
-                local topic = topics_it:next()
-                if selection_type == "org.texttechnologylab.annotation.BertTopic" then
-                    local s = {
-                                        value = topic:getValue(),
-                                        score = topic:getProbability(),
-                                    }
-                else
-                    local s = {
-                                        value = topic:getKey(),
-                                        score = topic:getValue(),
-                                    }
-                end
-
-                tops[topics_count] = s
-                topics_count = topics_count + 1
+                local s = {
+                           value = selection:getValue(),
+                           score = selection:getScore(),
+                           tags = selection:getTags(),
+                          begin = selection:getBegin(),
+                          ['end'] = selection:getEnd()
+                       }
+               anns[ann_count] = s
+               ann_count = ann_count + 1
             end
-            anns[selection_count] = {
-                begin= selection:getBegin(),
-                ['end'] = selection:getEnd(),
-                topics = tops,
+            if selection_type == "org.texttechnologylab.annotation.Topic" or selection_type == "org.texttechnologylab.annotation.BertTopic" then
+                topics = get_topics(selection, selection_type)
+
+
+
+                anns[ann_count] = {
+                    begin= selection:getBegin(),
+                    ['end'] = selection:getEnd(),
+                    topics = topics,
+                }
+                ann_count = ann_count + 1
+            end
+
+        end
+
+        selections[selection_count] = {
+                type = selection_type,
+                annotations = anns,
             }
-            selection_count = selection_count + 1
-        end
+        selection_count = selection_count + 1
 
 
-    end
 
-    if remove == "true" then
+        if remove == "true" then
 
-        local old_annotations = JCasUtil:select(inputCas, Class:forName(selection_type))
-        for i = 0, old_annotations:size() - 1 do
-            old_annotations:get(i):removeFromIndexes()
-        end
-        if selection_type == "org.texttechnologylab.annotation.Topic" then
-            local old_topics = JCasUtil:select(inputCas, Class:forName('org.texttechnologylab.annotation.AnnotationComment'))
-            for i = 0, old_topics:size() - 1 do
-                old_topics:get(i):removeFromIndexes()
+            local old_annotations = JCasUtil:select(inputCas, Class:forName(selection_type))
+            for i = 0, old_annotations:size() - 1 do
+                old_annotations:get(i):removeFromIndexes()
             end
-        end
+            if selection_type == "org.texttechnologylab.annotation.Topic" then
+                local old_topics = JCasUtil:select(inputCas, Class:forName('org.texttechnologylab.annotation.AnnotationComment'))
+                for i = 0, old_topics:size() - 1 do
+                    old_topics:get(i):removeFromIndexes()
+                end
+            end
 
+        end
     end
 
 
@@ -88,10 +116,9 @@ function serialize(inputCas, outputStream, parameters)
        --sentences = sents,
        --paragraphs = paras,
        doc_text = doc_text,
-       anns = anns,
+       selections = selections,
        doc_lang = doc_lang,
        doc_len = doc_len,
-       type = selection_type,
     }))
 end
 

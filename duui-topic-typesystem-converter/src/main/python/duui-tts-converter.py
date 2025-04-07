@@ -37,6 +37,10 @@ class UimaTopicAnnotation(BaseModel):
     begin: int
     end: int
 
+class TopicAnnotation(BaseModel):
+    type: str
+    annotations: Union[List[UimaTopicAnnotation], List[UimaCategoryCoveredTagsAnnotation]]
+
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
@@ -44,8 +48,7 @@ class DUUIRequest(BaseModel):
     doc_len: int
     doc_lang: str
     doc_text: str
-    anns: Union[List[UimaTopicAnnotation], List[UimaCategoryCoveredTagsAnnotation]]
-    type: str  # type of the annotation
+    selections: List[TopicAnnotation]
 
 
 # Response sent by DUUI
@@ -204,7 +207,7 @@ def get_documentation():
 
 @app.post("/v1/process")
 def post_process(request: DUUIRequest):
-    ann_type = request.type.split('.')[-1]
+
     begin = []
     end = []
     len_results = []
@@ -214,22 +217,25 @@ def post_process(request: DUUIRequest):
     model_version = None
     model_name = None
     model_lang = request.doc_lang
-    if "tags" in request:
-        tags = request.anns[0].tags
-        model_src = tags.split(';')[-1]
-        model_version = '_'.join(model_src.split(';')[:2])
-        model_name = model_src.split(';')[0]
 
     try:
-        if ann_type == 'CategoryCoveredTagged':
-            processed_sentences = process_category_covered_tags_anns(request.anns)
-        if ann_type == 'Topic' or ann_type == 'BertTopic':
-            processed_sentences = process_transformer_topic_anns(request.anns)
-        begin = begin + processed_sentences["begin"]
-        end = end + processed_sentences["end"]
-        len_results = len_results + processed_sentences["len_results"]
-        results = results + processed_sentences["results"]
-        scores = scores + processed_sentences["scores"]
+        for selection in request.selections:
+            ann_type = selection.type.split('.')[-1]
+            if ann_type == 'CategoryCoveredTagged':
+                if model_name is None:
+                    tags = selection.annotations[0].tags
+                    model_src = tags.split(';')[-1]
+                    model_version = '_'.join(tags.split(';')[:2])
+                    model_name = tags.split(';')[0]
+
+                processed_sentences = process_category_covered_tags_anns(selection.annotations)
+            if ann_type == 'Topic' or ann_type == 'BertTopic':
+                processed_sentences = process_transformer_topic_anns(selection.annotations)
+            begin = begin + processed_sentences["begin"]
+            end = end + processed_sentences["end"]
+            len_results = len_results + processed_sentences["len_results"]
+            results = results + processed_sentences["results"]
+            scores = scores + processed_sentences["scores"]
 
     except Exception as ex:
         logger.exception(ex)
