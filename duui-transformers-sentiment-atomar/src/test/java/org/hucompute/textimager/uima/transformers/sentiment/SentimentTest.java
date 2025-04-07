@@ -13,6 +13,7 @@ import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
+import org.texttechnologylab.annotation.*;
 import org.xml.sax.SAXException;
 
 import java.io.ByteArrayOutputStream;
@@ -24,10 +25,6 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import org.texttechnologylab.annotation.Topic;
-import org.texttechnologylab.annotation.SentimentBert;
-import org.texttechnologylab.annotation.AnnotationComment;
 
 public class SentimentTest {
     static DUUIComposer composer;
@@ -148,9 +145,10 @@ public class SentimentTest {
         sentiments.add(0.2581740915775299);
         sentiments.add(0.713433563709259);
 
-        Collection<SentimentBert> all_sentiment = JCasUtil.select(cas, SentimentBert.class);
+        Collection<SentimentModel> all_sentiment = JCasUtil.select(cas, SentimentModel.class);
+        String model_name = "";
         Integer counter = 0;
-        for (SentimentBert sentiment_i: all_sentiment){
+        for (SentimentModel sentiment_i: all_sentiment){
             System.out.println(sentiment_i.getCoveredText());
             Double negative = sentiment_i.getProbabilityNegative();
             Double neutral = sentiment_i.getProbabilityNeutral();
@@ -159,7 +157,9 @@ public class SentimentTest {
             Assertions.assertEquals(neutral, sentiments.get(counter+1));
             Assertions.assertEquals(positive, sentiments.get(counter+2));
             counter = counter +3;
+            model_name = sentiment_i.getModel().getModelName();
         }
+        System.out.printf("Model Name: %s\n", model_name);
     }
 
     @Test
@@ -184,9 +184,11 @@ public class SentimentTest {
         sentiments.add(0.9765405058860779);
         sentiments.add(0.020719023421406746);
 
-        Collection<SentimentBert> all_sentiment = JCasUtil.select(cas, SentimentBert.class);
+        Collection<SentimentModel> all_sentiment = JCasUtil.select(cas, SentimentModel.class);
+        String model_name = "";
         Integer counter = 0;
-        for (SentimentBert sentiment_i: all_sentiment){
+        for (SentimentModel sentiment_i: all_sentiment){
+            model_name = sentiment_i.getModel().getModelName();
             System.out.println(sentiment_i.getCoveredText());
             Double negative = sentiment_i.getProbabilityNegative();
             Double neutral = sentiment_i.getProbabilityNeutral();
@@ -199,5 +201,6 @@ public class SentimentTest {
             Assertions.assertEquals(positive, sentiments.get(counter+2));
             counter = counter +3;
         }
+        System.out.printf("Model Name: %s\n", model_name);
     }
 }
