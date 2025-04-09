@@ -21,16 +21,16 @@ docker run --rm -p 8000:9714 docker.texttechnologylab.org/duui-tts-converter:lat
 
 ```
 composer.add((new DUUIRemoteDriver.Component(url))
-                .withParameter("remove_old", "true")
+                .withParameter("remove_old", "false")
                 .withParameter("selection", "org.texttechnologylab.annotation.BertTopic").build().withTimeout(1000L));
 ```
 
 ### Parameters
 
-| Name         | Description                                                                                                                                                      |
-|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Name         | Description                                                                                                                                                                                              |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `selection`  | Type System to convert, its values can be `org.hucompute.textimager.uima.type.category.CategoryCoveredTagged ` ,  `org.texttechnologylab.annotation.BertTopic`, `org.texttechnologylab.annotation.Topic` |
-| `remove_old` | "true" if you want to remove the old annotations else "false"                                                                                                    |
+| `remove_old` | `true` if you want to remove the old annotations else it is `false` by default                                                                                                                             |
 
 # Cite
 

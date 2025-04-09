@@ -66,7 +66,7 @@ public class TestTTSConverter {
         );
 
         composer.add((new DUUIRemoteDriver.Component(url))
-                        .withParameter("remove_old", "true")
+                        .withParameter("remove_old", "false")
                 .withParameter("selection", "org.hucompute.textimager.uima.type.category.CategoryCoveredTagged").build().withTimeout(1000L));
         composer.run(cas);
 
@@ -116,7 +116,7 @@ public class TestTTSConverter {
         );
 
         composer.add((new DUUIRemoteDriver.Component(url))
-                .withParameter("remove_old", "true")
+                .withParameter("remove_old", "false")
                 .withParameter("selection", "org.texttechnologylab.annotation.Topic").build().withTimeout(1000L));
         composer.run(cas);
 
@@ -167,7 +167,7 @@ public class TestTTSConverter {
         );
 
         composer.add((new DUUIRemoteDriver.Component(url))
-                .withParameter("remove_old", "true")
+                .withParameter("remove_old", "false")
                 .withParameter("selection", "org.texttechnologylab.annotation.BertTopic").build().withTimeout(1000L));
         composer.run(cas);
 
@@ -219,7 +219,7 @@ public class TestTTSConverter {
 
 
         composer.add((new DUUIRemoteDriver.Component(url))
-                .withParameter("remove_old", "true")
+                .withParameter("remove_old", "false")
                 .withParameter("selection", "org.texttechnologylab.annotation.BertTopic;org.texttechnologylab.annotation.Topic").build().withTimeout(1000L));
         composer.run(cas);
 
@@ -272,7 +272,7 @@ public class TestTTSConverter {
 
 
         composer.add((new DUUIRemoteDriver.Component(url))
-                .withParameter("remove_old", "true")
+                .withParameter("remove_old", "false")
                 .withParameter("selection", "org.texttechnologylab.annotation.BertTopic;org.hucompute.textimager.uima.type.category.CategoryCoveredTagged").build().withTimeout(1000L));
         composer.run(cas);
 
