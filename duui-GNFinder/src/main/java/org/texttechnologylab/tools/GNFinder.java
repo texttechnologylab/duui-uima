@@ -63,6 +63,8 @@ public class GNFinder {
 
                 FileUtils.writeContent(jc.getDocumentText(), tf);
 
+                Taxon tax = new Taxon(jc);
+
                 Process process = null;
                 try {
                     process = Runtime.getRuntime().exec("/gnfinder" + " " + tf.getAbsolutePath() + " -v -f compact");
@@ -104,6 +106,7 @@ public class GNFinder {
                                 Taxon nTaxon = new Taxon(jc);
                                 nTaxon.setBegin(iBegin);
                                 nTaxon.setEnd(iEnd);
+
                                 if (bestResult.has("outlink")) {
                                     nTaxon.setIdentifier(bestResult.getString("outlink"));
                                 }
@@ -209,7 +212,8 @@ public class GNFinder {
     static class CommunicationLayer implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
-            String response = "serial = luajava.bindClass(\"org.apache.uima.cas.impl.XmiCasSerializer\")\n" +
+            String response =
+                    "serial = luajava.bindClass(\"org.apache.uima.cas.impl.XmiCasSerializer\")\n" +
                     "deserial = luajava.bindClass(\"org.apache.uima.cas.impl.XmiCasDeserializer\")\n" +
                     "function serialize(inputCas,outputStream,params)\n" +
                     "  serial:serialize(inputCas:getCas(),outputStream)\n" +
