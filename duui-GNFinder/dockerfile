@@ -2,5 +2,6 @@ FROM maven:3.8.3-openjdk-17
 ADD src src
 ADD pom.xml pom.xml
 ADD gnfinder gnfinder
+ADD communication.lua communication.lua
 RUN mvn compile
 CMD mvn exec:java -Dexec.mainClass="org.texttechnologylab.tools.GNFinder"

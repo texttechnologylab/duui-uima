@@ -24,6 +24,7 @@ import org.xml.sax.SAXException;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 public class GNFinder {
 
@@ -57,7 +58,13 @@ public class GNFinder {
 
                 XmiSerializationSharedData sharedData = new XmiSerializationSharedData();
 
-                XmiCasDeserializer.deserialize(t.getRequestBody(), jc.getCas(), true, sharedData);
+                String body = new String(t.getRequestBody().readAllBytes());
+                String[] bodies = body.split("\"}", 2);
+                String args = bodies[0].split("args\":\"")[1];
+                args = args + "-f compact";
+
+                InputStream casBody = new ByteArrayInputStream(bodies[1].getBytes(StandardCharsets.UTF_8));
+                XmiCasDeserializer.deserialize(casBody, jc.getCas(), true, sharedData);
 
                 tf = TempFileHandler.getTempFile("aaa", "bbb");
 
@@ -67,7 +74,7 @@ public class GNFinder {
 
                 Process process = null;
                 try {
-                    process = Runtime.getRuntime().exec("/gnfinder" + " " + tf.getAbsolutePath() + " -v -f compact");
+                    process = Runtime.getRuntime().exec("/gnfinder" + " " + tf.getAbsolutePath() + args);
 
                     BufferedReader reader = new BufferedReader(new InputStreamReader(
                             process.getInputStream()));
@@ -212,17 +219,20 @@ public class GNFinder {
     static class CommunicationLayer implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
-            String response =
-                    "serial = luajava.bindClass(\"org.apache.uima.cas.impl.XmiCasSerializer\")\n" +
-                    "deserial = luajava.bindClass(\"org.apache.uima.cas.impl.XmiCasDeserializer\")\n" +
-                    "function serialize(inputCas,outputStream,params)\n" +
-                    "  serial:serialize(inputCas:getCas(),outputStream)\n" +
-                    "end\n" +
-                    "\n" +
-                    "function deserialize(inputCas,inputStream)\n" +
-                    "  inputCas:reset()\n" +
-                    "  deserial:deserialize(inputStream,inputCas:getCas(),true)\n" +
-                    "end";
+            BufferedReader reader = new BufferedReader(new FileReader("./communication.lua"));
+            StringBuilder stringBuilder = new StringBuilder();
+            String line = null;
+            String ls = System.getProperty("line.separator");
+            while ((line = reader.readLine()) != null) {
+                stringBuilder.append(line);
+                stringBuilder.append(ls);
+            }
+            // delete the last new line separator
+            stringBuilder.deleteCharAt(stringBuilder.length() - 1);
+            reader.close();
+
+            String response = stringBuilder.toString();
+
             t.sendResponseHeaders(200, response.length());
             OutputStream os = t.getResponseBody();
             os.write(response.getBytes());
