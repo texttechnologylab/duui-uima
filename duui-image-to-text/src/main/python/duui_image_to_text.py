@@ -165,8 +165,6 @@ class Settings(BaseSettings):
     #cach_size
     image_to_text_model_cache_size: str
 
-    # hugingface token
-    image_to_text_hugging_face_token: str
 
 
 # Documentation response
@@ -350,7 +348,6 @@ def get_documentation():
             "log_level": settings.image_to_text_log_level,
             "model_version": settings.image_to_text_model_version,
             "model_cache_size": settings.image_to_text_model_cache_size,
-            "hugging_face_token": settings.image_to_text_hugging_face_token,
             "models": sources,
             "languages": languages,
             "versions": versions,
@@ -458,14 +455,25 @@ def post_process(request: ImageToTextRequest):
 
             # process the image
             processed_text, entities = process_image(request.model_name, image_path, prompt)
+            image_obj = convertBase64ToImage(image_path)
+            image_width, image_height = image_obj.size
             # draw the entities on the image and save it into a buffer
-            image_entities = draw_entity_boxes_on_image(convertBase64ToImage(image_path), entities, show=False, save_path=None)
+            image_entities = draw_entity_boxes_on_image(image_obj, entities, show=False, save_path=None)
             image_base64 = convertImageToBase64(Image.fromarray(image_entities[:, :, [2, 1, 0]]))
 
             for entity in entities:
                 entity_name, (start, end), bboxes = entity
-                bboxes = [(x1, y1, x2, y2) for x1, y1, x2, y2 in bboxes]
-                result_entities.append(Entity(name=entity_name, begin=start, end=end, bounding_box=bboxes))
+                absolute_bboxes = [
+                    (
+                        int(x1 * image_width),
+                        int(y1 * image_height),
+                        int(x2 * image_width),
+                        int(y2 * image_height)
+                    )
+                    for x1, y1, x2, y2 in bboxes
+                ]
+                print(f"bboxes: {absolute_bboxes}")
+                result_entities.append(Entity(name=entity_name, begin=start, end=end, bounding_box=absolute_bboxes))
             # append results to lists
             print(processed_text)
             result_images.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text)))

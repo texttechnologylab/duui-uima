@@ -2,14 +2,13 @@
 set -euo pipefail
 
 export IMAGE_TO_TEXT_ANNOTATOR_CUDA=
-#export EMOTION_ANNOTATOR_CUDA="-cuda"
+#export IMAGE_TO_TEXT_CUDA="-cuda"
 
-export IMAGE_TO_TEXT_ANNOTATOR_NAME=duui-text-to-image
+export IMAGE_TO_TEXT_ANNOTATOR_NAME=duui-image-to-text
 export IMAGE_TO_TEXT_ANNOTATOR_VERSION=0.2.0
 export IMAGE_TO_TEXT_LOG_LEVEL=DEBUG
 export IMAGE_TO_TEXT_MODEL_CACHE_SIZE=3
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
-export IMAGE_TO_TEXT_HUGGING_FACE_TOKEN="unset"
 
 
 docker build \

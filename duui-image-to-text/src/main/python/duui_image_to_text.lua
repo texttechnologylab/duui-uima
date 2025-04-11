@@ -134,17 +134,17 @@ function deserialize(inputCas, inputStream)
                     print("starting bboxes")
                     local coordinates = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 2)
                     subimage_i:setCoordinates(coordinates)
-                    print("bbox1, bbox2: ", entity_data["bounding_box"][1], entity_data["bounding_box"][2])
-                    local coordinate_i = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
-                    coordinate_i:setX(entity_data["bounding_box"][1])
-                    coordinate_i:setY(entity_data["bounding_box"][2])
-                    coordinate_i:addToIndexes()
-                    subimage_i:setCoordinates(0, coordinate_i)
-                    local coordinate_j = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
-                    coordinate_j:setX(entity_data["bounding_box"][3])
-                    coordinate_j:setY(entity_data["bounding_box"][4])
-                    coordinate_j:addToIndexes()
-                    subimage_i:setCoordinates(1, coordinate_j)
+                    local idx = 1
+                    for bx1, bx2 in pairs(entity_data["bounding_box"]) do
+                        print("x1:, y1: ", bx2[1])
+                        print("x2:, y2: ", bx2[2])
+                        local coordinate_i = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
+                        coordinate_i:setX(bx2[1])
+                        coordinate_i:setY(bx2[2])
+                        coordinate_i:addToIndexes()
+                        subimage_i:setCoordinates(idx, coordinate_i)
+                        idx = idx + 1
+                    end
                     --subimage_i:setCoordinates(coordinates)
                     subimage_i:addToIndexes()
                 end
