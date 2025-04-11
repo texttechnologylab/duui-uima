@@ -1,5 +1,5 @@
-TEXTIMAGER_DUUI_TRANSFORMERS_TOPIC_ANNOTATOR_NAME="textimager-duui-transformers-topic" \
+TEXTIMAGER_DUUI_TRANSFORMERS_TOPIC_ANNOTATOR_NAME="duui-image-to-text" \
 TEXTIMAGER_DUUI_TRANSFORMERS_TOPIC_ANNOTATOR_VERSION="unset" \
 TEXTIMAGER_DUUI_TRANSFORMERS_TOPIC_LOG_LEVEL="DEBUG" \
 TEXTIMAGER_DUUI_TRANSFORMERS_TOPIC_MODEL_CACHE_SIZE="1" \
-uvicorn src.main.python.textimager_duui_transformers_topic:app --host 0.0.0.0 --port 9714 --workers 1
+uvicorn src.main.python.duui_image_to_text:app --host 0.0.0.0 --port 9714 --workers 1

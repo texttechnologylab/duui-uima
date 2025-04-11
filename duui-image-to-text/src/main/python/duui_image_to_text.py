@@ -165,8 +165,6 @@ class Settings(BaseSettings):
     #cach_size
     image_to_text_model_cache_size: str
 
-    # hugingface token
-    image_to_text_hugging_face_token: str
 
 
 # Documentation response
@@ -350,7 +348,6 @@ def get_documentation():
             "log_level": settings.image_to_text_log_level,
             "model_version": settings.image_to_text_model_version,
             "model_cache_size": settings.image_to_text_model_cache_size,
-            "hugging_face_token": settings.image_to_text_hugging_face_token,
             "models": sources,
             "languages": languages,
             "versions": versions,
