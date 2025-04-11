@@ -62,8 +62,8 @@ function deserialize(inputCas, inputStream)
     print("start deserialize")
     local inputString = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
-    print("results")
-    print(results)
+    --print("results")
+    --print(results)
 
     if results['errors'] ~= nil then
         local errors = results['errors']
@@ -98,14 +98,15 @@ function deserialize(inputCas, inputStream)
 
 
         local number_of_images = results["number_of_images"]
-        print("number_of_images: ", number_of_images)
+        --print("number_of_images: ", number_of_images)
+
 
         local results_images = results["images"]
         local results_processed_text = results["processed_text"]
         local results_entities = results["entities"]
 
         -- update the document text
-        print("results_processed_text: ", results_processed_text)
+        --print("results_processed_text: ", results_processed_text)
         inputCas:setDocumentText(results_processed_text, "plain/text")
         print(inputCas:getDocumentText())
 
@@ -122,28 +123,39 @@ function deserialize(inputCas, inputStream)
 
                 -- create a subimage using entities
                 for entity_name, entity_data in pairs(results_entities) do
-                    print("entity_name: ", entity_name)
+                    --print("entity_name: ", entity_name)
                     local subimage_i = luajava.newInstance("org.texttechnologylab.annotation.type.SubImage", inputCas)
-                    print("entity_name: ", entity_name, "type: ", type(entity_name))
+                    --print("entity_name: ", entity_name, "type: ", type(entity_name))
                     subimage_i:setBegin(entity_data["begin"])
                     subimage_i:setEnd(entity_data["end"])
                     subimage_i:setParent(image_i)
-                    print(entity_data["begin"])
-                    print(entity_data["end"])
-                    print(entity_data["bounding_box"])
-                    print("starting bboxes")
+                    --print(entity_data["begin"])
+                    --print(entity_data["end"])
+                    --print(entity_data["bounding_box"])
+                    --print("starting bboxes")
                     local coordinates = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, 2)
                     subimage_i:setCoordinates(coordinates)
-                    local idx = 1
+                    local idx = 0
                     for bx1, bx2 in pairs(entity_data["bounding_box"]) do
-                        print("x1:, y1: ", bx2[1])
-                        print("x2:, y2: ", bx2[2])
+                        --print(("idx: %d"):format(idx))
+                        --print("x1: ", bx2[1])
+                        --print("y1:", bx2[2])
+                        --
+                        --print("x2: ", bx2[3])
+                        --print("y2: ", bx2[4])
                         local coordinate_i = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
                         coordinate_i:setX(bx2[1])
                         coordinate_i:setY(bx2[2])
                         coordinate_i:addToIndexes()
                         subimage_i:setCoordinates(idx, coordinate_i)
-                        idx = idx + 1
+
+                        local coordinate_i1 = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
+                        coordinate_i1:setX(bx2[3])
+                        coordinate_i1:setY(bx2[4])
+                        coordinate_i1:addToIndexes()
+                        subimage_i:setCoordinates(idx + 1, coordinate_i1)
+                        idx = idx + 2
+
                     end
                     --subimage_i:setCoordinates(coordinates)
                     subimage_i:addToIndexes()
