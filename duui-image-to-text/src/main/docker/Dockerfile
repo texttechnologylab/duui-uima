@@ -6,7 +6,7 @@ EXPOSE 9714
 
 
 # copy scripts
-COPY ./src/main/python/TypeSystemTextToTimage.xml ./TypeSystemTextToTimage.xml
+COPY ./src/main/resources/TypeSystemImageToText.xml ./TypeSystemImageToText.xml
 COPY ./src/main/python/duui_image_to_text.py ./duui_image_to_text.py
 COPY ./src/main/python/duui_image_to_text.lua ./duui_image_to_text.lua
 
@@ -16,7 +16,7 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
 # download models
-RUN python -c "from transformers import AutoModelForVision2Seq; AutoModelForVision2Seq.from_pretrained'microsoft/kosmos-2-patch14-224')"
+RUN python -c "from transformers import AutoModelForVision2Seq; AutoModelForVision2Seq.from_pretrained('microsoft/kosmos-2-patch14-224')"
 
 
 # log level

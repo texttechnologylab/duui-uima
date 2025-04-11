@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eugut
 
 export IMAGE_TO_TEXT_ANNOTATOR_CUDA=
 #export IMAGE_TO_TEXT_CUDA="-cuda"
