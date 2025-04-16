@@ -26,6 +26,21 @@ composer.add(new DUUIDockerDriver.
     .withImageFetching());
 ```
 
+## Existing Parameters
+
+| Parameter | Description | Datatype | Default | Example |
+| --- | --- | --- | --- | --- |
+| adjustOdds | Adjust Bayes odds using density of found names. | Boolean | False |  |
+| allMatches | Verification returns all found matches. | Boolean | False |  |
+| ambiguousUninomials | Preserve uninomials that are also common words. | Boolean | False |  |
+| detailsOdds | Show details of odds calculation. | Boolean | False |  |
+| lang | Text's language or 'detect' for automatic detection. | String | detect | "eng", "de" |
+| noBayes | Do not run Bayes algorithms. | Boolean | False |  |
+| sources | IDs of important data-sources to verify against. If sources are set and there are matches to their data, such matches are returned in "preferred-result" results. To find IDs refer to "https://resolver.globalnames.org/data_sources". | String |  | "1,11" |
+| uniqueNames | Return unique names list. | Boolean | False | |
+| verify | Verify found name-strings. | Boolean | True |  |
+
+
 
 # Cite
 If you want to use the DUUI image please quote this as follows:
