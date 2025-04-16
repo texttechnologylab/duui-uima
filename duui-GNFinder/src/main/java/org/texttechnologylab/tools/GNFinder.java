@@ -92,6 +92,9 @@ public class GNFinder {
 
                     JSONObject rObject = new JSONObject(sb.toString());
 
+                    System.out.println(args + "\n");
+                    System.out.println(rObject.toString());
+
                     JSONArray tArray = rObject.getJSONArray("names");
 
                     for (int a = 0; a < tArray.length(); a++) {
@@ -99,6 +102,10 @@ public class GNFinder {
 
                         int iBegin = tObject.getInt("start");
                         int iEnd = tObject.getInt("end");
+
+                        if(tObject.has("oddsDetails")){  // detailsOdds enabled
+                            /* Add Odds Details */
+                        }
 
                         if (tObject.has("verification")) {
 
@@ -108,7 +115,7 @@ public class GNFinder {
 
                                 JSONObject bestResult = verification.getJSONObject("bestResult");
 
-                                System.out.println(bestResult.toString(1));
+                                //System.out.println(bestResult.toString(1));
 
                                 Taxon nTaxon = new Taxon(jc);
                                 nTaxon.setBegin(iBegin);
@@ -127,6 +134,10 @@ public class GNFinder {
                                 ac.setKey("gnfinder_verification");
                                 ac.setValue(bestResult.toString());
                                 ac.addToIndexes();
+                            }else if(verification.has("results")){  // allMatches flag enabled
+
+                                /* Add Results */
+                                /* First result best? */
                             }
 
                             Taxon nTaxon = new Taxon(jc);
@@ -141,6 +152,9 @@ public class GNFinder {
                             ac.setValue(verification.getString("curation"));
                             ac.addToIndexes();
 
+                        }
+                        else{
+                            /* Add detected name? */
                         }
 
                     }
