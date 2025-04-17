@@ -1,0 +1,11 @@
+setfit==1.0.3
+sentencepiece==0.2.0
+protobuf==4.25.3
+numpy==1.26.3
+fastapi==0.110.0
+dkpro-cassis==0.9.1
+uvicorn[standard]==0.27.1
+pydantic-settings==2.0.2
+six==1.16.0
+pandas==1.4.3
+
