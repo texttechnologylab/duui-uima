@@ -148,6 +148,13 @@
 
         <dependency>
             <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-json-asl</artifactId>
+            <version>2.0.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
             <artifactId>dkpro-core-api-resources-asl</artifactId>
             <scope>test</scope>
         </dependency>

@@ -279,6 +279,8 @@ class ImageToTextResponse(BaseModel):
     model_name: str
     # list of errors
     errors: Optional[List[str]]
+    # original prompt
+    prompt: Optional[str] = None
 
 
 
@@ -487,7 +489,8 @@ def post_process(request: ImageToTextRequest):
             model_source=model_source,
             model_lang=model_lang,
             model_version=model_version,
-            errors=errors_list
+            errors=errors_list,
+            prompt=prompt
         )
 
     except Exception as ex:
@@ -500,7 +503,8 @@ def post_process(request: ImageToTextRequest):
             model_source=model_source,
             model_lang=model_lang,
             model_version=model_version,
-            errors=[str(ex)]
+            errors=[str(ex)],
+            prompt=prompt
         )
 
     finally:
