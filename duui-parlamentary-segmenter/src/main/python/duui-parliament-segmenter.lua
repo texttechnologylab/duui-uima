@@ -7,7 +7,7 @@ function serialize(inputCas, outputStream, parameters)
     --     print("start")
     local doc_lang = inputCas:getDocumentLanguage()
     local doc_text = inputCas:getDocumentText()
-    local doc_len = TopicUtils:getDocumentTextLength(inputCas)
+    local doc_len = DUUILuaUtils:getDocumentTextLength(inputCas)
 
     outputStream:write(json.encode({
         text = doc_text,

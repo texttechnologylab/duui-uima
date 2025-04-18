@@ -38,7 +38,7 @@ class Speaker(BaseModel):
 
 # Load settings from env vars
 settings = Settings()
-logging.basicConfig(level=settings.text_to_image_log_level)
+logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 # Load the predefined typesystem that is needed for this annotator to work
@@ -161,10 +161,19 @@ def post_process(request: DUUIRequest):
     # doing all the magic
     # filling all the two arrays with Objects...
 
+    speeches.append(Speech(
+        begin=0,
+        end=200
+    ))
 
+    speaker.append(Speaker(
+        begin=0,
+        end=50,
+        label="Max Mustermann"
+    ))
 
     # Return data as JSON
     return DUUIResponse(
         speeches = speeches,
-        speaker = speaker
+        speakers = speaker
     )

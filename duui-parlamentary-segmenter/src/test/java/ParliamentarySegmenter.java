@@ -1,19 +1,29 @@
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.uima.UIMAException;
+import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.util.InvalidXMLException;
+import org.dkpro.core.io.xmi.XmiWriter;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.io.DUUIAsynchronousProcessor;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.reader.DUUIFileReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.reader.DUUIFileReaderLazy;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.io.writer.TTLabXmiWriter;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.xml.sax.SAXException;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 
+import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
+
+/**
+ * ParliamentrySegmenter - Test
+ * @author Giuseppe Abrami
+ */
 public class ParliamentarySegmenter {
 
     private static DUUIComposer pComposer = null;
@@ -39,21 +49,27 @@ public class ParliamentarySegmenter {
     }
 
     @Test
-    public void test() throws URISyntaxException, IOException, CompressorException, InvalidXMLException, SAXException {
+    public void test() throws Exception {
 
-        DUUIFileReaderLazy pFileReader = new DUUIFileReaderLazy("/targetpath", ".xmi.gz", 10);
+        DUUIFileReaderLazy pFileReader = new DUUIFileReaderLazy("/path", ".xmi.gz", 10);
 
-        pComposer.add(
-                new DUUIDockerDriver.Component("entailab.docker.texttechnologylab.org/duui-parliament-segmenter:latest")
-                        .withImageFetching()
-                        .build()
-        );
+        DUUIAsynchronousProcessor pProcessor = new DUUIAsynchronousProcessor(pFileReader);
 
-        pComposer.add(
-                new DUUIDockerDriver.Component("entailab.docker.texttechnologylab.org/duui-parliament-segmenter:latest")
-                        .withImageFetching()
-                        .build()
-        );
+//        pComposer.add(
+//                new DUUIDockerDriver.Component("entailab.docker.texttechnologylab.org/duui-parliament-segmenter:0.1")
+////                        .withImageFetching()
+//                        .withScale(iWorkers)
+//                        .build()
+//        );
+
+        pComposer.add(new DUUIUIMADriver.Component(createEngineDescription(PlainWriter.class,
+                PlainWriter.PARAM_TARGET_LOCATION, "/tmp/",
+                PlainWriter.PARAM_FILENAME_EXTENSION, ".txt",
+                PlainWriter.PARAM_OVERWRITE, true
+        )).withScale(iWorkers)
+          .build());
+
+        pComposer.run(pProcessor, "testrun");
 
     }
 

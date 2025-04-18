@@ -41,7 +41,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <dkpro.core.version>2.4.0</dkpro.core.version>
         <ttlab.duui.version>1.4</ttlab.duui.version>
-        <ttlab.typesystem.version>db0339b624</ttlab.typesystem.version>
+        <ttlab.typesystem.version>3.0.5</ttlab.typesystem.version>
     </properties>
 
     <repositories>
@@ -81,6 +81,13 @@
             <artifactId>junit-jupiter</artifactId>
             <version>5.9.0</version>
             <scope>test</scope>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-xmi-asl</artifactId>
+            <version>2.4.0</version>
         </dependency>
 
     </dependencies>
