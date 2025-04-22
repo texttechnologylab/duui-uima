@@ -163,6 +163,10 @@ public class TopicTest {
         expected2.add("other_hobbies");
         expected2.add("news_&_social_concern");
         expected1.put("cardiffnlp/tweet-topic-large-multilingual", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("Travel");
+        expected2.add("Crime & Law");
+        expected1.put("WebOrganizer/TopicClassifier", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
