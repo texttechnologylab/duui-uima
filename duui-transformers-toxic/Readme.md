@@ -20,7 +20,6 @@ and for [Detoxify](https://github.com/unitaryai/detoxify) model.
 | toxigen | [ToxiGen](https://huggingface.co/tomh/toxigen_roberta)                                                                                             | tomh/toxigen_roberta | 0e65216a558feba4bb167d47e49f9a9e229de6ab | EN                                     |
 | detoxify | [Detoxify](https://github.com/unitaryai/detoxify)                                                                                                  | Detoxify                                                                | 8f56f302bf8cf2673c2132fc2c2f5b2ca804815f | EN, FR, ES, IT, PT, TR, RU             |
 | roberta_toxicity_classifier        | [roberta_toxicity_classifier](https://huggingface.co/s-nlp/roberta_toxicity_classifier)  | s-nlp/roberta_toxicity_classifier | 048c25bb1e199b98802784f96325f4840f22145d | EN                                     |
-| xlmr_formality_classifier    | [xlmr_formality_classifier](https://huggingface.co/s-nlp/xlmr_formality_classifier)  | s-nlp/xlmr_formality_classifier | d8336084562d7755d9a3e2d5f5d88b9778c6ef7b | EN, FR, IT, PT                         |
 
 # How To Use
 
