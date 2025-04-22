@@ -15,6 +15,7 @@ RUN pip install -r requirements.txt
 COPY ./src/main/resources/typesystem.xml ./typesystem.xml
 COPY ./src/main/python/duui-parliament-segmenter.py ./duui-parliament-segmenter.py
 COPY ./src/main/python/duui-parliament-segmenter.lua ./duui-parliament-segmenter.lua
+COPY ./src/main/python/mp.py ./mp.py
 
 # log level
 ARG LOG_LEVEL="DEBUG"

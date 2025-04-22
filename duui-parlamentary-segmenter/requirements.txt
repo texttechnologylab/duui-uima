@@ -1,6 +1,9 @@
-fastapi==0.110.0
+fastapi==0.115.12
 pydantic==2.6.4
 pydantic-settings==2.2.1
 dkpro-cassis==0.9.1
-starlette==0.36.3
+starlette==0.46.2
 uvicorn[standard]==0.27.1
+regex==2024.11.6
+pandas==2.2.3
+nameparser==1.1.3

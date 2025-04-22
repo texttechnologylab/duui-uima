@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.DUUIAsynchronousProcessor;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.reader.DUUIFileReader;
@@ -42,32 +43,61 @@ public class ParliamentarySegmenter {
 
         DUUIUIMADriver uima_driver = new DUUIUIMADriver();
         DUUIDockerDriver docker_driver = new DUUIDockerDriver();
+        DUUIRemoteDriver remote_driver = new DUUIRemoteDriver();
 
         // Hinzufügen der einzelnen Driver zum Composer
-        pComposer.addDriver(uima_driver, docker_driver);
+        pComposer.addDriver(uima_driver, docker_driver, remote_driver);
 
     }
 
     @Test
     public void test() throws Exception {
 
+        DUUIFileReaderLazy pFileReader = new DUUIFileReaderLazy("/home/gabrami/Downloads/WR", ".xmi.gz", 10);
+
+        DUUIAsynchronousProcessor pProcessor = new DUUIAsynchronousProcessor(pFileReader);
+
+        pComposer.add(
+                new DUUIRemoteDriver.Component("http://localhost:9714")
+//                new DUUIDockerDriver.Component("entailab.docker.texttechnologylab.org/duui-parliament-segmenter:0.1")
+//                        .withImageFetching()
+                        .withScale(iWorkers)
+                        .build()
+        );
+
+        pComposer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "/tmp/",
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1",
+                XmiWriter.PARAM_PRETTY_PRINT, true
+
+        )).withScale(iWorkers)
+          .build());
+
+        pComposer.run(pProcessor, "testrun");
+
+    }
+
+    @Test
+    public void extractPlain() throws Exception {
+
         DUUIFileReaderLazy pFileReader = new DUUIFileReaderLazy("/path", ".xmi.gz", 10);
 
         DUUIAsynchronousProcessor pProcessor = new DUUIAsynchronousProcessor(pFileReader);
 
-//        pComposer.add(
-//                new DUUIDockerDriver.Component("entailab.docker.texttechnologylab.org/duui-parliament-segmenter:0.1")
-////                        .withImageFetching()
-//                        .withScale(iWorkers)
-//                        .build()
-//        );
+        pComposer.add(
+                new DUUIDockerDriver.Component("entailab.docker.texttechnologylab.org/duui-parliament-segmenter:0.1")
+//                        .withImageFetching()
+                        .withScale(iWorkers)
+                        .build()
+        );
 
         pComposer.add(new DUUIUIMADriver.Component(createEngineDescription(PlainWriter.class,
                 PlainWriter.PARAM_TARGET_LOCATION, "/tmp/",
                 PlainWriter.PARAM_FILENAME_EXTENSION, ".txt",
                 PlainWriter.PARAM_OVERWRITE, true
         )).withScale(iWorkers)
-          .build());
+                .build());
 
         pComposer.run(pProcessor, "testrun");
 

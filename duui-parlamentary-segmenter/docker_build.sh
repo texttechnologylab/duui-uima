@@ -13,6 +13,7 @@ docker build \
   -t ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:${ANNOTATOR_VERSION} \
   -f src/main/Dockerfile \
   .
+ #--no-cache
 
 docker tag \
   ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:${ANNOTATOR_VERSION} \

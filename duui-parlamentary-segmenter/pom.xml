@@ -37,11 +37,11 @@
 
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <dkpro.core.version>2.4.0</dkpro.core.version>
-        <ttlab.duui.version>1.4</ttlab.duui.version>
-        <ttlab.typesystem.version>3.0.5</ttlab.typesystem.version>
+        <ttlab.duui.version>1.4.6</ttlab.duui.version>
+        <ttlab.typesystem.version>3.0.7</ttlab.typesystem.version>
     </properties>
 
     <repositories>
