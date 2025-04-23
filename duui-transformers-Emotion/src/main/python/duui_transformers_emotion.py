@@ -77,23 +77,27 @@ class UimaSentenceSelection(BaseModel):
 
 class Settings(BaseSettings):
     # Name of this annotator
-    emotion_annotator_name: str
+    annotator_name: str
     # Version of this annotator
-    emotion_annotator_version: str
+    annotator_version: str
     # Log level
-    emotion_log_level: str
-    # # model_name
-    # emotion_model_name: str
+    log_level: str
+    # model_name
+    model_name: str
     # Name of this annotator
-    emotion_model_version: str
+    model_version: str
     #cach_size
-    emotion_model_cache_size: int
+    model_cache_size: int
+    # url of the model
+    model_source: str
+    # language of the model
+    model_lang: str
 
 
 # Load settings from env vars
 settings = Settings()
-lru_cache_with_size = lru_cache(maxsize=settings.emotion_model_cache_size)
-logging.basicConfig(level=settings.emotion_log_level)
+lru_cache_with_size = lru_cache(maxsize=settings.model_cache_size)
+logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -105,7 +109,7 @@ logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
     logger.debug("Base typesystem:")
-    logger.debug(typesystem.to_xml())
+    # logger.debug(typesystem.to_xml())
 
 # Load the Lua communication script
 lua_communication_script_filename = "duui_emotion.lua"
@@ -119,8 +123,6 @@ class TextImagerRequest(BaseModel):
     doc_len: int
     #
     lang: str
-    #
-    model_name: str
     #
     selections:  List[UimaSentenceSelection]
     #
@@ -171,9 +173,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
-    title=settings.emotion_annotator_name,
+    title=settings.annotator_name,
     description="Factuality annotator",
-    version=settings.emotion_annotator_version,
+    version=settings.annotator_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "TTLab Team",
@@ -252,8 +254,8 @@ def process_selection(model_name, selection, doc_len, lang_document):
         s.text
         for s in selection.sentences
     ]
-    logger.debug("Preprocessed texts:")
-    logger.debug(texts)
+    # logger.debug("Preprocessed texts:")
+    # logger.debug(texts)
 
     with model_lock:
         classifier = load_model(model_name, lang_document)
@@ -282,7 +284,7 @@ def process_selection(model_name, selection, doc_len, lang_document):
         "factors": factors
     }
 
-    return output, versions[model_name]
+    return output, settings.model_version
 
 # Process request from DUUI
 @app.post("/v1/process")
@@ -297,28 +299,29 @@ def post_process(request: TextImagerRequest):
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
     try:
-        model_source = sources[request.model_name]
-        model_lang = languages[request.model_name]
-        model_version = versions[request.model_name]
+        # logger.info(f"{settings.model_name} {settings.model_version} {settings.model_source} {settings.model_lang}")
+        model_source = settings.model_source
+        model_lang = settings.model_lang
+        model_version = settings.model_version
         lang_document = request.lang
         # set meta Informations
         meta = AnnotationMeta(
-            name=settings.emotion_annotator_name,
-            version=settings.emotion_annotator_version,
-            modelName=request.model_name,
+            name=settings.annotator_name,
+            version=settings.annotator_version,
+            modelName=settings.model_name,
             modelVersion=model_version,
         )
         # Add modification info
-        modification_meta_comment = f"{settings.emotion_annotator_name} ({settings.emotion_annotator_version}))"
+        modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version}))"
         modification_meta = DocumentModification(
-            user=settings.emotion_annotator_name,
+            user=settings.annotator_name,
             timestamp=modification_timestamp_seconds,
             comment=modification_meta_comment
         )
         mv = ""
 
         for selection in request.selections:
-            processed_sentences, model_version_2 = process_selection(request.model_name, selection, request.doc_len, lang_document)
+            processed_sentences, model_version_2 = process_selection(settings.model_name, selection, request.doc_len, lang_document)
             begin = begin+ processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]
@@ -326,7 +329,6 @@ def post_process(request: TextImagerRequest):
             factors = factors + processed_sentences["factors"]
     except Exception as ex:
         logger.exception(ex)
-    return TextImagerResponse(meta=meta, modification_meta=modification_meta, begin_emo=begin, end_emo=end, results=results, len_results=len_results, factors=factors, model_name=request.model_name, model_version=model_version, model_source=model_source, model_lang=model_lang)
-
+    return TextImagerResponse(meta=meta, modification_meta=modification_meta, begin_emo=begin, end_emo=end, results=results, len_results=len_results, factors=factors, model_name=settings.model_name, model_version=model_version, model_source=model_source, model_lang=model_lang)
 
 
