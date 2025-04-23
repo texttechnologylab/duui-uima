@@ -11,11 +11,11 @@ eport MODEL_CACHE_SIZE=3
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-export MODEL_NAME="classla/multilingual-IPTC-news-topic-classifier"
-export MODEL_SPECNAME="multilingual-iptc-media-topic-classifier"
-export MODEL_VERSION="ad2fac9ca58ad554021c0f244f15a9d556976229"
-export MODEL_SOURCE="https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="classla/multilingual-IPTC-news-topic-classifier"
+#export MODEL_SPECNAME="multilingual-iptc-media-topic-classifier"
+#export MODEL_VERSION="ad2fac9ca58ad554021c0f244f15a9d556976229"
+#export MODEL_SOURCE="https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier"
+#export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 
@@ -51,6 +51,14 @@ export MODEL_LANG="Multi"
 #export MODEL_VERSION="e68d741bf72c67d78806cf49a1f8831ffebd63f8"
 #export MODEL_SOURCE="https://huggingface.co/cardiffnlp/tweet-topic-large-multilingual"
 #export MODEL_LANG="EN,ES,El,JA"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export MODEL_NAME="WebOrganizer/TopicClassifier"
+export MODEL_SPECNAME="organize-web"
+export MODEL_VERSION="8d158c9d514cdc21a7c8e9bd94e5dc483d49e024"
+export MODEL_SOURCE="https://huggingface.co/WebOrganizer/TopicClassifier"
+export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
