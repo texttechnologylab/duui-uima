@@ -16,7 +16,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.texttechnologylab.annotation.AnnotationComment;
-import org.texttechnologylab.annotation.type.Taxon;
+import org.texttechnologylab.annotation.GNMetaData;
+import org.texttechnologylab.annotation.biofid.gnfinder.Taxon;
+import org.texttechnologylab.annotation.biofid.gnfinder.VerifiedTaxon;
 import org.texttechnologylab.utilities.helper.FileUtils;
 import org.texttechnologylab.utilities.helper.TempFileHandler;
 import org.xml.sax.SAXException;
@@ -92,9 +94,46 @@ public class GNFinder {
 
                     JSONObject rObject = new JSONObject(sb.toString());
 
-                    System.out.println(args + "\n");
-                    System.out.println(rObject.toString());
+                    System.out.println("args: " + args + "\n");
 
+                    /* Set Metadata*/
+                    JSONObject tMeta = rObject.getJSONObject("metadata");
+
+                    GNMetaData metadata = new GNMetaData(jc);
+                    metadata.setDate(tMeta.getString("date"));
+                    metadata.setVersion(tMeta.getString("gnfinderVersion"));
+
+                    if(tMeta.has("withUniqueNames"))
+                        metadata.setWihUniqueNames(tMeta.getBoolean("withUniqueNames"));
+                    else
+                        metadata.setWihUniqueNames(false);
+
+                    if(tMeta.has("withAllMatches"))
+                        metadata.setWithAllMatches(tMeta.getBoolean("withAllMatches"));
+                    else
+                        metadata.setWithAllMatches(false);
+
+                    if(tMeta.has("withAmbiguousNames"))
+                        metadata.setWithAmbiguousNames(tMeta.getBoolean("withAmbiguousNames"));
+                    else
+                        metadata.setWithAmbiguousNames(false);
+
+                    metadata.setWithBayes(!args.contains("-n"));  // no Bayes flag
+
+                    if(args.contains("-s")) {  // sources flag
+                        String specifiedSources = args.split("-s")[1].split(" -")[0];
+                        metadata.setWithSources(specifiedSources);
+                    }
+
+                    String specifiedLanguage = null;
+                    if(args.contains("-l")) {  // lang(uage) flag
+                        specifiedLanguage = args.split("-l")[1].split(" -")[0];
+                        metadata.setLang(specifiedLanguage);
+                    }
+
+                    metadata.addToIndexes();
+
+                    /* Set Taxons */
                     JSONArray tArray = rObject.getJSONArray("names");
 
                     for (int a = 0; a < tArray.length(); a++) {
@@ -102,10 +141,19 @@ public class GNFinder {
 
                         int iBegin = tObject.getInt("start");
                         int iEnd = tObject.getInt("end");
+                        String name = tObject.getString("name");
+                        short cardinality = (short)tObject.getInt("cardinality");
 
-                        if(tObject.has("oddsDetails")){  // detailsOdds enabled
-                            /* Add Odds Details */
-                        }
+                        Taxon gnTaxon = new Taxon(jc);
+                        gnTaxon.setBegin(iBegin);
+                        gnTaxon.setEnd(iEnd);
+                        gnTaxon.setValue(name);
+                        gnTaxon.setCardinality(cardinality);
+
+                        if(specifiedLanguage != null)
+                            gnTaxon.setLanguage(specifiedLanguage);
+
+                        gnTaxon.addToIndexes();
 
                         if (tObject.has("verification")) {
 
@@ -114,9 +162,9 @@ public class GNFinder {
                             if (verification.has("bestResult")) {
 
                                 JSONObject bestResult = verification.getJSONObject("bestResult");
+                                addVerifiedTaxon(jc, bestResult, iBegin, iEnd, name);
 
-                                //System.out.println(bestResult.toString(1));
-
+                                /*
                                 Taxon nTaxon = new Taxon(jc);
                                 nTaxon.setBegin(iBegin);
                                 nTaxon.setEnd(iEnd);
@@ -134,23 +182,34 @@ public class GNFinder {
                                 ac.setKey("gnfinder_verification");
                                 ac.setValue(bestResult.toString());
                                 ac.addToIndexes();
+                                */
+
                             }else if(verification.has("results")){  // allMatches flag enabled
+
+                                JSONArray results = verification.getJSONArray("results");
+
+                                for (int i = 0; i < results.length(); i++) {
+                                    addVerifiedTaxon(jc, results.getJSONObject(i), iBegin, iEnd, name);
+                                }
 
                                 /* Add Results */
                                 /* First result best? */
                             }
 
+                            /*
                             Taxon nTaxon = new Taxon(jc);
                             nTaxon.setBegin(iBegin);
                             nTaxon.setEnd(iEnd);
                             nTaxon.addToIndexes();
-                            nTaxon.addToIndexes();
+
 
                             AnnotationComment ac = new AnnotationComment(jc);
                             ac.setReference(nTaxon);
                             ac.setKey("gnfinder_verification");
                             ac.setValue(verification.getString("curation"));
                             ac.addToIndexes();
+                            */
+
 
                         }
                         else{
@@ -176,6 +235,40 @@ public class GNFinder {
             }
 
             t.getResponseBody().close();
+        }
+
+        private void addVerifiedTaxon(JCas jc, JSONObject verified, int begin, int end, String value) throws JSONException {
+            VerifiedTaxon verifTaxon = new VerifiedTaxon(jc);
+            verifTaxon.setBegin(begin);
+            verifTaxon.setEnd(end);
+            verifTaxon.setValue(value);
+
+            if (verified.has("outlink")) {
+                verifTaxon.setIdentifier(verified.getString("outlink"));
+            }
+            if (verified.has("currentRecordId")) {
+                verifTaxon.setId(verified.getString("currentRecordId"));
+            }
+            if (verified.has("currentCanonicalFull")) {
+                verifTaxon.setCurrentCanonical(verified.getString("currentCanonicalFull"));
+            }
+            if (verified.has("matchedCanonicalFull")) {
+                verifTaxon.setMatchedCanonical(verified.getString("matchedCanonicalFull"));
+            }
+            if (verified.has("editDistance")) {
+                verifTaxon.setVerifEditDistance((short)verified.getInt("editDistance"));
+            }
+            if (verified.has("matchedName")) {
+                verifTaxon.setVerifMatchedName(verified.getString("matchedName"));
+            }
+            if (verified.has("matchType")) {
+                verifTaxon.setVerifMatchType(verified.getString("matchType"));
+            }
+            if (verified.has("sortScore")) {
+                verifTaxon.setVerifSortScore((float)verified.getDouble("sortScore"));
+            }
+
+            verifTaxon.addToIndexes();
         }
     }
 
