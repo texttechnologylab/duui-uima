@@ -1,0 +1,180 @@
+from platform import python_version
+from sys import version as sys_version
+from typing import get_args
+
+import spacy
+from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
+
+from duui.const import (
+    LUA_COMMUNICATION_LAYER,
+    SpacyLanguage,
+    SpacyModelName,
+    SpacyPipelineComponent,
+)
+from duui.errors import NoModelError
+from duui.models import (
+    AnnotationMeta,
+    ComponentCapability,
+    ComponentDocumentation,
+    DependencyType,
+    DuuiRequest,
+    DuuiResponse,
+    EntityType,
+    TokenType,
+)
+from duui.settings import SETTINGS
+from duui.utils import (
+    get_spacy_model,
+    load_spacy_model,
+)
+
+app = FastAPI()
+if not hasattr(app.state, "models"):
+    app.state.models = {}
+if not hasattr(app.state, "lru"):
+    app.state.lru = []
+try:
+    model_name = SETTINGS.resolve_model()
+    model = load_spacy_model(SETTINGS, model_name)
+    app.state.models[model_name] = model
+    app.state.lru.insert(0, model_name)
+    print("Pre-Loaded model:", model_name)
+except NoModelError:
+    pass
+
+
+#####
+
+
+@app.get(
+    "/v1/communication_layer",
+    response_class=PlainTextResponse,
+    description="DUUI API v1: Get the Lua communication layer",
+)
+def get_communication_layer() -> str:
+    return LUA_COMMUNICATION_LAYER
+
+
+#####
+
+
+@app.get("/v1/documentation")
+def get_documentation(request: Request) -> ComponentDocumentation:
+    return ComponentDocumentation(
+        annotator_name=SETTINGS.component_name,
+        version=SETTINGS.component_version,
+        implementation_lang="Python",
+        meta={
+            "python_version": python_version(),
+            "python_version_full": sys_version,
+            "spacy_version": spacy.__version__,
+        },
+        parameters={
+            "spacy_model": list(get_args(SpacyModelName)),
+            "spacy_language": list(get_args(SpacyLanguage)),
+            "spacy_mode": ["accuracy", "efficiency"],
+            "spacy_exclude": list(get_args(SpacyPipelineComponent)),
+            "spacy_disable": list(get_args(SpacyPipelineComponent)),
+            "spacy_batch_size": "int",
+        },
+        capability=ComponentCapability(
+            supported_languages=sorted(list(get_args(SpacyLanguage))), reproducible=True
+        ),
+        implementation_specific=None,
+    )
+
+
+#####
+
+
+@app.post("/v1/process", description="DUUI API v1 process endpoint")
+async def v1_process(
+    params: DuuiRequest,
+    request: Request,
+) -> DuuiResponse:
+    config = params.config or SETTINGS
+
+    nlp = get_spacy_model(request.app.state, config)
+
+    to_disable = config.spacy_disable or SETTINGS.spacy_disable or []
+    to_disable = set(to_disable).intersection(nlp.pipe_names)
+    with nlp.select_pipes(disable=to_disable):
+        tokens: list[TokenType] = []
+        dependencies: list[TokenType] = []
+        entities: list[EntityType] = []
+
+        texts = [sentence.text for sentence in params.sentences]
+        for doc, sent in zip(
+            nlp.pipe(texts, batch_size=config.spacy_batch_size),
+            params.sentences,
+        ):
+            # map the token index in this Doc to the token index in the list of result tokens
+            index_lookup: dict[int, int] = {}
+
+            for token in doc:
+                offset: int = sent.offset
+                begin = offset + token.idx
+                end = offset + token.idx + len(token.text)
+                tokens.append(
+                    TokenType(
+                        begin=begin,
+                        end=end,
+                        lemma=token.lemma_,
+                        pos_value=token.tag_,
+                        pos_coarse=token.pos_,
+                        morph_value=str(token.morph) if token.has_morph() else None,
+                        morph_features=token.morph.to_dict()
+                        if token.has_morph()
+                        else None,
+                    )
+                )
+                index_lookup[token.i] = len(tokens) - 1
+
+            if nlp.has_pipe("parser"):
+                for token in (
+                    token
+                    for token in doc
+                    if not token.is_space and not token.head.is_space
+                ):
+                    dependent_index = index_lookup[token.i]
+                    dependent = tokens[dependent_index]
+
+                    govenor_index = index_lookup[token.head.i]
+
+                    dependencies.append(
+                        DependencyType(
+                            begin=dependent.begin,
+                            end=dependent.end,
+                            dependency_type=token.dep_.upper(),
+                            governor_index=govenor_index,
+                            dependent_index=dependent_index,
+                        )
+                    )
+
+            if nlp.has_pipe("ner"):
+                for entity in doc.ents:
+                    entities.append(
+                        EntityType(
+                            begin=entity.start_char + sent.offset,
+                            end=entity.end_char + sent.offset,
+                            value=entity.label_,
+                            identifier=entity.kb_id_ if entity.kb_id_ else None,
+                        )
+                    )
+
+        return DuuiResponse(
+            metadata=AnnotationMeta(
+                name="duui-spacy-v2",
+                version="0.1.0",
+                model_lang=nlp.lang,
+                model_name=nlp.meta["name"],
+                model_pipes=nlp.pipe_names,
+                model_spacy_git_version=nlp.meta["spacy_git_version"],
+                model_spacy_version=nlp.meta["spacy_version"],
+                model_version=nlp.meta["version"],
+            ),
+            tokens=tokens,
+            dependencies=dependencies,
+            entities=entities,
+        ).model_dump(by_alias=True, exclude_none=True)
