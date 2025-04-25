@@ -1,23 +1,23 @@
-FROM rust:latest AS builder
-
-ARG VERSION="master"
+FROM rust:slim AS builder
 
 WORKDIR /app/src/
-RUN git clone --branch "$VERSION" "https://github.com/manu-schaaf/geonames-fst" /app/src/
+ADD https://github.com/manu-schaaf/geonames-fst.git /app/src/
 RUN cargo build --release --no-default-features --features duui
 RUN chmod +x /app/src/target/release/geonames-fst
 
 FROM alpine:latest AS data
 RUN apk --update add unzip && rm -rf /var/cache/apk/*
 
-ADD https://download.geonames.org/export/dump/DE.zip /data/geonames/
-ADD https://download.geonames.org/export/dump/alternatenames/DE.zip /data/alternateNames/
+ARG COUNTRY="DE"
+
+ADD https://download.geonames.org/export/dump/${COUNTRY}.zip /data/geonames/
+ADD https://download.geonames.org/export/dump/alternatenames/${COUNTRY}.zip /data/alternateNames/
 
 WORKDIR /data/geonames
-RUN unzip DE.zip && rm -f DE.zip readme.txt
+RUN unzip ${COUNTRY}.zip && rm -f ${COUNTRY}.zip readme.txt
 
 WORKDIR /data/alternateNames
-RUN unzip DE.zip && rm -f DE.zip readme.txt
+RUN unzip ${COUNTRY}.zip && rm -f ${COUNTRY}.zip readme.txt
 
 FROM cgr.dev/chainguard/glibc-dynamic:latest AS prod
 COPY --from=builder /app/src/target/release/geonames-fst /app/
@@ -28,5 +28,5 @@ WORKDIR /app/
 ENV RUST_LOG="info,tower_http=debug,axum::rejection=trace"
 
 EXPOSE 9714
-ENTRYPOINT ["/app/geonames-fst", "--port", "9714", "/app/data/geonames/DE.txt", "--alternate", "/app/data/alternateNames/DE.txt"]
+ENTRYPOINT ["/app/geonames-fst", "--port", "9714", "/app/data/geonames/${COUNTRY}.txt", "--alternate", "/app/data/alternateNames/${COUNTRY}.txt"]
 CMD []
