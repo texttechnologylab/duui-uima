@@ -15,6 +15,51 @@
         <ttlab.typesystem.version>9806cc024d08aa3164bbe1bd00adc09d408cdf0b</ttlab.typesystem.version>
     </properties>
 
+    <profiles>
+        <profile>
+            <id>anduin</id>
+            <build>
+                <directory>./targetAnduin</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>anduin2</id>
+            <build>
+                <directory>./targetAnduin2</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>anduin3</id>
+            <build>
+                <directory>./targetAnduin3</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>anduin4</id>
+            <build>
+                <directory>./targetAnduin4</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>rohan</id>
+            <build>
+                <directory>./targetRohan</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>rohan2</id>
+            <build>
+                <directory>./targetRohan2</directory>
+            </build>
+        </profile>
+        <profile>
+            <id>default2</id>
+            <build>
+                <directory>./target2</directory>
+            </build>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <plugin>
@@ -68,10 +113,21 @@
             </exclusions>
         </dependency>
 
+<!--        <dependency>-->
+<!--            <groupId>com.github.texttechnologylab</groupId>-->
+<!--            <artifactId>DockerUnifiedUIMAInterface</artifactId>-->
+<!--            <version>${ttlab.duui.version}</version>-->
+<!--            <exclusions>-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.github.texttechnologylab</groupId>-->
+<!--                    <artifactId>UIMATypeSystem</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
+<!--        </dependency>-->
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
+            <groupId>org.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>${ttlab.duui.version}</version>
+            <version>1.4.2-dev</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.github.texttechnologylab</groupId>

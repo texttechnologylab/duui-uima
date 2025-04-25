@@ -8,14 +8,15 @@
 DUUI implementation for selected Hugging-Face-based transformer [Topic tools](https://huggingface.co/models?sort=trending&search=topic) models.
 ## Included Models
 
-| Name                                                                          |                                                                                                   | Revision                                  | Languages    |
-|-------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|-------------------------------------------|--------------|
-| manifestoberta-xlm-roberta                                                    | https://huggingface.co/manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1 | 06c046795a3b7b9822755f0a73776f8fabec3977  | Multilingual |
-| multilingual-iptc-media-topic-classifier                                      | https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier  | ad2fac9ca58ad554021c0f244f15a9d556976229  | Multilingual |
-| xlm-roberta-large-english-cap-v3                                              |https://huggingface.co/poltextlab/xlm-roberta-large-english-cap-v3| 580cb9cc334735b6cd09a8c2e050d19f5cebfeca  | EN           |
-| xlm-roberta-large-party-cap-v3                                                |https://huggingface.co/poltextlab/xlm-roberta-large-party-cap-v3| 42804267cb8db2cc056e96f9a6ceee01a579e126  | Multingual   |
- | cardiffnlp-roberta-large-tweet-topic-single-all                               |https://huggingface.co/cardiffnlp/roberta-large-tweet-topic-single-all| b9286fabc508a553a4dad6cec8035044deff034a  | EN           |
- | tweet-topic-large-multilingual                                    |https://huggingface.co/cardiffnlp/tweet-topic-large-multilingual| e68d741bf72c67d78806cf49a1f8831ffebd63f8  | EN,ES,El,JA  |
+| Name                                                                          |                                                                                                  | Revision                       | Languages    |
+|-------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|--------------------------------|--------------|
+| manifestoberta-xlm-roberta                                                    | https://huggingface.co/manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1 | 06c046795a3b7b9822755f0a73776f8fabec3977 | Multilingual |
+| multilingual-iptc-media-topic-classifier                                      | https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier | ad2fac9ca58ad554021c0f244f15a9d556976229 | Multilingual |
+| xlm-roberta-large-english-cap-v3                                              |https://huggingface.co/poltextlab/xlm-roberta-large-english-cap-v3| 580cb9cc334735b6cd09a8c2e050d19f5cebfeca | EN           |
+| xlm-roberta-large-party-cap-v3                                                |https://huggingface.co/poltextlab/xlm-roberta-large-party-cap-v3| 42804267cb8db2cc056e96f9a6ceee01a579e126 | Multingual   |
+ | cardiffnlp-roberta-large-tweet-topic-single-all                               |https://huggingface.co/cardiffnlp/roberta-large-tweet-topic-single-all| b9286fabc508a553a4dad6cec8035044deff034a | EN           |
+ | tweet-topic-large-multilingual                                    |https://huggingface.co/cardiffnlp/tweet-topic-large-multilingual| e68d741bf72c67d78806cf49a1f8831ffebd63f8 | EN,ES,El,JA  |
+| topic-organize-web                                  |https://huggingface.co/WebOrganizer/TopicClassifier 8d158c9d514cdc21a7c8e9bd94e5dc483d49e024  | EN|
  
 # How To Use
 

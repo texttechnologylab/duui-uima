@@ -5,17 +5,17 @@ export ANNOTATOR_CUDA=
 #export ANNOTATOR_CUDA="-cuda"
 
 export ANNOTATOR_NAME=duui-entailment
-export ANNOTATOR_VERSION=0.0.1
+export ANNOTATOR_VERSION=0.0.2
 export LOG_LEVEL=DEBUG
 export MODEL_CACHE_SIZE=3
 export CHATGPT_KEY=
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 
-#export MODEL_NAME="google/flan-t5-base"
-#export SHORT_MODEL_NAME="google-flan-t5-base"
-#export MODEL_VERSION="7bcac572ce56db69c1ea7c8af255c5d7c9672fc2"
-#export MODEL_URL="https://huggingface.co/google/flan-t5-base"
-#export MODEL_LANG="Multilingual"
+export MODEL_NAME="google/flan-t5-base"
+export SHORT_MODEL_NAME="google-flan-t5-base"
+export MODEL_VERSION="7bcac572ce56db69c1ea7c8af255c5d7c9672fc2"
+export MODEL_URL="https://huggingface.co/google/flan-t5-base"
+export MODEL_LANG="Multilingual"
 
 #export MODEL_NAME="google/flan-t5-small"
 #export SHORT_MODEL_NAME="google-flan-t5-small"
@@ -41,11 +41,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_URL="https://huggingface.co/google/flan-t5-xxl"
 #export MODEL_LANG="Multilingual"
 
-export MODEL_NAME="soumyasanyal/entailment-verifier-xxl"
-export SHORT_MODEL_NAME="soumyasanyal-entailment-verifier-xxl"
-export MODEL_VERSION="f11b55bc0304bf0b2fa08eb5311cd26dacca482a"
-export MODEL_URL="https://huggingface.co/soumyasanyal/entailment-verifier-xxl"
-export MODEL_LANG="en"
+#export MODEL_NAME="soumyasanyal/entailment-verifier-xxl"
+#export SHORT_MODEL_NAME="soumyasanyal-entailment-verifier-xxl"
+#export MODEL_VERSION="f11b55bc0304bf0b2fa08eb5311cd26dacca482a"
+#export MODEL_URL="https://huggingface.co/soumyasanyal/entailment-verifier-xxl"
+#export MODEL_LANG="en"
 #
 #export MODEL_NAME="gpt3.5"
 #export SHORT_MODEL_NAME="gpt3.5"

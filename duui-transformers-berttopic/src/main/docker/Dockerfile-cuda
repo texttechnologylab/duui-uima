@@ -28,7 +28,7 @@ COPY ./src/main/python/duui-transformers-berttopic.lua ./duui-transformers-bertt
 RUN apt-get remove python3-blinker -y
 RUN pip install blinker==1.6.2
 
-RUN pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu118
+RUN pip install torch==2.5.0 torchvision==0.20.0 torchaudio==2.5.0 --index-url https://download.pytorch.org/whl/cu118
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 

@@ -33,9 +33,8 @@ class ToxicCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
         self.model_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f"/storage/nlp/huggingface/models")
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name,
-                                                                        cache_dir=f"/storage/nlp/huggingface/models").to(
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir="/storage")
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=f"/storage").to(
             device)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -43,7 +42,7 @@ class ToxicCheck:
         self.class_mapping = self.model.config.id2label
         self.labels = list(self.class_mapping.values())
         for i in range(len(self.labels)):
-            if self.labels[i] == "neutral" or self.labels[i] == "not toxic" or self.labels[i] == "not_toxic":
+            if self.labels[i] == "neutral" or self.labels[i] == "not toxic" or self.labels[i] == "not_toxic" or self.labels[i] == "non-toxic":
                 self.labels[i] = "non toxic"
 
     def toxic_prediction(self, texts: List[str]):
@@ -84,9 +83,8 @@ class ToxicAiraCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
         self.model_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=f"/storage/nlp/huggingface/models")
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name,
-                                                                        cache_dir=f"/storage/nlp/huggingface/models").to(
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(
             device)
         self.model.eval()
 
