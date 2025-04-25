@@ -14,6 +14,9 @@ function serialize(inputCas, outputStream, parameters)
     local model_name = parameters["model_name"] if parameters["model_name"] == nil then model_name = "microsoft/kosmos-2-patch14-224" end
     local selection_types = parameters["selections"] if parameters["selections"] == nil then selection_types="org.texttechnologylab.annotation.type.Image" end
     local individual = parameters["individual"] if parameters["individual"] == nil then individual = "true" end
+    local mode = parameters['mode'] if parameters['mode'] == nil then mode = 'simple'
+
+    end
     --print("truncate_text: ", truncate_text)
     --print("start")
     local images = {}
@@ -57,6 +60,7 @@ function serialize(inputCas, outputStream, parameters)
         doc_lang = doc_lang,
         model_name = model_name,
         individual = individual,
+        mode = mode
     }))
 end
 
