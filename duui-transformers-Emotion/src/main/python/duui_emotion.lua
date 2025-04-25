@@ -11,8 +11,6 @@ function serialize(inputCas, outputStream, parameters)
     local doc_len = TopicUtils:getDocumentTextLength(inputCas)
 --     print(doc_len)
 
-    local model_name = parameters["model_name"]
---     print(model_name)
     local selection_types = parameters["selection"]
 --     print(select)
 
@@ -57,7 +55,6 @@ function serialize(inputCas, outputStream, parameters)
         selections = selections,
         lang = doc_lang,
         doc_len = doc_len,
-        model_name = model_name
     }))
 end
 

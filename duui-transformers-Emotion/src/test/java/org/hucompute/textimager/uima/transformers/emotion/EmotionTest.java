@@ -31,7 +31,7 @@ public class EmotionTest {
     static JCas cas;
 
     static String url = "http://127.0.0.1:9714";
-    static String model = "MilaNLProc/xlm-emo-t";
+
 //    static String model = "pol_emo_mDeBERTa";
 
     @BeforeAll
@@ -88,7 +88,6 @@ public class EmotionTest {
 //                .withImageFetching());
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
         List<String> sentences = Arrays.asList(
@@ -143,7 +142,6 @@ public class EmotionTest {
 //                .withImageFetching());
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
         List<String> sentences = Arrays.asList(
@@ -191,7 +189,6 @@ public class EmotionTest {
 //                .withImageFetching());
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", model)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
         List<String> sentences = Arrays.asList(

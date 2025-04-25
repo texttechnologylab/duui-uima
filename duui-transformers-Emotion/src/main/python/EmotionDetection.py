@@ -128,13 +128,13 @@ map_emotion = {
         5: "surprise"
     },
     "finiteautomata/bertweet-base-emotion-analysis": {
-         0: "others",
-         1: "joy",
-         2: "sadness",
-         3: "anger",
-         4: "surprise",
-         5: "disgust",
-         6: "fear"
+        0: "others",
+        1: "joy",
+        2: "sadness",
+        3: "anger",
+        4: "surprise",
+        5: "disgust",
+        6: "fear"
     }
 }
 
@@ -144,8 +144,8 @@ map_emotion = {
 class EmotionCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir="/storage/nlp/huggingface/models")
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir="/storage/nlp/huggingface/models").to(device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
         self.class_mapping = self.model.config.id2label
         self.labels = list(map_emotion[model_name].values())
 
