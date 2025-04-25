@@ -45,11 +45,11 @@ async def lifespan(app: FastAPI):
             "gnfinder_client": gnfinder_client,
         }
 
-        try:
-            gnfinder_process.terminate()
-        except ProcessLookupError:
-            # Expected during shutdown, process already terminated by context manager
-            pass
+    try:
+        gnfinder_process.terminate()
+    except ProcessLookupError:
+        # Expected during shutdown, process already terminated by context manager
+        pass
 
 
 app = FastAPI(lifespan=lifespan)
@@ -630,18 +630,24 @@ class DuuiResponse(BaseModel):
     results: list[TaxonType | TaxonVerifiedType]
 
 
+async def fetch_gnfinder_results(
+    gnfinder_client: httpx.AsyncClient, params: FinderParams
+) -> FinderResult:
+    gnfinder_response = await gnfinder_client.post(
+        "api/v1/find",
+        json={"format": "json"} | params.model_dump(exclude_unset=True),
+        timeout=300,
+    )
+    gnfinder_response.raise_for_status()
+    return FinderResult.model_validate(gnfinder_response.json(), strict=False)
+
+
 @app.post("/api/v1/find", description="GNFinder API v1 find endpoint")
 async def api_v1_find(
     params: FinderParams,
     request: Request,
 ) -> FinderResult:
-    gnfinder_client: httpx.AsyncClient = request.state.gnfinder_client
-    gnfinder_response = await gnfinder_client.post(
-        "api/v1/find",
-        json={"format": "json"} | params.model_dump(exclude_unset=True),
-    )
-    gnfinder_response.raise_for_status()
-    return FinderResult.model_validate(gnfinder_response.json(), strict=False)
+    return await fetch_gnfinder_results(request.state.gnfinder_client, params)
 
 
 @app.post("/v1/process", description="DUUI API v1 process endpoint")
@@ -649,7 +655,7 @@ async def v1_process(
     params: FinderParams,
     request: Request,
 ) -> DuuiResponse:
-    finder_result = await api_v1_find(params, request)
+    finder_result = await fetch_gnfinder_results(request.state.gnfinder_client, params)
 
     metadata = MetadataType(
         date=finder_result.metadata["date"],
