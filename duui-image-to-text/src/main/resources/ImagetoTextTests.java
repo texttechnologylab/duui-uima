@@ -129,11 +129,11 @@ public class ImagetoTextTests {
     @Test
     public void SimpleTest() throws Exception {
         String model = "microsoft/kosmos-2-patch14-224";
-        String sOutputPath = "/home/staff_homes/aabusale/duui-uima/duui_image_to_text/tests/";
+        String sOutputPath = "/home/staff_homes/aabusale/Downloads/german_election_25.jpg";
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
-                        .withParameter("prompt", "<grounding>An image of")
+                        .withParameter("prompt", "<grounding> an image of ")
         );
 
 

@@ -1,6 +1,6 @@
-torch==2.5.0
-torchaudio==2.5.0
-torchvision==0.20.0
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
 scipy==1.13.1
 setfit==1.0.3
 sentencepiece==0.2.0
