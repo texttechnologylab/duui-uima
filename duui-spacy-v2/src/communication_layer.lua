@@ -104,6 +104,9 @@ function process(sourceCas, handler, parameters, targetCas)
 
     local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
     for batch in batched(sentences:iterator(), get_sentence_and_offset, batch_size) do
+        if type(batch) ~= "table" then
+            error("Error while batching: " .. batch)
+        end
         process_response(
             targetCas,
             handler:process(
