@@ -1,8 +1,10 @@
+import logging
 from platform import python_version
 from sys import version as sys_version
-from typing import get_args
+from typing import Final, get_args
 
 import spacy
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 
@@ -23,11 +25,18 @@ from duui.models import (
     EntityType,
     TokenType,
 )
-from duui.settings import SETTINGS
+from duui.settings import SETTINGS, SpacySettings
 from duui.utils import (
     get_spacy_model,
-    load_spacy_model,
 )
+
+LOGGING_CONFIG: Final[dict] = uvicorn.config.LOGGING_CONFIG
+LOGGING_CONFIG["loggers"][""] = {
+    "handlers": ["default"],
+    "level": "INFO",
+    "propagate": False,
+}
+logging.config.dictConfig(LOGGING_CONFIG)
 
 app = FastAPI()
 if not hasattr(app.state, "models"):
@@ -35,11 +44,7 @@ if not hasattr(app.state, "models"):
 if not hasattr(app.state, "lru"):
     app.state.lru = []
 try:
-    model_name = SETTINGS.resolve_model()
-    model = load_spacy_model(SETTINGS, model_name)
-    app.state.models[model_name] = model
-    app.state.lru.insert(0, model_name)
-    print("Pre-Loaded model:", model_name)
+    get_spacy_model(app.state, SETTINGS)
 except NoModelError:
     pass
 
@@ -53,6 +58,8 @@ except NoModelError:
     description="DUUI API v1: Get the Lua communication layer",
 )
 def get_communication_layer() -> str:
+    with open("communication_layer.lua", "r") as f:
+        return f.read()
     return LUA_COMMUNICATION_LAYER
 
 
@@ -93,7 +100,7 @@ async def v1_process(
     params: DuuiRequest,
     request: Request,
 ) -> DuuiResponse:
-    config = params.config or SETTINGS
+    config: SpacySettings = params.config or SETTINGS
 
     nlp = get_spacy_model(request.app.state, config)
 

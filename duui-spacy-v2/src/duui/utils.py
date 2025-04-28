@@ -2,6 +2,7 @@ from typing import Optional
 
 import spacy
 from fastapi.datastructures import State
+from fastapi.logger import logger
 from spacy import Language
 from spacy.tokens import Doc
 
@@ -29,10 +30,14 @@ def get_spacy_model(state: State, settings: SpacySettings):
         state.lru.insert(0, model_name)
         return state.models[model_name]
     else:
-        if len(state.lru) >= SETTINGS.max_loaded_models:
+        if 0 < SETTINGS.max_loaded_models <= len(state.lru):
             oldest_model_name = state.lru.pop()
+            logger.info(
+                f"Exceeded max_loaded_models={SETTINGS.max_loaded_models}, unloading model: {oldest_model_name}",
+            )
             del state.models[oldest_model_name]
 
+        logger.info(f"Loading spaCy model: {model_name}")
         model = load_spacy_model(settings, model_name)
         state.models[model_name] = model
         state.lru.insert(0, model_name)
