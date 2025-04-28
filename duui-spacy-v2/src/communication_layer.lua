@@ -62,31 +62,32 @@ end
 REQUEST_BATCH_SIZE = 1024
 
 ---Process the sentences in the given JCas in small batches.
----@param source any JCas (view) to process
+---@param sourceCas any JCas (view) to process
 ---@param handler any DuuiHttpRequestHandler with a connection to the running component
 ---@param parameters table optional parameters
----@param target any JCas (view) to write the results to (optional)
-function process(source, handler, parameters, target)
+---@param targetCas any JCas (view) to write the results to (optional)
+function process(sourceCas, handler, parameters, targetCas)
     parameters = parameters or {}
     local config = {
-        spacy_language = source:getDocumentLanguage(),
+        spacy_language = sourceCas:getDocumentLanguage(),
         spacy_model_size = parameters.spacy_model_size or "lg",
         spacy_batch_size = parameters.spacy_batch_size or 32,
     }
 
-    local sentences = JCasUtil:select(source, Sentence)
+    targetCas = targetCas or sourceCas
 
     ---If there are no sentences in the source JCas (view), we can call the supplementary /eos
     ---endpoint of the component to annotate them. The spaCy `senter` pipeline component can deal
     ---with much larger inputs than the other components, so we can use the whole document text.
+    local sentences = JCasUtil:select(sourceCas, Sentence)
 
     if sentences:isEmpty() then
         local response = handler:post("/eos", json.encode({
-            text = source:getDocumentText(),
+            text = sourceCas:getDocumentText(),
             config = config,
         }))
-        process_eos(target, response)
-        sentences = JCasUtil:select(target, Sentence)
+        process_eos(targetCas, response)
+        sentences = JCasUtil:select(targetCas, Sentence)
 
         if sentences:isEmpty() then
             error("No sentences found in the source or target JCas.")
@@ -104,7 +105,7 @@ function process(source, handler, parameters, target)
     local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
     for batch in batched(sentences:iterator(), get_sentence_and_offset, batch_size) do
         process_response(
-            target or source,
+            targetCas,
             handler:process(
                 json.encode({
                     sentences = batch,
