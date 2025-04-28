@@ -4,6 +4,8 @@ JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 
 REQUEST_BATCH_SIZE = 1024
+SUPPORTS_PROCESS = true
+SUPPORTS_SERIALIZE = false
 
 ---Get batches of sentences from the JCas using a coroutine.
 ---@param jCas any JCas (view) containing sentence annotations which are to be processed
