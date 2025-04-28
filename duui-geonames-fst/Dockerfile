@@ -28,5 +28,5 @@ WORKDIR /app/
 ENV RUST_LOG="info,tower_http=debug,axum::rejection=trace"
 
 EXPOSE 9714
-ENTRYPOINT ["/app/geonames-fst", "--port", "9714", "/app/data/geonames/${COUNTRY}.txt", "--alternate", "/app/data/alternateNames/${COUNTRY}.txt"]
+ENTRYPOINT ["/app/geonames-fst", "--port", "9714", "/app/data/geonames/", "--alternate", "/app/data/alternateNames/"]
 CMD []
