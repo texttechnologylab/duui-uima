@@ -6,7 +6,6 @@ from typing import Final, get_args
 import spacy
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.logger import logger
 from fastapi.responses import PlainTextResponse
 from spacy import Language
 
@@ -208,7 +207,6 @@ async def post_eos(
 
     nlp: Language = get_spacy_model(request.app.state, config)
 
-    logger.info(nlp.pipe_names)
     if "senter" in nlp.pipe_names:
         eos_pipe = ["senter"]
     elif "parser" in nlp.pipe_names:
@@ -223,7 +221,10 @@ async def post_eos(
         )
 
     with nlp.select_pipes(enable=eos_pipe):
+        max_len = nlp.max_length
+        nlp.max_length = len(params.text) + 1
         doc = nlp(params.text)
+        nlp.max_length = max_len
 
         sentences = [
             AnnotationType(
