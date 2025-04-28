@@ -5,61 +5,78 @@ Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.typ
 
 REQUEST_BATCH_SIZE = 1024
 
--- TODO
--- Inputs:
---  - jCas: The actual CAS object to serialize
---  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
---  - parameters: Table/Dictonary of parameters that should be used to configure the annotator
----comment
----@param jCas any
----@param handler any
----@param parameters table
-function process(jCas, handler, parameters)
-
-    local config = {
-        spacy_language = jCas:getDocumentLanguage(),
-        spacy_model_size = parameters.spacy_model_size or "lg",
-        spacy_batch_size = parameters.spacy_batch_size or 32,
-    }
-
-    local i, batch, sentence, batchIndex = 0, {}
+---Get batches of sentences from the JCas using a coroutine.
+---@param jCas any JCas (view) containing sentence annotations which are to be processed
+---@param batch_size integer size of each batch sent to the component
+function get_batches(jCas, batch_size)
+    local batch = {}
     local iterator = JCasUtil:select(jCas, Sentence):iterator()
     while iterator:hasNext() do
         sentence = iterator:next()
-        batchIndex = i % REQUEST_BATCH_SIZE + 1
-        batch[batchIndex] = {
+        batch[#batch + 1] = {
             text = sentence:getCoveredText(),
             offset = sentence:getBegin(),
         }
-
-        if batchIndex == REQUEST_BATCH_SIZE then
-            local response = handler:process(json.encode({
-                sentences = batch,
-                config = config,
-            }))
-            local results = json.decode(luajava.newInstance("java.lang.String", response:readAllBytes(),
-                StandardCharsets.UTF_8))
-            process_results(jCas, results)
+        if #batch == batch_size then
+            coroutine.yield(batch)
             batch = {}
         end
-
-        i = i + 1
     end
+
     if #batch > 0 then
-        local response = handler:process(json.encode({
-            sentences = batch,
-            config = config,
-        }))
-        local results = json.decode(luajava.newInstance("java.lang.String", response:readAllBytes(),
-            StandardCharsets.UTF_8))
-        process_results(jCas, results)
+        coroutine.yield(batch)
     end
 end
 
----comment
----@param jCas any
----@param results table
-function process_results(jCas, results)
+---Iterate over batches of sentences from the JCas.
+---@param jCas any JCas to process
+---@param batch_size integer size of each batch
+---@return fun(): table an iterator over batches to process
+function batched(jCas, batch_size)
+    local co = coroutine.create(function() get_batches(jCas, batch_size) end)
+    return function()
+        local _, batch = coroutine.resume(co)
+        return batch
+    end
+end
+
+---Process the sentences in the given JCas in small batches.
+---@param source any JCas (view) to process
+---@param handler any DuuiHttpRequestHandler with a connection to the running component
+---@param parameters table optional parameters
+---@param target any JCas (view) to write the results to (optional)
+function process(source, handler, parameters, target)
+    parameters = parameters or {}
+    local config = {
+        spacy_language = source:getDocumentLanguage(),
+        spacy_model_size = parameters.spacy_model_size or "lg",
+        spacy_batch_size = parameters.spacy_batch_size or 32,
+    }
+    local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
+
+    for batch in batched(source, batch_size) do
+        process_response(
+            target or source,
+            handler:process(
+                json.encode({
+                    sentences = batch,
+                    config = config,
+                })
+            )
+        )
+    end
+end
+
+---Process the response from the component.
+---@param jCas any JCas
+---@param response any DuuiHttpRequestHandler.Response{int statusCode, byte[]? body}
+function process_response(jCas, response)
+    if response:statusCode() ~= 200 then
+        error("Error " .. response:statusCode() .. " in communication with component: " .. response:body())
+    end
+
+    local results = json.decode(response:bodyUtf8())
+
     local tokens = {}
 
     for i, token in ipairs(results.tokens) do
@@ -165,119 +182,120 @@ function process_results(jCas, results)
             dep_anno:setDependencyType("--")
         else
             if dep_type == "ABBREV" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ABBREV")
-            elseif dep["type"] == "ACOMP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ACOMP")
-            elseif dep["type"] == "ADVCL" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ADVCL")
-            elseif dep["type"] == "ADVMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ADVMOD")
-            elseif dep["type"] == "AGENT" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AGENT")
-            elseif dep["type"] == "AMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AMOD")
-            elseif dep["type"] == "APPOS" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.APPOS")
-            elseif dep["type"] == "ATTR" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ATTR")
-            elseif dep["type"] == "AUX0" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AUX0")
-            elseif dep["type"] == "AUXPASS" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AUXPASS")
-            elseif dep["type"] == "CC" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CC")
-            elseif dep["type"] == "CCOMP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CCOMP")
-            elseif dep["type"] == "COMPLM" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.COMPLM")
-            elseif dep["type"] == "CONJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CONJ")
-            elseif dep["type"] == "CONJP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CONJP")
-            elseif dep["type"] == "CONJ_YET" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CONJ_YET")
-            elseif dep["type"] == "COP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.COP")
-            elseif dep["type"] == "CSUBJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CSUBJ")
-            elseif dep["type"] == "CSUBJPASS" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CSUBJPASS")
-            elseif dep["type"] == "DEP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.DEP")
-            elseif dep["type"] == "DET" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.DET")
-            elseif dep["type"] == "DOBJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.DOBJ")
-            elseif dep["type"] == "EXPL" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.EXPL")
-            elseif dep["type"] == "INFMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.INFMOD")
-            elseif dep["type"] == "IOBJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.IOBJ")
-            elseif dep["type"] == "MARK" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.MARK")
-            elseif dep["type"] == "MEASURE" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.MEASURE")
-            elseif dep["type"] == "MWE" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.MWE")
-            elseif dep["type"] == "NEG" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NEG")
-            elseif dep["type"] == "NN" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NN")
-            elseif dep["type"] == "NPADVMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NPADVMOD")
-            elseif dep["type"] == "NSUBJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NSUBJ")
-            elseif dep["type"] == "NSUBJPASS" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NSUBJPASS")
-            elseif dep["type"] == "NUM" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NUM")
-            elseif dep["type"] == "NUMBER" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NUMBER")
-            elseif dep["type"] == "PARATAXIS" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PARATAXIS")
-            elseif dep["type"] == "PARTMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PARTMOD")
-            elseif dep["type"] == "PCOMP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PCOMP")
-            elseif dep["type"] == "POBJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.POBJ")
-            elseif dep["type"] == "POSS" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.POSS")
-            elseif dep["type"] == "POSSESSIVE" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.POSSESSIVE")
-            elseif dep["type"] == "PRECONJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PRECONJ")
-            elseif dep["type"] == "PRED" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PRED")
-            elseif dep["type"] == "PREDET" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PREDET")
-            elseif dep["type"] == "PREP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PREP")
-            elseif dep["type"] == "PREPC" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PREPC")
-            elseif dep["type"] == "PRT" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PRT")
-            elseif dep["type"] == "PUNCT" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PUNCT")
-            elseif dep["type"] == "PURPCL" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PURPCL")
-            elseif dep["type"] == "QUANTMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.QUANTMOD")
-            elseif dep["type"] == "RCMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.RCMOD")
-            elseif dep["type"] == "REF" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.REF")
-            elseif dep["type"] == "REL" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.REL")
-            elseif dep["type"] == "ROOT" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT")
-            elseif dep["type"] == "TMOD" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.TMOD")
-            elseif dep["type"] == "XSUBJ" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.XSUBJ")
-            elseif dep["type"] == "XCOMP" then
-                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.XCOMP")
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ABBREV", jCas)
+            elseif dep_type == "ACOMP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ACOMP", jCas)
+            elseif dep_type == "ADVCL" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ADVCL", jCas)
+            elseif dep_type == "ADVMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ADVMOD", jCas)
+            elseif dep_type == "AGENT" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AGENT", jCas)
+            elseif dep_type == "AMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AMOD", jCas)
+            elseif dep_type == "APPOS" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.APPOS", jCas)
+            elseif dep_type == "ATTR" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ATTR", jCas)
+            elseif dep_type == "AUX0" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AUX0", jCas)
+            elseif dep_type == "AUXPASS" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.AUXPASS", jCas)
+            elseif dep_type == "CC" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CC", jCas)
+            elseif dep_type == "CCOMP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CCOMP", jCas)
+            elseif dep_type == "COMPLM" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.COMPLM", jCas)
+            elseif dep_type == "CONJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CONJ", jCas)
+            elseif dep_type == "CONJP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CONJP", jCas)
+            elseif dep_type == "CONJ_YET" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CONJ_YET", jCas)
+            elseif dep_type == "COP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.COP", jCas)
+            elseif dep_type == "CSUBJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CSUBJ", jCas)
+            elseif dep_type == "CSUBJPASS" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.CSUBJPASS", jCas)
+            elseif dep_type == "DEP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.DEP", jCas)
+            elseif dep_type == "DET" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.DET", jCas)
+            elseif dep_type == "DOBJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.DOBJ", jCas)
+            elseif dep_type == "EXPL" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.EXPL", jCas)
+            elseif dep_type == "INFMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.INFMOD", jCas)
+            elseif dep_type == "IOBJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.IOBJ", jCas)
+            elseif dep_type == "MARK" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.MARK", jCas)
+            elseif dep_type == "MEASURE" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.MEASURE", jCas)
+            elseif dep_type == "MWE" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.MWE", jCas)
+            elseif dep_type == "NEG" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NEG", jCas)
+            elseif dep_type == "NN" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NN", jCas)
+            elseif dep_type == "NPADVMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NPADVMOD", jCas)
+            elseif dep_type == "NSUBJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NSUBJ", jCas)
+            elseif dep_type == "NSUBJPASS" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NSUBJPASS", jCas)
+            elseif dep_type == "NUM" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NUM", jCas)
+            elseif dep_type == "NUMBER" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.NUMBER", jCas)
+            elseif dep_type == "PARATAXIS" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PARATAXIS", jCas)
+            elseif dep_type == "PARTMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PARTMOD", jCas)
+            elseif dep_type == "PCOMP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PCOMP", jCas)
+            elseif dep_type == "POBJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.POBJ", jCas)
+            elseif dep_type == "POSS" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.POSS", jCas)
+            elseif dep_type == "POSSESSIVE" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.POSSESSIVE",
+                jCas)
+            elseif dep_type == "PRECONJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PRECONJ", jCas)
+            elseif dep_type == "PRED" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PRED", jCas)
+            elseif dep_type == "PREDET" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PREDET", jCas)
+            elseif dep_type == "PREP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PREP", jCas)
+            elseif dep_type == "PREPC" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PREPC", jCas)
+            elseif dep_type == "PRT" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PRT", jCas)
+            elseif dep_type == "PUNCT" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PUNCT", jCas)
+            elseif dep_type == "PURPCL" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.PURPCL", jCas)
+            elseif dep_type == "QUANTMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.QUANTMOD", jCas)
+            elseif dep_type == "RCMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.RCMOD", jCas)
+            elseif dep_type == "REF" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.REF", jCas)
+            elseif dep_type == "REL" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.REL", jCas)
+            elseif dep_type == "ROOT" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT", jCas)
+            elseif dep_type == "TMOD" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.TMOD", jCas)
+            elseif dep_type == "XSUBJ" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.XSUBJ", jCas)
+            elseif dep_type == "XCOMP" then
+                dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.XCOMP", jCas)
             else
                 dep_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency",
                     jCas)
@@ -289,12 +307,12 @@ function process_results(jCas, results)
         dep_anno:setEnd(dep["end"])
         dep_anno:setFlavor(dep["flavor"])
 
-        governor = tokens[dep["governor_index"] + 1]
+        local governor = tokens[dep["governor_index"] + 1]
         if governor ~= nil then
             dep_anno:setGovernor(governor)
         end
 
-        dependent = tokens[dep["dependent_index"] + 1]
+        local dependent = tokens[dep["dependent_index"] + 1]
         if dependent ~= nil then
             dep_anno:setDependent(dependent)
         end
