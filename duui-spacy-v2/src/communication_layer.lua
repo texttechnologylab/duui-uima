@@ -69,7 +69,16 @@ function process(source, handler, parameters, target)
     local sentences = JCasUtil:select(source, Sentence)
 
     if sentences:isEmpty() then
+        local response = handler:post("/eos", json.encode({
+            text = source:getDocumentText(),
+            config = config,
+        }))
+        process_eos(target, response)
+        sentences = JCasUtil:select(target, Sentence)
+
+        if sentences:isEmpty() then
             error("No sentences found in the source or target JCas.")
+        end
     end
 
     for batch in batched(sentences:iterator(), get_sentence_and_offset, batch_size) do
@@ -366,6 +375,26 @@ function process_response(jCas, response)
         entity_anno:addToIndexes()
             
         references[#references + 1] = entity_anno
+    end
+
+    add_annotator_metadata(jCas, results.metadata, references)
+end
+
+function process_eos(jCas, response)
+    if response:statusCode() ~= 200 then
+        error("Error " .. response:statusCode() .. " in communication with component: " .. response:body())
+    end
+
+    local results = json.decode(response:bodyUtf8())
+
+    local references = {}
+    for _, sentence in ipairs(results.sentences) do
+        local sentence_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence", jCas)
+        sentence_anno:setBegin(sentence["begin"])
+        sentence_anno:setEnd(sentence["end"])
+        sentence_anno:addToIndexes()
+
+        references[#references + 1] = sentence_anno
     end
 
     add_annotator_metadata(jCas, results.metadata, references)

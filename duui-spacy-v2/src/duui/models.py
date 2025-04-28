@@ -8,6 +8,7 @@ from duui.settings import SpacySettings
 class AnnotationMeta(BaseModel):
     name: str
     version: str
+    spacy_version: str
     model_name: str
     model_pipes: list[str]
     model_version: str
@@ -100,3 +101,13 @@ class DuuiRequest(BaseModel):
         ),
     ]
     config: Optional[SpacySettings] = None
+
+
+class EosRequest(BaseModel):
+    text: str
+    config: Optional[SpacySettings] = None
+
+
+class EosResponse(BaseModel):
+    metadata: AnnotationMeta
+    sentences: list[AnnotationType]

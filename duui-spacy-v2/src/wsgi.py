@@ -5,8 +5,10 @@ from typing import Final, get_args
 
 import spacy
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.logger import logger
 from fastapi.responses import PlainTextResponse
+from spacy import Language
 
 from duui.const import (
     LUA_COMMUNICATION_LAYER,
@@ -17,12 +19,15 @@ from duui.const import (
 from duui.errors import NoModelError
 from duui.models import (
     AnnotationMeta,
+    AnnotationType,
     ComponentCapability,
     ComponentDocumentation,
     DependencyType,
     DuuiRequest,
     DuuiResponse,
     EntityType,
+    EosRequest,
+    EosResponse,
     TokenType,
 )
 from duui.settings import SETTINGS, SpacySettings
@@ -102,7 +107,7 @@ async def v1_process(
 ) -> DuuiResponse:
     config: SpacySettings = params.config or SETTINGS
 
-    nlp = get_spacy_model(request.app.state, config)
+    nlp: Language = get_spacy_model(request.app.state, config)
 
     to_disable = config.spacy_disable or SETTINGS.spacy_disable or []
     to_disable = set(to_disable).intersection(nlp.pipe_names)
@@ -172,8 +177,9 @@ async def v1_process(
 
         return DuuiResponse(
             metadata=AnnotationMeta(
-                name="duui-spacy-v2",
-                version="0.1.0",
+                name=SETTINGS.component_name,
+                version=SETTINGS.component_version,
+                spacy_version=spacy.__version__,
                 model_lang=nlp.lang,
                 model_name=nlp.meta["name"],
                 model_pipes=nlp.pipe_names,
@@ -184,4 +190,60 @@ async def v1_process(
             tokens=tokens,
             dependencies=dependencies,
             entities=entities,
-        ).model_dump(by_alias=True, exclude_none=True)
+        )
+
+
+###
+
+
+@app.post(
+    "/eos",
+    description="End-of-Sentence Detection Endpoint",
+)
+async def post_eos(
+    params: EosRequest,
+    request: Request,
+) -> EosResponse:
+    config: SpacySettings = params.config or SETTINGS
+
+    nlp: Language = get_spacy_model(request.app.state, config)
+
+    logger.info(nlp.pipe_names)
+    if "senter" in nlp.pipe_names:
+        eos_pipe = ["senter"]
+    elif "parser" in nlp.pipe_names:
+        eos_pipe = ["senter"]
+        nlp.enable_pipe("senter")
+    elif "sentencizer" in nlp.pipe_names:
+        eos_pipe = ["sentencizer"]
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="spaCy model does not have a sentence segmentation component",
+        )
+
+    with nlp.select_pipes(enable=eos_pipe):
+        doc = nlp(params.text)
+
+        sentences = [
+            AnnotationType(
+                begin=sent.start_char,
+                end=sent.end_char,
+            )
+            for sent in doc.sents
+        ]
+
+        return EosResponse(
+            metadata=AnnotationMeta(
+                name=SETTINGS.component_name + "/eos",
+                version=SETTINGS.component_version,
+                spacy_version=spacy.__version__,
+                model_lang=nlp.lang,
+                model_name=nlp.meta["name"],
+                model_pipes=nlp.pipe_names,
+                model_spacy_git_version=nlp.meta["spacy_git_version"],
+                model_spacy_version=nlp.meta["spacy_version"],
+                model_version=nlp.meta["version"],
+            ),
+            sentences=sentences,
+        )
