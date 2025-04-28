@@ -3,11 +3,9 @@ from typing import Optional
 import spacy
 from fastapi.datastructures import State
 from fastapi.logger import logger
-from spacy import Language
-from spacy.tokens import Doc
 
 from duui.const import SpacyModelName
-from duui.models import DuuiSentence, SpacySettings
+from duui.models import SpacySettings
 from duui.settings import SETTINGS
 
 
@@ -42,10 +40,3 @@ def get_spacy_model(state: State, settings: SpacySettings):
         state.models[model_name] = model
         state.lru.insert(0, model_name)
         return model
-
-
-def get_doc(nlp: Language, sentence: DuuiSentence) -> Doc:
-    with nlp.select_pipes(enable=["tokenizer"]):
-        doc = nlp(sentence.text)
-        doc.user_data["offset"] = sentence.offset
-        return doc
