@@ -3,8 +3,16 @@ StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 
+------------------------------------------------------
+
+---Indicates that this component supports the "new" `process` method.
 SUPPORTS_PROCESS = true
+---Indicates that this component does NOT support the old `serialize`/`deserialize` methods.
 SUPPORTS_SERIALIZE = false
+
+------------------------------------------------------
+--- Below are two general purpose functions for batch processing of annotations in a JCas.
+--- These are not specific for this component, but only support a simple Iterator as input.
 
 ---Create and yield batches of elements from an iterator after applying a transform function.
 ---@param iterator any an iterator over annotations
@@ -40,8 +48,6 @@ end
 
 ------------------------------------------------------
 
-REQUEST_BATCH_SIZE = 1024
-
 ---Get the text and offset (begin index) of a sentence.
 ---@param sentence any a sentence annotation
 ---@return table a table with the text and offset of the sentence
@@ -51,6 +57,9 @@ function get_sentence_and_offset(sentence)
         offset = sentence:getBegin(),
     }
 end
+
+---We can define settings here or we could fetch them from the component using separate endpoints.
+REQUEST_BATCH_SIZE = 1024
 
 ---Process the sentences in the given JCas in small batches.
 ---@param source any JCas (view) to process
@@ -64,9 +73,12 @@ function process(source, handler, parameters, target)
         spacy_model_size = parameters.spacy_model_size or "lg",
         spacy_batch_size = parameters.spacy_batch_size or 32,
     }
-    local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
 
     local sentences = JCasUtil:select(source, Sentence)
+
+    ---If there are no sentences in the source JCas (view), we can call the supplementary /eos
+    ---endpoint of the component to annotate them. The spaCy `senter` pipeline component can deal
+    ---with much larger inputs than the other components, so we can use the whole document text.
 
     if sentences:isEmpty() then
         local response = handler:post("/eos", json.encode({
@@ -81,6 +93,15 @@ function process(source, handler, parameters, target)
         end
     end
 
+    ---After fetching the sentences (and possibly annotating them), we can process them in batches.
+    ---The batch size is variable, here we use a fixed batch size in number of sentences.
+    ---Developers could also implement dynamic batch sizes depending on information provided by the
+    ---component or on the length of the text etc.
+    ---Using the `get_sentence_and_offset` transform function, we just get the text and offset of each
+    ---sentence. The general purpose batching functions from above deal with the rest.
+    ---After the component has processed the sentences, we call `process_response` on the response directly.
+
+    local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
     for batch in batched(sentences:iterator(), get_sentence_and_offset, batch_size) do
         process_response(
             target or source,
@@ -98,28 +119,37 @@ end
 ---@param jCas any JCas
 ---@param response any DuuiHttpRequestHandler.Response{int statusCode, byte[]? body}
 function process_response(jCas, response)
+    ---The response wraps the HTTP status code and body in a record class.
+    ---If there is an error, we can deal with it here. We could also make use of additional information
+    ---provided by the component, e.g. the error message in the body.
+    ---Here, we just throw an error with the status code and body.
+
     if response:statusCode() ~= 200 then
-        error("Error " .. response:statusCode() .. " in communication with component: " .. response:body())
+        error("Error " .. response:statusCode() .. " in communication with component: " .. response:bodyUtf8())
     end
 
+    ---The Response object provides a method to decode the body as UTF-8, which we then decode as JSON.
+    ---@type table<string, table>
     local results = json.decode(response:bodyUtf8())
+
+    ---Below follows basic DUUI deserialization logic, adapted from the regular duui-spacy component.
 
     local tokens, references = {}, {}
 
-    for i, token in ipairs(results.tokens) do
+    for _, token in ipairs(results.tokens) do
         local token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", jCas)
         token_anno:setBegin(token["begin"])
         token_anno:setEnd(token["end"])
         token_anno:addToIndexes()
 
-        tokens[i] = token_anno
+        tokens[#tokens + 1] = token_anno
         references[#references + 1] = token_anno
 
         if token.lemma ~= nil then
             local lemma_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma", jCas)
             lemma_anno:setBegin(token["begin"])
             lemma_anno:setEnd(token["end"])
-            lemma_anno:setValue(token["lemma"])
+            lemma_anno:setValue(token.lemma)
             token_anno:setLemma(lemma_anno)
             lemma_anno:addToIndexes()
 
@@ -130,90 +160,91 @@ function process_response(jCas, response)
             local pos_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS", jCas)
             pos_anno:setBegin(token["begin"])
             pos_anno:setEnd(token["end"])
-            pos_anno:setPosValue(token["pos_value"])
-            pos_anno:setCoarseValue(token["pos_coarse"])
+            pos_anno:setPosValue(token.pos_value)
+            pos_anno:setCoarseValue(token.pos_coarse)
             token_anno:setPos(pos_anno)
             pos_anno:addToIndexes()
-            
+
             references[#references + 1] = pos_anno
         end
 
         if token.morph_value ~= nil and token.morph_value ~= "" then
             local morph_anno = luajava.newInstance(
-                "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.MorphologicalFeatures", jCas)
+                "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.MorphologicalFeatures", jCas
+            )
             morph_anno:setBegin(token["begin"])
             morph_anno:setEnd(token["end"])
-            morph_anno:setValue(token["morph_value"])
+            morph_anno:setValue(token.morph_value)
             token_anno:setMorph(morph_anno)
             morph_anno:addToIndexes()
-            
+
             references[#references + 1] = morph_anno
 
             -- Add detailed infos, if available
-            if token["morph_features"]["Gender"] ~= nil then
-                morph_anno:setGender(token["morph_features"]["Gender"])
+            if token.morph_features.Gender ~= nil then
+                morph_anno:setGender(token.morph_features.Gender)
             end
-            if token["morph_features"]["Number"] ~= nil then
-                morph_anno:setNumber(token["morph_features"]["Number"])
+            if token.morph_features.Number ~= nil then
+                morph_anno:setNumber(token.morph_features.Number)
             end
-            if token["morph_features"]["Case"] ~= nil then
-                morph_anno:setCase(token["morph_features"]["Case"])
+            if token.morph_features.Case ~= nil then
+                morph_anno:setCase(token.morph_features.Case)
             end
-            if token["morph_features"]["Degree"] ~= nil then
-                morph_anno:setDegree(token["morph_features"]["Degree"])
+            if token.morph_features.Degree ~= nil then
+                morph_anno:setDegree(token.morph_features.Degree)
             end
-            if token["morph_features"]["VerbForm"] ~= nil then
-                morph_anno:setVerbForm(token["morph_features"]["VerbForm"])
+            if token.morph_features.VerbForm ~= nil then
+                morph_anno:setVerbForm(token.morph_features.VerbForm)
             end
-            if token["morph_features"]["Tense"] ~= nil then
-                morph_anno:setTense(token["morph_features"]["Tense"])
+            if token.morph_features.Tense ~= nil then
+                morph_anno:setTense(token.morph_features.Tense)
             end
-            if token["morph_features"]["Mood"] ~= nil then
-                morph_anno:setMood(token["morph_features"]["Mood"])
+            if token.morph_features.Mood ~= nil then
+                morph_anno:setMood(token.morph_features.Mood)
             end
-            if token["morph_features"]["Voice"] ~= nil then
-                morph_anno:setVoice(token["morph_features"]["Voice"])
+            if token.morph_features.Voice ~= nil then
+                morph_anno:setVoice(token.morph_features.Voice)
             end
-            if token["morph_features"]["Definiteness"] ~= nil then
-                morph_anno:setDefiniteness(token["morph_features"]["Definiteness"])
+            if token.morph_features.Definiteness ~= nil then
+                morph_anno:setDefiniteness(token.morph_features.Definiteness)
             end
-            if token["morph_features"]["Person"] ~= nil then
-                morph_anno:setPerson(token["morph_features"]["Person"])
+            if token.morph_features.Person ~= nil then
+                morph_anno:setPerson(token.morph_features.Person)
             end
-            if token["morph_features"]["Aspect"] ~= nil then
-                morph_anno:setAspect(token["morph_features"]["Aspect"])
+            if token.morph_features.Aspect ~= nil then
+                morph_anno:setAspect(token.morph_features.Aspect)
             end
-            if token["morph_features"]["Animacy"] ~= nil then
-                morph_anno:setAnimacy(token["morph_features"]["Animacy"])
+            if token.morph_features.Animacy ~= nil then
+                morph_anno:setAnimacy(token.morph_features.Animacy)
             end
-            if token["morph_features"]["Negative"] ~= nil then
-                morph_anno:setNegative(token["morph_features"]["Negative"])
+            if token.morph_features.Negative ~= nil then
+                morph_anno:setNegative(token.morph_features.Negative)
             end
-            if token["morph_features"]["NumType"] ~= nil then
-                morph_anno:setNumType(token["morph_features"]["NumType"])
+            if token.morph_features.NumType ~= nil then
+                morph_anno:setNumType(token.morph_features.NumType)
             end
-            if token["morph_features"]["Possessive"] ~= nil then
-                morph_anno:setPossessive(token["morph_features"]["Possessive"])
+            if token.morph_features.Possessive ~= nil then
+                morph_anno:setPossessive(token.morph_features.Possessive)
             end
-            if token["morph_features"]["PronType"] ~= nil then
-                morph_anno:setPronType(token["morph_features"]["PronType"])
+            if token.morph_features.PronType ~= nil then
+                morph_anno:setPronType(token.morph_features.PronType)
             end
-            if token["morph_features"]["Reflex"] ~= nil then
-                morph_anno:setReflex(token["morph_features"]["Reflex"])
+            if token.morph_features.Reflex ~= nil then
+                morph_anno:setReflex(token.morph_features.Reflex)
             end
-            if token["morph_features"]["Transitivity"] ~= nil then
-                morph_anno:setTransitivity(token["morph_features"]["Transitivity"])
+            if token.morph_features.Transitivity ~= nil then
+                morph_anno:setTransitivity(token.morph_features.Transitivity)
             end
         end
     end
 
     for _, dep in ipairs(results.dependencies) do
-        local dep_type = dep["dependency_type"]
+        local dep_type = dep.dependency_type
         local DEP_TYPE = string.upper(dep_type)
         local dep_anno_type = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency"
         if DEP_TYPE == "ROOT" then
             dep_anno_type = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT"
-            dep_type = "--" 
+            dep_type = "--"
         elseif DEP_TYPE == "ABBREV" then
             dep_anno_type = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ABBREV"
         elseif DEP_TYPE == "ACOMP" then
@@ -334,14 +365,14 @@ function process_response(jCas, response)
 
         dep_anno:setBegin(dep["begin"])
         dep_anno:setEnd(dep["end"])
-        dep_anno:setFlavor(dep["flavor"])
+        dep_anno:setFlavor(dep.flavor)
 
-        local governor = tokens[dep["governor_index"] + 1]
+        local governor = tokens[dep.governor_index + 1]
         if governor ~= nil then
             dep_anno:setGovernor(governor)
         end
 
-        local dependent = tokens[dep["dependent_index"] + 1]
+        local dependent = tokens[dep.dependent_index + 1]
         if dependent ~= nil then
             dep_anno:setDependent(dependent)
         end
@@ -357,7 +388,7 @@ function process_response(jCas, response)
     for _, entity in ipairs(results.entities) do
         local entity_anno
 
-        local entity_value = entity["value"]
+        local entity_value = entity.value
         local ENTITY_VALUE = string.upper(entity_value)
         if entity_value == "Organization" or ENTITY_VALUE == "ORG" then
             entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Organization", jCas)
@@ -373,7 +404,7 @@ function process_response(jCas, response)
         entity_anno:setEnd(entity["end"])
         entity_anno:setValue(entity_value)
         entity_anno:addToIndexes()
-            
+
         references[#references + 1] = entity_anno
     end
 
@@ -412,13 +443,13 @@ function add_annotator_metadata(jCas, metadata, references)
 
     local annotation = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", jCas)
     annotation:setReference(reference_array)
-    annotation:setName(metadata["name"])
-    annotation:setVersion(metadata["version"])
-    annotation:setSpacyVersion(metadata["spacy_version"])
-    annotation:setModelName(metadata["model_name"])
-    annotation:setModelVersion(metadata["model_version"])
-    annotation:setModelLang(metadata["model_lang"])
-    annotation:setModelSpacyVersion(metadata["model_spacy_version"])
-    annotation:setModelSpacyGitVersion(metadata["model_spacy_git_version"])
+    annotation:setName(metadata.name)
+    annotation:setVersion(metadata.version)
+    annotation:setSpacyVersion(metadata.spacy_version)
+    annotation:setModelName(metadata.model_name)
+    annotation:setModelVersion(metadata.model_version)
+    annotation:setModelLang(metadata.model_lang)
+    annotation:setModelSpacyVersion(metadata.model_spacy_version)
+    annotation:setModelSpacyGitVersion(metadata.model_spacy_git_version)
     annotation:addToIndexes()
 end
