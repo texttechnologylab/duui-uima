@@ -8,7 +8,7 @@ from cassis import load_typesystem
 import torch
 from threading import Lock
 from functools import lru_cache
-from SentimentSpeech import SentimentCheck
+from SentimentSpeech import SentimentCheck, SentimentCheckGerman
 # from sp_correction import SentenceBestPrediction
 
 # Settings
@@ -174,7 +174,10 @@ def get_documentation():
 
 @lru_cache_with_size
 def load_model(model_name):
-    model_i = SentimentCheck(model_name, device)
+    if model_name=="oliverguhr/german-sentiment-bert":
+        model_i = SentimentCheckGerman(device)
+    else:
+        model_i = SentimentCheck(model_name, device)
     return model_i
 
 

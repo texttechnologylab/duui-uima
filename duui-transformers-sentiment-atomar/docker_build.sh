@@ -2,57 +2,14 @@ export ANNOTATOR_NAME=duui-transformers-sentiment-atomar
 export ANNOTATOR_VERSION=0.5.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
+
 ###---------------------------------------------------------------------
-#export MODEL_NAME="manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1"
-#export MODEL_SPECNAME="manifestoberta-xlm-roberta"
-#export MODEL_VERSION="06c046795a3b7b9822755f0a73776f8fabec3977"
-#export MODEL_SOURCE="https://huggingface.co/manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1"
+#export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
+#export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
+#export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
+#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
 #export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
-
-###---------------------------------------------------------------------
-#export MODEL_NAME="classla/multilingual-IPTC-news-topic-classifier"
-#export MODEL_SPECNAME="multilingual-iptc-media-topic-classifier"
-#export MODEL_VERSION="ad2fac9ca58ad554021c0f244f15a9d556976229"
-#export MODEL_SOURCE="https://huggingface.co/classla/multilingual-IPTC-news-topic-classifier"
-#export MODEL_LANG="Multi"
-###--------------------------------------------------------------------
-
-
-###---------------------------------------------------------------------
-#export MODEL_NAME="poltextlab/xlm-roberta-large-english-cap-v3"
-#export MODEL_SPECNAME="xlm-roberta-large-english-cap-v3"
-#export MODEL_VERSION="580cb9cc334735b6cd09a8c2e050d19f5cebfeca"
-#export MODEL_SOURCE="https://huggingface.co/poltextlab/xlm-roberta-large-english-cap-v3"
-#export MODEL_LANG="EN"
-###--------------------------------------------------------------------
-
-
-###---------------------------------------------------------------------
-#export MODEL_NAME="poltextlab/xlm-roberta-large-party-cap-v3"
-#export MODEL_SPECNAME="xlm-roberta-large-party-cap-v3"
-#export MODEL_VERSION="42804267cb8db2cc056e96f9a6ceee01a579e126"
-#export MODEL_SOURCE="https://huggingface.co/poltextlab/xlm-roberta-large-party-cap-v3"
-#export MODEL_LANG="Multi"
-###--------------------------------------------------------------------
-
-
-###---------------------------------------------------------------------
-#export MODEL_NAME="cardiffnlp/roberta-large-tweet-topic-single-all"
-#export MODEL_SPECNAME="cardiffnlp-roberta-large-tweet-topic-single-all"
-#export MODEL_VERSION="b9286fabc508a553a4dad6cec8035044deff034a"
-#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/roberta-large-tweet-topic-single-all"
-#export MODEL_LANG="EN"
-###--------------------------------------------------------------------
-
-##---------------------------------------------------------------------
-export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
-export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
-export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
-export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
-export MODEL_LANG="Multi"
-##--------------------------------------------------------------------
-
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
@@ -62,6 +19,45 @@ export MODEL_LANG="Multi"
 #export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="lxyuan/distilbert-base-multilingual-cased-sentiments-student"
+#export MODEL_SPECNAME="distilbert-base-multilingual-cased-sentiments-student"
+#export MODEL_VERSION="cf991100d706c13c0a080c097134c05b7f436c45"
+#export MODEL_SOURCE="https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="philschmid/distilbert-base-multilingual-cased-sentiment"
+#export MODEL_SPECNAME="philschmid-distilbert-base-multilingual-cased-sentiments-student"
+#export MODEL_VERSION="b45a713783e49ac09c94dfda4bff847f4ad771c5"
+#export MODEL_SOURCE="https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment/tree/main"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="cardiffnlp/twitter-roberta-base-sentiment-latest"
+#export MODEL_SPECNAME="cardiffnlp-sentiment-en"
+#export MODEL_VERSION="4ba3d4463bd152c9e4abd892b50844f30c646708"
+#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest"
+#export MODEL_LANG="EN"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="j-hartmann/sentiment-roberta-large-english-3-classes"
+#export MODEL_SPECNAME="roberta-based-en"
+#export MODEL_VERSION="81cdc0fe3eee1bc18d95ffdfb56b2151a39c9007"
+#export MODEL_SOURCE="https://huggingface.co/j-hartmann/sentiment-roberta-large-english-3-classes"
+#export MODEL_LANG="EN"
+###--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export MODEL_NAME="bardsai/finance-sentiment-de-base"
+export MODEL_SPECNAME="finance-sentiment-de"
+export MODEL_VERSION="51b3d03f716eaa093dc42130f675839675a07b9a"
+export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-de-base"
+export MODEL_LANG="DE"
+##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=
