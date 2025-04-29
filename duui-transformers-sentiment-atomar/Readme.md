@@ -8,10 +8,15 @@
 DUUI implementation for selected Hugging-Face-based transformer [Sentiment tools](https://huggingface.co/models?sort=trending&search=sentiment) models.
 ## Included Models
 
-| Name                                                                         |                                                                                              | Revision                                 | Languages    |
-|------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------|--------------|
-| twitter-xlm-roberta-base-sentiment                                           | https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment | f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8 | Multilingual |
-| citizenlab/twitter-xlm-roberta-base-sentiment-finetunned                     | https://huggingface.co/citizenlab/twitter-xlm-roberta-base-sentiment-finetunned  | a9381f1d9e6f8aac74155964c2f6ea9a63a9e9a6  | Multilingual |
+| Name                                                          |                                                                                             | Revision                           | Languages |
+|---------------------------------------------------------------|---------------------------------------------------------------------------------------------|------------------------------------|------|
+| twitter-xlm-roberta-base-sentiment                            | https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment | f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8 | Multilingual |
+| citizenlab-twitter-xlm-roberta-base-sentiment-finetunned      | https://huggingface.co/citizenlab/twitter-xlm-roberta-base-sentiment-finetunned | a9381f1d9e6f8aac74155964c2f6ea9a63a9e9a6 | Multilingual |
+| distilbert-base-multilingual-cased-sentiments-student         | https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student | cf991100d706c13c0a080c097134c05b7f436c45 | Multilingual |
+| philschmid-distilbert-base-multilingual-cased-sentiments-student | https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment | b45a713783e49ac09c94dfda4bff847f4ad771c5 | Multilingual |
+| cardiffnlp-sentiment-en                                       | https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest | 4ba3d4463bd152c9e4abd892b50844f30c646708 | EN   |
+| roberta-based-en | https://huggingface.co/j-hartmann/sentiment-roberta-large-english-3-classes | 81cdc0fe3eee1bc18d95ffdfb56b2151a39c9007 | EN   |
+| finance-sentiment-de  | https://huggingface.co/bardsai/finance-sentiment-de-base | 51b3d03f716eaa093dc42130f675839675a07b9a  | DE   |
 
 # How To Use
 

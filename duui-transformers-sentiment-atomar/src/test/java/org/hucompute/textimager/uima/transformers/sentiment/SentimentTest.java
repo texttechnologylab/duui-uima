@@ -30,7 +30,7 @@ public class SentimentTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
 //    static String model = "chkla/parlbert-topic-german";
 
     @BeforeAll
@@ -202,5 +202,31 @@ public class SentimentTest {
             counter = counter +3;
         }
         System.out.printf("Model Name: %s\n", model_name);
+    }
+
+    @Test
+    public void EnTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+
+        List<String> sentences = Arrays.asList(
+                "I will guide through the Labyrinth. First you need to find the entrance. Then you need to find the exit.",
+                "These are the latest news from the USA. Joe Biden has won the election."
+        );
+
+        createCas("en", sentences);
+        composer.run(cas);
+        Collection<SentimentModel> all_sentiment = JCasUtil.select(cas, SentimentModel.class);
+        for (SentimentModel sentiment_i: all_sentiment){
+            System.out.println(sentiment_i.getCoveredText());
+            Double negative = sentiment_i.getProbabilityNegative();
+            Double neutral = sentiment_i.getProbabilityNeutral();
+            Double positive = sentiment_i.getProbabilityPositive();
+            System.out.println("Negative: " + negative);
+            System.out.println("Neutral: " + neutral);
+            System.out.println("Positive: " + positive);
+        }
     }
 }
