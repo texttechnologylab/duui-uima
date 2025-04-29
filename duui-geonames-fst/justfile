@@ -1,4 +1,4 @@
-version := "0.2.0"
+version := "0.2.2"
 
 build version=version variant="de":
     docker build -f Dockerfile -t duui-geonames-fst/{{variant}}:{{version}} --build-arg COUNTRY={{uppercase(variant)}} .

@@ -1,9 +1,8 @@
-FROM rust:slim AS builder
+FROM docker.texttechnologylab.org/duui-geonames-fst/base:latest AS builder
 
-WORKDIR /app/src/
-ADD https://github.com/manu-schaaf/geonames-fst.git /app/src/
+WORKDIR /build/
 RUN cargo build --release --no-default-features --features duui
-RUN chmod +x /app/src/target/release/geonames-fst
+RUN chmod +x /build/target/release/geonames-fst
 
 FROM alpine:latest AS data
 RUN apk --update add unzip && rm -rf /var/cache/apk/*
@@ -20,8 +19,8 @@ WORKDIR /data/alternateNames
 RUN unzip ${COUNTRY}.zip && rm -f ${COUNTRY}.zip readme.txt
 
 FROM cgr.dev/chainguard/glibc-dynamic:latest AS prod
-COPY --from=builder /app/src/target/release/geonames-fst /app/
-COPY --from=builder /app/src/resources /app/resources
+COPY --from=builder /build/target/release/geonames-fst /app/
+COPY --from=builder /build/resources /app/resources
 COPY --from=data /data /app/data
 WORKDIR /app/
 
