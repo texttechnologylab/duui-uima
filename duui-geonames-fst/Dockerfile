@@ -1,4 +1,5 @@
-FROM docker.texttechnologylab.org/duui-geonames-fst/base:latest AS builder
+ARG GEONAMES_FST_VERSION=0.3.1
+FROM docker.texttechnologylab.org/duui-geonames-fst/base:${GEONAMES_FST_VERSION} AS builder
 
 WORKDIR /build/
 RUN cargo build --release --no-default-features --features duui
@@ -20,8 +21,8 @@ RUN unzip ${COUNTRY}.zip && rm -f ${COUNTRY}.zip readme.txt
 
 FROM cgr.dev/chainguard/glibc-dynamic:latest AS prod
 COPY --from=builder /build/target/release/geonames-fst /app/
-COPY --from=builder /build/resources /app/resources
 COPY --from=data /data /app/data
+COPY src/main/resources/ /app/resources
 WORKDIR /app/
 
 ENV RUST_LOG="info,tower_http=debug,axum::rejection=trace"

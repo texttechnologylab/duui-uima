@@ -1,9 +1,18 @@
-version := "0.2.2"
+version := "0.3.3"
+
+default version=version variant="de":
+    just build "{{version}}" "{{variant}}"
+    just tag "{{version}}" "{{variant}}"
+    just push "{{version}}" "{{variant}}"
 
 build version=version variant="de":
     docker build -f Dockerfile -t duui-geonames-fst/{{variant}}:{{version}} --build-arg COUNTRY={{uppercase(variant)}} .
     docker tag duui-geonames-fst/{{variant}}:{{version}} duui-geonames-fst/{{variant}}:latest
+
+tag version=version variant="de":
     docker tag duui-geonames-fst/{{variant}}:{{version}} docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:{{version}}
     docker tag duui-geonames-fst/{{variant}}:{{version}} docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:latest
+
+push version=version variant="de":
     docker push docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:{{version}}
     docker push docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:latest
