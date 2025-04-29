@@ -2,6 +2,7 @@ package org.texttechnologylab.textimager.uima.rust;
 
 import de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location;
 import org.apache.uima.cas.CASException;
+import org.apache.uima.cas.SelectFSs;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.resource.ResourceInitializationException;
@@ -12,6 +13,7 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.annotation.geonames.GeoNamesEntity;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class TestGeoNamesFst {
     private static JCas getJCas() throws ResourceInitializationException, CASException {
@@ -44,6 +46,36 @@ public class TestGeoNamesFst {
         composer.addDriver(new DUUIRemoteDriver(10000));
         composer.add(
                 new DUUIRemoteDriver.Component("http://localhost:9714")
+                        .withName("duui-geonames-fst")
+        );
+
+        JCas jCas = getJCas();
+        composer.run(jCas);
+        composer.shutdown();
+
+        List<GeoNamesEntity> annotations = jCas.select(GeoNamesEntity.class).toList();
+        assert annotations.size() == 3;
+        for (GeoNamesEntity gn : annotations) {
+            StringBuffer stringBuffer = new StringBuffer();
+            gn.prettyPrint(0, 2, stringBuffer, true);
+            System.out.print(stringBuffer);
+            System.out.println("\n  text: \"" + gn.getCoveredText() + "\"\n");
+        }
+    }
+
+    @Test
+    public void test_find_explicit() throws Exception {
+        DUUIComposer composer = new DUUIComposer()
+                .withLuaContext(
+                        new DUUILuaContext()
+                                .withJsonLibrary()
+                )
+                .withSkipVerification(true);
+
+        composer.addDriver(new DUUIRemoteDriver(10000));
+        composer.add(
+                new DUUIRemoteDriver.Component("http://localhost:9714")
+                        .withName("duui-geonames-fst")
                         .withParameter("mode", "find")
                         .withParameter("result_selection", "first")
         );
@@ -52,7 +84,9 @@ public class TestGeoNamesFst {
         composer.run(jCas);
         composer.shutdown();
 
-        for (GeoNamesEntity gn : jCas.select(GeoNamesEntity.class)) {
+        List<GeoNamesEntity> annotations = jCas.select(GeoNamesEntity.class).toList();
+        assert annotations.size() == 3;
+        for (GeoNamesEntity gn : annotations) {
             StringBuffer stringBuffer = new StringBuffer();
             gn.prettyPrint(0, 2, stringBuffer, true);
             System.out.print(stringBuffer);
@@ -60,6 +94,10 @@ public class TestGeoNamesFst {
         }
     }
 
+    /**
+     * We can also search for matches that have (up to) a certain edit distance from query to match name.
+     * This enables us to match
+     */
     @Test
     public void test_levenshtein() throws Exception {
         DUUIComposer composer = new DUUIComposer()
@@ -72,6 +110,7 @@ public class TestGeoNamesFst {
         composer.addDriver(new DUUIRemoteDriver(10000));
         composer.add(
                 new DUUIRemoteDriver.Component("http://localhost:9714")
+                        .withName("duui-geonames-fst")
                         .withParameter("mode", "levenshtein")
                         .withParameter("max_dist", "2")
                         .withParameter("result_selection", "first")
@@ -81,7 +120,45 @@ public class TestGeoNamesFst {
         composer.run(jCas);
         composer.shutdown();
 
-        for (GeoNamesEntity gn : jCas.select(GeoNamesEntity.class)) {
+        List<GeoNamesEntity> annotations = jCas.select(GeoNamesEntity.class).toList();
+        assert annotations.size() == 6;
+        for (GeoNamesEntity gn : annotations) {
+            StringBuffer stringBuffer = new StringBuffer();
+            gn.prettyPrint(0, 2, stringBuffer, true);
+            System.out.print(stringBuffer);
+            System.out.println("\n  coveredText: \"" + gn.getCoveredText() + "\"\n");
+        }
+    }
+
+    /**
+     * Setting a lower state limit (default: 10000) restricts the matches proportional to the length of the query.
+     */
+    @Test
+    public void test_levenshtein_state_limit() throws Exception {
+        DUUIComposer composer = new DUUIComposer()
+                .withLuaContext(
+                        new DUUILuaContext()
+                                .withJsonLibrary()
+                )
+                .withSkipVerification(true);
+
+        composer.addDriver(new DUUIRemoteDriver(10000));
+        composer.add(
+                new DUUIRemoteDriver.Component("http://localhost:9714")
+                        .withName("duui-geonames-fst")
+                        .withParameter("mode", "levenshtein")
+                        .withParameter("max_dist", "2")
+                        .withParameter("state_limit", "1000")
+                        .withParameter("result_selection", "first")
+        );
+
+        JCas jCas = getJCas();
+        composer.run(jCas);
+        composer.shutdown();
+
+        List<GeoNamesEntity> annotations = jCas.select(GeoNamesEntity.class).toList();
+        assert annotations.size() == 1;
+        for (GeoNamesEntity gn : annotations) {
             StringBuffer stringBuffer = new StringBuffer();
             gn.prettyPrint(0, 2, stringBuffer, true);
             System.out.print(stringBuffer);
