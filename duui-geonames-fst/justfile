@@ -26,3 +26,15 @@ eu version=version:
     docker tag duui-geonames-fst/eu:{{version}} duui-geonames-fst/eu:latest
     just tag "{{version}}" "eu"
     just push "{{version}}" "eu"
+
+europe version=version:
+    docker build -f src/main/docker/europe.Dockerfile -t duui-geonames-fst/europe:{{version}} .
+    docker tag duui-geonames-fst/europe:{{version}} duui-geonames-fst/europe:latest
+    just tag "{{version}}" "europe"
+    just push "{{version}}" "europe"
+
+europe-central version=version:
+    docker build -f src/main/docker/europe-central.Dockerfile -t duui-geonames-fst/europe-central:{{version}} .
+    docker tag duui-geonames-fst/europe-central:{{version}} duui-geonames-fst/europe-central:latest
+    just tag "{{version}}" "europe-central"
+    just push "{{version}}" "europe-central"
