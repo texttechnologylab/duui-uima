@@ -373,7 +373,7 @@ lua_communication_script_filename = "duui_image_to_text.lua"
 class ComplexOperatingMode(str, Enum):
     SIMPLE = "simple"
     COMPLEX_ONLY_ANSWER = "complex-only-answer"
-    COMPLEX_WITH_OD = "complex-with-OD"
+    COMPLEX_WITH_OD = "complex-with-od"
 
 
 # Request sent by DUUI
@@ -625,10 +625,19 @@ def process_complex(model_name, images, prompt, mode):
 
     generate_ids = generate_ids[:, inputs["input_ids"].shape[1]:]
 
+    generation_args = {
+        "max_new_tokens": 4096,
+        "return_full_text": False,
+        "temperature": 0.00001,
+        "top_p": 1.0,
+        "do_sample": True,
+    }
+
     response = processor.batch_decode(
         generate_ids,
         skip_special_tokens=True,
-        clean_up_tokenization_spaces=False
+        clean_up_tokenization_spaces=False,
+        **generation_args
     )[0]
     print("the answer is: ", response)
     processed_text_all = response
