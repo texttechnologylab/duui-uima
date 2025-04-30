@@ -103,45 +103,59 @@ function process(sourceCas, handler, parameters, targetCas)
     ---After the component has processed the sentences, we call `process_response` on the response directly.
 
     local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
+    ---@type table<integer, any> table to aggregate references to created annotations
+    local references = {}
+    ---@type table<string, table>
+    local results = {}
     for batch in batched(sentences:iterator(), get_sentence_and_offset, batch_size) do
         if type(batch) ~= "table" then
             error("Error while batching: " .. batch)
         end
-        process_response(
-            targetCas,
-            handler:process(
-                json.encode({
-                    sentences = batch,
-                    config = config,
-                })
-            )
+
+        ---@type any DuuiHttpRequestHandler.Response{int statusCode, byte[]? body}
+        local response = handler:process(
+            json.encode({
+                sentences = batch,
+                config = config,
+            })
         )
+
+        ---The response wraps the HTTP status code and body in a record class.
+        ---If there is an error, we can deal with it here. We could also make use of additional information
+        ---provided by the component, e.g. the error message in the body.
+        ---Here, we just throw an error with the status code and body.
+        
+        if response:statusCode() ~= 200 then
+            error("Error " .. response:statusCode() .. " in communication with component: " .. response:bodyUtf8())
+        end
+
+        ---The Response object provides a method to decode the body as UTF-8, which we then decode as JSON.
+        results = json.decode(response:bodyUtf8())
+
+        ---We collect all annotation references in a single table to deduplicate the annotator metadata annotation.
+
+        local batch_refs = process_response(targetCas, results)
+        for _, ref in ipairs(batch_refs) do
+            references[#references + 1] = ref
+        end
     end
+
+    ---After processing all sentences, we can add the metadata to the target JCas.
+    ---The metadata is provided by the component in the response, so we can just use it here.
+
+    add_annotator_metadata(targetCas, results.metadata, references)
 end
 
 ---Process the response from the component.
----@param jCas any JCas
----@param response any DuuiHttpRequestHandler.Response{int statusCode, byte[]? body}
-function process_response(jCas, response)
-    ---The response wraps the HTTP status code and body in a record class.
-    ---If there is an error, we can deal with it here. We could also make use of additional information
-    ---provided by the component, e.g. the error message in the body.
-    ---Here, we just throw an error with the status code and body.
-
-    if response:statusCode() ~= 200 then
-        error("Error " .. response:statusCode() .. " in communication with component: " .. response:bodyUtf8())
-    end
-
-    ---The Response object provides a method to decode the body as UTF-8, which we then decode as JSON.
-    ---@type table<string, table>
-    local results = json.decode(response:bodyUtf8())
-
+---@param targetCas any JCas to write the results to
+---@param results table the results from the component
+function process_response(targetCas, results)
     ---Below follows basic DUUI deserialization logic, adapted from the regular duui-spacy component.
 
     local tokens, references = {}, {}
 
     for _, token in ipairs(results.tokens) do
-        local token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", jCas)
+        local token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", targetCas)
         token_anno:setBegin(token["begin"])
         token_anno:setEnd(token["end"])
         token_anno:addToIndexes()
@@ -150,7 +164,7 @@ function process_response(jCas, response)
         references[#references + 1] = token_anno
 
         if token.lemma ~= nil then
-            local lemma_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma", jCas)
+            local lemma_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma", targetCas)
             lemma_anno:setBegin(token["begin"])
             lemma_anno:setEnd(token["end"])
             lemma_anno:setValue(token.lemma)
@@ -161,7 +175,7 @@ function process_response(jCas, response)
         end
 
         if token.pos_value ~= nil then
-            local pos_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS", jCas)
+            local pos_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS", targetCas)
             pos_anno:setBegin(token["begin"])
             pos_anno:setEnd(token["end"])
             pos_anno:setPosValue(token.pos_value)
@@ -174,7 +188,7 @@ function process_response(jCas, response)
 
         if token.morph_value ~= nil and token.morph_value ~= "" then
             local morph_anno = luajava.newInstance(
-                "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.MorphologicalFeatures", jCas
+                "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.MorphologicalFeatures", targetCas
             )
             morph_anno:setBegin(token["begin"])
             morph_anno:setEnd(token["end"])
@@ -364,7 +378,7 @@ function process_response(jCas, response)
         elseif DEP_TYPE == "XCOMP" then
             dep_anno_type = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.XCOMP"
         end
-        local dep_anno = luajava.newInstance(dep_anno_type, jCas)
+        local dep_anno = luajava.newInstance(dep_anno_type, targetCas)
         dep_anno:setDependencyType(dep_type)
 
         dep_anno:setBegin(dep["begin"])
@@ -395,13 +409,13 @@ function process_response(jCas, response)
         local entity_value = entity.value
         local ENTITY_VALUE = string.upper(entity_value)
         if entity_value == "Organization" or ENTITY_VALUE == "ORG" then
-            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Organization", jCas)
+            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Organization", targetCas)
         elseif entity_value == "Person" or ENTITY_VALUE == "PER" then
-            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Person", jCas)
+            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Person", targetCas)
         elseif entity_value == "Location" or ENTITY_VALUE == "LOC" then
-            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location", jCas)
+            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location", targetCas)
         else
-            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity", jCas)
+            entity_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity", targetCas)
         end
 
         entity_anno:setBegin(entity["begin"])
@@ -412,10 +426,10 @@ function process_response(jCas, response)
         references[#references + 1] = entity_anno
     end
 
-    add_annotator_metadata(jCas, results.metadata, references)
+    return references
 end
 
-function process_eos(jCas, response)
+function process_eos(targetCas, response)
     if response:statusCode() ~= 200 then
         error("Error " .. response:statusCode() .. " in communication with component: " .. response:body())
     end
@@ -424,7 +438,8 @@ function process_eos(jCas, response)
 
     local references = {}
     for _, sentence in ipairs(results.sentences) do
-        local sentence_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence", jCas)
+        local sentence_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence",
+            targetCas)
         sentence_anno:setBegin(sentence["begin"])
         sentence_anno:setEnd(sentence["end"])
         sentence_anno:addToIndexes()
@@ -432,20 +447,20 @@ function process_eos(jCas, response)
         references[#references + 1] = sentence_anno
     end
 
-    add_annotator_metadata(jCas, results.metadata, references)
+    add_annotator_metadata(targetCas, results.metadata, references)
 end
 
----Add a SpacyAnnotatorMetaData annotation to the JCas.
----@param jCas any the JCas to add the annotation to
+---Add a SpacyAnnotatorMetaData annotation to the targetCas.
+---@param targetCas any the JCas to add the annotation to
 ---@param metadata table<string, any> a table with metadata information
 ---@param references table<integer, any> a table of references to the annotations
-function add_annotator_metadata(jCas, metadata, references)
-    local reference_array = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", jCas, #references)
+function add_annotator_metadata(targetCas, metadata, references)
+    local reference_array = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", targetCas, #references)
     for i, ref in ipairs(references) do
         reference_array:set(i - 1, ref)
     end
 
-    local annotation = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", jCas)
+    local annotation = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", targetCas)
     annotation:setReference(reference_array)
     annotation:setName(metadata.name)
     annotation:setVersion(metadata.version)
