@@ -12,10 +12,10 @@ RUN ./venv/bin/python -m spacy download de_core_news_sm && \
 
 COPY src/ /app/
 
-ARG COMPONENT_NAME="duui-spacy-v2"
+ARG COMPONENT_NAME="duui-spacy-lua-process"
 ENV COMPONENT_NAME=${COMPONENT_NAME}
 
-ARG VERSION="duui-spacy-v2"
+ARG VERSION="0.1.0"
 ENV COMPONENT_VERSION=${VERSION}
 
 ARG SPACY_LANGUAGE="de"
