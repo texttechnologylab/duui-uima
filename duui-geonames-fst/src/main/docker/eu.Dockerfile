@@ -78,8 +78,8 @@ RUN mkdir -p /data/geonames /data/alternateNames && \
 
 FROM cgr.dev/chainguard/glibc-dynamic:latest AS prod
 COPY --from=builder /build/target/release/geonames-fst /app/
-COPY --from=data /data /app/data
-COPY src/main/resources/ /app/resources
+COPY --from=data /data /app/data/
+COPY src/main/resources/ /app/resources/
 WORKDIR /app/
 
 ENV RUST_LOG="info,tower_http=debug,axum::rejection=trace"

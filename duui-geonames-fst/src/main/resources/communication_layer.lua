@@ -88,11 +88,11 @@ function process(sourceCas, handler, parameters, targetCas)
 
         local response = handler:process(json.encode(query))
 
-        if response:statusCode() ~= 200 then
-            error("Error " .. response:statusCode() .. " in communication with component: " .. response:bodyUtf8())
+        if not response:ok() then
+            error("Error " .. response:statusCode() .. " in communication with component: " .. response:bodyAsString())
         end
     
-        results = json.decode(response:bodyUtf8())
+        results = json.decode(response:body())
         process_response(targetCas, results, references)
     end
 
