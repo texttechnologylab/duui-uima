@@ -43,7 +43,7 @@
         <dependency>
             <groupId>org.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>1.5.0-alpha</version>
+            <version>1.5.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.github.texttechnologylab</groupId>
