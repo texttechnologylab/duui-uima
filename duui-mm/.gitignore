@@ -39,11 +39,4 @@ build/
 
 ## venv
 # Python virtual environment
-.venv/*
-
-*.pyc
-*.pyo
-
-./*.pyc
-
-.idea/*
+./venv
