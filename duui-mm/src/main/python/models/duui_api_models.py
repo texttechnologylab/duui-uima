@@ -81,8 +81,8 @@ class DUUIMMRequest(BaseModel):
 
     # list of images
     images: List[ImageType]
-    # prompt
-    prompt: str
+    # List of prompt
+    prompts: List[str]
 
     # number of images
     number_of_images: int
@@ -107,13 +107,7 @@ class DUUIMMRequest(BaseModel):
 # Note, this is transformed by the Lua script
 class DUUIMMResponse(BaseModel):
     # list of processed text
-    processed_text: str
-    # list of entities (bounding boxes)
-    entities: List[Entity]
-    # list of images with entities drawn on them
-    images: List[ImageType]
-    # number of images
-    number_of_images: int
+    processed_text: List[str]
     # model source
     model_source: str
     # model language
