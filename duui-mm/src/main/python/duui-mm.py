@@ -1,6 +1,7 @@
 import base64
 import logging
 from functools import lru_cache
+from http.client import responses
 from threading import Lock
 import io
 import cv2
@@ -11,9 +12,9 @@ from PIL import Image
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
+from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes
-from models.utils import convert_base64_to_image, convert_image_to_base64, draw_entity_boxes_on_image, find_label_positions, plot_bbox
 from models.Phi_4_model import MicrosoftPhi4
 
 
@@ -62,75 +63,19 @@ def init():
     with open(typesystem_filename, 'rb') as f:
         type_system = load_typesystem(f)
 
-
-
-
-
-
-
-def custom_post_process_generation(task_prompt, image=None, text_input=None):
-    # # Free GPU memory if available
-    # if torch.cuda.is_available():
-    #     torch.cuda.empty_cache()
-    #     gc.collect()
-
-    model_id = 'microsoft/Florence-2-large'
-
-    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-
-    florence_model, processor = get_model_and_processor(model_id)
-
-    if image is not None:
-        if not isinstance(image, Image.Image):
-            raise TypeError(f"Expected a PIL.Image.Image, got: {type(image)}")
-        image = image.convert("RGB")  # Ensure consistent format
-
-    # Prepare the prompt
-    prompt = task_prompt if text_input is None else task_prompt + text_input
-
-    # Processor returns float32 by default — keep it that way
-    inputs = processor(text=prompt, images=image, return_tensors="pt").to('cuda:0' if torch.cuda.is_available() else 'cpu', torch_dtype)
-
-    # Generate
-    generated_ids = florence_model.generate(
-        input_ids=inputs["input_ids"],
-        pixel_values=inputs["pixel_values"],
-        max_new_tokens=4096,
-        early_stopping=False,
-        do_sample=False,
-        num_beams=3,
-    )
-
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-
-    # Post-process
-    parsed_answer = processor.post_process_generation(
-        generated_text,
-        task=task_prompt,
-        image_size=(image.width, image.height)
-    )
-
-    return parsed_answer
-
-
-
-
 # Settings
 # These are automatically loaded from env variables
 from starlette.responses import PlainTextResponse, JSONResponse
 model_lock = Lock()
 sources = {
-    "microsoft/kosmos-2-patch14-224": "https://huggingface.co/microsoft/kosmos-2-patch14-224",
     "microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct"
 }
 
 languages = {
-    "microsoft/kosmos-2-patch14-224": "en",
     "microsoft/Phi-4-multimodal-instruct": "multi",
 }
 
 versions = {
-    "microsoft/kosmos-2-patch14-224": "e91cfbcb4ce051b6a55bfb5f96165a3bbf5eb82c",
     "microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
 }
 
@@ -203,13 +148,11 @@ def get_documentation():
             "versions": versions,
         },
         parameters={
-            "images": "List of images",
             "prompt": "Prompt",
-            "number_of_images": "Number of images",
             "doc_lang": "Document language",
             "model_name": "Model name",
             "individual": "A flag for processing the images as one (set of frames) or indivisual. Note: it only works in a complex-mode",
-            "mode": "a mode of operation, simple --> Kosmos-2 model only, complex-only-answer --> phi-4 MM model only, complex-with-OD --> phi-4 mm followed by Florence-2 model"
+            "mode": "a mode of operation"
 
         }
     )
@@ -230,270 +173,10 @@ def load_model(model_name, device):
     return model
 
 
-@lru_cache_with_size
-def get_model_and_processor(model_name):
-    if model_name not in _loaded_models:
-        print(f"Loading model: {model_name}")
-        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        _loaded_models[model_name] = load_model(model_name, low_cpu_mem_usage=True)
-        _loaded_processors[model_name] = AutoProcessor.from_pretrained(model_name, trust_remote_code=True, torch_dtype=torch_dtype)
-    return _loaded_models[model_name], _loaded_processors[model_name]
-
-
-
-
-
-
-def process_complex(model_name, images, prompt, mode):
-
-    entities_all = []
-    result_images_all = []
-
-    # Load the model
-    model, processor = get_model_and_processor(model_name)
-
-
-    # convert images from base64 to PIL
-    images = [convert_base64_to_image(image.src) for image in images]
-
-    placeholder = "".join(f"<|image_{i}|>" for i in range(len(images)))
-
-    messages = [
-        {
-            "role": "user",
-            "content": f"{placeholder},Please describe or summarize the content of these images as they are a series of frames representa video. AND based on the the description, {prompt}"
-        }
-    ]
-
-
-    prompt = processor.tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    print("processed prompt is ", prompt)
-
-    inputs = processor(prompt, images=images, return_tensors='pt').to('cuda:0')
-
-    generation_args = {
-        "max_new_tokens": 512,
-        "temperature": 0.5,
-        "do_sample": True,
-    }
-
-    generation_config = GenerationConfig.from_pretrained(model_name)
-
-
-    generate_ids = model.generate(
-        **inputs,
-        **generation_args,
-        generation_config=generation_config,
-    )
-
-    generate_ids = generate_ids[:, inputs["input_ids"].shape[1]:]
-
-    generation_args = {
-        "max_new_tokens": 4096,
-        "return_full_text": False,
-        "temperature": 0.00001,
-        "top_p": 1.0,
-        "do_sample": True,
-    }
-
-    response = processor.batch_decode(
-        generate_ids,
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False,
-        **generation_args
-    )[0]
-    print("the answer is: ", response)
-    processed_text_all = response
-
-    detail = mode == ComplexOperatingMode.COMPLEX_WITH_OD
-
-    for image in images:
-        # #TODO: change this last image
-        # image = images[-1]
-        entities, processed_text, generated_grounding = generate_custom_entities(image, response, detail=detail)
-        sub_entities= []
-        for bbox, label in zip(entities['bboxes'], entities['labels']):
-            # Get the character positions
-            start, end = find_label_positions(processed_text, label)
-
-
-            x1, y1, x2, y2 = bbox
-            # Convert relative bboxes to absolute
-            absolute_bboxes = [
-                (
-                    int(x1),
-                    int(y1),
-                    int(x2),
-                    int(y2)
-                )
-            ]
-
-            # Add entity with updated position info
-            sub_entities.append(Entity(name=label, begin=start, end=end, bounding_box=absolute_bboxes))
-
-
-        image_results = plot_bbox(image, sub_entities)
-
-        entities_all.extend(sub_entities)
-
-        image_base64 = convert_image_to_base64(image_results)
-        image_width, image_height = image.size
-
-        result_images_all.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text_all)))
-
-    return processed_text_all, entities_all, result_images_all
-
-
-def generate_custom_entities(image, generated_text, return_gounding=False, detail =True):
-    print("processing entities with detail? ", detail)
-
-    if detail:
-        first_task_prompt = '<DETAILED_CAPTION>'
-
-        detailed_caption = custom_post_process_generation(first_task_prompt,  image.copy(), None)
-
-        print("detailed caption: ", detailed_caption)
-
-        generated_text = generated_text + " In general: " + detailed_caption[first_task_prompt]
-
-
-    print("generated text: ", generated_text)
-
-    second_task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
-
-    processed_entities_text = custom_post_process_generation(second_task_prompt, image.copy(), generated_text)
-    entities = processed_entities_text[second_task_prompt]
-
-    return entities, generated_text, processed_entities_text if return_gounding else None
-
-def process_image(model_name, image, prompt, mode):
-    print("processing image, with prompt, ", prompt)
-
-    # Load the model
-    model = load_model(model_name, low_cpu_mem_usage=True)
-
-
-    # phi-4 model
-    if complex:
-        placeholder  = f"<|image_0|>"
-        messages = [
-            {
-                "role": "user",
-                "content": (
-                        placeholder
-                        + prompt
-                )
-            }
-        ]
-        prompt = processor.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
-        )
-
-    # get the inputs for the model
-    inputs = processor(text=prompt, images=image, return_tensors="pt")
-    inputs.to(device)
-
-    if complex:
-        generation_config = GenerationConfig.from_pretrained(model_name)
-
-        generation_args = {
-            "max_new_tokens": 512,
-            "temperature": 0.5,
-            "do_sample": True,
-        }
-
-        generated_ids = model.generate(
-            **inputs,
-            **generation_args,
-            generation_config=generation_config,
-        )
-    else:
-        # generate the IDs
-        generated_ids = model.generate(
-            pixel_values=inputs["pixel_values"],
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            image_embeds=None,
-            image_embeds_position_mask=inputs["image_embeds_position_mask"],
-            use_cache=True,
-            max_new_tokens=1024,
-        )
-
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-
-    generated_text = generated_text.replace(prompt, "")
-
-    if complex:
-
-        # # Free GPU memory if available
-        # model.to("cpu")
-
-        entities, processed_text, _ = generate_custom_entities(image.copy(), generated_text)
-
-        print("entities: ", entities)
-
-        entities_out = []
-        for bbox, label in zip(entities['bboxes'], entities['labels']):
-            # Get the character positions
-            start, end = find_label_positions(processed_text, label)
-
-
-            x1, y1, x2, y2 = bbox
-            # Convert relative bboxes to absolute
-            absolute_bboxes = [
-                (
-                    int(x1),
-                    int(y1),
-                    int(x2),
-                    int(y2)
-                )
-            ]
-
-            # Add entity with updated position info
-            entities_out.append(Entity(name=label, begin=start, end=end, bounding_box=absolute_bboxes))
-            entities = entities_out
-
-    else:
-        # By default, the generated  text is cleanup and the entities are extracted.
-        processed_text, entities = processor.post_process_generation(generated_text)
-
-    print("generated text: ", processed_text)
-    # return the processed text and the entities, which are the bounding boxes
-    return processed_text, entities
-
-def handle_image_results(image_path, entities):
-    result_entities = []
-    image_obj = convert_base64_to_image(image_path)
-    image_width, image_height = image_obj.size
-    # draw the entities on the image and save it into a buffer
-    image_entities = draw_entity_boxes_on_image(image_obj, entities, show=False, save_path=None)
-    image_base64 = convert_image_to_base64(Image.fromarray(image_entities[:, :, [2, 1, 0]]))
-
-    for entity in entities:
-        entity_name, (start, end), bboxes = entity
-        absolute_bboxes = [
-            (
-                int(x1 * image_width),
-                int(y1 * image_height),
-                int(x2 * image_width),
-                int(y2 * image_height)
-            )
-            for x1, y1, x2, y2 in bboxes
-        ]
-        result_entities.append(Entity(name=entity_name, begin=start, end=end, bounding_box=absolute_bboxes))
-
-    return result_entities, image_base64
-#
 
 def process_text_only(model_name, prompt):
     # Load the model
-    model = load_model(model_name, low_cpu_mem_usage=True)
+    model = load_model(model_name)
 
     response = model.process_text(prompt)
 
@@ -504,12 +187,27 @@ def process_text_only(model_name, prompt):
 
 def process_image_only(model_name, image_base64, prompt):
     # Load the model
-    model = load_model(model_name, low_cpu_mem_usage=True)
+    model = load_model(model_name)
 
-    generated_text = model.process_image(image_base64, prompt)
+    response = model.process_image(image_base64, prompt)
+
+    #TODO: post processing
 
     # return the processed text
-    return generated_text
+    return response
+
+def process_frames_only(model_name, frames, prompt):
+
+    #load the model
+    model = load_model(model_name)
+
+    #TODO: preprocessing
+
+    response = model.process_video_frames(prompt, frames)
+
+    #TODO: postprocessing
+
+    return response
 
 # Process request from DUUI
 @app.post("/v1/process")
@@ -520,50 +218,47 @@ def post_process(request: DUUIMMRequest):
     model_version = versions.get(request.model_name, "Unknown version")
 
     # model prompt
-    prompt = request.prompt
+    prompts = request.prompts
 
     # Initialize the response
-    processed_text = ""
-    result_entities = []
-    result_images = []
-    errors_list = []
+    responses_out = []
+    errors_out = []
 
     mode = request.mode
     individual = request.individual
     try:
         if mode == MultiModelModes.TEXT_ONLY:
-            response = process_text_only(request.model_name, prompt)
-        elif mode == MultiModelModes.IMAGE_ONLY:
-            for image in request.images if type(request.images) == list else [request.images]:
-                responses = [process_image_only(request.model_name, image.src, prompt)]
+            for prompt in prompts:
+                responses_out.append(process_text_only(request.model_name, prompt))
 
-
-        for image in request.images:
-            image_path = image.src
-            image_width = image.width
-            image_height = image.height
-            # process the image
-            processed_text, entities = process_image(request.model_name, image_path, prompt, mode)
-            if complex:
-                result_entities = entities
-                image_base64 = convert_image_to_base64(plot_bbox(convert_base64_to_image(image.src), entities))
-
+        elif mode == MultiModelModes.IMAGE_ONLY or (mode == MultiModelModes.FRAMES_ONLY and individual):
+            if (len(request.images) != len(prompts)) or (len(prompts != 1)):
+                errors_out.append(f"In {mode}, we need a prompt per image, or 1 prompt for all images,"
+                                  f" currently we have {len(request.images)} images, and {len(prompts)} prompts.")
             else:
-                # handle the image results
-                result_entities, image_base64 = handle_image_results(image_path, entities)
+                images = request.images if isinstance(request.images, list) else [request.images]
+                if len(prompts) == 1:
+                    prompts = [prompts[0]] * len(images)
+                for image, prompt in zip(images, prompts):
+                    responses_out.append(process_image_only(request.model_name, image.src, prompt))
 
-            result_images.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text)))
+        elif mode == MultiModelModes.FRAMES_ONLY:
+            if(len(prompts)) != 1:
+                errors_out.append(f"In {mode}, we need exactly 1 prompt for all frames,"
+                                  f" currently we have {len(prompts)} prompts.")
+            else:
+                
+                responses_out = process_frames_only(request.model_name, request.images, prompts[0])
+
+
         # Return the processed data in response
         return DUUIMMResponse(
-            processed_text=processed_text,
-            entities=result_entities,
-            images=result_images,
-            number_of_images=int(request.number_of_images),
+            processed_text=responses_out,
             model_name=request.model_name,
             model_source=model_source,
             model_lang=model_lang,
             model_version=model_version,
-            errors=errors_list,
+            errors=[],
             prompt=prompt
         )
 
@@ -571,8 +266,6 @@ def post_process(request: DUUIMMRequest):
         logger.exception(ex)
         return DUUIMMResponse(
             processed_text=[],
-            entities=[],
-            images=[],
             model_name=request.model_name,
             model_source=model_source,
             model_lang=model_lang,
