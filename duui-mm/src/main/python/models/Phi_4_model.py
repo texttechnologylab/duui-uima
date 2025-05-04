@@ -2,7 +2,7 @@ from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, 
 
 import logging
 
-from utils import convert_base64_to_image, convert_image_to_base64, convert_base64_to_audio, convert_audio_to_base64, handle_errors
+from .utils import convert_base64_to_image, convert_image_to_base64, convert_base64_to_audio, convert_audio_to_base64, handle_errors
 
 class MicrosoftPhi4:
     """

@@ -73,6 +73,25 @@ class Entity(BaseModel):
     end: int
     bounding_box: List[tuple[float, float, float, float]]
 
+class LLMMessage(BaseModel):
+    role: str = None
+    content: str
+    class_module: str = None
+    class_name: str = None
+    fillable: bool = False
+    context_name: str = None
+    ref: int   # internal cas annotation id
+
+
+class LLMPrompt(BaseModel):
+    messages: List[LLMMessage]
+    args: Optional[str]  # json string
+    ref: Optional[int]   # internal cas annotation id
+
+class LLMResult(BaseModel):
+    meta: str  # json string
+    prompt_ref: int   # internal cas annotation id
+    message_ref: int   # internal cas annotation id
 
 
 # Request sent by DUUI
@@ -80,12 +99,9 @@ class Entity(BaseModel):
 class DUUIMMRequest(BaseModel):
 
     # list of images
-    images: List[ImageType]
+    images: Optional[List[ImageType]]
     # List of prompt
-    prompts: List[str]
-
-    # number of images
-    number_of_images: int
+    prompts: List[LLMPrompt]
 
     # doc info
     doc_lang: str
@@ -119,4 +135,4 @@ class DUUIMMResponse(BaseModel):
     # list of errors
     errors: Optional[List[str]]
     # original prompt
-    prompt: Optional[str] = None
+    prompts: List[Optional[str]] = []
