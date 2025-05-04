@@ -1,7 +1,14 @@
+
+--package.path = package.path .. ";/home/staff_homes/aabusale/localgit/MobDebug/src/?.lua"
+--local mobdebug = require("mobdebug")
+--mobdebug.start()
+
+
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
+Prompt = luajava.bindClass("org.texttechnologylab.type.llm.prompt.Prompt")
 
 function serialize(inputCas, outputStream, parameters)
     --print("start Lua serialzation")
@@ -9,12 +16,11 @@ function serialize(inputCas, outputStream, parameters)
 
     --print("doc_lang: ", doc_lang)
 
-    -- get the parameters promopt or default
-    local prompt = parameters["prompt"] if parameters["prompt"] == nil then prompt = "<grounding>An image of" end
-    local model_name = parameters["model_name"] if parameters["model_name"] == nil then model_name = "microsoft/kosmos-2-patch14-224" end
+    -- get the parameters or default
+    local model_name = parameters["model_name"] if parameters["model_name"] == nil then model_name = "microsoft/Phi-4-multimodal-instruct" end
     local selection_types = parameters["selections"] if parameters["selections"] == nil then selection_types="org.texttechnologylab.annotation.type.Image" end
-    local individual = parameters["individual"] if parameters["individual"] == nil then individual = "true" end
-    local mode = parameters['mode'] if parameters['mode'] == nil then mode = 'simple'
+    local individual = parameters["individual"] if parameters["individual"] == nil then individual = "false" end
+    local mode = parameters['mode'] if parameters['mode'] == nil then mode = 'image_only'
 
     end
     --print("truncate_text: ", truncate_text)
@@ -53,10 +59,37 @@ function serialize(inputCas, outputStream, parameters)
 
     end
 
+    local prompts = {}
+    local prompts_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Prompt)):listIterator()
+    local prompt_count = 1
+    while prompts_it:hasNext() do
+        local prompt = prompts_it:next()
+
+        local messages = {}
+        local messages_it = prompt:getMessages():iterator()
+        local messages_count = 1
+        while messages_it:hasNext() do
+            local message = messages_it:next()
+            messages[messages_count] = {
+                role = message:getRole(),
+                content = message:getContent(),
+                ref = message:getAddress()
+            }
+
+        end
+        prompts[prompt_count] = {
+            args = prompt:getArgs(),
+            messages = messages,
+            ref = prompt:getAddress()
+        }
+        prompt_count = prompt_count + 1
+
+        end
+
+
     outputStream:write(json.encode({
         images = images,
-        number_of_images = number_of_images,
-        prompt = prompt,
+        prompts = prompts,
         doc_lang = doc_lang,
         model_name = model_name,
         individual = individual,
@@ -71,12 +104,14 @@ function deserialize(inputCas, inputStream)
     --print("results")
     --print(results)
 
-    if results['prompt'] ~= nil then
-        local prompt = results['prompt']
-        local prompt_i = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-        prompt_i:setKey("prompt")
-        prompt_i:setValue(prompt)
-        prompt_i:addToIndexes()
+    if results['prompts'] ~= nil then
+        local prompts = results['prompts']
+        for index_i, prompt in ipairs(prompts) do
+            local prompt_i = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+            prompt_i:setKey("prompt")
+            prompt_i:setValue(prompt)
+            prompt_i:addToIndexes()
+        end
     end
 
     if results['errors'] ~= nil then
@@ -111,10 +146,6 @@ function deserialize(inputCas, inputStream)
 
 
 
-        local number_of_images = results["number_of_images"]
-        --print("number_of_images: ", number_of_images)
-
-
         local results_images = results["images"]
         local results_processed_text = results["processed_text"]
         local results_entities = results["entities"]
@@ -130,67 +161,7 @@ function deserialize(inputCas, inputStream)
         inputCas:setDocumentText(results_processed_text, "plain/text")
         print(inputCas:getDocumentText())
 
-        -- iterate over the results and add them to the CAS
-        for index_i, image in ipairs(results_images) do
-            -- create image cas object
-            local image_i = luajava.newInstance("org.texttechnologylab.annotation.type.Image", inputCas)
-            image_i:setSrc(image["src"])
-            image_i:setHeight(image["height"])
-            image_i:setWidth(image["width"])
-            image_i:setBegin(image["begin"])
-            image_i:setEnd(image["end"])
-            image_i:addToIndexes()
-
-            -- create a subimage using entities
-            for entity_name, entity_data in pairs(results_entities) do
-
-                --print("entity_name: ", entity_name)
-                local subimage_i = luajava.newInstance("org.texttechnologylab.annotation.type.SubImage", inputCas)
-                --print("entity_name: ", entity_name, "type: ", type(entity_name))
-                subimage_i:setBegin(entity_data["begin"])
-                subimage_i:setEnd(entity_data["end"])
-                subimage_i:setParent(image_i)
-                --print(entity_data["begin"])
-                --print(entity_data["end"])
-                --print(entity_data["bounding_box"])
-                --print("starting bboxes")
-                print("len of bounding_box: ", #entity_data["bounding_box"])
-                local coordinates = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, #entity_data["bounding_box"])
-                if #entity_data["bounding_box"] > 0 then
-                    subimage_i:setCoordinates(coordinates)
-                    local idx = 0
-                    for bx1, bx2 in pairs(entity_data["bounding_box"]) do
-                        --print(("idx: %d"):format(idx))
-                        --print("x1: ", bx2[1])
-                        --print("y1:", bx2[2])
-                        --
-                        --print("x2: ", bx2[3])
-                        --print("y2: ", bx2[4])
-                        if idx < #entity_data["bounding_box"] then
-                            local coordinate_i = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
-                            coordinate_i:setX(bx2[1])
-                            coordinate_i:setY(bx2[2])
-                            coordinate_i:addToIndexes()
-                            subimage_i:setCoordinates(idx, coordinate_i)
-
-                        end
-
-                        if (idx + 1) < #entity_data["bounding_box"] then
-                            local coordinate_i1 = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
-                            coordinate_i1:setX(bx2[3])
-                            coordinate_i1:setY(bx2[4])
-                            coordinate_i1:addToIndexes()
-                            subimage_i:setCoordinates(idx + 1, coordinate_i1)
-                            idx = idx + 2
-
-                        end
-                    end
-
-                end
-                --subimage_i:setCoordinates(coordinates)
-                subimage_i:addToIndexes()
-            end
-        end
+        -- add results as annotation as comments for now
 
     end
 
