@@ -31,15 +31,15 @@ _loaded_processors = {}
 
 # Load settings from env vars
 settings = Settings()
-lru_cache_with_size = lru_cache(maxsize=int(settings.image_to_text_model_cache_size))
+lru_cache_with_size = lru_cache(maxsize=int(settings.duui_mm_model_cache_size))
 
-lua_communication_script, logger, type_system, device = None, None, None, None, None, None
+lua_communication_script, logger, type_system, device = None, None, None, None
 
 def init():
     global lua_communication_script, logger, type_system, device
 
 
-    logging.basicConfig(level=settings.image_to_text_log_level)
+    logging.basicConfig(level=settings.duui_mm_log_level)
     logger = logging.getLogger(__name__)
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -50,9 +50,9 @@ def init():
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 
-    print("*"*20, "Lua communication script", "*"*20)
+    logger.debug("*"*20 + "Lua communication script" + "*"*20)
         # Load the Lua communication script
-    lua_communication_script_filename = "duui_mm.lua"
+    lua_communication_script_filename = "duui-mm.lua"
 
 
     with open(lua_communication_script_filename, 'rb') as f:
@@ -87,7 +87,7 @@ app = FastAPI(
     docs_url="/api",
     redoc_url=None,
     title=settings.duui_mm_annotator_name,
-    description="Image to Text Annotator",
+    description="DUUI component for Multimodal models",
     version=settings.duui_mm_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
@@ -140,9 +140,9 @@ def get_documentation():
         version=settings.image_to_text_model_version,
         implementation_lang="Python",
         meta={
-            "log_level": settings.image_to_text_log_level,
-            "model_version": settings.image_to_text_model_version,
-            "model_cache_size": settings.image_to_text_model_cache_size,
+            "log_level": settings.duui_mm_log_level,
+            "model_version": settings.duui_mm_model_version,
+            "model_cache_size": settings.duui_mm_model_cache_size,
             "models": sources,
             "languages": languages,
             "versions": versions,
@@ -247,7 +247,7 @@ def post_process(request: DUUIMMRequest):
                 errors_out.append(f"In {mode}, we need exactly 1 prompt for all frames,"
                                   f" currently we have {len(prompts)} prompts.")
             else:
-                
+
                 responses_out = process_frames_only(request.model_name, request.images, prompts[0])
 
 
@@ -258,8 +258,8 @@ def post_process(request: DUUIMMRequest):
             model_source=model_source,
             model_lang=model_lang,
             model_version=model_version,
-            errors=[],
-            prompt=prompt
+            errors=errors_out,
+            prompts=prompts
         )
 
     except Exception as ex:
@@ -271,7 +271,7 @@ def post_process(request: DUUIMMRequest):
             model_lang=model_lang,
             model_version=model_version,
             errors=[str(ex)],
-            prompt=prompt
+            prompts=prompts
         )
 
     finally:
