@@ -117,9 +117,8 @@ function deserialize(inputCas, inputStream)
     metadata_anno:setLanguage(metadata.language)
     metadata_anno:setReferences(taxon_references)
 
-    local fs_array = inputCas:emptyFSArray()
     if metadata.other ~= nil and #metadata.other > 0 then
-        fs_array = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, #metadata.other)
+        local fs_array = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, #metadata.other)
         for i, kv in ipairs(metadata.other) do
             local key, value = table.unpack(kv)
             local fs = luajava.newInstance(MetaDataKeyValue, inputCas)
@@ -129,8 +128,8 @@ function deserialize(inputCas, inputStream)
             fs_array:set(i - 1, fs)
         end
         fs_array:addToIndexes()
+        metadata_anno:setOther(fs_array)
     end
-    metadata_anno:setOther(fs_array)
 
     metadata_anno:addToIndexes()
 
