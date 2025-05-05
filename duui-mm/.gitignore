@@ -47,3 +47,4 @@ build/
 ./*.pyc
 
 .idea/*
+*TypeSystem.xml
