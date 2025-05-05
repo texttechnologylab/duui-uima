@@ -22,14 +22,15 @@ public class DuuiCanaryTest {
     @Test
     public void testCanary() throws Exception {
         String lang = "de";
-        Path audioPath = Paths.get("Z210/output.wav");
+        String mimeType = "audio/m4a";
+        Path audioPath = Paths.get("/storage/projects/chatgpt-creativity/data/experiments2/Z210_2024-12-16_15-00/test_output3.m4a");
 
         JCas jCas = JCasFactory.createJCas();
         jCas.setDocumentLanguage(lang);
 
         byte[] audioBytes = Files.readAllBytes(audioPath);
         String audioBase64 = Base64.getEncoder().encodeToString(audioBytes);
-        jCas.setSofaDataString(audioBase64, "audio/wav");
+        jCas.setSofaDataString(audioBase64, mimeType);
 
         DocumentMetaData meta = DocumentMetaData.create(jCas);
         meta.setLanguage(lang);
@@ -56,7 +57,7 @@ public class DuuiCanaryTest {
                         .withScale(1)
                         .withTargetView("transcript")
 //                        .withParameter("language", lang)
-//                        .withParameter("model", "large-v3")
+                        .withParameter("model", "nvidia/canary-1b-flash")
                         .build()
                         .withTimeout(100000000000L)
         );
