@@ -5,10 +5,11 @@ from typing import List, Optional
 
 
 class MultiModelModes(str, Enum):
-    TEXT_ONLY = "text_only"
-    IMAGE_ONLY = "image_only"
-    AUDIO_ONLY = "audio_only"
-    FRAMES_ONLY = "frames_only"
+    TEXT = "text"
+    IMAGE = "image"
+    AUDIO = "audio"
+    FRAMES = "frames"
+    VIDEO_ONLY = "video"
     FRAMES_AND_AUDIO = "frames_and_audio"
 
 
@@ -100,6 +101,9 @@ class DUUIMMRequest(BaseModel):
 
     # list of images
     images: Optional[List[ImageType]]
+    # audio
+    audios: Optional[List[str]]
+
     # List of prompt
     prompts: List[LLMPrompt]
 
@@ -123,7 +127,7 @@ class DUUIMMRequest(BaseModel):
 # Note, this is transformed by the Lua script
 class DUUIMMResponse(BaseModel):
     # list of processed text
-    processed_text: List[str]
+    processed_text: List[LLMResult]
     # model source
     model_source: str
     # model language
@@ -135,4 +139,4 @@ class DUUIMMResponse(BaseModel):
     # list of errors
     errors: Optional[List[str]]
     # original prompt
-    prompts: List[Optional[str]] = []
+    prompts: List[Optional[LLMPrompt]] = []

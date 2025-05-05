@@ -1,13 +1,15 @@
 
-import cv2
 from PIL import Image
-import numpy as np
 from io import BytesIO
 import base64
 import soundfile as sf
 import io
 import functools
 import traceback
+import tempfile
+import subprocess
+import os
+
 
 def handle_errors(method):
     @functools.wraps(method)
@@ -20,81 +22,55 @@ def handle_errors(method):
             return {"error": f"{method.__name__} failed", "detail": str(e)}
     return wrapper
 
+def extract_frames_ffmpeg(video_path, every_n_seconds=5):
+    output_dir = tempfile.mkdtemp()
+    output_pattern = os.path.join(output_dir, "frame_%04d.png")
 
-def is_overlapping(rect1, rect2):
-    x1, y1, x2, y2 = rect1
-    x3, y3, x4, y4 = rect2
-    return not (x2 < x3 or x1 > x4 or y2 < y3 or y1 > y4)
+    # Extract frames every N seconds
+    cmd = [
+        "ffmpeg",
+        "-i", video_path,
+        "-vf", f"fps=1/{every_n_seconds}",
+        output_pattern,
+        "-hide_banner",
+        "-loglevel", "error"
+    ]
+    subprocess.run(cmd, check=True)
 
-
-def plot_bbox(image, entities):
-    """Draw high-quality bounding boxes with smart label placement using OpenCV."""
-    if isinstance(image, Image.Image):
-        image = np.array(image.convert("RGB"))[:, :, ::-1]  # RGB to BGR
-
-    image_h, image_w = image.shape[:2]
-    image_copy = image.copy()
-    used_label_boxes = []
-
-    for entity in entities:
-        if not entity.bounding_box:
-            continue
-
-        x1, y1, x2, y2 = map(int, entity.bounding_box[0])
-        label = entity.name
-        color = tuple(np.random.randint(0, 255, size=3).tolist())
-
-        # Draw the bounding box
-        cv2.rectangle(image_copy, (x1, y1), (x2, y2), color, thickness=2)
-
-        # Label settings
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.5
-        thickness = 1
-
-        # Get label size
-        (text_w, text_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
-        label_pad = 4
-        box_w = text_w + 2 * label_pad
-        box_h = text_h + 2 * label_pad
-
-        # Default label position: above the bbox
-        label_x1 = x1
-        label_y1 = y1 - box_h if y1 - box_h > 0 else y1 + 2
-        label_x2 = label_x1 + box_w
-        label_y2 = label_y1 + box_h
-
-        # Clamp horizontally
-        if label_x2 > image_w:
-            label_x1 = image_w - box_w
-            label_x2 = image_w
-
-        # Avoid overlapping with other labels
-        max_attempts = 10
-        attempts = 0
-        while any(is_overlapping((label_x1, label_y1, label_x2, label_y2), box) for box in used_label_boxes) and attempts < max_attempts:
-            label_y1 += box_h + 2
-            label_y2 += box_h + 2
-            if label_y2 > image_h:
-                label_y1 = max(0, y1 - box_h)  # fallback to above box
-                label_y2 = label_y1 + box_h
-                break
-            attempts += 1
-
-        used_label_boxes.append((label_x1, label_y1, label_x2, label_y2))
-
-        # Draw label background
-        cv2.rectangle(image_copy, (label_x1, label_y1), (label_x2, label_y2), color, -1)
-
-        # Draw label text
-        text_x = label_x1 + label_pad
-        text_y = label_y2 - label_pad
-        cv2.putText(image_copy, label, (text_x, text_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
-
-    return Image.fromarray(image_copy[:, :, ::-1])  # Convert BGR to RGB
+    # Load images as PIL
+    frames = []
+    for filename in sorted(os.listdir(output_dir)):
+        if filename.endswith(".png"):
+            frame_path = os.path.join(output_dir, filename)
+            with Image.open(frame_path) as img:
+                frames.append(img.copy())
+            os.remove(frame_path)
+    os.rmdir(output_dir)
+    return frames
 
 
+def extract_audio_base64_ffmpeg(video_path):
+    audio_output = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
 
+    # Extract full audio
+    cmd = [
+        "ffmpeg",
+        "-i", video_path,
+        "-vn",  # no video
+        "-acodec", "pcm_s16le",
+        "-ar", "44100",
+        "-ac", "2",
+        audio_output,
+        "-hide_banner",
+        "-loglevel", "error"
+    ]
+    subprocess.run(cmd, check=True)
+
+    # Read and encode to base64
+    with open(audio_output, "rb") as f:
+        audio_base64 = base64.b64encode(f.read()).decode("utf-8")
+    os.remove(audio_output)
+    return audio_base64
 
 def fix_unicode_problems(text):
     # fix imgji in python string and prevent json error on response
@@ -135,3 +111,11 @@ def find_label_positions(text, label):
     start = text.find(label)
     end = start + len(label) if start != -1 else -1
     return start, end
+
+
+
+def save_base64_to_temp_file(base64_str, suffix=""):
+    data = base64.b64decode(base64_str)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(data)
+        return tmp.name
