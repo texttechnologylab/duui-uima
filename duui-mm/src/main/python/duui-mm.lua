@@ -9,6 +9,9 @@ Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
 Prompt = luajava.bindClass("org.texttechnologylab.type.llm.prompt.Prompt")
+Image = luajava.bindClass("org.texttechnologylab.annotation.type.Image")
+--Audio = luajava.bindClass("")
+--Video = luaJava.bindClass("")
 
 function serialize(inputCas, outputStream, parameters)
     --print("start Lua serialzation")
@@ -20,45 +23,47 @@ function serialize(inputCas, outputStream, parameters)
     local model_name = parameters["model_name"] if parameters["model_name"] == nil then model_name = "microsoft/Phi-4-multimodal-instruct" end
     local selection_types = parameters["selections"] if parameters["selections"] == nil then selection_types="org.texttechnologylab.annotation.type.Image" end
     local individual = parameters["individual"] if parameters["individual"] == nil then individual = "false" end
-    local mode = parameters['mode'] if parameters['mode'] == nil then mode = 'image_only'
+    local mode = parameters['mode'] if parameters['mode'] == nil then mode = 'text'
 
     end
     --print("truncate_text: ", truncate_text)
     --print("start")
-    local images = {}
-    local number_of_images = 1
-    for selection_type in string.gmatch(selection_types, "([^,]+)") do
-        print("selection_type: ", selection_type)
-        if selection_type == 'text' then
-            local doc_text = inputCas:getDocumentText()
-            local doc_len = TopicUtils:getDocumentTextLength(inputCas)
-            images[number_of_images] = {
-                src = doc_text,
-                height = 0,
-                width = 0,
-                begin = 0,
-                ['end'] = doc_len
-            }
-            number_of_images = number_of_images + 1
-        else
-            local class = Class:forName(selection_type);
-            local image_it = JCasUtil:select(inputCas, class):iterator()
-            while image_it:hasNext() do
-                local image = image_it:next()
-                images[number_of_images] = {
-                    src = image:getSrc(),
-                    height = image:getHeight(),
-                    width = image:getWidth(),
-                    begin = image:getBegin(),
-                    ['end'] = image:getEnd()
-                }
-                number_of_images = number_of_images + 1
-            end
+    --local images = {}
+    --local number_of_images = 1
+    --for selection_type in string.gmatch(selection_types, "([^,]+)") do
+    --    print("selection_type: ", selection_type)
+    --    if selection_type == 'text' then
+    --        local doc_text = inputCas:getDocumentText()
+    --        local doc_len = TopicUtils:getDocumentTextLength(inputCas)
+    --        images[number_of_images] = {
+    --            src = doc_text,
+    --            height = 0,
+    --            width = 0,
+    --            begin = 0,
+    --            ['end'] = doc_len
+    --        }
+    --        number_of_images = number_of_images + 1
+    --    else
+    --        local class = Class:forName(selection_type);
+    --        local image_it = JCasUtil:select(inputCas, class):iterator()
+    --        while image_it:hasNext() do
+    --            local image = image_it:next()
+    --            images[number_of_images] = {
+    --                src = image:getSrc(),
+    --                height = image:getHeight(),
+    --                width = image:getWidth(),
+    --                begin = image:getBegin(),
+    --                ['end'] = image:getEnd()
+    --            }
+    --            number_of_images = number_of_images + 1
+    --        end
+    --
+    --    end
+    --
+    --end
 
-        end
 
-    end
-
+    -- prompts handler
     local prompts = {}
     local prompts_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Prompt)):listIterator()
     local prompt_count = 1
@@ -84,11 +89,32 @@ function serialize(inputCas, outputStream, parameters)
         }
         prompt_count = prompt_count + 1
 
-        end
+    end
+
+    -- images handler if exists
+    local images = {}
+    local number_of_images = 1
+    local image_it = JCasUtil:select(inputCas, Image):iterator()
+    while image_it:hasNext() do
+        local image = image_it:next()
+        images[number_of_images] = {
+            src = image:getSrc(),
+            height = image:getHeight(),
+            width = image:getWidth(),
+            begin = image:getBegin(),
+            ['end'] = image:getEnd()
+        }
+        number_of_images = number_of_images + 1
+    end
+
+
+    -- TODO: add audio handler
+    local audios = {}
 
 
     outputStream:write(json.encode({
         images = images,
+        audios = audios,
         prompts = prompts,
         doc_lang = doc_lang,
         model_name = model_name,
@@ -103,16 +129,6 @@ function deserialize(inputCas, inputStream)
     local results = json.decode(inputString)
     --print("results")
     --print(results)
-
-    if results['prompts'] ~= nil then
-        local prompts = results['prompts']
-        for index_i, prompt in ipairs(prompts) do
-            local prompt_i = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-            prompt_i:setKey("prompt")
-            prompt_i:setValue(prompt)
-            prompt_i:addToIndexes()
-        end
-    end
 
     if results['errors'] ~= nil then
         local errors = results['errors']
@@ -144,26 +160,36 @@ function deserialize(inputCas, inputStream)
         --         print(model_lang)
         model_meta:addToIndexes()
 
+    end
+
+    if results['images'] ~= nil then
+        -- add images
+    end
 
 
-        local results_images = results["images"]
-        local results_processed_text = results["processed_text"]
-        local results_entities = results["entities"]
-
-        -- remove the prompt subtext from the processed text
-        if results['prompt'] ~= nil then
-            local prompt = results['prompt']
-            results_processed_text = results_processed_text:gsub(prompt, "")
+    if results['prompts'] ~= nil then
+        for i, prompt in ipairs(results["prompts"]) do
+            for j, message in pairs(prompt["messages"]) do
+                if message["fillable"] == true then
+                    local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(message["ref"])
+                    msg_anno:setContent(message["content"])
+                end
+            end
         end
-
-        -- update the document text
-        --print("results_processed_text: ", results_processed_text)
-        inputCas:setDocumentText(results_processed_text, "plain/text")
-        print(inputCas:getDocumentText())
-
-        -- add results as annotation as comments for now
 
     end
 
+    if results['processed_text'] ~= nil then
+        for i, llm_result in ipairs(results["processed_text"]) do
+            local llm_anno = luajava.newInstance("org.texttechnologylab.type.llm.prompt.Result", inputCas)
+            llm_anno:setMeta(llm_result["meta"])
+            local prompt_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["prompt_ref"])
+            llm_anno:setPrompt(prompt_anno)
+            local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["message_ref"])
+            llm_anno:setMessage(msg_anno)
+            llm_anno:addToIndexes()
+        end
+
+    end
     -- copy cas into a new one with new document text
 end

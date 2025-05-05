@@ -14,7 +14,7 @@ from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
-from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes
+from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt
 from models.Phi_4_model import MicrosoftPhi4
 
 
@@ -174,40 +174,43 @@ def load_model(model_name, device):
 
 
 
-def process_text_only(model_name, prompt):
-    # Load the model
-    model = load_model(model_name)
-
+def process_text_only(model_name: str, prompt: LLMPrompt) -> LLMResult:
+    model = load_model(model_name, device)
     response = model.process_text(prompt)
+    return response  # Already an LLMResult from the model
 
-    #TODO: postprocessing
 
-    # return the processed text
+def process_image_only(model_name: str, image_base64: str, prompt: LLMPrompt) -> LLMResult:
+    model = load_model(model_name, device)
+    result = model.process_image(image_base64, prompt)
+    return result  # Already an LLMResult
+
+
+def process_frames_only(model_name: str, frames: list[str], prompt: LLMPrompt) -> LLMResult:
+    model = load_model(model_name, device)
+    result = model.process_video_frames(prompt, frames)
+    return result  # Already an LLMResult
+
+def process_audio_only(model_name, audio_base64, prompt):
+    model = load_model(model_name, device)
+    response = model.process_audio(audio_base64, prompt)
     return response
 
-def process_image_only(model_name, image_base64, prompt):
-    # Load the model
+def process_audio_video(model_name, audio_base64, frames_base64, prompt):
+    model = load_model(model_name, device)
+    response = model.process_video_and_audio(audio_base64, frames_base64, prompt)
+    return response
+
+
+def process_video_only(model_name, video_base64, prompt):
     model = load_model(model_name)
 
-    response = model.process_image(image_base64, prompt)
+    response = model.process_video(video_base64, prompt)
 
-    #TODO: post processing
-
-    # return the processed text
+    # TODO: postprocessing if needed
     return response
 
-def process_frames_only(model_name, frames, prompt):
 
-    #load the model
-    model = load_model(model_name)
-
-    #TODO: preprocessing
-
-    response = model.process_video_frames(prompt, frames)
-
-    #TODO: postprocessing
-
-    return response
 
 # Process request from DUUI
 @app.post("/v1/process")
@@ -217,24 +220,24 @@ def post_process(request: DUUIMMRequest):
     model_lang = languages.get(request.model_name, "Unknown language")
     model_version = versions.get(request.model_name, "Unknown version")
 
-    # model prompt
     prompts = request.prompts
-
-    # Initialize the response
     responses_out = []
     errors_out = []
 
     mode = request.mode
     individual = request.individual
+
     try:
         if mode == MultiModelModes.TEXT_ONLY:
             for prompt in prompts:
                 responses_out.append(process_text_only(request.model_name, prompt))
 
         elif mode == MultiModelModes.IMAGE_ONLY or (mode == MultiModelModes.FRAMES_ONLY and individual):
-            if (len(request.images) != len(prompts)) or (len(prompts != 1)):
-                errors_out.append(f"In {mode}, we need a prompt per image, or 1 prompt for all images,"
-                                  f" currently we have {len(request.images)} images, and {len(prompts)} prompts.")
+            if len(request.images) != len(prompts) and len(prompts) != 1:
+                errors_out.append(
+                    f"In {mode}, we need a prompt per image or 1 prompt for all images. "
+                    f"Currently, we have {len(request.images)} images and {len(prompts)} prompts."
+                )
             else:
                 images = request.images if isinstance(request.images, list) else [request.images]
                 if len(prompts) == 1:
@@ -243,15 +246,56 @@ def post_process(request: DUUIMMRequest):
                     responses_out.append(process_image_only(request.model_name, image.src, prompt))
 
         elif mode == MultiModelModes.FRAMES_ONLY:
-            if(len(prompts)) != 1:
-                errors_out.append(f"In {mode}, we need exactly 1 prompt for all frames,"
-                                  f" currently we have {len(prompts)} prompts.")
+            if len(prompts) != 1:
+                errors_out.append(
+                    f"In {mode}, we need exactly 1 prompt for all frames. "
+                    f"Currently, we have {len(prompts)} prompts."
+                )
             else:
+                result = process_frames_only(request.model_name, [img.src for img in request.images], prompts[0])
+                responses_out.append(result)
+        elif mode == MultiModelModes.AUDIO_ONLY:
+            if len(request.audio) != len(prompts) and len(prompts) != 1:
+                errors_out.append(
+                    f"In {mode}, we need a prompt per audio or 1 prompt for all audio inputs. "
+                    f"Currently, {len(request.audio)} audio inputs and {len(prompts)} prompts."
+                )
+            else:
+                audios = request.audio if isinstance(request.audio, list) else [request.audio]
+                if len(prompts) == 1:
+                    prompts = [prompts[0]] * len(audios)
+                for audio, prompt in zip(audios, prompts):
+                    responses_out.append(process_audio_only(request.model_name, audio, prompt))
 
-                responses_out = process_frames_only(request.model_name, request.images, prompts[0])
+        elif mode == MultiModelModes.FRAMES_AND_AUDIO:
+            if len(prompts) != 1:
+                errors_out.append(
+                    f"In {mode}, we need exactly 1 prompt for the video+audio. "
+                    f"Currently, {len(prompts)} prompts provided."
+                )
+            elif not request.audio or not request.images:
+                errors_out.append("Both audio and image frames are required for AUDIO_VIDEO mode.")
+            else:
+                response = process_audio_video(
+                    request.model_name,
+                    request.audio[0] if isinstance(request.audio, list) else request.audio,
+                    [img.src for img in request.images],
+                    prompts[0]
+                )
+                responses_out.append(response)
+
+        elif mode == MultiModelModes.VIDEO_ONLY:
+            if len(prompts) != 1 or len(request.videos) != 1:
+                errors_out.append(f"In {mode}, exactly one prompt and one video must be provided. "
+                                  f"Received {len(prompts)} prompts and {len(request.videos)} videos.")
+            else:
+                video_base64 = request.videos[0].src
+                responses_out.append(process_video_only(request.model_name, video_base64, prompts[0]))
+        else:
+            raise Exception(f"Mode {mode}, is not supported.")
 
 
-        # Return the processed data in response
+        # Return the final structured response
         return DUUIMMResponse(
             processed_text=responses_out,
             model_name=request.model_name,
@@ -263,6 +307,7 @@ def post_process(request: DUUIMMRequest):
         )
 
     except Exception as ex:
+        global logger
         logger.exception(ex)
         return DUUIMMResponse(
             processed_text=[],
@@ -275,10 +320,10 @@ def post_process(request: DUUIMMRequest):
         )
 
     finally:
-        # Free GPU memory if available
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             gc.collect()
+
 
 
 if __name__ == "__main__":
