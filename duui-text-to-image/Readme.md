@@ -35,15 +35,15 @@ Find all available image tags here: https://docker.texttechnologylab.org/v2/duui
 
 ```
 
-[//]: # (composer.add&#40;)
+composer.add(
 
-[//]: # (    new DUUIDockerDriver.Component&#40;"docker.texttechnologylab.org/duui-transformers-emotion:latest"&#41;)
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-text-to-image:latest")
 
-[//]: # (        .withParameter&#40;"model_name", "MilaNLProc/xlm-emo-t"&#41;)
+        .withParameter("model_name", "OFA-Sys/small-stable-diffusion-v0 ")
 
-[//]: # (        .withParameter&#40;"selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"&#41;)
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 
-[//]: # (&#41;;)
+);
 ```
 
 ### Parameters
@@ -90,7 +90,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bagci:2024,
+@misc{abusaleh:2025,
   author         = {Abusaleh, Ali},
   title          = {Text-to-Image as {DUUI} component},
   year           = {2025},

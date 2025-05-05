@@ -1,0 +1,18 @@
+version := "0.1.0"
+
+default version=version:
+    just _build {{version}}
+    just _tag {{version}}
+    just _push {{version}}
+
+_build version=version:
+    docker build -f Dockerfile -t duui-spacy-eos:{{version}} --build-arg VERSION={{version}} .
+    docker tag duui-spacy-eos:{{version}} duui-spacy-eos:latest
+
+_tag version=version:
+    docker tag duui-spacy-eos:{{version}} docker.texttechnologylab.org/duui-spacy-eos:{{version}}
+    docker tag duui-spacy-eos:{{version}} docker.texttechnologylab.org/duui-spacy-eos:latest
+
+_push version=version:
+    docker push docker.texttechnologylab.org/duui-spacy-eos:{{version}}
+    docker push docker.texttechnologylab.org/duui-spacy-eos:latest

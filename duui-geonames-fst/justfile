@@ -1,0 +1,40 @@
+version := "0.3.3"
+
+# runs: just country de, just eu, just europe, just europe-central
+default version=version:
+    just country "de" {{version}}
+    just eu {{version}}
+    just europe {{version}}
+    just europe-central {{version}}
+
+_build version=version variant="de" dockerfile="src/main/docker/single.Dockerfile":
+    docker build -f {{dockerfile}} -t duui-geonames-fst/{{variant}}:{{version}} --build-arg COUNTRY={{uppercase(variant)}} .
+    docker tag duui-geonames-fst/{{variant}}:{{version}} duui-geonames-fst/{{variant}}:latest
+
+_tag version=version variant="de":
+    docker tag duui-geonames-fst/{{variant}}:{{version}} docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:{{version}}
+    docker tag duui-geonames-fst/{{variant}}:{{version}} docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:latest
+
+_push version=version variant="de":
+    docker push docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:{{version}}
+    docker push docker.texttechnologylab.org/duui-geonames-fst/{{variant}}:latest
+
+country country="de" version=version:
+    just _build {{version}} {{country}} "src/main/docker/single.Dockerfile"
+    just _tag {{version}} {{country}}
+    just _push {{version}} {{country}}
+
+eu version=version:
+    just _build {{version}} "eu" "src/main/docker/eu.Dockerfile"
+    just _tag {{version}} "eu"
+    just _push {{version}} "eu"
+
+europe version=version:
+    just _build {{version}} "europe" "src/main/docker/europe.Dockerfile"
+    just _tag {{version}} "europe"
+    just _push {{version}} "europe"
+
+europe-central version=version:
+    just _build {{version}} "europe-central" "src/main/docker/europe-central.Dockerfile"
+    just _tag {{version}} "europe-central"
+    just _push {{version}} "europe-central"
