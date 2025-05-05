@@ -40,3 +40,5 @@ build/
 ## venv
 # Python virtual environment
 .venv/*
+
+*.pyc
