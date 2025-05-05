@@ -10,8 +10,6 @@ from tempfile import TemporaryDirectory
 from time import time
 from typing import List, Optional
 
-import librosa
-import soundfile as sf
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse, JSONResponse
@@ -20,16 +18,14 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
-# TODO
-SUPPORTED_LANGUAGES = [
+SUPPORTED_LANGUAGES = sorted([
     "en",
     "de"
-]
+])
 
-# TODO
-SUPPORTED_MODELS = [
-
-]
+SUPPORTED_MODELS = sorted([
+    "nvidia/canary-1b-flash"
+])
 
 
 class AudioToken(BaseModel):
@@ -38,6 +34,13 @@ class AudioToken(BaseModel):
     timeStart: float
     timeEnd: float
     text: str
+
+
+class AudioSentence(BaseModel):
+    begin: int
+    end: int
+    timeStart: float
+    timeEnd: float
 
 
 class AnnotationMeta(BaseModel):
@@ -56,12 +59,13 @@ class DocumentModification(BaseModel):
 class DUUIRequest(BaseModel):
     audio: str  # base64 encoded
     language: str
-    # model: str = "large-v2"
-    # batch_size: int = 16
+    model: str
 
 
 class DUUIResponse(BaseModel):
-    audio_token: List[AudioToken]
+    audio_tokens: List[AudioToken]
+    audio_segments: List[AudioSentence]
+    full_text: str
     meta: AnnotationMeta
     modification_meta: DocumentModification
 
@@ -131,7 +135,8 @@ def get_input_output() -> JSONResponse:
         "inputs": [
         ],
         "outputs": [
-            "org.texttechnologylab.annotation.type.AudioToken"
+            "org.texttechnologylab.annotation.type.AudioToken",
+            "org.texttechnologylab.annotation.type.AudioSentence"
         ]
     }
 
@@ -149,7 +154,7 @@ def get_communication_layer() -> str:
 @app.get("/v1/documentation")
 def get_documentation() -> DUUIDocumentation:
     capabilities = DUUICapability(
-        supported_languages=sorted(SUPPORTED_LANGUAGES),
+        supported_languages=SUPPORTED_LANGUAGES,
         reproducible=False
     )
 
@@ -164,10 +169,8 @@ def get_documentation() -> DUUIDocumentation:
         },
         docker_container_id="[TODO]",
         parameters={
-            "language": sorted(SUPPORTED_LANGUAGES),
-            # "model": sorted(SUPPORTED_MODELS),
-            # "batch_size": "int",
-            # "allow_download": "bool",
+            "language": SUPPORTED_LANGUAGES,
+            "model": SUPPORTED_MODELS,
         },
         capability=capabilities,
         implementation_specific=None,
@@ -179,43 +182,69 @@ def get_documentation() -> DUUIDocumentation:
 def post_process(request: DUUIRequest) -> DUUIResponse:
     modification_timestamp_seconds = int(time())
 
-    results = []
+    results_tokens = []
+    results_segments = []
+    results_full_text = ""
     meta = None
     modification_meta = None
 
-    language = None
-    if request.language:
-        language = request.language
+    language = request.language
+    if language not in SUPPORTED_LANGUAGES:
+        logger.error("Language %s not supported", language)
+        raise Exception(f"Language {language} not supported")
     logger.info("Language: %s", language)
 
-    # TODO
-    model_name = "nvidia/canary-1b-flash"
+    model_name = request.model
+    if model_name not in SUPPORTED_MODELS:
+        logger.error("Model %s not supported", model_name)
+        raise Exception(f"Model {model_name} not supported")
+    logger.info("Model: %s", model_name)
 
-    # TODO delete by default
-    with TemporaryDirectory(delete=False) as temp_dir:
+    with TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
 
-        # TODO convert to wav or task of user?
-        # audio_temp = temp_path / "audio.unk"
-        audio_temp = temp_path / "audio.wav"
+        audio_temp = temp_path / "audio_unk"
         with open(audio_temp, "wb") as fp:
             fp.write(base64.b64decode(request.audio))
 
-        # convert audio for nemo/canary
-        audio, sample_rate = librosa.load(audio_temp, sr=16000, mono=True)
 
+        # convert audio for nemo/canary: mono, 16kHz and wav
+        # TODO are these different per model?
+        sample_rate = 16000
+        mono = True
         audio_path = temp_path / "audio.wav"
-        sf.write(audio_temp, audio, sample_rate, format="WAV")
+        command = [
+            "ffmpeg",
+            "-i", str(audio_temp),
+            "-ar", str(sample_rate),
+            "-ac", "1" if mono else "2",
+            "-f", "wav",
+            str(audio_path)
+        ]
+        logger.debug("Running audio conversion command:")
+        logger.debug(" ".join(command))
+        process = subprocess.run(command, capture_output=True, text=True)
+
+        if process.returncode != 0:
+            logger.error("Audio conversion command failed with return code %d", process.returncode)
+            logger.error("Output:")
+            logger.error(process.stdout)
+            logger.error("Error:")
+            logger.error(process.stderr)
+            raise Exception("Audio conversion failed: " + process.stderr)
 
         manifest = {
             "audio_filepath": str(audio_path),
             "taskname": "asr",
             "source_lang": language,
-            "target_lang": language,
+            "target_lang": language,  # TODO offer translation?
             "pnc": "yes"
         }
+        logger.debug("Manifest:")
+        logger.debug(manifest)
         manifest_path = temp_path / "manifest.json"
         with open(manifest_path, "w", encoding="UTF-8") as fp:
+            # NOTE the manifest content needs to be a single line
             json.dump(manifest, fp)
 
         output_path = temp_path / "output.json"
@@ -225,25 +254,26 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             f"pretrained_name={model_name}",
             f"dataset_manifest={manifest_path}",
             f"output_filename={output_path}",
-            "chunk_len_in_secs=10",
+            "chunk_len_in_secs=10",  # recommended for longer audio files
             "timestamps=True",
         ]
+        logger.debug("Running transcription command:")
+        logger.debug(" ".join(command))
         process = subprocess.run(command, capture_output=True, text=True)
 
-        # TODO
-        if process.returncode == 0:
-            print("Command succeeded:")
-            print(process.stdout)
-        else:
-            print("Command failed with return code", process.returncode)
-            print("Error output:", process.stderr)
+        # check for errors, but dont fail directly, check for output
+        if process.returncode != 0:
+            logger.error("Transcription command failed with return code %d", process.returncode)
+            logger.error("Output:")
+            logger.error(process.stdout)
+            logger.error("Error:")
+            logger.error(process.stderr)
 
         with open(output_path, "r", encoding="UTF-8") as fp:
-            results = json.load(fp)
+            transcript = json.load(fp)
 
         current_length = 0
-        full_text = ""
-        for word in results["word"]:
+        for word in transcript["word"]:
             # TODO offsets starten nicht bei 0?
             """
             {
@@ -264,7 +294,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             if len(text) == 0 and audio_start == audio_end:
                 continue
 
-            results.append(AudioToken(
+            results_tokens.append(AudioToken(
                 timeStart=float(audio_start),
                 timeEnd=float(audio_end),
                 text=text,
@@ -273,10 +303,11 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             ))
 
             if len(text) > 0:
-                full_text += text + " "
+                results_full_text += text + " "
                 current_length += len(text) + 1
 
-            # TODO segments
+        current_length = 0
+        for word in transcript["segment"]:
             """
             {
               "segment": "Bricht euch den Hals und wir lachen uns .",
@@ -286,6 +317,25 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
               "end": 9.84
             },
             """
+            audio_start = word.get("start")
+            audio_end = word.get("end")
+            text = word.get("segment").strip()
+
+            if audio_start is None or audio_end is None:
+                continue
+
+            if len(text) == 0 and audio_start == audio_end:
+                continue
+
+            results_segments.append(AudioSentence(
+                timeStart=float(audio_start),
+                timeEnd=float(audio_end),
+                begin=current_length,
+                end=current_length + len(text)
+            ))
+
+            if len(text) > 0:
+                current_length += len(text) + 1
 
         meta = AnnotationMeta(
             name=settings.annotator_name,
@@ -307,8 +357,9 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     logger.info("Processed in %d seconds", duration)
     
     return DUUIResponse(
-        audio_token=results,
-        # language=language,
+        audio_tokens=results_tokens,
+        audio_segments=results_segments,
+        full_text=results_full_text,
         meta=meta,
         modification_meta=modification_meta
     )

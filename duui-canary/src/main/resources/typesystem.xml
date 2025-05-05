@@ -31,6 +31,11 @@
             </features>
         </typeDescription>
         <typeDescription>
+            <name>org.texttechnologylab.annotation.type.AudioSentence</name>
+            <description/>
+            <supertypeName>org.texttechnologylab.annotation.type.MultimediaElement</supertypeName>
+        </typeDescription>
+        <typeDescription>
             <name>org.texttechnologylab.annotation.AnnotatorMetaData</name>
             <description/>
             <supertypeName>uima.cas.AnnotationBase</supertypeName>
