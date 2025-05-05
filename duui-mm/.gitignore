@@ -42,3 +42,8 @@ build/
 .venv/*
 
 *.pyc
+*.pyo
+
+./*.pyc
+
+.idea/*
