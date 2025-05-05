@@ -17,7 +17,7 @@ function deserialize(inputCas, inputStream)
     local inputString = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
 
-    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["audio_tokens"] ~= nil and results["audio_segments"] ~= nil and results["full_text"] ~= nil then
+    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["audio_tokens"] ~= nil and results["audio_segments"] ~= nil and results["full_text"] ~= nil and results["language"] ~= nil then
         local modification_meta = results["modification_meta"]
         local modification_anno = luajava.newInstance("org.texttechnologylab.annotation.DocumentModification", inputCas)
         modification_anno:setUser(modification_meta["user"])
@@ -26,6 +26,7 @@ function deserialize(inputCas, inputStream)
         modification_anno:addToIndexes()
 
         inputCas:setDocumentText(results["full_text"])
+        inputCas:setDocumentLanguage(results["language"])
 
         for i, sent in ipairs(results["audio_tokens"]) do
             local audio_token = luajava.newInstance("org.texttechnologylab.annotation.type.AudioToken", inputCas)

@@ -66,6 +66,7 @@ class DUUIResponse(BaseModel):
     audio_tokens: List[AudioToken]
     audio_segments: List[AudioSentence]
     full_text: str
+    language: str
     meta: AnnotationMeta
     modification_meta: DocumentModification
 
@@ -360,6 +361,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         audio_tokens=results_tokens,
         audio_segments=results_segments,
         full_text=results_full_text,
+        language=language,
         meta=meta,
         modification_meta=modification_meta
     )
