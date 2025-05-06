@@ -14,7 +14,6 @@ pydantic-settings==2.0.2
 torchmetrics==1.2.0
 six==1.16.0
 pandas==1.4.3
-flash_attn==2.7.4.post1
 pysentimiento==0.7.3
 starlette==0.40.0
 transformers==4.48.2

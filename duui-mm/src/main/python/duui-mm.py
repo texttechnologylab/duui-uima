@@ -14,7 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt
-from models.Phi_4_model import MicrosoftPhi4
+from models.Phi_4_model import MicrosoftPhi4, Phi4ModelVLLM
 
 
 import os
@@ -166,6 +166,10 @@ def load_model(model_name, device=device):
     if model_name == "microsoft/Phi-4-multimodal-instruct":
         model = MicrosoftPhi4(device=device,
                               logging_level=settings.mm_log_level)
+
+    elif model_name == 'Phi4ModelVLLM':
+        model = Phi4ModelVLLM()
+
     else:
         raise ValueError(f"Unsupported model name: {model_name}")
 

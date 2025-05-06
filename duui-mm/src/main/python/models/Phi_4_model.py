@@ -330,3 +330,64 @@ class MicrosoftPhi4:
             "model_source": self.model_source,
             "model_lang": self.model_lang
         }
+
+
+import requests
+import json
+from .duui_api_models import LLMResult, LLMPrompt
+from .utils import handle_errors
+
+class Phi4ModelVLLM:
+    def __init__(self, api_url="http://localhost:8000/v1/chat/completions", model="microsoft/Phi-4-multimodal-instruct"):
+        self.api_url = api_url
+        self.model = model
+
+    def _generate_dummy_ref(self):
+        from uuid import uuid4
+        return int(uuid4().int % 1_000_000)
+
+    def _extract_prompt_and_image_url(self, prompt: LLMPrompt):
+        image_url = None
+        for msg in reversed(prompt.messages):
+            if msg.role == "user":
+                if isinstance(msg.content, list):
+                    for c in msg.content:
+                        if c.get("type") == "image_url":
+                            image_url = c["image_url"]["url"]
+                else:
+                    text = msg.content
+                break
+        return text or "Describe the image.", image_url
+
+    @handle_errors
+    def process_image(self, image_base64: str, prompt: LLMPrompt) -> LLMResult:
+        text_prompt, image_url = self._extract_prompt_and_image_url(prompt)
+        if not image_url:
+            raise ValueError("No image URL found in prompt.")
+
+        body = {
+            "model": self.model,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": text_prompt},
+                    {"type": "image_url", "image_url": {"url": image_url}}
+                ]
+            }]
+        }
+
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(self.api_url, data=json.dumps(body), headers=headers)
+        response.raise_for_status()
+
+        result = response.json()
+        generated_text = result["choices"][0]["message"]["content"]
+
+        prompt_ref = prompt.ref or self._generate_dummy_ref()
+        message_ref = self._generate_dummy_ref()
+
+        return LLMResult(
+            meta=json.dumps({"response": generated_text, "model_name": self.model}),
+            prompt_ref=prompt_ref,
+            message_ref=message_ref
+        )
