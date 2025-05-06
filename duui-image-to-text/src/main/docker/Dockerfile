@@ -17,6 +17,7 @@ RUN pip install -r requirements.txt
 
 # download models
 RUN python -c "from transformers import AutoModelForVision2Seq; AutoModelForVision2Seq.from_pretrained('microsoft/kosmos-2-patch14-224')"
+RUN python -c "from transformers import AutoModelForCausalLM; AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-multimodal-instruct', trust_remote_code=True)"
 
 
 # log level
