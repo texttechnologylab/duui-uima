@@ -4,7 +4,6 @@ from functools import lru_cache
 from http.client import responses
 from threading import Lock
 import io
-import cv2
 import gc
 import torch
 import uvicorn
@@ -31,7 +30,7 @@ _loaded_processors = {}
 
 # Load settings from env vars
 settings = Settings()
-lru_cache_with_size = lru_cache(maxsize=int(settings.duui_mm_model_cache_size))
+lru_cache_with_size = lru_cache(maxsize=int(settings.mm_model_cache_size))
 
 lua_communication_script, logger, type_system, device = None, None, None, None
 
@@ -39,14 +38,14 @@ def init():
     global lua_communication_script, logger, type_system, device
 
 
-    logging.basicConfig(level=settings.duui_mm_log_level)
+    logging.basicConfig(level=settings.mm_log_level)
     logger = logging.getLogger(__name__)
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = '../resources/TypeSystemMM.xml'
+    typesystem_filename = 'TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 
@@ -86,9 +85,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
-    title=settings.duui_mm_annotator_name,
+    title=settings.mm_annotator_name,
     description="DUUI component for Multimodal models",
-    version=settings.duui_mm_version,
+    version=settings.mm_annotator_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "Ali Abusaleh, TTLab Team",
@@ -140,9 +139,9 @@ def get_documentation():
         version=settings.image_to_text_model_version,
         implementation_lang="Python",
         meta={
-            "log_level": settings.duui_mm_log_level,
-            "model_version": settings.duui_mm_model_version,
-            "model_cache_size": settings.duui_mm_model_cache_size,
+            "log_level": settings.mm_log_level,
+            "model_version": settings.mm_model_version,
+            "model_cache_size": settings.mm_model_cache_size,
             "models": sources,
             "languages": languages,
             "versions": versions,
@@ -159,14 +158,14 @@ def get_documentation():
 
 
 @lru_cache_with_size
-def load_model(model_name, device):
+def load_model(model_name, device=device):
     """
     Load the model and optionally check the input sequence length if input_text is provided.
     Automatically truncates the input if it exceeds the model's max sequence length.
     """
     if model_name == "microsoft/Phi-4-multimodal-instruct":
         model = MicrosoftPhi4(device=device,
-                              logging_level=settings.duui_mm_log_level)
+                              logging_level=settings.mm_log_level)
     else:
         raise ValueError(f"Unsupported model name: {model_name}")
 
@@ -203,7 +202,7 @@ def process_audio_video(model_name, audio_base64, frames_base64, prompt):
 
 
 def process_video_only(model_name, video_base64, prompt):
-    model = load_model(model_name)
+    model = load_model(model_name, device)
 
     response = model.process_video(video_base64, prompt)
 
@@ -228,11 +227,11 @@ def post_process(request: DUUIMMRequest):
     individual = request.individual
 
     try:
-        if mode == MultiModelModes.TEXT_ONLY:
+        if mode == MultiModelModes.TEXT:
             for prompt in prompts:
                 responses_out.append(process_text_only(request.model_name, prompt))
 
-        elif mode == MultiModelModes.IMAGE_ONLY or (mode == MultiModelModes.FRAMES_ONLY and individual):
+        elif mode == MultiModelModes.IMAGE or (mode == MultiModelModes.FRAMES and individual):
             if len(request.images) != len(prompts) and len(prompts) != 1:
                 errors_out.append(
                     f"In {mode}, we need a prompt per image or 1 prompt for all images. "
@@ -245,7 +244,7 @@ def post_process(request: DUUIMMRequest):
                 for image, prompt in zip(images, prompts):
                     responses_out.append(process_image_only(request.model_name, image.src, prompt))
 
-        elif mode == MultiModelModes.FRAMES_ONLY:
+        elif mode == MultiModelModes.FRAMES:
             if len(prompts) != 1:
                 errors_out.append(
                     f"In {mode}, we need exactly 1 prompt for all frames. "
@@ -254,7 +253,7 @@ def post_process(request: DUUIMMRequest):
             else:
                 result = process_frames_only(request.model_name, [img.src for img in request.images], prompts[0])
                 responses_out.append(result)
-        elif mode == MultiModelModes.AUDIO_ONLY:
+        elif mode == MultiModelModes.AUDIO:
             if len(request.audio) != len(prompts) and len(prompts) != 1:
                 errors_out.append(
                     f"In {mode}, we need a prompt per audio or 1 prompt for all audio inputs. "
@@ -284,7 +283,7 @@ def post_process(request: DUUIMMRequest):
                 )
                 responses_out.append(response)
 
-        elif mode == MultiModelModes.VIDEO_ONLY:
+        elif mode == MultiModelModes.VIDEO:
             if len(prompts) != 1 or len(request.videos) != 1:
                 errors_out.append(f"In {mode}, exactly one prompt and one video must be provided. "
                                   f"Received {len(prompts)} prompts and {len(request.videos)} videos.")

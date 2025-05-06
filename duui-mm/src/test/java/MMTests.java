@@ -40,7 +40,7 @@ public class MMTests {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://0.0.0.0:9714";
     static String model = "microsoft/Phi-4-multimodal-instruct";
     static String sOutputPath = "src/test/results";
 
@@ -53,8 +53,8 @@ public class MMTests {
         DUUIUIMADriver uima_driver = new DUUIUIMADriver();
         DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
         composer.addDriver(remoteDriver, uima_driver);
-//        DUUIDockerDriver docker_driver = new DUUIDockerDriver();
-//        composer.addDriver(docker_driver);
+        DUUIDockerDriver docker_driver = new DUUIDockerDriver();
+        composer.addDriver(docker_driver);
 
         cas = JCasFactory.createJCas();
     }
@@ -227,13 +227,27 @@ public class MMTests {
 
     @Test
         public void testTextOnly() throws Exception {
+//            composer.add(
+//                    new DUUIRemoteDriver.Component(url)
+//                            .withParameter("model_name", model)
+//                            .withParameter("mode", "text")
+//                            .build().withTimeout(1000)
+//
+//            );
+
             composer.add(
-                    new DUUIRemoteDriver.Component(url)
+                    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality")
                             .withParameter("model_name", model)
                             .withParameter("mode", "text")
                             .build().withTimeout(1000)
-
             );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
 
             List<String> prompts = Arrays.asList(
                     "Who is the current president of the USA?",

@@ -9,24 +9,24 @@ class MultiModelModes(str, Enum):
     IMAGE = "image"
     AUDIO = "audio"
     FRAMES = "frames"
-    VIDEO_ONLY = "video"
+    VIDEO = "video"
     FRAMES_AND_AUDIO = "frames_and_audio"
 
 
 
 class Settings(BaseSettings):
     # Name of this annotator
-    duui_mm_annotator_name: str
+    mm_annotator_name: str
     # Version of this annotator
     # TODO add these to the settings
-    duui_mm_version: str
+    mm_annotator_version: str
     # Log level
-    duui_mm_log_level: str
+    mm_log_level: str
     # # # model_name
     # Name of this annotator
-    duui_mm_model_version: str
+    mm_model_version: str
     #cach_size
-    duui_mm_model_cache_size: str
+    mm_model_cache_size: str
 
 
 
@@ -117,7 +117,7 @@ class DUUIMMRequest(BaseModel):
     individual: bool = False
 
     # mode for complex
-    mode: MultiModelModes = MultiModelModes.TEXT_ONLY
+    mode: MultiModelModes = MultiModelModes.TEXT
 
 
 
