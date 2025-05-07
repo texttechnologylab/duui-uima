@@ -10,7 +10,7 @@ RUN ./venv/bin/python -m spacy download de_core_news_sm && \
     ./venv/bin/python -m spacy download de_core_news_lg && \
     ./venv/bin/python -m spacy download de_dep_news_trf
 
-COPY src/ /app/
+COPY src/main/ /app/
 
 ARG COMPONENT_NAME="duui-spacy-lua-process"
 ENV COMPONENT_NAME=${COMPONENT_NAME}

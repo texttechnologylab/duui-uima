@@ -64,14 +64,14 @@ REQUEST_BATCH_SIZE = 1024
 ---Process the sentences in the given JCas in small batches.
 ---@param sourceCas any JCas (view) to process
 ---@param handler any DuuiHttpRequestHandler with a connection to the running component
----@param parameters table optional parameters
+---@param parameters table<string, string> optional parameters
 ---@param targetCas any JCas (view) to write the results to (optional)
 function process(sourceCas, handler, parameters, targetCas)
     parameters = parameters or {}
     local config = {
         spacy_language = sourceCas:getDocumentLanguage(),
         spacy_model_size = parameters.spacy_model_size or "lg",
-        spacy_batch_size = parameters.spacy_batch_size or 32,
+        spacy_batch_size = tonumber(parameters.spacy_batch_size) or 32,
     }
 
     targetCas = targetCas or sourceCas
