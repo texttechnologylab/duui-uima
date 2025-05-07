@@ -1,12 +1,10 @@
 #!/bin/bash
 set -e
 
-# Install vLLM from pip:
-pip install vllm
 
 echo "Launching vLLM server..."
 # Load and run the model:
-vllm serve "allenai/Molmo-72B-0924"
+vllm serve "allenai/Molmo-72B-0924" --trust-remote-code
 
 VLLM_PID=$!
 
