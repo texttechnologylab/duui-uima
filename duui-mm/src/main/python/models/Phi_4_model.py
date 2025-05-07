@@ -15,7 +15,7 @@ from .utils import handle_errors, convert_base64_to_image, convert_base64_to_aud
 
 class MicrosoftPhi4:
     def __init__(self,
-                 api_url="http://localhost:8000/v1/chat/completions",
+                 api_url="http://localhost:6658/v1/chat/completions",
                  model_name="microsoft/Phi-4-multimodal-instruct",
                  model_version="0af439b3adb8c23fda473c4f86001dbf9a226021",
                  model_lang="multi",
@@ -130,6 +130,7 @@ class MicrosoftPhi4:
         result = response.json()
         response_text = result["choices"][0]["message"]["content"]
 
+        print("api response is: ", response_text)
         prompt_ref = prompt.ref or self._generate_dummy_ref()
         message_ref = self._generate_dummy_ref()
         return LLMResult(meta=json.dumps({"response": response_text}), prompt_ref=prompt_ref, message_ref=message_ref)

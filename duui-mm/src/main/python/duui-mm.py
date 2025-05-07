@@ -45,7 +45,7 @@ def init():
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = 'TypeSystemMM.xml'
+    typesystem_filename = '../resources/TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 

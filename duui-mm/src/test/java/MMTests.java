@@ -30,6 +30,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 
 import org.texttechnologylab.annotation.type.Image;
+import org.texttechnologylab.annotation.type.Video;
+import org.texttechnologylab.annotation.type.Audio;
 import org.texttechnologylab.type.llm.prompt.Prompt;
 import org.texttechnologylab.type.llm.prompt.Message;
 
@@ -40,7 +42,9 @@ public class MMTests {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://anduin.hucompute.org:9991";
+//    static String url = "http://anduin.hucompute.org:9991";
+    static String url = "http://127.0.0.1:8000";
+
     static String model = "microsoft/Phi-4-multimodal-instruct";
     static String sOutputPath = "src/test/results";
 
@@ -113,18 +117,19 @@ public class MMTests {
         }
     }
 
-//    // Placeholder for audio
-//    private void createCasWithAudio(String language, List<String> prompts, List<String> audioPaths) throws UIMAException {
-//        createCas(language, prompts);
-//        for (String path : audioPaths) {
-//            org.texttechnologylab.annotation.type.Audio audio = new org.texttechnologylab.annotation.type.Audio(cas);
-//            audio.setSrc(readFileAsBase64(path));
-//            audio.addToIndexes();
-//        }
-//    }
+    // Placeholder for audio
+    private void createCasWithAudio(String language, List<String> prompts, List<String> audioPaths) throws UIMAException {
+        createCas(language, prompts);
+        for (String path : audioPaths) {
+            Audio audio = new Audio(cas);
+            audio.setSrc(readFileAsBase64(path));
+            audio.addToIndexes();
+        }
+    }
 
     public void createCasWithVideo(String language, List<String> prompts, String videoBase64) throws UIMAException {
         cas.setDocumentLanguage(language);
+
 
         // Add prompt
         for (String messageText : prompts) {
@@ -142,11 +147,13 @@ public class MMTests {
             prompt.addToIndexes();
         }
 
-        // Add video as base64 image with dummy MIME
-        Image videoWrapper = new Image(cas);
+        // Add video
+        Video videoWrapper = new Video(cas);
         videoWrapper.setMimetype("video/mp4");
         videoWrapper.setSrc(videoBase64);
         videoWrapper.addToIndexes();
+
+
     }
 
     private static String convertFileToBase64(String filePath) {
@@ -195,6 +202,24 @@ public class MMTests {
             e.printStackTrace();
         }
     }
+
+    // Helper method to save Base64 string back to an MP4 video file
+    private static void saveBase64ToVideo(String base64String, String outputPath) {
+        try {
+            // Decode the Base64 string into a byte array
+            byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+
+            // Write the byte array to the specified output MP4 file
+            try (FileOutputStream outputStream = new FileOutputStream(outputPath)) {
+                outputStream.write(decodedBytes);
+            }
+
+            System.out.println("Video saved as: " + outputPath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     // Helper method to convert image file to Base64 string
     private static String convertImageToBase64(String imagePath) {
         try {
@@ -255,6 +280,12 @@ public class MMTests {
             );
 
             createCas("en", prompts);
+
+            Video  video_ = new Video(cas);
+            video_.setMimetype("video/mp4");
+            video_.setSrc("kjsdklsdf");
+            video_.addToIndexes();
+
             composer.run(cas);
 
             verifyNoImages(); // Text-only should produce no image outputs
@@ -347,9 +378,9 @@ public class MMTests {
         List<String> prompts = Collections.singletonList("Who drunk the water from the cup?");
 
         List<String> framePaths = Arrays.asList(
-                "src/test/resources/frames/1.png",
-                "src/test/resources/frames/2.png",
-                "src/test/resources/frames/3.png",
+//                "src/test/resources/frames/1.png",
+//                "src/test/resources/frames/2.png",
+//                "src/test/resources/frames/3.png",
                 "src/test/resources/frames/4.png"
 
         );
@@ -363,41 +394,41 @@ public class MMTests {
         }
     }
 
-//    @Test
-//    public void testVideo() throws Exception {
-//
-//        composer.add(
-//                new DUUIRemoteDriver.Component(url)
-//                        .withParameter("model_name", model)
-//                        .withParameter("mode", "video")
-//                        .build().withTimeout(1000)
-//        );
-//
-//        // Optional: Add UIMA XmiWriter for output storage
-//        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
-//                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/video/",
-//                XmiWriter.PARAM_PRETTY_PRINT, true,
-//                XmiWriter.PARAM_OVERWRITE, true,
-//                XmiWriter.PARAM_VERSION, "1.1"
-//        )).build());
-//
-//        // Load video and convert to base64
-//        String videoPath = "src/test/resources/videos/sample_video.mp4";
-//        String videoBase64 = convertFileToBase64(videoPath);
-//
-//        List<String> prompts = Collections.singletonList("Describe what happens in the video.");
-//
-//        // Create CAS with 1 video and 1 prompt
-//        createCasWithVideo("en", prompts, videoBase64);
-//
-//        // Run pipeline
-//        composer.run(cas);
-//
-//        // Optionally verify the outputs
-//        int idx = 0;
-//        for (Image img : JCasUtil.select(cas, Image.class)) {
-//            saveBase64ToImage(img.getSrc(), "src/test/results/video/frame_output_" + idx++ + ".png");
-//        }
-//    }
+    @Test
+    public void testVideo() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("mode", "video")
+                        .build().withTimeout(1000)
+        );
+
+        // Optional: Add UIMA XmiWriter for output storage
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/video/",
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        // Load video and convert to base64
+        String videoPath = "src/test/resources/videos/kids_video.mp4";
+        String videoBase64 = convertFileToBase64(videoPath);
+
+        List<String> prompts = Collections.singletonList("Describe what happens in the video.");
+
+        // Create CAS with 1 video and 1 prompt
+        createCasWithVideo("en", prompts, videoBase64);
+
+        // Run pipeline
+        composer.run(cas);
+
+        // Optionally verify the outputs
+        int idx = 0;
+        for (Video vid : JCasUtil.select(cas, Video.class)) {
+            saveBase64ToVideo(vid.getSrc(), "src/test/results/video/video_output_" + idx++ + ".mp4");
+        }
+    }
 }
 
