@@ -30,6 +30,10 @@ RUN pip install -r requirements.txt
 RUN echo "installing VLLM..."
 RUN python -m pip install vllm
 
+COPY ./src/main/python/setup_env.py ./setup_env.py
+# Run setup_env.py and set environment variables
+RUN python setup_env.py
+
 
 # copy scripts
 COPY ./src/main/resources/TypeSystemMM.xml ./TypeSystemMM.xml
@@ -38,6 +42,8 @@ COPY ./src/main/python/start.sh ./start.sh
 
 COPY ./src/main/python/duui-mm.lua ./duui-mm.lua
 COPY ./src/main/python/models/ ./models/
+
+
 
 RUN chmod +x ./start.sh
 

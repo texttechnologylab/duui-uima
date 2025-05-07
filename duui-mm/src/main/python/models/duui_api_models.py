@@ -92,7 +92,7 @@ class LLMPrompt(BaseModel):
 class LLMResult(BaseModel):
     meta: str  # json string
     prompt_ref: int   # internal cas annotation id
-    message_ref: int   # internal cas annotation id
+    message_ref: str   # internal cas annotation id
 
 
 # Request sent by DUUI

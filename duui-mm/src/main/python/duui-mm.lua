@@ -185,8 +185,6 @@ function deserialize(inputCas, inputStream)
             llm_anno:setMeta(llm_result["meta"])
             local prompt_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["prompt_ref"])
             llm_anno:setPrompt(prompt_anno)
-            local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["message_ref"])
-            llm_anno:setMessage(msg_anno)
             llm_anno:addToIndexes()
         end
 

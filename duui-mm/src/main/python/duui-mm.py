@@ -158,14 +158,13 @@ def get_documentation():
 
 
 @lru_cache_with_size
-def load_model(model_name, device=device):
+def load_model(model_name, device=None):
     """
     Load the model and optionally check the input sequence length if input_text is provided.
     Automatically truncates the input if it exceeds the model's max sequence length.
     """
     if model_name == "microsoft/Phi-4-multimodal-instruct":
-        model = MicrosoftPhi4(device=device,
-                              logging_level=settings.mm_log_level)
+        model = MicrosoftPhi4(logging_level=settings.mm_log_level)
 
     elif model_name == 'Phi4ModelVLLM':
         model = Phi4ModelVLLM()
