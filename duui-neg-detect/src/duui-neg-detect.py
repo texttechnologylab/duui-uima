@@ -43,10 +43,11 @@ class TextImagerDocumentation(BaseModel):
 
 
 class Settings(BaseSettings):
-    neg_detect_version: float = 0.1
+    textimager_annotator_version: float = 0.1
     cuda: str = "cuda:0"
     cue_detection: bool = True
     scope_detection: bool = True
+    lang: str = "de"
 
 # settings + cache
 settings = Settings()
@@ -55,12 +56,18 @@ lru_cache_with_size = lru_cache(maxsize=2)
 
 config = {"cuda": settings.cuda,
           "cue_detection": settings.cue_detection,
-          "scope_detection": settings.scope_detection}
+          "scope_detection": settings.scope_detection,
+          "lang": settings.lang}
 
 
 @lru_cache_with_size
 def load_pipeline(**kwargs) -> Pipeline:
     # loads a trankit-Model
+    if kwargs.get("lang") is not None:
+        lang = kwargs.get("lang")
+    else:
+        lang = "de"
+
     if kwargs.get("cuda") is not None:
         cuda = kwargs.get("cuda")
     else:
@@ -78,7 +85,7 @@ def load_pipeline(**kwargs) -> Pipeline:
             components.append(ScopeBertInference)
     else:
         components.append(ScopeBertInference)
-    return Pipeline(components=components)
+    return Pipeline(components=components, lang=lang)
 
 
 # Start fastapi
@@ -153,8 +160,8 @@ def get_communication_layer() -> str:
 def get_documentation() -> TextImagerDocumentation:
 
     documentation = TextImagerDocumentation(
-        annotator_name=f"Neg-Detect-Version: {settings.neg_detect_version}",
-        version=str(settings.neg_detect_version),
+        annotator_name=f"Neg-Detect-Version: {settings.textimager_annotator_version}",
+        version=str(settings.textimager_annotator_version),
         implementation_lang="Python",
     )
     return documentation
