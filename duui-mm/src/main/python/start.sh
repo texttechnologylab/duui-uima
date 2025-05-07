@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "installing requirements..."
-python -m pip install vllm
+#echo "installing VLLM..."
+#python -m pip install vllm
 
 echo "Launching vLLM server..."
 python -m vllm.entrypoints.openai.api_server \

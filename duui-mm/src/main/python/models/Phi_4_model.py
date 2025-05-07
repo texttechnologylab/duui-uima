@@ -29,7 +29,7 @@ class MicrosoftPhi4:
 
         self.model = AutoModelForCausalLM.from_pretrained(model_name,
                                                      trust_remote_code=True,
-                                                     _attn_implementation='eager',
+                                                     _attn_implementation='flash_attention_2',
                                                      torch_dtype="auto",
                                                     revision=model_version).eval()
         self.model.to(device)
