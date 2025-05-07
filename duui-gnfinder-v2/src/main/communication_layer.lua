@@ -1,12 +1,24 @@
 -- Bind static classes from java
-StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
-JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
+local StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 
-Taxon = "org.texttechnologylab.annotation.biofid.gnfinder.Taxon"
-VerifiedTaxon = "org.texttechnologylab.annotation.biofid.gnfinder.VerifiedTaxon"
-OddsDetails = "org.texttechnologylab.annotation.biofid.gnfinder.OddsDetails"
-MetaData = "org.texttechnologylab.annotation.biofid.gnfinder.MetaData"
-MetaDataKeyValue = "org.texttechnologylab.annotation.biofid.gnfinder.MetaDataKeyValue"
+local Taxon = "org.texttechnologylab.annotation.biofid.gnfinder.Taxon"
+local VerifiedTaxon = "org.texttechnologylab.annotation.biofid.gnfinder.VerifiedTaxon"
+local OddsDetails = "org.texttechnologylab.annotation.biofid.gnfinder.OddsDetails"
+local MetaData = "org.texttechnologylab.annotation.biofid.gnfinder.MetaData"
+local MetaDataKeyValue = "org.texttechnologylab.annotation.biofid.gnfinder.MetaDataKeyValue"
+
+---Decode a string of sources in to a table of integers
+---@param sources string string to decode
+---@return table<integer, integer> table of integers
+local function decode_sources(sources)
+    local decoded = json.decode(sources)
+    if type(decoded) == "table" then
+        return decoded
+    elseif type(decoded) == "number" then
+        return { decoded }
+    end
+    error("Invalid sources format '" .. sources .. "', expected a json array or a number")
+end
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -21,7 +33,7 @@ function serialize(inputCas, outputStream, parameters)
         noBayes = parameters.noBayes == "true",
         oddsDetails = parameters.oddsDetails == "true",
         verification = parameters.verification ~= "false",
-        sources = parameters.sources or { 11 },
+        sources = decode_sources(parameters.sources or "[11]"),
         allMatches = parameters.allMatches == "true",
     }
 
@@ -71,7 +83,7 @@ function deserialize(inputCas, inputStream)
             for i, details in ipairs(taxon.oddsDetails) do
                 details_anno = luajava.newInstance(OddsDetails, inputCas)
                 details_anno:setFeature(details.feature)
-                details_anno:setValue(details.value)
+                details_anno:setOdds(details.value)
                 details_anno:addToIndexes()
                 odds_details:set(i - 1, details_anno)
             end
