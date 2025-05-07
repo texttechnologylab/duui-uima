@@ -32,7 +32,7 @@ public class TestGNFinderV2 {
 
         composer.addDriver(new DUUIDockerDriver(10000));
         composer.add(
-                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.2")
+                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.3")
                         .build()
         );
 
@@ -53,7 +53,7 @@ public class TestGNFinderV2 {
 
         composer.addDriver(new DUUIDockerDriver(10000));
         composer.add(
-                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.2")
+                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.3")
                         .withParameter("noBayes", "true")
                         .build()
         );
@@ -75,7 +75,7 @@ public class TestGNFinderV2 {
 
         composer.addDriver(new DUUIDockerDriver(10000));
         composer.add(
-                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.2")
+                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.3")
                         .withParameter("allMatches", "true")
                         // Catalogue of Life and GBIF
                         .withParameter("sources", "[1, 11]")
@@ -99,7 +99,7 @@ public class TestGNFinderV2 {
 
         composer.addDriver(new DUUIDockerDriver(10000));
         composer.add(
-                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.2")
+                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-gnfinder-v2:0.1.3")
                         .withParameter("oddsDetails", "true")
                         .build()
         );
