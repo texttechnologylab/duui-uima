@@ -71,7 +71,7 @@ function deserialize(inputCas, inputStream)
             for i, details in ipairs(taxon.oddsDetails) do
                 details_anno = luajava.newInstance(OddsDetails, inputCas)
                 details_anno:setFeature(details.feature)
-                details_anno:setValue(details.value)
+                details_anno:setOdds(details.value)
                 details_anno:addToIndexes()
                 odds_details:set(i - 1, details_anno)
             end
