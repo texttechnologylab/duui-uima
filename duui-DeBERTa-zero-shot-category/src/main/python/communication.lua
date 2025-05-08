@@ -13,9 +13,22 @@ function serialize(inputCas, outputStream, params)
 
     local labels_string = params["labels"]
     local selection = params["selection"]
+    local multi_label = params["multiLabel"]
+    local clear_gpu_cache_after = params["clearGpuCacheAfter"]
+
+    if multi_label ~= nil and multi_label == "false" then
+        multi_label = false
+    else
+        multi_label = true
+    end
+
+    if clear_gpu_cache_after ~= nil then
+        clear_gpu_cache_after = tonumber(clear_gpu_cache_after)
+    else
+        clear_gpu_cache_after = 500
+    end
 
     local selection_array = {}
-
     if selection ~= nil then
        local selectionSet = utils:select(inputCas, luajava.bindClass(selection)):iterator()
 
@@ -41,7 +54,9 @@ function serialize(inputCas, outputStream, params)
     outputStream:write(json.encode({
         doc_text = doc_text,
         labels = labels,
-        selection = selection_array
+        selection = selection_array,
+        multi_label = multi_label,
+        clear_gpu_cache_after = clear_gpu_cache_after,
     }))
 end
 
