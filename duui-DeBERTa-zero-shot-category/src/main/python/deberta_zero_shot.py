@@ -9,6 +9,7 @@ from transformers import pipeline
 
 import uvicorn
 import threading
+import torch 
 
 # A label containing the label and its zero-short score
 class Label(BaseModel):
@@ -28,6 +29,8 @@ class DUUIRequest(BaseModel):
     doc_text: str
     labels: List[str]
     selection: Optional[List[Selection]]
+    multi_label: bool
+    clear_gpu_cache_after: int
 
 
 # Response of this annotator
@@ -38,21 +41,17 @@ class DUUIResponse(BaseModel):
 
 
 # Creates an instance of the pipeline.
-# Device = 0 allows the pipeline to use the gpu, -1 forces cpu usage
-try:
-    classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=0)
-except RuntimeError as e:
-    print("RuntimeError while instantiating the pipeline.")
-    print("Retrying with CPU")
-    classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=-1)
+# Device = -1 forces cpu usage
+device = torch.cuda.current_device() if torch.cuda.is_available() else -1
+classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=device)
 
 lock = threading.Lock()
 
-def run_classifier(text, labels):
+def run_classifier(text, labels, multi_label):
     with lock:
-        return classifier(text, labels, multi_label=True)
+        return classifier(text, labels, multi_label=multi_label)
 
-def analyse(doc_text, selection, labels):
+def analyse(doc_text, selection, labels, multi_label, clear_gpu_cache_after):
     analyzed_labels = []
     print("Start Analyse")
 
@@ -60,13 +59,16 @@ def analyse(doc_text, selection, labels):
          print("Selection is set...")
          for i, s in enumerate(selection):
 
-            result = run_classifier(s.text, labels)
+            result = run_classifier(s.text, labels, multi_label)
 
             sel_labels = result["labels"]
             sel_scores = result["scores"]
 
             for r in range(len(sel_labels)):
                 analyzed_labels.append(Label(label=sel_labels[r], score=sel_scores[r], iBegin=s.iBegin, iEnd=s.iEnd))
+
+            if(torch.cuda.is_available() and i % clear_gpu_cache_after == 0):
+                torch.cuda.empty_cache() 
 
             if i % 1000 == 0:
                 print(f"[DEBUG] {i} / {len(selection)}")
@@ -137,9 +139,12 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     doc_text = request.doc_text
     labels = request.labels
     selection = request.selection
+    multi_label = request.multi_label
+    clear_gpu_cache_after = request.clear_gpu_cache_after
     print(labels)
 
-    analysed_labels = analyse(doc_text, selection, labels)
+    analysed_labels = analyse(doc_text, selection, labels, multi_label, clear_gpu_cache_after)
+    print(analysed_labels)
 
     # Return data as JSON
     return DUUIResponse(

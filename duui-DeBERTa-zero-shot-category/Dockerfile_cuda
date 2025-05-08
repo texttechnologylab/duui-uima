@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.0.3-base-ubuntu20.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu20.04
 
 RUN apt update && DEBIAN_FRONTEND=noninteractive \
     apt install --no-install-recommends -y build-essential software-properties-common && \
