@@ -70,11 +70,11 @@ def analyse(doc_text, selection, labels, multi_label, clear_gpu_cache_after):
             if(torch.cuda.is_available() and i % clear_gpu_cache_after == 0):
                 torch.cuda.empty_cache() 
 
-            if i % 1000 == 0:
-                print(f"[DEBUG] {i} / {len(selection)}")
-                print(sel_labels)
-                print(sel_scores)
-                print("===========================================")
+#             if i % 1000 == 0:
+#                 print(f"[DEBUG] {i} / {len(selection)}")
+#                 print(sel_labels)
+#                 print(sel_scores)
+#                 print("===========================================")
 
     else:
         print("Analyse full text")
@@ -141,10 +141,8 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
     selection = request.selection
     multi_label = request.multi_label
     clear_gpu_cache_after = request.clear_gpu_cache_after
-    print(labels)
 
     analysed_labels = analyse(doc_text, selection, labels, multi_label, clear_gpu_cache_after)
-    print(analysed_labels)
 
     # Return data as JSON
     return DUUIResponse(
