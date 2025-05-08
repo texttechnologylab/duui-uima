@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, Response
 from fastapi.openapi.utils import get_openapi
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from transformers import pipeline
 
 import uvicorn
-
+import threading
 
 # A label containing the label and its zero-short score
 class Label(BaseModel):
@@ -17,12 +17,17 @@ class Label(BaseModel):
     iBegin: int
     iEnd: int
 
+class Selection(BaseModel):
+    text: str
+    iBegin: int
+    iEnd: int
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
 class DUUIRequest(BaseModel):
     doc_text: str
     labels: List[str]
+    selection: Optional[List[Selection]]
 
 
 # Response of this annotator
@@ -41,18 +46,46 @@ except RuntimeError as e:
     print("Retrying with CPU")
     classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=-1)
 
-def analyse(doc_text, labels):
+lock = threading.Lock()
+
+def run_classifier(text, labels):
+    with lock:
+        return classifier(text, labels, multi_label=True)
+
+def analyse(doc_text, selection, labels):
     analyzed_labels = []
+    print("Start Analyse")
 
-    text_length = len(doc_text)
+    if len(selection) > 0:
+         print("Selection is set...")
+         for i, s in enumerate(selection):
 
-    result = classifier(doc_text, labels, multi_label=True)
+            result = run_classifier(s.text, labels)
 
-    labels = result["labels"]
-    scores = result["scores"]
+            sel_labels = result["labels"]
+            sel_scores = result["scores"]
 
-    for i in range(len(labels)):
-        analyzed_labels.append(Label(label=labels[i], score=scores[i], iBegin=0, iEnd=text_length))
+            for r in range(len(sel_labels)):
+                analyzed_labels.append(Label(label=sel_labels[r], score=sel_scores[r], iBegin=s.iBegin, iEnd=s.iEnd))
+
+            if i % 1000 == 0:
+                print(f"[DEBUG] {i} / {len(selection)}")
+                print(sel_labels)
+                print(sel_scores)
+                print("===========================================")
+
+    else:
+        print("Analyse full text")
+
+        text_length = len(doc_text)
+
+        result = classifier(doc_text, labels, multi_label=True)
+
+        labels = result["labels"]
+        scores = result["scores"]
+
+        for i in range(len(labels)):
+            analyzed_labels.append(Label(label=labels[i], score=scores[i], iBegin=0, iEnd=text_length))
 
     return analyzed_labels
 
@@ -103,8 +136,10 @@ def get_communication_layer() -> str:
 def post_process(request: DUUIRequest) -> DUUIResponse:
     doc_text = request.doc_text
     labels = request.labels
+    selection = request.selection
+    print(labels)
 
-    analysed_labels = analyse(doc_text, labels)
+    analysed_labels = analyse(doc_text, selection, labels)
 
     # Return data as JSON
     return DUUIResponse(

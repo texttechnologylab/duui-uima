@@ -12,6 +12,24 @@ function serialize(inputCas, outputStream, params)
     local doc_text = inputCas:getDocumentText()
 
     local labels_string = params["labels"]
+    local selection = params["selection"]
+
+    local selection_array = {}
+
+    if selection ~= nil then
+       local selectionSet = utils:select(inputCas, luajava.bindClass(selection)):iterator()
+
+       while selectionSet:hasNext() do
+           local s = selectionSet:next()
+           local tSelection = {
+               text = s:getCoveredText(),
+               iBegin = s:getBegin(),
+               iEnd = s:getEnd()
+               }
+           table.insert(selection_array, tSelection)
+       end
+
+    end
 
     local labels = {}
     for label in string.gmatch(labels_string, "([^,]+)") do
@@ -22,7 +40,8 @@ function serialize(inputCas, outputStream, params)
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
         doc_text = doc_text,
-        labels = labels
+        labels = labels,
+        selection = selection_array
     }))
 end
 

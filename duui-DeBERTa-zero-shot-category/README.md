@@ -8,6 +8,7 @@ To use this parser, you can add the docker image like this as a DUUI Component.
 composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/deberta-zero-shot-category:latest")
         .withScale(iWorkers)
         .withParameter("labels", labels)
+        .withParameter("selection", Sentence.class.getName().toString())
         .build());
 ```
 The parameter "labels" is **required** and should be a string containing a comma-separated list of your labels.
