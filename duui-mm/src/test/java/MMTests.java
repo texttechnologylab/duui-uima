@@ -35,7 +35,7 @@ import org.texttechnologylab.annotation.type.Audio;
 import org.texttechnologylab.type.llm.prompt.Prompt;
 import org.texttechnologylab.type.llm.prompt.Message;
 
-import static org.junit.Assert.assertEquals;
+//import static org.junit.Assert.assertEquals;
 
 public class MMTests {
 
@@ -43,7 +43,7 @@ public class MMTests {
     static JCas cas;
 
 //    static String url = "http://anduin.hucompute.org:9991";
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:8888";
 
     static String model = "microsoft/Phi-4-multimodal-instruct";
     static String sOutputPath = "src/test/results";
@@ -123,6 +123,7 @@ public class MMTests {
         for (String path : audioPaths) {
             Audio audio = new Audio(cas);
             audio.setSrc(readFileAsBase64(path));
+            audio.setMimetype("audio/wav");
             audio.addToIndexes();
         }
     }
@@ -430,5 +431,35 @@ public class MMTests {
             saveBase64ToVideo(vid.getSrc(), "src/test/results/video/video_output_" + idx++ + ".mp4");
         }
     }
+
+    @Test
+    public void testAudio() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("mode", "audio")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/audio/",
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Collections.singletonList("Transcribe the audio clip into text. identify speakers by numbers. No more context");
+
+        List<String> audioPaths = Collections.singletonList("src/test/resources/audio/pop-smoke-interview-spoken-vocal-loop.wav");
+
+        createCasWithAudio("en", prompts, audioPaths);
+
+        composer.run(cas);
+
+        // Optionally inspect outputs or verify no unexpected types
+        System.out.println("Audio processing complete.");
+    }
+
 }
 

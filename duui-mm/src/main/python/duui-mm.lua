@@ -9,7 +9,7 @@ Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
 Prompt = luajava.bindClass("org.texttechnologylab.type.llm.prompt.Prompt")
-Video = luaJava.bindClass("org.texttechnologylab.annotation.type.Video")
+--Video = luaJava.bindClass("org.texttechnologylab.annotation.type.Video")
 
 Image = luajava.bindClass("org.texttechnologylab.annotation.type.Image")
 Audio = luajava.bindClass("org.texttechnologylab.annotation.type.Audio")
@@ -129,19 +129,19 @@ function serialize(inputCas, outputStream, parameters)
     print("start video selection")
     -- TODO: Add Video Support
     local videos = {}
-    local number_of_videos = 1
-    local video_it = JCasUtil:select(inputCas, Video):iterator()
-    while video_it:hasNext() do
-        local video = video_it:next()
-        videos[number_of_videos] = {
-            src = video:getSrc(),
-            length = video:getLength(),
-            fps = video:getFps(),
-            begin = video:getBegin(),
-            ['end'] = video:getEnd()
-        }
-        number_of_videos = number_of_videos + 1
-    end
+    --local number_of_videos = 1
+    --local video_it = JCasUtil:select(inputCas, Video):iterator()
+    --while video_it:hasNext() do
+    --    local video = video_it:next()
+    --    videos[number_of_videos] = {
+    --        src = video:getSrc(),
+    --        length = video:getLength(),
+    --        fps = video:getFps(),
+    --        begin = video:getBegin(),
+    --        ['end'] = video:getEnd()
+    --    }
+    --    number_of_videos = number_of_videos + 1
+    --end
 
 
     outputStream:write(json.encode({
