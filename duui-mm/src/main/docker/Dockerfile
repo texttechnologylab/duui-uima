@@ -14,7 +14,7 @@ RUN python -m pip install --upgrade pip
 
 WORKDIR /usr/src/app
 
-EXPOSE 9714 8000
+EXPOSE 9714 6659 6658
 
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install ffmpeg -y

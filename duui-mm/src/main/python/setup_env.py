@@ -14,3 +14,9 @@ speech_lora_path = os.path.join(model_path, "speech-lora")
 with open("env.sh", "w") as f:
     f.write(f"export VISION_LORA_PATH='{vision_lora_path}'\n")
     f.write(f"export SPEECH_LORA_PATH='{speech_lora_path}'\n")
+
+
+# Load model directly
+from transformers import AutoModelForImageTextToText
+
+model = AutoModelForImageTextToText.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct", code_revision="cc594898137f460bfe9f0759e9844b3ce807cfb5")
