@@ -5,7 +5,7 @@ RUN apt update && \
     DEBIAN_FRONTEND=noninteractive \
     apt install --no-install-recommends -y build-essential software-properties-common && \
     add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt install --no-install-recommends -y python3.10 python3-pip python3-setuptools python3-distutils && \
+    apt install --no-install-recommends -y python3.10 python3-pip python3-setuptools python3-distutils python3-dev curl && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
@@ -21,14 +21,14 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteract
 
 
 # dependencies
-RUN pip install setuptools wheel psutil packaging
+RUN pip install setuptools wheel psutil packaging torch torchvision torchvision
 RUN pip install --upgrade setuptools
-
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
+RUN python -m pip install vllm
+RUN pip uninstall -y libtpu-nightly jax jaxlib
 
-# download models (not working for attention models)
-RUN #python -c "from transformers import AutoModelForCausalLM; AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-multimodal-instruct', trust_remote_code=True, revision='0af439b3adb8c23fda473c4f86001dbf9a226021', device_map='cuda', torch_dtype='auto', _attn_implementation='eager')"
+
 
 
 
@@ -60,14 +60,10 @@ ENV MM_ANNOTATOR_VERSION=$MM_ANNOTATOR_VERSION
 ARG MM_MODEL_VERSION=0.1
 ENV MM_MODEL_VERSION=$MM_MODEL_VERSION
 
-ENV CUDA_HOME=/usr/local/cuda
+ARG VLLM_LOGGING_LEVEL=DEBUG
+ENV VLLM_LOGGING_LEVEL=$VLLM_LOGGING_LEVEL
 
-
-
-# CUDA
-ENV CUDA_HOME=/usr/local/cuda
-
-
+ENV VLLM_PLATFORM=cuda
 
 
 ENTRYPOINT ["./start_vllm_server.sh"]
