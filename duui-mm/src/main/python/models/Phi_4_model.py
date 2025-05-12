@@ -41,6 +41,13 @@ class MicrosoftPhi4:
             "messages": messages,
         }
 
+    def _check_and_switch_if_asleep(self):
+        r = requests.get("http://localhost:6658/is_sleep")
+        if r.ok and r.json() is True:
+            requests.post("http://localhost:6658/wake_up")
+            requests.post("http://localhost:6659/sleep")
+
+
     @handle_errors
     def process_text(self, prompt: LLMPrompt) -> LLMResult:
         messages = [{"role": m.role, "content": m.content} for m in prompt.messages]
