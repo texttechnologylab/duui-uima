@@ -80,6 +80,12 @@ Response:
 
 ---
 
+## RUN the Image 
+
+```bash
+podman run -d   --device nvidia.com/gpu=all   -p 9991:9714   -p 6658:8000  docker.texttechnologylab.org/duui-vision-language:latest
+```
+
 ## Citation
 
 If you use the DUUI Molmo component, please cite:
