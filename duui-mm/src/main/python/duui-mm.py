@@ -14,7 +14,8 @@ from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt
-from models.Phi_4_model import MicrosoftPhi4, Phi4ModelVLLM
+from models.Phi_4_model import MicrosoftPhi4
+from models.Qwen_V2_5 import Qwen2_5VL
 
 
 import os
@@ -67,15 +68,19 @@ def init():
 from starlette.responses import PlainTextResponse, JSONResponse
 model_lock = Lock()
 sources = {
-    "microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct"
+    "microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
+    "Qwen/Qwen2.5-VL-7B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",
+
 }
 
 languages = {
     "microsoft/Phi-4-multimodal-instruct": "multi",
+    "Qwen/Qwen2.5-VL-7B-Instruct": "multi",
 }
 
 versions = {
     "microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
+    "Qwen/Qwen2.5-VL-7B-Instruct": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
 }
 
 
@@ -166,8 +171,8 @@ def load_model(model_name, device=None):
     if model_name == "microsoft/Phi-4-multimodal-instruct":
         model = MicrosoftPhi4(logging_level=settings.mm_log_level)
 
-    elif model_name == 'Phi4ModelVLLM':
-        model = Phi4ModelVLLM()
+    elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":
+        model = Qwen2_5VL(logging_level=settings.mm_log_level)
 
     else:
         raise ValueError(f"Unsupported model name: {model_name}")
