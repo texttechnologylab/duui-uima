@@ -94,6 +94,24 @@ class LLMResult(BaseModel):
     prompt_ref: int   # internal cas annotation id
     message_ref: str   # internal cas annotation id
 
+class VideoTypes(BaseModel):
+    """
+    org.texttechnologylab.annotation.type.Video
+    """
+    src: str
+    length: int = -1
+    fps: int = -1
+    begin: int
+    end: int
+
+
+class AudioType(BaseModel):
+    """
+    org.texttechnologylab.annotation.type.Audio
+    """
+    src: str
+    begin: int
+    end: int
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
@@ -102,7 +120,10 @@ class DUUIMMRequest(BaseModel):
     # list of images
     images: Optional[List[ImageType]]
     # audio
-    audios: Optional[List[str]]
+    audios: Optional[List[AudioType]]
+
+    # videos
+    videos :Optional[List[VideoTypes]]
 
     # List of prompt
     prompts: List[LLMPrompt]

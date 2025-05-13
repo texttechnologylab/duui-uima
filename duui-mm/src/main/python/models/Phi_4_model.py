@@ -93,7 +93,7 @@ class MicrosoftPhi4:
         prompt_ref = prompt.ref or self._generate_dummy_ref()
         message_ref = self._generate_dummy_ref()
 
-        print(("Response from API:", response_text))
+        # print(("Response from API:", response_text))
         print(response_text)
 
         return LLMResult(meta=json.dumps({"response": response_text}), prompt_ref=prompt_ref, message_ref=message_ref)
@@ -105,6 +105,7 @@ class MicrosoftPhi4:
         audio_url = "data:audio/wav;base64," + base64_audio
         task_prompt = next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Transcribe the audio clip into text.")
         prompt_text = f"<|user|><|audio_1|>{task_prompt}<|end|><|assistant|>"
+        # print(prompt_text)
 
         content = [
             {"type": "text", "text": prompt_text},
@@ -119,6 +120,8 @@ class MicrosoftPhi4:
         result = response.json()
 
         response_text = result["choices"][0]["message"]["content"]
+
+        # print("response is: ", response_text)
         prompt_ref = prompt.ref or self._generate_dummy_ref()
         message_ref = self._generate_dummy_ref()
 
@@ -145,6 +148,7 @@ class MicrosoftPhi4:
         result = response.json()
         response_text = result["choices"][0]["message"]["content"]
 
+        # print("api response is: ", response_text)
         prompt_ref = prompt.ref or self._generate_dummy_ref()
         message_ref = self._generate_dummy_ref()
         return LLMResult(meta=json.dumps({"response": response_text}), prompt_ref=prompt_ref, message_ref=message_ref)

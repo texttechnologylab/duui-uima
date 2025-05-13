@@ -19,6 +19,9 @@ from models.Qwen_V2_5 import Qwen2_5VL
 
 
 import os
+
+from src.main.python.models.duui_api_models import AudioType
+
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 os.environ['CURL_CA_BUNDLE'] = ''
 os.environ['REQUESTS_CA_BUNDLE'] = ''
@@ -46,7 +49,7 @@ def init():
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = 'TypeSystemMM.xml'
+    typesystem_filename = '../resources/TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 
@@ -198,13 +201,15 @@ def process_frames_only(model_name: str, frames: list[str], prompt: LLMPrompt) -
     result = model.process_video_frames(prompt, frames)
     return result  # Already an LLMResult
 
-def process_audio_only(model_name, audio_base64, prompt):
+def process_audio_only(model_name, audio:AudioType, prompt):
+    audio_base64 = audio.src
     model = load_model(model_name, device)
     response = model.process_audio(audio_base64, prompt)
     return response
 
-def process_audio_video(model_name, audio_base64, frames_base64, prompt):
+def process_audio_video(model_name, audio:AudioType, frames_base64, prompt):
     model = load_model(model_name, device)
+    audio_base64 = audio.src
     response = model.process_video_and_audio(audio_base64, frames_base64, prompt)
     return response
 
@@ -262,13 +267,19 @@ def post_process(request: DUUIMMRequest):
                 result = process_frames_only(request.model_name, [img.src for img in request.images], prompts[0])
                 responses_out.append(result)
         elif mode == MultiModelModes.AUDIO:
-            if len(request.audio) != len(prompts) and len(prompts) != 1:
+            if prompts:
+                if len(request.audios) != len(prompts) and len(prompts) != 1:
+                    errors_out.append(
+                        f"In {mode}, we need a prompt per audio or 1 prompt for all audio inputs. "
+                        f"Currently, {len(request.audio)} audio inputs and {len(prompts)} prompts."
+                    )
+            if len(request.audios) != len(prompts) and len(prompts) != 1:
                 errors_out.append(
                     f"In {mode}, we need a prompt per audio or 1 prompt for all audio inputs. "
-                    f"Currently, {len(request.audio)} audio inputs and {len(prompts)} prompts."
+                    f"Currently, {len(request.audios)} audio inputs and {len(prompts)} prompts."
                 )
             else:
-                audios = request.audio if isinstance(request.audio, list) else [request.audio]
+                audios = request.audios if isinstance(request.audios, list) else [request.audios]
                 if len(prompts) == 1:
                     prompts = [prompts[0]] * len(audios)
                 for audio, prompt in zip(audios, prompts):
@@ -285,7 +296,7 @@ def post_process(request: DUUIMMRequest):
             else:
                 response = process_audio_video(
                     request.model_name,
-                    request.audio[0] if isinstance(request.audio, list) else request.audio,
+                    request.audios[0] if isinstance(request.audios, list) else request.audios,
                     [img.src for img in request.images],
                     prompts[0]
                 )

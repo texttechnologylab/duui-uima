@@ -28,7 +28,7 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
 RUN echo "installing VLLM..."
-RUN python -m pip install vllm
+RUN python -m pip install vllm  vllm[audio]
 
 COPY ./src/main/python/setup_env.py ./setup_env.py
 # Run setup_env.py and set environment variables

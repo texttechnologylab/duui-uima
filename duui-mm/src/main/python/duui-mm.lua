@@ -9,12 +9,13 @@ Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
 Prompt = luajava.bindClass("org.texttechnologylab.type.llm.prompt.Prompt")
+--Video = luaJava.bindClass("org.texttechnologylab.annotation.type.Video")
+
 Image = luajava.bindClass("org.texttechnologylab.annotation.type.Image")
---Audio = luajava.bindClass("")
---Video = luaJava.bindClass("")
+Audio = luajava.bindClass("org.texttechnologylab.annotation.type.Audio")
 
 function serialize(inputCas, outputStream, parameters)
-    --print("start Lua serialzation")
+    print("start Lua serialzation")
     local doc_lang = inputCas:getDocumentLanguage()
 
     --print("doc_lang: ", doc_lang)
@@ -91,6 +92,7 @@ function serialize(inputCas, outputStream, parameters)
 
     end
 
+    print("start image")
     -- images handler if exists
     local images = {}
     local number_of_images = 1
@@ -108,13 +110,44 @@ function serialize(inputCas, outputStream, parameters)
     end
 
 
+    print("start audio")
+
     -- TODO: add audio handler
     local audios = {}
+    local number_of_audios = 1
+    local audio_it = JCasUtil:select(inputCas, Audio):iterator()
+    while audio_it:hasNext() do
+        local audio = audio_it:next()
+        audios[number_of_audios] = {
+            src = audio:getSrc(),
+            begin = audio:getBegin(),
+            ['end'] = audio:getEnd()
+        }
+        number_of_audios = number_of_audios + 1
+    end
+
+    print("start video selection")
+    -- TODO: Add Video Support
+    local videos = {}
+    --local number_of_videos = 1
+    --local video_it = JCasUtil:select(inputCas, Video):iterator()
+    --while video_it:hasNext() do
+    --    local video = video_it:next()
+    --    videos[number_of_videos] = {
+    --        src = video:getSrc(),
+    --        length = video:getLength(),
+    --        fps = video:getFps(),
+    --        begin = video:getBegin(),
+    --        ['end'] = video:getEnd()
+    --    }
+    --    number_of_videos = number_of_videos + 1
+    --end
 
 
     outputStream:write(json.encode({
         images = images,
         audios = audios,
+        videos = videos,
         prompts = prompts,
         doc_lang = doc_lang,
         model_name = model_name,
