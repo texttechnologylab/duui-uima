@@ -165,6 +165,35 @@ class Molmo7BDModelVLLM:
             message_ref=message_ref
         )
 
+    @handle_errors
+    def process_text(self, prompt: LLMPrompt, other_sleep_urls: list = None) -> LLMResult:
+        self._ensure_awake()
+        if other_sleep_urls:
+            self._put_others_to_sleep(other_sleep_urls)
+
+        # Build message sequence from LLMPrompt
+        messages = [{"role": msg.role, "content": msg.content} for msg in prompt.messages]
+
+        body = self._build_chat_request(messages)
+        headers = {"Content-Type": "application/json"}
+
+        response = requests.post(self.api_url, data=json.dumps(body), headers=headers)
+        response.raise_for_status()
+        result = response.json()
+
+        response_text = result["choices"][0]["message"]["content"]
+
+        prompt_ref = prompt.ref or self._generate_dummy_ref()
+        last_user_msg = next((m for m in reversed(prompt.messages) if m.role == "user"), None)
+        message_ref = last_user_msg.ref if last_user_msg and last_user_msg.ref else self._generate_dummy_ref()
+
+        return LLMResult(
+            meta=json.dumps({"response": response_text, "model_name": self.model_name}),
+            prompt_ref=prompt_ref,
+            message_ref=message_ref
+        )
+
+
     def get_info(self):
         return {
             "model_name": self.model_name,
