@@ -29,8 +29,8 @@ class Qwen2_5VL:
 
     @staticmethod
     def _check_and_switch_if_asleep():
-        r = requests.get("http://localhost:6659/is_sleep")
-        if r.ok and r.json() is True:
+        r = requests.get("http://localhost:6659/is_sleeping")
+        if r.ok and r.json().get('is_sleeping', True) is True:
             requests.post("http://localhost:6658/sleep")
             requests.post("http://localhost:6659/wake_up")
 

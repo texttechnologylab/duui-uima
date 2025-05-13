@@ -13,14 +13,12 @@ from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
-from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt
+from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType
 from models.Phi_4_model import MicrosoftPhi4
 from models.Qwen_V2_5 import Qwen2_5VL
 
 
 import os
-
-from src.main.python.models.duui_api_models import AudioType
 
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 os.environ['CURL_CA_BUNDLE'] = ''
@@ -49,7 +47,7 @@ def init():
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = '../resources/TypeSystemMM.xml'
+    typesystem_filename = './TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 

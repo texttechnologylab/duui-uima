@@ -42,7 +42,7 @@ public class MMTests {
     static DUUIComposer composer;
     static JCas cas;
 
-//    static String url = "http://anduin.hucompute.org:9991";
+    //    static String url = "http://anduin.hucompute.org:9991";
     static String url = "http://127.0.0.1:8888";
 
     static String model = "microsoft/Phi-4-multimodal-instruct";
@@ -252,14 +252,14 @@ public class MMTests {
 
 
     @Test
-        public void testTextOnly() throws Exception {
-            composer.add(
-                    new DUUIRemoteDriver.Component(url)
-                            .withParameter("model_name", model)
-                            .withParameter("mode", "text")
-                            .build().withTimeout(1000)
+    public void testTextOnlyQwen() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
+                        .withParameter("mode", "text")
+                        .build().withTimeout(1000)
 
-            );
+        );
 
 //            composer.add(
 //                    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality")
@@ -275,28 +275,102 @@ public class MMTests {
                 XmiWriter.PARAM_VERSION, "1.1"
         )).build());
 
-            List<String> prompts = Arrays.asList(
-                    "Who is the current president of the USA?",
-                    "Is Frankfurt the capital of EU finance?"
-            );
+        List<String> prompts = Arrays.asList(
+                "Who is the current president of the USA?",
+                "Is Frankfurt the capital of EU finance?"
+        );
 
-            createCas("en", prompts);
+        createCas("en", prompts);
 
-            Video  video_ = new Video(cas);
-            video_.setMimetype("video/mp4");
-            video_.setSrc("kjsdklsdf");
-            video_.addToIndexes();
+        Video  video_ = new Video(cas);
+        video_.setMimetype("video/mp4");
+        video_.setSrc("kjsdklsdf");
+        video_.addToIndexes();
 
-            composer.run(cas);
+        composer.run(cas);
 
-            verifyNoImages(); // Text-only should produce no image outputs
-        }
+        verifyNoImages(); // Text-only should produce no image outputs
+    }
+
+    @Test
+    public void testTextOnly() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", model)
+                        .withParameter("mode", "text")
+                        .build().withTimeout(1000)
+
+        );
+
+//            composer.add(
+//                    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality")
+//                            .withParameter("model_name", "Phi4ModelVLLM")
+//                            .withParameter("mode", "text")
+//                            .build().withTimeout(1000)
+//            );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Arrays.asList(
+                "Who is the current president of the USA?",
+                "Is Frankfurt the capital of EU finance?"
+        );
+
+        createCas("en", prompts);
+
+        Video  video_ = new Video(cas);
+        video_.setMimetype("video/mp4");
+        video_.setSrc("kjsdklsdf");
+        video_.addToIndexes();
+
+        composer.run(cas);
+
+        verifyNoImages(); // Text-only should produce no image outputs
+    }
 
     @Test
     public void testImageOnly() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
+                        .withParameter("mode", "image")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Arrays.asList(
+                "What is shown in this image?"
+        );
+        List<String> imagePaths = Arrays.asList(
+                "src/test/resources/images/fridge.jpg",
+                "src/test/resources/images/cars.jpg"
+        );
+
+        createCasWithImages("en", prompts, imagePaths);
+        composer.run(cas);
+
+        int idx = 0;
+        for (Image img : JCasUtil.select(cas, Image.class)) {
+            saveBase64ToImage(img.getSrc(), "src/test/results/images/output_image_" + idx++ + ".png");
+        }
+    }
+
+    @Test
+    public void testImageOnlyQwen() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
                         .withParameter("mode", "image")
                         .build().withTimeout(1000)
         );

@@ -22,7 +22,7 @@ QWEN_PID=$!
 # Wait for Qwen to be ready
 until python -c "import requests; requests.get('http://localhost:6659/v1/models')" > /dev/null 2>&1; do
   echo "Waiting for Qwen on port 6659..."
-  sleep 5
+  sleep 10
 done
 
 # Sleep Qwen initially using Python requests
@@ -51,7 +51,7 @@ VLLM_PID=$!
 # Wait for vLLM to be ready
 until python -c "import requests; requests.get('http://localhost:6658/v1/models')" > /dev/null 2>&1; do
   echo "Waiting for vLLM on port 6658..."
-  sleep 5
+  sleep 10
 done
 
 
