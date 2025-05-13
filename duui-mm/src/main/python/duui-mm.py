@@ -13,12 +13,13 @@ from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
-from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType
+from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType, VideoTypes
 from models.Phi_4_model import MicrosoftPhi4
 from models.Qwen_V2_5 import Qwen2_5VL
 
 
 import os
+
 
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 os.environ['CURL_CA_BUNDLE'] = ''
@@ -212,8 +213,10 @@ def process_audio_video(model_name, audio:AudioType, frames_base64, prompt):
     return response
 
 
-def process_video_only(model_name, video_base64, prompt):
+def process_video_only(model_name, video: VideoTypes, prompt):
     model = load_model(model_name, device)
+
+    video_base64 = video.src
 
     response = model.process_video(video_base64, prompt)
 
@@ -305,8 +308,10 @@ def post_process(request: DUUIMMRequest):
                 errors_out.append(f"In {mode}, exactly one prompt and one video must be provided. "
                                   f"Received {len(prompts)} prompts and {len(request.videos)} videos.")
             else:
-                video_base64 = request.videos[0].src
-                responses_out.append(process_video_only(request.model_name, video_base64, prompts[0]))
+                if len(prompts) == 1:
+                    prompts = [prompts[0]] * len(request.videos)
+                for video, prompt in zip(request.videos, prompts):
+                    responses_out.append(process_video_only(request.model_name, video, prompt))
         else:
             raise Exception(f"Mode {mode}, is not supported.")
 

@@ -9,7 +9,10 @@ import traceback
 import tempfile
 import subprocess
 import os
+from typing import Tuple, List
+import json
 
+import cv2
 
 def handle_errors(method):
     @functools.wraps(method)
@@ -119,3 +122,58 @@ def save_base64_to_temp_file(base64_str, suffix=""):
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(data)
         return tmp.name
+
+import base64
+import tempfile
+import subprocess
+from PIL import Image
+import io
+import os
+
+def decouple_video(videobase64: str):
+    # Decode the video base64 and save to temp file
+    video_bytes = base64.b64decode(videobase64)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as f_video:
+        f_video.write(video_bytes)
+        video_path = f_video.name
+
+    audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+
+    # Extract audio
+    try:
+        subprocess.run([
+            "ffmpeg", "-y", "-i", video_path,
+            "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2",
+            audio_path
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        with open(audio_path, "rb") as f:
+            audio_base64 = base64.b64encode(f.read()).decode("utf-8")
+    except subprocess.CalledProcessError:
+        print("⚠️ No audio stream found or ffmpeg failed. Continuing without audio.")
+        audio_base64 = ""
+
+    # Extract frames
+    frame_dir = tempfile.mkdtemp()
+    frame_pattern = os.path.join(frame_dir, "frame_%03d.jpg")
+    try:
+        subprocess.run([
+            "ffmpeg", "-i", video_path, "-q:v", "2", frame_pattern
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"ffmpeg frame extraction failed: {e}")
+
+    # Collect every 5th frame + first and last
+    frame_files = sorted(os.listdir(frame_dir))
+    selected_indices = set([0, len(frame_files) - 1] + list(range(5, len(frame_files), 5)))
+    selected_frames = [
+        os.path.join(frame_dir, f) for i, f in enumerate(frame_files) if i in selected_indices
+    ]
+
+    frames_b64 = []
+    for frame_file in selected_frames:
+        with open(frame_file, "rb") as f:
+            frames_b64.append(base64.b64encode(f.read()).decode("utf-8"))
+
+    return audio_base64, frames_b64

@@ -4,13 +4,20 @@ os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 os.environ['CURL_CA_BUNDLE'] = ''
 os.environ['REQUESTS_CA_BUNDLE'] = ''
 
+import base64
+import subprocess
+import tempfile
+import os
+import cv2
+import numpy as np
+from typing import Tuple, List
 import json
 import logging
 from uuid import uuid4
 from typing import List
 import requests
 from .duui_api_models import LLMResult, LLMPrompt
-from .utils import handle_errors, convert_base64_to_image, convert_base64_to_audio, save_base64_to_temp_file, extract_frames_ffmpeg, extract_audio_base64_ffmpeg
+from .utils import handle_errors, decouple_video
 
 
 class MicrosoftPhi4:
@@ -157,15 +164,25 @@ class MicrosoftPhi4:
     def process_video_and_audio(self, audio_base64, frames_base64, prompt: LLMPrompt):
         self._check_and_switch_if_asleep()
 
-        image_urls = ["data:image/jpeg;base64," + f for f in frames_base64]
-        audio_url = "data:audio/wav;base64," + audio_base64
+        image_urls = [
+            "data:image/jpeg;base64," + f for f in frames_base64 if f.strip()
+        ]
+        audio_url = (
+            "data:audio/wav;base64," + audio_base64 if audio_base64.strip() else None
+        )
+
         image_placeholders = ''.join([f"<|image_{i+1}|>" for i in range(len(image_urls))])
         prompt_text = next((m.content for m in reversed(prompt.messages) if m.role == "user"), "")
-        full_text = f"<|user|>{image_placeholders}<|audio_1|>{prompt_text}<|end|><|assistant|>"
+        full_text = f"<|user|>{image_placeholders}"
+        if audio_url:
+            full_text += "<|audio_1|>"
+        full_text += f"{prompt_text}<|end|><|assistant|>"
 
-        content = [{"type": "text", "text": full_text}] + [
-            {"type": "image_url", "image_url": {"url": url}} for url in image_urls
-        ] + [{"type": "audio_url", "audio_url": {"url": audio_url}}]
+        content = [{"type": "text", "text": full_text}] + \
+                  [{"type": "image_url", "image_url": {"url": url}} for url in image_urls]
+
+        if audio_url:
+            content.append({"type": "audio_url", "audio_url": {"url": audio_url}})
 
         body = self._build_chat_request([{"role": "user", "content": content}])
         headers = {"Content-Type": "application/json"}
@@ -173,17 +190,32 @@ class MicrosoftPhi4:
         response = requests.post(self.api_url, data=json.dumps(body), headers=headers)
         response.raise_for_status()
         result = response.json()
-        response_text = result["choices"][0]["message"]["content"]
 
+        response_text = result["choices"][0]["message"]["content"]
         prompt_ref = prompt.ref or self._generate_dummy_ref()
         message_ref = self._generate_dummy_ref()
         return LLMResult(meta=json.dumps({"response": response_text}), prompt_ref=prompt_ref, message_ref=message_ref)
 
+
+    @handle_errors
+    def process_video(self, videobase64:str, prompt: LLMPrompt):
+        self._check_and_switch_if_asleep()
+
+        audio_b64, frames_b64_list = decouple_video(videobase64)
+        print("total of ", len(frames_b64_list), " frames")
+        frames_b64_list = frames_b64_list[:3]
+        return self.process_video_and_audio(audio_b64, frames_b64_list, prompt)
+
+
+
+
+
+
     def get_info(self):
-        return {
-            "model_name": self.model_name,
-            "model_version": self.model_version,
-            "model_source": self.model_source,
-            "model_lang": self.model_lang
-        }
+            return {
+                "model_name": self.model_name,
+                "model_version": self.model_version,
+                "model_source": self.model_source,
+                "model_lang": self.model_lang
+            }
 

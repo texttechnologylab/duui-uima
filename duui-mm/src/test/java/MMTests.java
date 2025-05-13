@@ -543,6 +543,45 @@ public class MMTests {
         }
     }
 
+
+    @Test
+    public void testVideoQwen() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
+                        .withParameter("mode", "video")
+                        .build().withTimeout(1000)
+        );
+
+        // Optional: Add UIMA XmiWriter for output storage
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/video/",
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        // Load video and convert to base64
+        String videoPath = "src/test/resources/videos/kids_video.mp4";
+        String videoBase64 = convertFileToBase64(videoPath);
+
+        List<String> prompts = Collections.singletonList("Describe what happens in the video.");
+
+        // Create CAS with 1 video and 1 prompt
+        createCasWithVideo("en", prompts, videoBase64);
+
+        // Run pipeline
+        composer.run(cas);
+
+        // Optionally verify the outputs
+        int idx = 0;
+        for (Video vid : JCasUtil.select(cas, Video.class)) {
+            saveBase64ToVideo(vid.getSrc(), "src/test/results/video/video_output_" + idx++ + ".mp4");
+        }
+    }
+
+
     @Test
     public void testAudio() throws Exception {
 

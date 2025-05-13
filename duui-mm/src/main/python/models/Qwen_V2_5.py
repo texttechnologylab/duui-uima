@@ -131,3 +131,32 @@ class Qwen2_5VL:
         return LLMResult(meta=json.dumps({"response": response_text}),
                          prompt_ref=prompt.ref or self._generate_dummy_ref(),
                          message_ref=self._generate_dummy_ref())
+
+
+    @handle_errors
+    def process_video(self, video_base64: str, prompt: LLMPrompt):
+        self._check_and_switch_if_asleep()
+
+        video_url = "data:video/mp4;base64," + video_base64
+        prompt_text = next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Analyze the video.")
+
+        full_text = f"<|user|><|video_1|>{prompt_text}<|end|><|assistant|>"
+        content = [
+            {"type": "text", "text": full_text},
+            {"type": "video_url", "video_url": {"url": video_url}}
+        ]
+
+        body = self._build_chat_request([{"role": "user", "content": content}])
+        headers = {"Content-Type": "application/json"}
+
+        response = requests.post(self.api_url, data=json.dumps(body), headers=headers)
+        response.raise_for_status()
+        result = response.json()
+
+        response_text = result["choices"][0]["message"]["content"]
+
+        return LLMResult(
+            meta=json.dumps({"response": response_text}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
