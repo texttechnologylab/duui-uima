@@ -469,6 +469,43 @@ public class MMTests {
         }
     }
 
+
+    @Test
+    public void testFramesOnlyQwen() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
+                        .withParameter("mode", "frames")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Collections.singletonList("Who drunk the water from the cup?");
+
+        List<String> framePaths = Arrays.asList(
+//                "src/test/resources/frames/1.png",
+//                "src/test/resources/frames/2.png",
+                "src/test/resources/frames/3.png",
+                "src/test/resources/frames/4.png"
+
+        );
+
+        createCasWithImages("en", prompts, framePaths);
+        composer.run(cas);
+
+        int idx = 0;
+        for (Image img : JCasUtil.select(cas, Image.class)) {
+            saveBase64ToImage(img.getSrc(), "src/test/results/frames/output_frame_" + idx++ + ".png");
+        }
+    }
+
+
     @Test
     public void testVideo() throws Exception {
 
