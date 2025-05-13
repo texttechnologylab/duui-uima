@@ -16,4 +16,3 @@ amdsmi
 intel_extension_for_pytorch
 transformers_neuronx
 einops
-torch-xla

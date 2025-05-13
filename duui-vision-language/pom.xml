@@ -99,7 +99,7 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>fac60bef3f</version>
+            <version>1.4.6</version>
         </dependency>
         <!--        <dependency>-->
         <!--            <groupId>com.github.texttechnologylab.textimager-uima</groupId>-->
@@ -110,7 +110,7 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>3.0.5</version>
+            <version>3.0.10</version>
         </dependency>
 
         <!--        <dependency>-->

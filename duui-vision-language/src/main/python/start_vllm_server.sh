@@ -3,7 +3,7 @@ set -e
 
 export VLLM_PLATFORM=cuda
 
-pip uninstall libtpu-nightly jax jaxlib -y
+export VLLM_SERVER_DEV_MODE=1
 
 
 echo "Launching vLLM server..."
@@ -15,18 +15,20 @@ vllm serve "allenai/Molmo-7B-D-0924" \
   --pipeline-parallel-size 1 \
   --distributed-executor-backend mp \
   --dtype auto \
+  --enable-sleep-mode \
   --trust-remote-code \
-  &
+  --port 6650 &
+
 
 VLLM_PID=$!
 
 echo "Waiting for vLLM to be ready..."
-until curl -s http://localhost:8000/v1/models > /dev/null; do
+until curl -s http://localhost:6650/v1/models > /dev/null; do
   echo "Still waiting for vLLM..."
-  sleep 5
+  sleep 10
 done
 
 echo "Launching FastAPI server..."
-uvicorn duui-mm:app --host 0.0.0.0 --port 9714 --workers 1
+uvicorn duui-vision-language:app --host 0.0.0.0 --port 9714 --workers 1
 
 wait $VLLM_PID

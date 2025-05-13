@@ -138,7 +138,7 @@ function deserialize(inputCas, inputStream)
         local model_lang = results["model_lang"]
 
         --print("setMetaData")
-        local model_meta = luajava.newInstance(MetaData, inputCas)
+        local model_meta = luajava.newInstance("org.texttechnologylab.annotation.model.MetaData", inputCas)
         model_meta:setModelVersion(model_version)
         --         print(model_version)
         model_meta:setModelName(model_name)
@@ -170,12 +170,10 @@ function deserialize(inputCas, inputStream)
 
     if results['processed_text'] ~= nil then
         for i, llm_result in ipairs(results["processed_text"]) do
-            local llm_anno = luajava.newInstance(Result, inputCas)
+            local llm_anno = luajava.newInstance("org.texttechnologylab.type.llm.prompt.Result", inputCas)
             llm_anno:setMeta(llm_result["meta"])
             local prompt_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["prompt_ref"])
             llm_anno:setPrompt(prompt_anno)
-            local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["message_ref"])
-            llm_anno:setMessage(msg_anno)
             llm_anno:addToIndexes()
         end
 

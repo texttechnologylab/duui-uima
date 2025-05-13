@@ -12,7 +12,7 @@ from fastapi import FastAPI, Response
 from starlette.responses import PlainTextResponse, JSONResponse
 
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt
-from models.Molmo import MolmoE1BModel, Molmo7BOModel, Molmo7BDModel, Molmo72BModel
+from models.Molmo import MolmoE1BModel, Molmo7BOModel, Molmo7BDModel, Molmo72BModel, Molmo7BDModelVLLM
 
 import os
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
@@ -46,18 +46,21 @@ sources = {
     "Molmo-7B-D-0924": "https://huggingface.co/allenai/Molmo-7B-D-0924",
     "Molmo-7B-O-0924": "https://huggingface.co/allenai/Molmo-7B-O-0924",
     "MolmoE-1B-0924": "https://huggingface.co/allenai/MolmoE-1B-0924",
+    "Molmo7BDModelVLLM": "https://huggingface.co/allenai/Molmo-7B-D-0924"
 }
 languages = {
     "Molmo-72B-0924": "en",
     "Molmo-7B-D-0924": "en",
     "Molmo-7B-O-0924": "en",
     "MolmoE-1B-0924": "en",
+    "Molmo7BDModelVLLM": "en",
 }
 versions = {
     "Molmo-72B-0924": "2ca845922396b7a5f7086bfda3fca6b8ecd1c8f3",
     "Molmo-7B-D-0924": "ac032b93b84a7f10c9578ec59f9f20ee9a8990a2",
     "Molmo-7B-O-0924": "0e727957abd46f3ef741ddbda3452db1df873a6e",
     "MolmoE-1B-0924": "69e3445d130507eadaa9123e3c411ce17aeb8afa",
+    "Molmo7BDModelVLLM": "ac032b93b84a7f10c9578ec59f9f20ee9a8990a2",
 }
 
 model_lock = Lock()
@@ -123,6 +126,8 @@ def load_model(model_name, device=device):
         return Molmo7BDModel(device=device, revision=versions.get(model_name))
     elif model_name == "Molmo72BModel":
         return Molmo72BModel(device=device, revision=versions.get(model_name))
+    elif model_name == "Molmo7BDModelVLLM":
+        return Molmo7BDModelVLLM()
     else:
         raise ValueError(f"Unsupported model: {model_name}")
 

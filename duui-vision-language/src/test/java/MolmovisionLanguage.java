@@ -40,8 +40,8 @@ public class MolmovisionLanguage {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://0.0.0.0:8000";
-    static String model = "MolmoE1BModel";
+    static String url = "http://0.0.0.0:8888";
+    static String model = "Molmo7BDModelVLLM";
     static String sOutputPath = "src/test/results";
 
     @BeforeAll
