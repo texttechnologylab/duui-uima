@@ -4,7 +4,7 @@ JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 TopicUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
 
 function serialize(inputCas, outputStream, parameters)
-     --print("start Lua serialzation")
+    --print("start Lua serialzation")
     local doc_lang = inputCas:getDocumentLanguage()
 
     --print("doc_lang: ", doc_lang)
@@ -51,7 +51,7 @@ function serialize(inputCas, outputStream, parameters)
 
         end
 
-        end
+    end
 
     outputStream:write(json.encode({
         images = images,
@@ -91,22 +91,22 @@ function deserialize(inputCas, inputStream)
     --print("---------------------- Finished errors ----------------------")
 
     if results['model_source'] ~= nil and results['model_version'] ~= nil and results['model_name'] ~= nil and results['model_lang'] ~= nil then
-         --print("GetInfo")
+        --print("GetInfo")
         local source = results["model_source"]
         local model_version = results["model_version"]
         local model_name = results["model_name"]
         local model_lang = results["model_lang"]
 
-         --print("setMetaData")
+        --print("setMetaData")
         local model_meta = luajava.newInstance("org.texttechnologylab.annotation.model.MetaData", inputCas)
         model_meta:setModelVersion(model_version)
---         print(model_version)
+        --         print(model_version)
         model_meta:setModelName(model_name)
---         print(model_name)
+        --         print(model_name)
         model_meta:setSource(source)
---         print(source)
+        --         print(source)
         model_meta:setLang(model_lang)
---         print(model_lang)
+        --         print(model_lang)
         model_meta:addToIndexes()
 
 
@@ -131,68 +131,68 @@ function deserialize(inputCas, inputStream)
         print(inputCas:getDocumentText())
 
         -- iterate over the results and add them to the CAS
-            for index_i, image in ipairs(results_images) do
-                -- create image cas object
-                local image_i = luajava.newInstance("org.texttechnologylab.annotation.type.Image", inputCas)
-                image_i:setSrc(image["src"])
-                image_i:setHeight(image["height"])
-                image_i:setWidth(image["width"])
-                image_i:setBegin(image["begin"])
-                image_i:setEnd(image["end"])
-                image_i:addToIndexes()
+        for index_i, image in ipairs(results_images) do
+            -- create image cas object
+            local image_i = luajava.newInstance("org.texttechnologylab.annotation.type.Image", inputCas)
+            image_i:setSrc(image["src"])
+            image_i:setHeight(image["height"])
+            image_i:setWidth(image["width"])
+            image_i:setBegin(image["begin"])
+            image_i:setEnd(image["end"])
+            image_i:addToIndexes()
 
-                -- create a subimage using entities
-                for entity_name, entity_data in pairs(results_entities) do
+            -- create a subimage using entities
+            for entity_name, entity_data in pairs(results_entities) do
 
-                    --print("entity_name: ", entity_name)
-                    local subimage_i = luajava.newInstance("org.texttechnologylab.annotation.type.SubImage", inputCas)
-                    --print("entity_name: ", entity_name, "type: ", type(entity_name))
-                    subimage_i:setBegin(entity_data["begin"])
-                    subimage_i:setEnd(entity_data["end"])
-                    subimage_i:setParent(image_i)
-                    --print(entity_data["begin"])
-                    --print(entity_data["end"])
-                    --print(entity_data["bounding_box"])
-                    --print("starting bboxes")
-                    print("len of bounding_box: ", #entity_data["bounding_box"])
-                    local coordinates = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, #entity_data["bounding_box"])
-                    if #entity_data["bounding_box"] > 0 then
-                        subimage_i:setCoordinates(coordinates)
-                        local idx = 0
-                        for bx1, bx2 in pairs(entity_data["bounding_box"]) do
-                            --print(("idx: %d"):format(idx))
-                            --print("x1: ", bx2[1])
-                            --print("y1:", bx2[2])
-                            --
-                            --print("x2: ", bx2[3])
-                            --print("y2: ", bx2[4])
-                            if idx < #entity_data["bounding_box"] then
-                                local coordinate_i = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
-                                coordinate_i:setX(bx2[1])
-                                coordinate_i:setY(bx2[2])
-                                coordinate_i:addToIndexes()
-                                subimage_i:setCoordinates(idx, coordinate_i)
+                --print("entity_name: ", entity_name)
+                local subimage_i = luajava.newInstance("org.texttechnologylab.annotation.type.SubImage", inputCas)
+                --print("entity_name: ", entity_name, "type: ", type(entity_name))
+                subimage_i:setBegin(entity_data["begin"])
+                subimage_i:setEnd(entity_data["end"])
+                subimage_i:setParent(image_i)
+                --print(entity_data["begin"])
+                --print(entity_data["end"])
+                --print(entity_data["bounding_box"])
+                --print("starting bboxes")
+                print("len of bounding_box: ", #entity_data["bounding_box"])
+                local coordinates = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, #entity_data["bounding_box"])
+                if #entity_data["bounding_box"] > 0 then
+                    subimage_i:setCoordinates(coordinates)
+                    local idx = 0
+                    for bx1, bx2 in pairs(entity_data["bounding_box"]) do
+                        --print(("idx: %d"):format(idx))
+                        --print("x1: ", bx2[1])
+                        --print("y1:", bx2[2])
+                        --
+                        --print("x2: ", bx2[3])
+                        --print("y2: ", bx2[4])
+                        if idx < #entity_data["bounding_box"] then
+                            local coordinate_i = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
+                            coordinate_i:setX(bx2[1])
+                            coordinate_i:setY(bx2[2])
+                            coordinate_i:addToIndexes()
+                            subimage_i:setCoordinates(idx, coordinate_i)
 
-                            end
-
-                            if (idx + 1) < #entity_data["bounding_box"] then
-                                local coordinate_i1 = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
-                                coordinate_i1:setX(bx2[3])
-                                coordinate_i1:setY(bx2[4])
-                                coordinate_i1:addToIndexes()
-                                subimage_i:setCoordinates(idx + 1, coordinate_i1)
-                                idx = idx + 2
-
-                            end
                         end
 
-                    end
-                    --subimage_i:setCoordinates(coordinates)
-                    subimage_i:addToIndexes()
-                end
-            end
+                        if (idx + 1) < #entity_data["bounding_box"] then
+                            local coordinate_i1 = luajava.newInstance("org.texttechnologylab.annotation.type.Coordinate", inputCas)
+                            coordinate_i1:setX(bx2[3])
+                            coordinate_i1:setY(bx2[4])
+                            coordinate_i1:addToIndexes()
+                            subimage_i:setCoordinates(idx + 1, coordinate_i1)
+                            idx = idx + 2
 
+                        end
+                    end
+
+                end
+                --subimage_i:setCoordinates(coordinates)
+                subimage_i:addToIndexes()
+            end
         end
 
-    -- copy cas into a new one with new document text
     end
+
+    -- copy cas into a new one with new document text
+end
