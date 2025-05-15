@@ -11,8 +11,8 @@ import subprocess
 import os
 from typing import Tuple, List
 import json
-
 import cv2
+
 
 def handle_errors(method):
     @functools.wraps(method)
@@ -123,12 +123,6 @@ def save_base64_to_temp_file(base64_str, suffix=""):
         tmp.write(data)
         return tmp.name
 
-import base64
-import tempfile
-import subprocess
-from PIL import Image
-import io
-import os
 
 def decouple_video(videobase64: str):
     # Decode the video base64 and save to temp file
@@ -177,3 +171,13 @@ def decouple_video(videobase64: str):
             frames_b64.append(base64.b64encode(f.read()).decode("utf-8"))
 
     return audio_base64, frames_b64
+
+
+def convert_base64_to_image(b64):
+    return Image.open(BytesIO(base64.b64decode(b64)))
+
+def convert_base64_to_audio(b64):
+    return BytesIO(base64.b64decode(b64))
+
+def convert_base64_to_video(b64):
+    return BytesIO(base64.b64decode(b64))
