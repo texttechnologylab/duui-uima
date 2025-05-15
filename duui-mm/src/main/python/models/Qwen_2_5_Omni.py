@@ -1,5 +1,6 @@
 import torch
 import json
+import logging
 import base64
 from uuid import uuid4
 import soundfile as sf
@@ -12,7 +13,8 @@ from .utils import handle_errors, convert_base64_to_audio, convert_base64_to_ima
 class QwenOmni3B:
     def __init__(self,
                  model_name="Qwen/Qwen2.5-Omni-3B",
-                 device="auto"):
+                 device="auto",
+                 logging_level="INFO"):
         self.model_name = model_name
         self.device = device
 
@@ -23,8 +25,11 @@ class QwenOmni3B:
             model_name,
             torch_dtype="auto",
             device_map=device,
-            trust_remote_code=True
+            attn_implementation="flash_attention_2"
         )
+
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(level=logging_level)
 
     def _generate_dummy_ref(self):
         return int(uuid4().int % 1_000_000)
@@ -46,18 +51,19 @@ class QwenOmni3B:
         if video:
             content.append({"type": "video", "video": video})
 
+
         return [
-            {
-                "role": "system",
-                "content": [
-                    {"type": "text", "text": "You are Qwen, a multimodal assistant that can understand and reason over text, image, audio, and video."}
-                ]
-            },
-            {
-                "role": "user",
-                "content": content
-            }
-        ]
+                {
+                    "role": "system",
+                    "content": [
+                        {"type": "text", "text": "You are Qwen, a multimodal assistant that can understand and reason over text, image, audio, and video."}
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ]
 
     def _run_model(self, conversation, use_audio_in_video):
         raw_text = self.processor.apply_chat_template(
@@ -112,11 +118,10 @@ class QwenOmni3B:
 
     @handle_errors
     def process_video(self, video_b64: str, prompt: LLMPrompt):
-        audio_b64, frames_b64 = decouple_video(video_b64)
+        # audio_b64, frames_b64 = decouple_video(video_b64)
         user_text = self._extract_user_text(prompt)
 
-        video = convert_base64_to_video(video_b64)
-        conversation = self._build_conversation(text=user_text, video=video)
+        conversation = self._build_conversation(text=user_text, video=video_b64)
         response_text, _ = self._run_model(conversation, use_audio_in_video=True)
 
         return self._make_result(prompt, response_text)

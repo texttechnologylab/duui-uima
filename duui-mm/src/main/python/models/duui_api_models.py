@@ -148,7 +148,7 @@ class DUUIMMRequest(BaseModel):
 # Note, this is transformed by the Lua script
 class DUUIMMResponse(BaseModel):
     # list of processed text
-    processed_text: List[LLMResult]
+    processed_text: Optional[List[LLMResult]]
     # model source
     model_source: str
     # model language
@@ -158,6 +158,6 @@ class DUUIMMResponse(BaseModel):
     # model name
     model_name: str
     # list of errors
-    errors: Optional[List[str]]
+    errors: Optional[List[dict | str]]
     # original prompt
     prompts: List[Optional[LLMPrompt]] = []

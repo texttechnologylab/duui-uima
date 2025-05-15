@@ -410,10 +410,74 @@ public class MMTests {
     }
 
     @Test
-    public void testImageOnlyQwen() throws Exception {
+    public void testImageOnlyQwen3B() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-3B-Instruct")
+                        .withParameter("mode", "image")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Arrays.asList(
+                "What is shown in this image?"
+        );
+        List<String> imagePaths = Arrays.asList(
+                "src/test/resources/images/fridge.jpg",
+                "src/test/resources/images/cars.jpg"
+        );
+
+        createCasWithImages("en", prompts, imagePaths);
+        composer.run(cas);
+
+        int idx = 0;
+        for (Image img : JCasUtil.select(cas, Image.class)) {
+            saveBase64ToImage(img.getSrc(), "src/test/results/images/output_image_" + idx++ + ".png");
+        }
+    }
+    @Test
+    public void testImageOnlyQwen7B() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
+                        .withParameter("mode", "image")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Arrays.asList(
+                "What is shown in this image?"
+        );
+        List<String> imagePaths = Arrays.asList(
+                "src/test/resources/images/fridge.jpg",
+                "src/test/resources/images/cars.jpg"
+        );
+
+        createCasWithImages("en", prompts, imagePaths);
+        composer.run(cas);
+
+        int idx = 0;
+        for (Image img : JCasUtil.select(cas, Image.class)) {
+            saveBase64ToImage(img.getSrc(), "src/test/results/images/output_image_" + idx++ + ".png");
+        }
+    }
+    @Test
+    public void testImageOnlyQwen() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "vllm/Qwen/Qwen2.5-VL-7B-Instruct")
                         .withParameter("mode", "image")
                         .build().withTimeout(1000)
         );
@@ -512,6 +576,41 @@ public class MMTests {
         }
     }
 
+    @Test
+    public void testFramesOnlyQwen3B() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-3B-Instruct")
+                        .withParameter("mode", "frames")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Collections.singletonList("Who drunk the water from the cup?");
+
+        List<String> framePaths = Arrays.asList(
+                "src/test/resources/frames/1.png",
+//                "src/test/resources/frames/2.png",
+                "src/test/resources/frames/3.png"
+//                "src/test/resources/frames/4.png"
+
+        );
+
+        createCasWithImages("en", prompts, framePaths);
+        composer.run(cas);
+
+        int idx = 0;
+        for (Image img : JCasUtil.select(cas, Image.class)) {
+            saveBase64ToImage(img.getSrc(), "src/test/results/frames/output_frame_" + idx++ + ".png");
+        }
+    }
+
 
     @Test
     public void testFramesOnlyQwen() throws Exception {
@@ -588,11 +687,46 @@ public class MMTests {
 
 
     @Test
-    public void testVideoQwen() throws Exception {
+    public void testVideoQwen3B() throws Exception {
 
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-3B-Instruct")
+                        .withParameter("mode", "video")
+                        .build().withTimeout(1000)
+        );
+
+        // Optional: Add UIMA XmiWriter for output storage
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/video/",
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        // Load video and convert to base64
+        String videoPath = "src/test/resources/videos/kids_video.mp4";
+        String videoBase64 = convertFileToBase64(videoPath);
+
+        List<String> prompts = Collections.singletonList("Describe what happens in the video.");
+
+        // Create CAS with 1 video and 1 prompt
+        createCasWithVideo("en", prompts, videoBase64);
+
+        // Run pipeline
+        composer.run(cas);
+
+        // Optionally verify the outputs
+        int idx = 0;
+        for (Video vid : JCasUtil.select(cas, Video.class)) {
+            saveBase64ToVideo(vid.getSrc(), "src/test/results/video/video_output_" + idx++ + ".mp4");
+        }
+    }@Test
+    public void testVideoQwenVllm() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "vllm/Qwen/Qwen2.5-VL-7B-Instruct")
                         .withParameter("mode", "video")
                         .build().withTimeout(1000)
         );
@@ -643,8 +777,11 @@ public class MMTests {
         )).build());
 
         // Load video and convert to base64
-        String videoPath = "src/test/resources/videos/kids_video.mp4";
-        String videoBase64 = convertFileToBase64(videoPath);
+//        String videoPath = "src/test/resources/videos/kids_video.mp4";
+//        String videoBase64 = convertFileToBase64(videoPath);
+
+//        String videoPath = "https://x.com/c_lindner/status/1893775079839866881/video/1";
+        String videoBase64 = "https://cdn.pixabay.com/video/2018/01/31/14035-254146872_large.mp4";
 
         List<String> prompts = Collections.singletonList("Describe what happens in the video.");
 

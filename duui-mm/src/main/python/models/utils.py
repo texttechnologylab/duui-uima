@@ -12,17 +12,21 @@ import os
 from typing import Tuple, List
 import json
 import cv2
+from .duui_api_models import LLMResult
+from uuid import uuid4
 
-
-def handle_errors(method):
-    @functools.wraps(method)
+def handle_errors(func):
     def wrapper(self, *args, **kwargs):
         try:
-            return method(self, *args, **kwargs)
+            return func(self, *args, **kwargs)
         except Exception as e:
-            self.logger.error(f"Error in `{method.__name__}`: {e}")
-            self.logger.debug(traceback.format_exc())
-            return {"error": f"{method.__name__} failed", "detail": str(e)}
+            self.logger.error(f"{func.__name__} failed: {e}", exc_info=True)
+            dummy_ref = int(uuid4().int % 1_000_000)
+            return LLMResult(
+                meta=json.dumps({"error": f"{func.__name__} failed", "detail": str(e)}),
+                prompt_ref=dummy_ref,
+                message_ref=dummy_ref,
+            )
     return wrapper
 
 def extract_frames_ffmpeg(video_path, every_n_seconds=5):
@@ -146,7 +150,7 @@ def decouple_video(videobase64: str):
             audio_base64 = base64.b64encode(f.read()).decode("utf-8")
     except subprocess.CalledProcessError:
         print("⚠️ No audio stream found or ffmpeg failed. Continuing without audio.")
-        audio_base64 = ""
+        audio_base64 = None
 
     # Extract frames
     frame_dir = tempfile.mkdtemp()

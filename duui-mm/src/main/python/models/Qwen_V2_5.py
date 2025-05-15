@@ -3,11 +3,18 @@ import json
 import logging
 import requests
 from uuid import uuid4
-from typing import List
 from .duui_api_models import LLMResult, LLMPrompt
 from .utils import handle_errors
+import torch
+from typing import List, Optional
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+from qwen_vl_utils import process_vision_info
+import base64
+import json
+import logging
 
-class Qwen2_5VL:
+
+class VllmQwen2_5VL:
     def __init__(self,
                  api_url="http://localhost:6659/v1/chat/completions",
                  model_name="Qwen/Qwen2.5-VL-7B-Instruct",
@@ -127,6 +134,8 @@ class Qwen2_5VL:
         video_url = "data:video/mp4;base64," + video_base64
         prompt_text = next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Analyze the video.")
 
+        print("prompt_text ", prompt_text)
+
         full_text = f"<|user|><|video_1|>{prompt_text}<|end|><|assistant|>"
         content = [
             {"type": "text", "text": full_text},
@@ -140,10 +149,286 @@ class Qwen2_5VL:
         response.raise_for_status()
         result = response.json()
 
+        print("result ", result)
         response_text = result["choices"][0]["message"]["content"]
 
         return LLMResult(
             meta=json.dumps({"response": response_text}),
             prompt_ref=prompt.ref or self._generate_dummy_ref(),
             message_ref=self._generate_dummy_ref()
+        )
+
+
+
+class BaseQwen2_5VL:
+    def __init__(self,
+                 model_name: str,
+                 version:str,
+                 logging_level: str = "INFO",
+                 torch_dtype: torch.dtype = torch.bfloat16,
+                 attn_implementation: str = "flash_attention_2"):
+
+        self.model_name = model_name
+        self.revision = version
+        self.logger = logging.getLogger(__name__)
+        logging.basicConfig(level=logging_level)
+
+        self._load_transformers_model(torch_dtype, attn_implementation)
+
+    def _load_transformers_model(self, torch_dtype, attn_implementation):
+        """Load the model and processor using the Transformers library."""
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            self.model_name,
+            torch_dtype=torch_dtype,
+            attn_implementation=attn_implementation,
+            revision=self.revision,
+            device_map="auto"
+        )
+        self.processor = AutoProcessor.from_pretrained(self.model_name)
+
+    def _generate_dummy_ref(self):
+        return str(uuid4().int % 1_000_000)
+
+    @handle_errors
+    def process_text(self, prompt: LLMPrompt) -> LLMResult:
+        return self._process_text_with_transformers(prompt)
+
+    def _process_text_with_transformers(self, prompt: LLMPrompt) -> LLMResult:
+        messages = [{"role": m.role, "content": m.content} for m in prompt.messages]
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = self.processor(text=[text], padding=True, return_tensors="pt").to("cuda")
+
+        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+
+        return LLMResult(
+            meta=json.dumps({"response": output_text, "model_name": self.model_name}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
+
+    @handle_errors
+    def process_image(self, image_base64: str, prompt: LLMPrompt) -> LLMResult:
+        image_url = "data:image/jpeg;base64," + image_base64
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image_url},
+                    {"type": "text", "text": next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Describe this image.")},
+                ],
+            }
+        ]
+
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to("cuda")
+
+        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+
+        return LLMResult(
+            meta=json.dumps({"response": output_text}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
+
+    @handle_errors
+    def process_audio(self, base64_audio, prompt: LLMPrompt):
+        return LLMResult(
+            meta=json.dumps({"response": "Audio Alone is not supported in QenV2.5L"}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
+
+    @handle_errors
+    def process_video_frames(self, prompt: LLMPrompt, frames: List[str]) -> LLMResult:
+        # Create messages with video frames
+        frame_messages = [
+            {
+                "role": "user",
+                "content": [
+                    *[{ "type": "image", "image": f"data:image/jpeg;base64,{frame}" } for frame in frames],
+                    {"type": "text", "text": next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Summarize the content.")}
+                ],
+            }
+        ]
+
+        text = self.processor.apply_chat_template(frame_messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, video_inputs = process_vision_info(frame_messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to("cuda")
+
+        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+
+        return LLMResult(
+            meta=json.dumps({"response": output_text}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
+
+    @handle_errors
+    def process_video_and_audio(self, audio_base64, frames_base64, prompt: LLMPrompt) -> LLMResult:
+        # Create messages with video frames and audio
+        video_audio_messages = [
+            {
+                "role": "user",
+                "content": [
+                    *[{ "type": "image", "image": f"data:image/jpeg;base64,{frame}" } for frame in frames_base64],
+                    {"type": "audio", "audio": f"data:audio/wav;base64,{audio_base64}"},
+                    {"type": "text", "text": next((m.content for m in reversed(prompt.messages) if m.role == "user"), "")}
+                ],
+            }
+        ]
+
+        text = self.processor.apply_chat_template(video_audio_messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, video_inputs = process_vision_info(video_audio_messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to("cuda")
+
+        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+
+        return LLMResult(
+            meta=json.dumps({"response": output_text}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
+
+    @handle_errors
+    def process_video(self, video_base64: str, prompt: LLMPrompt) -> LLMResult:
+        # Create messages with video
+        video_messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "video", "video": f"data:video/mp4;base64,{video_base64}"},
+                    {"type": "text", "text": next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Analyze the video.")}
+                ],
+            }
+        ]
+
+        text = self.processor.apply_chat_template(video_messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, video_inputs = process_vision_info(video_messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        ).to("cuda")
+
+        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = self.processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )[0]
+
+        return LLMResult(
+            meta=json.dumps({"response": output_text}),
+            prompt_ref=prompt.ref or self._generate_dummy_ref(),
+            message_ref=self._generate_dummy_ref()
+        )
+
+class Qwen2_5_VL_7B_Instruct(BaseQwen2_5VL):
+    def __init__(self, version: str,  logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-7B-Instruct",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_7B_Instruct_AWQ(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_3B_Instruct(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-3B-Instruct",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_3B_Instruct_AWQ(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-3B-Instruct-AWQ",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_32B_Instruct(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-32B-Instruct",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_32B_Instruct_AWQ(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-32B-Instruct-AWQ",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_72B_Instruct(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-72B-Instruct",
+            logging_level=logging_level,
+            version = version
+        )
+
+class Qwen2_5_VL_72B_Instruct_AWQ(BaseQwen2_5VL):
+    def __init__(self,  version: str, logging_level: str = "INFO"):
+        super().__init__(
+            model_name="Qwen/Qwen2.5-VL-72B-Instruct-AWQ",
+            logging_level=logging_level,
+            version = version
         )
