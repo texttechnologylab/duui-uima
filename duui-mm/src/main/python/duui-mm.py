@@ -16,6 +16,7 @@ from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, 
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType, VideoTypes
 from models.Phi_4_model import MicrosoftPhi4
 from models.Qwen_V2_5 import Qwen2_5VL
+from models.Qwen_2_5_Omni import QwenOmni3B
 
 
 import os
@@ -48,7 +49,7 @@ def init():
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = './TypeSystemMM.xml'
+    typesystem_filename = '../resources/TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 
@@ -175,6 +176,9 @@ def load_model(model_name, device=None):
 
     elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":
         model = Qwen2_5VL(logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-Omni-3B":
+        model = QwenOmni3B()
 
     else:
         raise ValueError(f"Unsupported model name: {model_name}")

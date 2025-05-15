@@ -292,6 +292,49 @@ public class MMTests {
         verifyNoImages(); // Text-only should produce no image outputs
     }
 
+
+    @Test
+    public void testTextOnlyQwenOmni() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-Omni-3B")
+                        .withParameter("mode", "text")
+                        .build().withTimeout(1000)
+
+        );
+
+//            composer.add(
+//                    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality")
+//                            .withParameter("model_name", "Phi4ModelVLLM")
+//                            .withParameter("mode", "text")
+//                            .build().withTimeout(1000)
+//            );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Arrays.asList(
+                "Who is the current president of the USA?",
+                "Is Frankfurt the capital of EU finance?"
+        );
+
+        createCas("en", prompts);
+
+        Video  video_ = new Video(cas);
+        video_.setMimetype("video/mp4");
+        video_.setSrc("kjsdklsdf");
+        video_.addToIndexes();
+
+        composer.run(cas);
+
+        verifyNoImages(); // Text-only should produce no image outputs
+    }
+
+
     @Test
     public void testTextOnly() throws Exception {
         composer.add(
@@ -581,6 +624,44 @@ public class MMTests {
         }
     }
 
+    @Test
+    public void testVideoQwenOmni() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-Omni-3B")
+                        .withParameter("mode", "video")
+                        .build().withTimeout(1000)
+        );
+
+        // Optional: Add UIMA XmiWriter for output storage
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/video/",
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        // Load video and convert to base64
+        String videoPath = "src/test/resources/videos/kids_video.mp4";
+        String videoBase64 = convertFileToBase64(videoPath);
+
+        List<String> prompts = Collections.singletonList("Describe what happens in the video.");
+
+        // Create CAS with 1 video and 1 prompt
+        createCasWithVideo("en", prompts, videoBase64);
+
+        // Run pipeline
+        composer.run(cas);
+
+        // Optionally verify the outputs
+        int idx = 0;
+        for (Video vid : JCasUtil.select(cas, Video.class)) {
+            saveBase64ToVideo(vid.getSrc(), "src/test/results/video/video_output_" + idx++ + ".mp4");
+        }
+    }
+
+
 
     @Test
     public void testAudio() throws Exception {
@@ -588,6 +669,36 @@ public class MMTests {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", model)
+                        .withParameter("mode", "audio")
+                        .build().withTimeout(1000)
+        );
+
+        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+                XmiWriter.PARAM_TARGET_LOCATION, "src/test/results/audio/",
+                XmiWriter.PARAM_PRETTY_PRINT, true,
+                XmiWriter.PARAM_OVERWRITE, true,
+                XmiWriter.PARAM_VERSION, "1.1"
+        )).build());
+
+        List<String> prompts = Collections.singletonList("Transcribe the audio clip into text. identify speakers by numbers. No more context");
+
+        List<String> audioPaths = Collections.singletonList("src/test/resources/audio/pop-smoke-interview-spoken-vocal-loop.wav");
+
+        createCasWithAudio("en", prompts, audioPaths);
+
+        composer.run(cas);
+
+        // Optionally inspect outputs or verify no unexpected types
+        System.out.println("Audio processing complete.");
+    }
+
+
+    @Test
+    public void testAudioQwen() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
                         .withParameter("mode", "audio")
                         .build().withTimeout(1000)
         );

@@ -9,7 +9,7 @@ from .duui_api_models import LLMPrompt, LLMResult
 from .utils import handle_errors, convert_base64_to_audio, convert_base64_to_image, convert_base64_to_video, decouple_video
 
 
-class QwenOmniBaseModel:
+class QwenOmni3B:
     def __init__(self,
                  model_name="Qwen/Qwen2.5-Omni-3B",
                  device="auto"):
