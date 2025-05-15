@@ -14,8 +14,9 @@ from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType, VideoTypes
-from models.Phi_4_model import MicrosoftPhi4
-from models.Qwen_V2_5 import Qwen2_5VL
+from models.Phi_4_model import VllmMicrosoftPhi4
+from models.Qwen_V2_5 import *
+from models.Qwen_2_5_Omni import QwenOmni3B
 
 
 import os
@@ -48,7 +49,7 @@ def init():
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = './TypeSystemMM.xml'
+    typesystem_filename = '../resources/TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 
@@ -70,20 +71,44 @@ def init():
 from starlette.responses import PlainTextResponse, JSONResponse
 model_lock = Lock()
 sources = {
-    "microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
+    "vllm/microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
+    "vllm/Qwen/Qwen2.5-VL-7B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",
     "Qwen/Qwen2.5-VL-7B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",
-
+    "Qwen/Qwen2.5-VL-7B-Instruct-AWQ": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
+    "Qwen/Qwen2.5-VL-3B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct",
+    "Qwen/Qwen2.5-VL-3B-Instruct-AWQ": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-AWQ",
+    "Qwen/Qwen2.5-VL-32B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct",
+    "Qwen/Qwen2.5-VL-32B-Instruct-AWQ": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct-AWQ",
+    "Qwen/Qwen2.5-VL-72B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct",
+    "Qwen/Qwen2.5-VL-72B-Instruct-AWQ": "https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct-AWQ",
 }
 
 languages = {
-    "microsoft/Phi-4-multimodal-instruct": "multi",
+    "vllm/microsoft/Phi-4-multimodal-instruct": "multi",
+    "vllm/Qwen/Qwen2.5-VL-7B-Instruct": "multi",
     "Qwen/Qwen2.5-VL-7B-Instruct": "multi",
+    "Qwen/Qwen2.5-VL-7B-Instruct-AWQ": "multi",
+    "Qwen/Qwen2.5-VL-3B-Instruct": "multi",
+    "Qwen/Qwen2.5-VL-3B-Instruct-AWQ": "multi",
+    "Qwen/Qwen2.5-VL-32B-Instruct": "multi",
+    "Qwen/Qwen2.5-VL-32B-Instruct-AWQ": "multi",
+    "Qwen/Qwen2.5-VL-72B-Instruct": "multi",
+    "Qwen/Qwen2.5-VL-72B-Instruct-AWQ": "multi",
 }
 
 versions = {
-    "microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
+    "vllm/microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
+    "vllm/Qwen/Qwen2.5-VL-7B-Instruct": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
     "Qwen/Qwen2.5-VL-7B-Instruct": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+    "Qwen/Qwen2.5-VL-7B-Instruct-AWQ": "536a35794df8831aa814970ee8f89eff577e7718",
+    "Qwen/Qwen2.5-VL-3B-Instruct": "66285546d2b821cf421d4f5eb2576359d3770cd3",
+    "Qwen/Qwen2.5-VL-3B-Instruct-AWQ": "e7b623934290c5a4da0ee3c6e1e57bfb6b5abbf2",
+    "Qwen/Qwen2.5-VL-32B-Instruct": "7cfb30d71a1f4f49a57592323337a4a4727301da",
+    "Qwen/Qwen2.5-VL-32B-Instruct-AWQ": "66c370b74a18e7b1e871c97918f032ed3578dfef",
+    "Qwen/Qwen2.5-VL-72B-Instruct": "cd3b627433ac68e782b69d5f829355b3f34fb7f2",
+    "Qwen/Qwen2.5-VL-72B-Instruct-AWQ": "c8b87d4b81f34b6a147577a310d7e75f0698f6c2",
 }
+
 
 
 init()
@@ -170,16 +195,45 @@ def load_model(model_name, device=None):
     Load the model and optionally check the input sequence length if input_text is provided.
     Automatically truncates the input if it exceeds the model's max sequence length.
     """
-    if model_name == "microsoft/Phi-4-multimodal-instruct":
-        model = MicrosoftPhi4(logging_level=settings.mm_log_level)
+    if model_name == "vllm/microsoft/Phi-4-multimodal-instruct":
+        model = VllmMicrosoftPhi4(logging_level=settings.mm_log_level)
 
+    elif model_name == "vllm/Qwen/Qwen2.5-VL-7B-Instruct":
+        model = VllmQwen2_5VL(logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-Omni-3B":
+        model = QwenOmni3B()
+
+    # Add conditions for the new Qwen/Qwen2.5-VL models
     elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":
-        model = Qwen2_5VL(logging_level=settings.mm_log_level)
+        model = Qwen2_5_VL_7B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct-AWQ":
+        model = Qwen2_5_VL_7B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-3B-Instruct":
+        model = Qwen2_5_VL_3B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-3B-Instruct-AWQ":
+        model = Qwen2_5_VL_3B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-32B-Instruct":
+        model = Qwen2_5_VL_32B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-32B-Instruct-AWQ":
+        model = Qwen2_5_VL_32B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct":
+        model = Qwen2_5_VL_72B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct-AWQ":
+        model = Qwen2_5_VL_72B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
 
     else:
-        raise ValueError(f"Unsupported model name: {model_name}")
+        raise ValueError(f"Model {model_name} is not supported.")
 
     return model
+
 
 
 

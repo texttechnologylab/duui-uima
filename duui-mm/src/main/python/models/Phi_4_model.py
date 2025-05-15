@@ -20,7 +20,7 @@ from .duui_api_models import LLMResult, LLMPrompt
 from .utils import handle_errors, decouple_video
 
 
-class MicrosoftPhi4:
+class VllmMicrosoftPhi4:
     def __init__(self,
                  api_url="http://localhost:6658/v1/chat/completions",
                  model_name="microsoft/Phi-4-multimodal-instruct",
