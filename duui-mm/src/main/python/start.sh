@@ -14,7 +14,7 @@ python -m vllm.entrypoints.openai.api_server \
     --pipeline-parallel-size 1 \
     --distributed-executor-backend mp \
     --dtype auto \
-    --trust-remote-code \
+    --trust-remote-code  --chat-template-content-format openai \
     --enable-sleep-mode \
     --port 6659 &
 QWEN_PID=$!
@@ -28,16 +28,19 @@ done
 # Sleep Qwen initially using Python requests
 python -c "import requests; requests.post('http://localhost:6659/sleep')" || true
 
+#     --max-model-len 131072 \
+
 # Start Microsoft Phi-4 using vLLM
 echo "Launching vLLM server for Phi-4..."
 python -m vllm.entrypoints.openai.api_server \
     --model 'microsoft/Phi-4-multimodal-instruct' \
+    --revision '0af439b3adb8c23fda473c4f86001dbf9a226021' \
     --tensor-parallel-size 1 \
     --pipeline-parallel-size 1 \
     --distributed-executor-backend mp \
     --dtype auto \
     --enable-sleep-mode\
-    --trust-remote-code \
+    --trust-remote-code  \
     --max-model-len 131072 \
     --enable-lora \
     --max-lora-rank 320 \
