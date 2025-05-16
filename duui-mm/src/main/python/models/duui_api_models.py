@@ -112,7 +112,7 @@ class AudioType(BaseModel):
     src: str
     begin: int
     end: int
-
+      
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
 class DUUIMMRequest(BaseModel):
@@ -144,11 +144,13 @@ class DUUIMMRequest(BaseModel):
 
 
 
+
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
 class DUUIMMResponse(BaseModel):
     # list of processed text
     processed_text: Optional[List[LLMResult]]
+
     # model source
     model_source: str
     # model language

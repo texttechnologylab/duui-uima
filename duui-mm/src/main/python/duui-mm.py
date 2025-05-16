@@ -18,9 +18,7 @@ from models.Phi_4_model import VllmMicrosoftPhi4, TransformersMicrosoftPhi4
 from models.Qwen_V2_5 import *
 # from models.Qwen_2_5_Omni import QwenOmni3B
 
-
 import os
-
 
 os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 os.environ['CURL_CA_BUNDLE'] = ''
@@ -111,8 +109,6 @@ versions = {
     "Qwen/Qwen2.5-VL-72B-Instruct": "cd3b627433ac68e782b69d5f829355b3f34fb7f2",
     "Qwen/Qwen2.5-VL-72B-Instruct-AWQ": "c8b87d4b81f34b6a147577a310d7e75f0698f6c2",
 }
-
-
 
 init()
 
@@ -429,7 +425,6 @@ def post_process(request: DUUIMMRequest):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             gc.collect()
-
 
 
 if __name__ == "__main__":

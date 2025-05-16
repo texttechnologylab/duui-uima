@@ -1,0 +1,10 @@
+version := "0.1.1"
+
+
+build version=version:
+    docker build -t "duui-lite-gnfinder:{{version}}" .
+    docker tag "duui-lite-gnfinder:{{version}}" "duui-lite-gnfinder:latest"
+    docker tag "duui-lite-gnfinder:{{version}}" "docker.texttechnologylab.org/duui-lite-gnfinder:{{version}}"
+    docker tag "duui-lite-gnfinder:{{version}}" "docker.texttechnologylab.org/duui-lite-gnfinder:latest"
+    docker push "docker.texttechnologylab.org/duui-lite-gnfinder:{{version}}"
+    docker push "docker.texttechnologylab.org/duui-lite-gnfinder:latest"

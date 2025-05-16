@@ -40,6 +40,18 @@ ENV TEXTIMAGER_ANNOTATOR_NAME=$TEXTIMAGER_ANNOTATOR_NAME
 # version
 ARG TEXTIMAGER_ANNOTATOR_VERSION=0.1
 ENV TEXTIMAGER_ANNOTATOR_VERSION=$TEXTIMAGER_ANNOTATOR_VERSION
+# cuda
+ARG CUDA="cuda:0"
+ENV CUDA=$CUDA
+# cue_detection
+ARG CUE_DETECTION="true"
+ENV CUE_DETECTION=$CUE_DETECTION
+# scope_detection
+ARG SCOPE_DETECTION="true"
+ENV SCOPE_DETECTION=$SCOPE_DETECTION
+# lang
+ARG LANG="de"
+ENV LANG=$LANG
 
 # service script
 COPY ./requirements.txt ./requirements.txt
@@ -49,7 +61,6 @@ COPY ./requirements.txt ./requirements.txt
 RUN python3 -m pip install -r requirements.txt
 
 COPY ./src/ ./src
-COPY ./data/ ./data
 
 WORKDIR /usr/src/app/src
 

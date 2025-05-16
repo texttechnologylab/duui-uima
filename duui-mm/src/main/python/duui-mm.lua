@@ -1,9 +1,4 @@
 
---package.path = package.path .. ";/home/staff_homes/aabusale/localgit/MobDebug/src/?.lua"
---local mobdebug = require("mobdebug")
---mobdebug.start()
-
-
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
