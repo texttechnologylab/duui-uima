@@ -17,15 +17,35 @@ Supported models include variants like `microsoft/Phi-4-multimodal-instruct`.
 
 ---
 
+
+##  Supported Models
+
+| Model Name                            | Source                                                                 | Mode        | Lang  | Version      |
+| ------------------------------------- | ---------------------------------------------------------------------- | ----------- | ----- | ------------ |
+| `vllm/microsoft/Phi-4-multimodal-instruct` | 🤗 [Phi-4](https://huggingface.co/microsoft/Phi-4-multimodal-instruct) | VLLM        | multi | `0af439b...` |
+| `microsoft/Phi-4-multimodal-instruct` | 🤗 [Phi-4](https://huggingface.co/microsoft/Phi-4-multimodal-instruct) | VLLM        | multi | `0af439b...` |
+| `vllm/Qwen/Qwen2.5-VL-7B-Instruct`    | 🤗 [Qwen2.5-VL-7B](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) | VLLM        | multi | `cc59489...` |
+| `Qwen/Qwen2.5-VL-7B-Instruct`         | 🤗                                                                     | Transformer | multi | `cc59489...` |
+| `Qwen/Qwen2.5-VL-7B-Instruct-AWQ`     | 🤗                                                                     | Transformer | multi | `536a357...` |
+| `Qwen/Qwen2.5-VL-3B-Instruct`         | 🤗                                                                     | Transformer | multi | `6628554...` |
+| `Qwen/Qwen2.5-VL-3B-Instruct-AWQ`     | 🤗                                                                     | Transformer | multi | `e7b6239...` |
+| `Qwen/Qwen2.5-VL-32B-Instruct`        | 🤗                                                                     | Transformer | multi | `7cfb30d...` |
+| `Qwen/Qwen2.5-VL-32B-Instruct-AWQ`    | 🤗                                                                     | Transformer | multi | `66c370b...` |
+| `Qwen/Qwen2.5-VL-72B-Instruct`        | 🤗                                                                     | Transformer | multi | `cd3b627...` |
+| `Qwen/Qwen2.5-VL-72B-Instruct-AWQ`    | 🤗                                                                     | Transformer | multi | `c8b87d4...` |
+| `Qwen/Qwen2.5-Omni-3B`                | 🤗                                                                     | Transformer | multi | `latest`     |
+
+---
+
 ## Supported Modes
 
-| Mode               | Description                                                         |
-|--------------------|---------------------------------------------------------------------|
-| `text_only`        | Process raw text prompts                                            |
-| `image_only`       | Process images and prompt combinations                              |
-| `frames_only`      | Process sequences of image frames with a shared prompt              |
-| `audio_only`       | Process audio files with accompanying text prompts                  |
-| `video_only`       | Process video input: extracts frames (every 5th), audio, and prompt |
+| Mode    | Description                                                         |
+|---------|---------------------------------------------------------------------|
+| `text`  | Process raw text prompts                                            |
+| `image` | Process images and prompt combinations                              |
+| `frames` | Process sequences of image frames with a shared prompt              |
+| `audio` | Process audio files with accompanying text prompts                  |
+| `video` | Process video input: extracts frames (every 5th), audio, and prompt |
 | `frames_and_audio` | process **separate** frames and audio (provide them explicitly)     |
 
 
@@ -47,9 +67,19 @@ Find available image tags: [Docker Registry](https://docker.texttechnologylab.or
 
 ## Use within DUUI
 
+### VLLM models
 ```java
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-multimodal:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality-vllm:latest")
+        .withParameter("model_name", "microsoft/Phi-4-multimodal-instruct")
+        .withParameter("mode", "video")  // Can be: text_only, image_only, audio, frames_only, video
+);
+```
+### Transformer Models
+
+```java
+composer.add(
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality-transformer:latest")
         .withParameter("model_name", "microsoft/Phi-4-multimodal-instruct")
         .withParameter("mode", "video")  // Can be: text_only, image_only, audio, frames_only, video
 );

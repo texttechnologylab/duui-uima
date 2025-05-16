@@ -21,7 +21,7 @@ def handle_errors(func):
             return func(self, *args, **kwargs)
         except Exception as e:
             self.logger.error(f"{func.__name__} failed: {e}", exc_info=True)
-            dummy_ref = int(uuid4().int % 1_000_000)
+            dummy_ref = str(uuid4().int % 1_000_000)
             return LLMResult(
                 meta=json.dumps({"error": f"{func.__name__} failed", "detail": str(e)}),
                 prompt_ref=dummy_ref,
@@ -177,11 +177,16 @@ def decouple_video(videobase64: str):
     return audio_base64, frames_b64
 
 
-def convert_base64_to_image(b64):
-    return Image.open(BytesIO(base64.b64decode(b64)))
-
-def convert_base64_to_audio(b64):
-    return BytesIO(base64.b64decode(b64))
-
 def convert_base64_to_video(b64):
     return BytesIO(base64.b64decode(b64))
+
+
+
+def video_has_audio(video_path: str) -> bool:
+    """Returns True if the video file has an audio stream."""
+    cmd = [
+        "ffprobe", "-i", video_path,
+        "-show_streams", "-select_streams", "a", "-loglevel", "error"
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return bool(result.stdout.strip())

@@ -14,9 +14,9 @@ from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
 from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType, VideoTypes
-from models.Phi_4_model import VllmMicrosoftPhi4
+from models.Phi_4_model import VllmMicrosoftPhi4, TransformersMicrosoftPhi4
 from models.Qwen_V2_5 import *
-from models.Qwen_2_5_Omni import QwenOmni3B
+# from models.Qwen_2_5_Omni import QwenOmni3B
 
 
 import os
@@ -72,6 +72,7 @@ from starlette.responses import PlainTextResponse, JSONResponse
 model_lock = Lock()
 sources = {
     "vllm/microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
+    "microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct",
     "vllm/Qwen/Qwen2.5-VL-7B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",
     "Qwen/Qwen2.5-VL-7B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",
     "Qwen/Qwen2.5-VL-7B-Instruct-AWQ": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct-AWQ",
@@ -85,6 +86,7 @@ sources = {
 
 languages = {
     "vllm/microsoft/Phi-4-multimodal-instruct": "multi",
+    "microsoft/Phi-4-multimodal-instruct": "multi",
     "vllm/Qwen/Qwen2.5-VL-7B-Instruct": "multi",
     "Qwen/Qwen2.5-VL-7B-Instruct": "multi",
     "Qwen/Qwen2.5-VL-7B-Instruct-AWQ": "multi",
@@ -98,6 +100,7 @@ languages = {
 
 versions = {
     "vllm/microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
+    "microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
     "vllm/Qwen/Qwen2.5-VL-7B-Instruct": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
     "Qwen/Qwen2.5-VL-7B-Instruct": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
     "Qwen/Qwen2.5-VL-7B-Instruct-AWQ": "536a35794df8831aa814970ee8f89eff577e7718",
@@ -198,11 +201,39 @@ def load_model(model_name, device=None):
     if model_name == "vllm/microsoft/Phi-4-multimodal-instruct":
         model = VllmMicrosoftPhi4(logging_level=settings.mm_log_level)
 
+    elif model_name == 'microsoft/Phi-4-multimodal-instruct':
+        model = TransformersMicrosoftPhi4(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
     elif model_name == "vllm/Qwen/Qwen2.5-VL-7B-Instruct":
         model = VllmQwen2_5VL(logging_level=settings.mm_log_level)
+    #
+    # elif model_name == "Qwen/Qwen2.5-Omni-3B":
+    #     model = QwenOmni3B()
 
-    elif model_name == "Qwen/Qwen2.5-Omni-3B":
-        model = QwenOmni3B()
+    # Add conditions for the new Qwen/Qwen2.5-VL models
+    elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":
+        model = Qwen2_5_VL_7B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct-AWQ":
+        model = Qwen2_5_VL_7B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-3B-Instruct":
+        model = Qwen2_5_VL_3B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-3B-Instruct-AWQ":
+        model = Qwen2_5_VL_3B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-32B-Instruct":
+        model = Qwen2_5_VL_32B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-32B-Instruct-AWQ":
+        model = Qwen2_5_VL_32B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct":
+        model = Qwen2_5_VL_72B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct-AWQ":
+        model = Qwen2_5_VL_72B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
 
     # Add conditions for the new Qwen/Qwen2.5-VL models
     elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":

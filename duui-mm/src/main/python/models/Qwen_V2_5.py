@@ -3,17 +3,19 @@ import json
 import logging
 import requests
 from uuid import uuid4
+import tempfile
 from .duui_api_models import LLMResult, LLMPrompt
-from .utils import handle_errors
+from .utils import handle_errors, extract_frames_ffmpeg, video_has_audio
 import torch
 from typing import List, Optional
+import subprocess
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 import base64
 import json
 import logging
 
-
+import numpy as np
 class VllmQwen2_5VL:
     def __init__(self,
                  api_url="http://localhost:6659/v1/chat/completions",
@@ -198,7 +200,7 @@ class BaseQwen2_5VL:
         text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = self.processor(text=[text], padding=True, return_tensors="pt").to("cuda")
 
-        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=512)
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -235,7 +237,8 @@ class BaseQwen2_5VL:
             return_tensors="pt",
         ).to("cuda")
 
-        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=512)
+
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -280,7 +283,7 @@ class BaseQwen2_5VL:
             return_tensors="pt",
         ).to("cuda")
 
-        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=512)
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -318,7 +321,7 @@ class BaseQwen2_5VL:
             return_tensors="pt",
         ).to("cuda")
 
-        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=512)
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -334,28 +337,57 @@ class BaseQwen2_5VL:
 
     @handle_errors
     def process_video(self, video_base64: str, prompt: LLMPrompt) -> LLMResult:
-        # Create messages with video
-        video_messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "video", "video": f"data:video/mp4;base64,{video_base64}"},
-                    {"type": "text", "text": next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Analyze the video.")}
-                ],
-            }
-        ]
+        # Save base64 video to temporary file
+        video_path = tempfile.mktemp(suffix=".mp4")
+        with open(video_path, "wb") as f:
+            f.write(base64.b64decode(video_base64))
 
+        # Extract frames
+        frames = extract_frames_ffmpeg(video_path, every_n_seconds=3)
+
+        print("total number of frames", len(frames))
+        frames = frames[:1]
+        # Get user prompt
+        user_prompt = next((m.content for m in reversed(prompt.messages) if m.role == "user"), "Analyze the video.")
+
+        # Start building message content
+        content = [{"type": "image", "image": frame} for frame in frames]
+
+        # Check and add audio if present
+        audio_path = None
+        if video_has_audio(video_path):
+            print("we ahve audio!")
+            audio_path = tempfile.mktemp(suffix=".wav")
+            audio_cmd = [
+                "ffmpeg", "-i", video_path, "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+                audio_path, "-hide_banner", "-loglevel", "error"
+            ]
+            subprocess.run(audio_cmd, check=True)
+
+            with open(audio_path, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+                audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+            content.append({"type": "audio", "audio": f"data:audio/wav;base64,{audio_base64}"})
+
+        # Add text prompt
+        content.append({"type": "text", "text": user_prompt})
+
+        # Final message
+        video_messages = [{"role": "user", "content": content}]
+
+        # Prepare model input
         text = self.processor.apply_chat_template(video_messages, tokenize=False, add_generation_prompt=True)
-        image_inputs, video_inputs = process_vision_info(video_messages)
+        image_inputs, video_inputs = process_vision_info([video_messages])
         inputs = self.processor(
             text=[text],
             images=image_inputs,
             videos=video_inputs,
             padding=True,
-            return_tensors="pt",
+            return_tensors="pt"
         ).to("cuda")
 
-        generated_ids = self.model.generate(**inputs, max_new_tokens=128)
+        # Run generation
+        generated_ids = self.model.generate(**inputs, max_new_tokens=512)
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -363,12 +395,17 @@ class BaseQwen2_5VL:
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )[0]
 
+        # Cleanup
+        os.remove(video_path)
+        if audio_path:
+            os.remove(audio_path)
+
         return LLMResult(
             meta=json.dumps({"response": output_text}),
             prompt_ref=prompt.ref or self._generate_dummy_ref(),
-            message_ref=self._generate_dummy_ref()
+            message_ref=str(self._generate_dummy_ref())
         )
-
+      
 class Qwen2_5_VL_7B_Instruct(BaseQwen2_5VL):
     def __init__(self, version: str,  logging_level: str = "INFO"):
         super().__init__(
