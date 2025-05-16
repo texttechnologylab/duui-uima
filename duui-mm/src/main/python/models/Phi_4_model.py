@@ -29,8 +29,6 @@ import subprocess
 from PIL import Image
 from transformers import AutoProcessor, AutoModelForCausalLM, GenerationConfig
 
-
-
 class VllmMicrosoftPhi4:
     def __init__(self,
                  api_url="http://localhost:6658/v1/chat/completions",

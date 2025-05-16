@@ -159,5 +159,6 @@ class DUUIMMResponse(BaseModel):
     model_name: str
     # list of errors
     errors: Optional[List[LLMResult]]
+
     # original prompt
     prompts: List[Optional[LLMPrompt]] = []

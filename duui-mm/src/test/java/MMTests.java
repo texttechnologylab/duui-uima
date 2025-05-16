@@ -647,7 +647,6 @@ public class MMTests {
         }
     }
 
-
     @Test
     public void testFramesOnlyQwen() throws Exception {
         composer.add(
@@ -903,8 +902,11 @@ public class MMTests {
         )).build());
 
         // Load video and convert to base64
-        String videoPath = "src/test/resources/videos/kids_video.mp4";
-        String videoBase64 = convertFileToBase64(videoPath);
+//        String videoPath = "src/test/resources/videos/kids_video.mp4";
+//        String videoBase64 = convertFileToBase64(videoPath);
+
+//        String videoPath = "https://x.com/c_lindner/status/1893775079839866881/video/1";
+        String videoBase64 = "https://cdn.pixabay.com/video/2018/01/31/14035-254146872_large.mp4";
 
         List<String> prompts = Collections.singletonList("Describe what happens in the video.");
 

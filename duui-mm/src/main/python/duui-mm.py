@@ -235,6 +235,31 @@ def load_model(model_name, device=None):
     elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct-AWQ":
         model = Qwen2_5_VL_72B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
 
+    # Add conditions for the new Qwen/Qwen2.5-VL models
+    elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":
+        model = Qwen2_5_VL_7B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct-AWQ":
+        model = Qwen2_5_VL_7B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-3B-Instruct":
+        model = Qwen2_5_VL_3B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-3B-Instruct-AWQ":
+        model = Qwen2_5_VL_3B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-32B-Instruct":
+        model = Qwen2_5_VL_32B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-32B-Instruct-AWQ":
+        model = Qwen2_5_VL_32B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct":
+        model = Qwen2_5_VL_72B_Instruct(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct-AWQ":
+        model = Qwen2_5_VL_72B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
     else:
         raise ValueError(f"Model {model_name} is not supported.")
 

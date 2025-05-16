@@ -14,8 +14,8 @@ from qwen_vl_utils import process_vision_info
 import base64
 import json
 import logging
-import numpy as np
 
+import numpy as np
 class VllmQwen2_5VL:
     def __init__(self,
                  api_url="http://localhost:6659/v1/chat/completions",
@@ -238,6 +238,7 @@ class BaseQwen2_5VL:
         ).to("cuda")
 
         generated_ids = self.model.generate(**inputs, max_new_tokens=512)
+
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -404,9 +405,7 @@ class BaseQwen2_5VL:
             prompt_ref=prompt.ref or self._generate_dummy_ref(),
             message_ref=str(self._generate_dummy_ref())
         )
-
-
-
+      
 class Qwen2_5_VL_7B_Instruct(BaseQwen2_5VL):
     def __init__(self, version: str,  logging_level: str = "INFO"):
         super().__init__(
