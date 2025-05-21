@@ -39,4 +39,16 @@ build/
 
 ## venv
 # Python virtual environment
-./venv
+.venv/*
+
+*.pyc
+*.pyo
+
+./*.pyc
+
+.idea/*
+*TypeSystem.xml
+
+src/test/**video**
+src/test/results/video/*
+
