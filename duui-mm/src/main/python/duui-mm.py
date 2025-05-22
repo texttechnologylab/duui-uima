@@ -12,11 +12,10 @@ from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
 from sympy import continued_fraction
-from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
 from models.duui_api_models import DUUIMMRequest, DUUIMMResponse, ImageType, Entity, Settings, DUUIMMDocumentation, MultiModelModes, LLMResult, LLMPrompt, AudioType, VideoTypes
 from models.Phi_4_model import VllmMicrosoftPhi4, TransformersMicrosoftPhi4
 from models.Qwen_V2_5 import *
-# from models.Qwen_2_5_Omni import QwenOmni3B
+from models.Qwen_3 import *
 
 import os
 
@@ -47,7 +46,7 @@ def init():
     # device = "cpu"
     logger.info(f'USING {device}')
     # Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = '../resources/TypeSystemMM.xml'
+    typesystem_filename = './TypeSystemMM.xml'
     # logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 
@@ -81,6 +80,7 @@ sources = {
     "Qwen/Qwen2.5-VL-72B-Instruct": "https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct",
     "Qwen/Qwen2.5-VL-72B-Instruct-AWQ": "https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct-AWQ",
 }
+
 
 languages = {
     "vllm/microsoft/Phi-4-multimodal-instruct": "multi",
@@ -202,9 +202,6 @@ def load_model(model_name, device=None):
 
     elif model_name == "vllm/Qwen/Qwen2.5-VL-7B-Instruct":
         model = VllmQwen2_5VL(logging_level=settings.mm_log_level)
-    #
-    # elif model_name == "Qwen/Qwen2.5-Omni-3B":
-    #     model = QwenOmni3B()
 
     # Add conditions for the new Qwen/Qwen2.5-VL models
     elif model_name == "Qwen/Qwen2.5-VL-7B-Instruct":
@@ -255,6 +252,25 @@ def load_model(model_name, device=None):
 
     elif model_name == "Qwen/Qwen2.5-VL-72B-Instruct-AWQ":
         model = Qwen2_5_VL_72B_Instruct_AWQ(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    # Add conditions for the new Qwen3 models
+    elif model_name == "Qwen/Qwen3-32B":
+        model = Qwen3_32B(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen3-14B":
+        model = Qwen3_14B(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen3-8B":
+        model = Qwen3_8B(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen3-4B":
+        model = Qwen3_4B(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen3-1.7B":
+        model = Qwen3_1_7B(version=versions.get(model_name), logging_level=settings.mm_log_level)
+
+    elif model_name == "Qwen/Qwen3-0.6B":
+        model = Qwen3_0_6B(version=versions.get(model_name), logging_level=settings.mm_log_level)
 
     else:
         raise ValueError(f"Model {model_name} is not supported.")
