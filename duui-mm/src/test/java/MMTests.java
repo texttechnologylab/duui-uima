@@ -6,6 +6,7 @@ import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.FSArray;
 import org.apache.uima.util.XmlCasSerializer;
+import org.json.JSONObject;
 import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
@@ -44,7 +45,8 @@ public class MMTests {
     static JCas cas;
 
     //    static String url = "http://anduin.hucompute.org:9991";
-    static String url = "http://127.0.0.1:8634";
+//    static String url = "http://127.0.0.1:8634";
+    static String url = "http://127.0.0.1:9714";
 
     static String model = "microsoft/Phi-4-multimodal-instruct";
     static String sOutputPath = "src/test/results";
@@ -295,7 +297,7 @@ public class MMTests {
 
 
     @Test
-    public void testTextOnlyQwen3() throws Exception {
+    public void testTextOnlyQwen3_006B() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("model_name", "Qwen/Qwen3-0.6B")
@@ -338,6 +340,57 @@ public class MMTests {
 
         verifyNoImages(); // Text-only should produce no image outputs
     }
+
+    @Test
+        public void testTextOnlyQwen3_017B() throws Exception {
+            composer.add(
+                    new DUUIRemoteDriver.Component(url)
+                            .withParameter("model_name", "Qwen/Qwen3-1.7B")
+                            .withParameter("mode", "text")
+                            .build().withTimeout(1000)
+
+            );
+
+    //            composer.add(
+    //                    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality")
+    //                            .withParameter("model_name", "Phi4ModelVLLM")
+    //                            .withParameter("mode", "text")
+    //                            .build().withTimeout(1000)
+    //            );
+
+    //        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+    //                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+    //                XmiWriter.PARAM_PRETTY_PRINT, true,
+    //                XmiWriter.PARAM_OVERWRITE, true,
+    //                XmiWriter.PARAM_VERSION, "1.1"
+    //        )).build());
+
+            List<String> prompts = Arrays.asList(
+                    "Who is the current president of the USA?",
+                    "Is Frankfurt the capital of EU finance?"
+            );
+
+            createCas("en", prompts);
+
+
+            composer.run(cas);
+
+            for(Result  result : JCasUtil.select(cas, Result.class)){
+                String meta = result.getMeta();
+                try{
+                    JSONObject obj = new JSONObject(meta);
+                    String response = obj.getString("response");
+                    String thinking_content = obj.getString("thinking_content");
+                    System.out.println(response);
+                    System.out.println(thinking_content);
+                }
+                catch(Exception e){
+                    System.out.println(e.getMessage());
+                }
+
+            }
+
+        }
 
 
     @Test
