@@ -23,6 +23,7 @@ function serialize(inputCas, outputStream, parameters)
 
     local selections = {}
     local selections_count = 1
+    local prompt_counter = 0
     local prompts_in = util:select(inputCas, Prompts):iterator()
     print(prompts_in)
     while prompts_in:hasNext() do
@@ -31,7 +32,7 @@ function serialize(inputCas, outputStream, parameters)
 --         print(begin_prompt)
         local end_prompt = prompt:getEnd()
 --         print(end_prompt)
-        local prompt_text = prompt:getCoveredText()
+        local prompt_text = prompt:getPrompt()
 --         print(prompt_text)
         local prefix = prompt:getPrefix()
 --         print(prefix)
@@ -49,7 +50,7 @@ function serialize(inputCas, outputStream, parameters)
             }
         else
             prefix_in = {
-                text = prefix:getCoveredText(),
+                text = prefix:getMessage(),
                 begin = prefix:getBegin(),
                 ['end'] = prefix:getEnd()
             }
@@ -63,7 +64,7 @@ function serialize(inputCas, outputStream, parameters)
             }
         else
             suffix_in = {
-                text = suffix:getCoveredText(),
+                text = suffix:getMessage(),
                 begin = suffix:getBegin(),
                 ['end'] = suffix:getEnd()
             }
@@ -77,7 +78,7 @@ function serialize(inputCas, outputStream, parameters)
             }
         else
             systemPrompt_in = {
-                text = systemPrompt:getCoveredText(),
+                text = systemPrompt:getMessage(),
                 begin = systemPrompt:getBegin(),
                 ['end'] = systemPrompt:getEnd()
             }
@@ -87,9 +88,11 @@ function serialize(inputCas, outputStream, parameters)
             begin = begin_prompt,
             prefix = prefix_in,
             suffix = suffix_in,
+            id = prompt_counter,
             systemPrompt = systemPrompt_in,
             ['end'] = end_prompt
         }
+        prompt_counter = prompt_counter + 1
         selections_count = selections_count + 1
     end
 --     print(all_prompts)
@@ -126,6 +129,7 @@ function deserialize(inputCas, inputStream)
         local meta = results["meta"]
         local begin_prompts=results["begin_prompts"]
         local end_prompts=results["end_prompts"]
+        local id_prompts=results["id_prompts"]
         local responses=results["responses"]
         local contents=results["contents"]
         local additional=results["additional"]
@@ -134,7 +138,9 @@ function deserialize(inputCas, inputStream)
             local begin_prompt_i = begin_prompt
 --             print("begin_prompt_i")
             local end_prompt_i = end_prompts[index_i]
-            print(end_prompt_i)
+--             print(end_prompt_i)
+            local id_prompt_i = id_prompts[index_i]
+            print(id_prompt_i)
 --             print("end_prompt_i")
             local response_i = responses[index_i]
 --             print("response_i")
@@ -143,7 +149,8 @@ function deserialize(inputCas, inputStream)
             local additional_i = additional[index_i]
 --             print("additional_i")
 
-            local prompt_i = util:selectAt(inputCas, Prompts, begin_prompt_i, end_prompt_i):iterator():next()
+            local prompt_i = util:selectByIndex(inputCas, Prompts, id_prompt_i)
+            print(prompt_i)
 --             print("prompt_i")
 
             local LLMResult = luajava.newInstance("org.texttechnologylab.type.LLMResult", inputCas)
@@ -157,6 +164,7 @@ function deserialize(inputCas, inputStream)
             LLMResult:setResult(response_i)
 --             print("setResult")
             LLMResult:setContent(content_i)
+            LLMResult:setPrompt(prompt_i)
 --             print("setContent")
             LLMResult:addToIndexes()
 --             print("addToIndexes")

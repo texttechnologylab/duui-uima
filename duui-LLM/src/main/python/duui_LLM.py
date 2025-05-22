@@ -109,6 +109,7 @@ class DUUIResponse(BaseModel):
     # begin_prompts
     begin_prompts: List[int]
     end_prompts: List[int]
+    id_prompts: List[int]
     responses: List[str]
     contents: List[str]
     additional: List[str]
@@ -174,6 +175,7 @@ def post_process(request: DUUIRequest):
     responses = []
     contents = []
     additional = []
+    id_prompts = []
     try:
         # set meta Informations
         meta = AnnotationMeta(
@@ -201,10 +203,12 @@ def post_process(request: DUUIRequest):
             systemprompt = None if prompt_i["systemPrompt"]["text"]=="" else prompt_i["systemPrompt"]["text"]
             prefix = None if prompt_i["prefix"]["text"]=="" else prompt_i["prefix"]["text"]
             suffix = None if prompt_i["suffix"]["text"]=="" else prompt_i["suffix"]["text"]
+            id_prompt = prompt_i["id"]
             prompt_begin = prompt_i["begin"]
             prompt_end = prompt_i["end"]
             begin_prompts.append(prompt_begin)
             end_prompts.append(prompt_end)
+            id_prompts.append(id_prompt)
             prompt_text = prompt_i["text"]
             start_time = time.time()
             response_llm = llm.process(prompt_text, model_name, system_prompt=systemprompt, prefix_prompt=prefix, suffix_prompt=suffix)
@@ -218,4 +222,4 @@ def post_process(request: DUUIRequest):
             responses.append(json_llm_string)
     except Exception as ex:
         logger.exception(ex)
-    return DUUIResponse(meta=meta, modification_meta=modification_meta, begin_prompts=begin_prompts, end_prompts=end_prompts, responses=responses, contents=contents, additional=additional)
+    return DUUIResponse(meta=meta, modification_meta=modification_meta, begin_prompts=begin_prompts, end_prompts=end_prompts, id_prompts=id_prompts,responses=responses, contents=contents, additional=additional)

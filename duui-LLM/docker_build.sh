@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-llm
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.2.0
 export LOG_LEVEL=INFO
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
