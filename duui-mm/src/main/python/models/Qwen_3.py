@@ -65,7 +65,7 @@ class BaseQwen3:
         content = self.tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")
 
         return LLMResult(
-            meta=json.dumps({"response": content, "model_name": self.model_name}),
+            meta=json.dumps({"response": content, "model_name": self.model_name, "thinking_content": thinking_content}),
             prompt_ref=prompt.ref or self._generate_dummy_ref(),
             message_ref=self._generate_dummy_ref()
         )
