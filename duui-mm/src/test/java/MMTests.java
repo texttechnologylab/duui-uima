@@ -43,8 +43,8 @@ public class MMTests {
     static DUUIComposer composer;
     static JCas cas;
 
-        static String url = "http://anduin.hucompute.org:9991";
-//    static String url = "http://127.0.0.1:8888";
+    //    static String url = "http://anduin.hucompute.org:9991";
+    static String url = "http://127.0.0.1:8634";
 
     static String model = "microsoft/Phi-4-multimodal-instruct";
     static String sOutputPath = "src/test/results";
@@ -295,10 +295,10 @@ public class MMTests {
 
 
     @Test
-    public void testTextOnlyQwenOmni() throws Exception {
+    public void testTextOnlyQwen3() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", "Qwen/Qwen2.5-Omni-3B")
+                        .withParameter("model_name", "Qwen/Qwen3-0.6B")
                         .withParameter("mode", "text")
                         .build().withTimeout(1000)
 
@@ -311,12 +311,12 @@ public class MMTests {
 //                            .build().withTimeout(1000)
 //            );
 
-        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
-                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
-                XmiWriter.PARAM_PRETTY_PRINT, true,
-                XmiWriter.PARAM_OVERWRITE, true,
-                XmiWriter.PARAM_VERSION, "1.1"
-        )).build());
+//        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+//                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+//                XmiWriter.PARAM_PRETTY_PRINT, true,
+//                XmiWriter.PARAM_OVERWRITE, true,
+//                XmiWriter.PARAM_VERSION, "1.1"
+//        )).build());
 
         List<String> prompts = Arrays.asList(
                 "Who is the current president of the USA?",
@@ -331,6 +331,10 @@ public class MMTests {
         video_.addToIndexes();
 
         composer.run(cas);
+
+        for(Result  result : JCasUtil.select(cas, Result.class)){
+            System.out.println(result.getMeta());
+        }
 
         verifyNoImages(); // Text-only should produce no image outputs
     }
