@@ -43,8 +43,8 @@ public class MMTests {
     static DUUIComposer composer;
     static JCas cas;
 
-    //    static String url = "http://anduin.hucompute.org:9991";
-    static String url = "http://127.0.0.1:8888";
+        static String url = "http://anduin.hucompute.org:9991";
+//    static String url = "http://127.0.0.1:8888";
 
     static String model = "microsoft/Phi-4-multimodal-instruct";
     static String sOutputPath = "src/test/results";
@@ -651,17 +651,17 @@ public class MMTests {
     public void testFramesOnlyQwen() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("model_name", "Qwen/Qwen2.5-VL-7B-Instruct")
+                        .withParameter("model_name", "Qwen/Qwen2.5-VL-3B-Instruct")
                         .withParameter("mode", "frames")
                         .build().withTimeout(1000)
         );
 
-        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
-                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
-                XmiWriter.PARAM_PRETTY_PRINT, true,
-                XmiWriter.PARAM_OVERWRITE, true,
-                XmiWriter.PARAM_VERSION, "1.1"
-        )).build());
+//        composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+//                XmiWriter.PARAM_TARGET_LOCATION, sOutputPath,
+//                XmiWriter.PARAM_PRETTY_PRINT, true,
+//                XmiWriter.PARAM_OVERWRITE, true,
+//                XmiWriter.PARAM_VERSION, "1.1"
+//        )).build());
 
         List<String> prompts = Collections.singletonList("Who drunk the water from the cup?");
 
@@ -675,11 +675,15 @@ public class MMTests {
 
         createCasWithImages("en", prompts, framePaths);
         composer.run(cas);
-
-        int idx = 0;
-        for (Image img : JCasUtil.select(cas, Image.class)) {
-            saveBase64ToImage(img.getSrc(), "src/test/results/frames/output_frame_" + idx++ + ".png");
+        for(Result  result : JCasUtil.select(cas, Result.class)){
+            System.out.println(result.getMeta());
         }
+
+
+//        int idx = 0;
+//        for (Image img : JCasUtil.select(cas, Image.class)) {
+//            saveBase64ToImage(img.getSrc(), "src/test/results/frames/output_frame_" + idx++ + ".png");
+//        }
     }
 
 
