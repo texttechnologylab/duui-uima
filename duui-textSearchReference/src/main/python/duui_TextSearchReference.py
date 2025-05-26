@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # device = 0 if torch.cuda.is_available() else "cpu"
 # logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'TypeSystemTextReferenceTest.xml'
+typesystem_filename = 'TypeSystemTextSearchReference.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
@@ -46,7 +46,7 @@ with open(typesystem_filename, 'rb') as f:
     # logger.debug(typesystem.to_xml())
 
 # Load the Lua communication script
-lua_communication_script_filename = "duui_textReferenceTest.lua"
+lua_communication_script_filename = "duui_TextSearchReference.lua"
 logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 
 

@@ -67,8 +67,8 @@ public class TextSearchReferenceTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("search_language", "de")
-                        .withParameter("method", "Wikidata")
-                        .withParameter("search", "Wikidata")
+                        .withParameter("method", "Google")
+                        .withParameter("search", "Wikipedia")
         );
         String search_text = "Nudging";
         String search_text2 = "Stromsparen";

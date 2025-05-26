@@ -1,8 +1,8 @@
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.12&color=green)]()
 
-# DUUI LLM
+# DUUI TextSearchReference
 
-DUUI implementation for Ollama LLMs: [Ollama](https://ollama.com/).
+DUUI implementation for searching articles for input, with Google, Wikipedia, and Wikidata as sources.
 ## Included Models
 # How To Use
 
@@ -11,23 +11,25 @@ For using duui-LLM as a DUUI image it is necessary to use the [Docker Unified UI
 ## Start Docker container
 
 ```
-docker run --rm -p 8000:9714 docker.texttechnologylab.org/duui-llm:latest
+docker run --rm -p 8000:9714 docker.texttechnologylab.org/duui-textsearchreference:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-llm/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-textsearchreference/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-llm:latest")
-        .withParameter("seed", "Seed for random number generator")
-        .withParameter("model_name", "Ollama model name")
-        .withParameter("url", "url of the model")
-        .withParameter("temperature", "1")
-        .withParameter("port", "Port of the model (Ollama default: 11434)")
+              .withParameter("search_language", "de")
+              .withParameter("method", "Google")
+              .withParameter("search", "Wikipedia")
 );
 ```
+
+Possible method and search combinations are: (Method: Google, Search: Wikipedia); (Method: Wikipedia, Search: Wikipedia); (Method: Wikidata, Search: Wikidata)
+
+More combinations will be added in the future. Note that the method with "Google" takes a while to respond.
 
 # Cite
 
@@ -67,9 +69,9 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 
 @misc{Bagci:2024,
   author         = {Bagci, Mevlüt},
-  title          = {LLM Ollama tools as {DUUI} component},
+  title          = {Search Reference Text as {DUUI} component},
   year           = {2025},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-LLM}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-textSearchReference}
 }
 
 ```

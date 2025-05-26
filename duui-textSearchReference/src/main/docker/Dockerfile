@@ -9,14 +9,14 @@ RUN pip install -r reqiurements.txt
 
 
 # service script
-COPY ./src/main/python/TypeSystemLLM.xml ./TypeSystemLLM.xml
-COPY ./src/main/python/LLMCall.py ./LLMCall.py
-COPY ./src/main/python/duui_LLM.lua ./duui_LLM.lua
-COPY ./src/main/python/duui_LLM.py ./duui_LLM.py
+COPY ./src/main/python/TypeSystemTextSearchReference.xml ./TypeSystemTextSearchReference.xml
+COPY ./src/main/python/extractReferenceText.py ./extractReferenceText.py
+COPY ./src/main/python/duui_TextSearchReference.lua ./duui_TextSearchReference.lua
+COPY ./src/main/python/duui_TextSearchReference.py ./duui_TextSearchReference.py
 
 
 # meta data
-ARG ANNOTATOR_NAME="duui-LLM:app"
+ARG ANNOTATOR_NAME="duui-textsearchreference:app"
 ENV ANNOTATOR_NAME=$ANNOTATOR_NAME
 ARG ANNOTATOR_VERSION="unset"
 ENV ANNOTATOR_VERSION=$ANNOTATOR_VERSION
@@ -26,6 +26,6 @@ ARG LOG_LEVEL="DEBUG"
 ENV LOG_LEVEL=$LOG_LEVEL
 
 
-ENTRYPOINT ["uvicorn", "duui_LLM:app", "--host", "0.0.0.0", "--port" ,"9714"]
+ENTRYPOINT ["uvicorn", "duui_TextSearchReference:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
 
