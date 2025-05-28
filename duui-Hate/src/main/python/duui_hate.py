@@ -213,7 +213,7 @@ def get_documentation():
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: TextImagerRequest):
+def post_process(request: DUUIRequest):
     # Return data
     # Save modification start time for later
     modification_timestamp_seconds = int(time())

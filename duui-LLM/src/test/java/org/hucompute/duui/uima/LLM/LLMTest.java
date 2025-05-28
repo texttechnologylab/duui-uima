@@ -71,7 +71,7 @@ public class LLMTest {
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("seed", "42")
                         .withParameter("model_name", "CORE:Keyword-ExtractionV2_Gemma-2-27B_v1")
-                        .withParameter("url", "gondor.hucompute.org")
+                        .withParameter("url", "anduin.hucompute.org")
                         .withParameter("temperature", "1")
                         .withParameter("port", "11434")
         );

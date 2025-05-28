@@ -1,11 +1,10 @@
-FROM python:3.8
+FROM python:3.10
 
 WORKDIR /usr/src/app
 
 EXPOSE 9714
 
 COPY ./reqiurements.txt ./reqiurements.txt
-RUN pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
 RUN pip install -r reqiurements.txt
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Andrazp/multilingual-hate-speech-robacofi')"
@@ -16,7 +15,7 @@ RUN pip install -r reqiurements.txt
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='GroNLP/hateBERT')"
 
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-hate-latest')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-hate-latest')"
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-english')"
 
@@ -36,7 +35,7 @@ RUN pip install -r reqiurements.txt
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-french')"
 
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-indonesian')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-indonesian')"
 #RUN python -c "from nubia_score import Nubia; nubia = Nubia()"
 
 # service script

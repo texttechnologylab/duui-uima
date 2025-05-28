@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-hate
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.2.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
@@ -36,11 +36,11 @@ eport MODEL_CACHE_SIZE=3
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-#export  MODEL_NAME="cardiffnlp/twitter-roberta-base-hate-latest"
-#export MODEL_SPECNAME="cardiffnlp"
-#export MODEL_VERSION="c74b0534df96af8232f6a3ffdb90d9a72223d7b7"
-#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-roberta-base-hate-latest"
-#export MODEL_LANG="EN"
+export  MODEL_NAME="cardiffnlp/twitter-roberta-base-hate-latest"
+export MODEL_SPECNAME="cardiffnlp"
+export MODEL_VERSION="c74b0534df96af8232f6a3ffdb90d9a72223d7b7"
+export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-roberta-base-hate-latest"
+export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
@@ -116,11 +116,11 @@ eport MODEL_CACHE_SIZE=3
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-indonesian"
-export MODEL_SPECNAME="cnergid"
-export MODEL_VERSION="08693d6cc64f7e7b3019b2a3abe3b1a9c8ca74c2"
-export MODEL_SOURCE="https://huggingface.co/Hate-speech-CNERG/dehatebert-mono-indonesian"
-export MODEL_LANG="ID"
+#export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-indonesian"
+#export MODEL_SPECNAME="cnergid"
+#export MODEL_VERSION="08693d6cc64f7e7b3019b2a3abe3b1a9c8ca74c2"
+#export MODEL_SOURCE="https://huggingface.co/Hate-speech-CNERG/dehatebert-mono-indonesian"
+#export MODEL_LANG="ID"
 ##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
