@@ -1,0 +1,16 @@
+torch==2.6.0
+torchaudio==2.6.0
+torchvision==0.21.0
+scipy==1.15.3
+transformers==4.52.4
+protobuf==4.25.3
+prettytable==3.16.0
+dkpro-cassis==0.10.1
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+numpy==2.2.6
+pydantic-settings==2.9.1
+torchmetrics==1.7.2
+pandas==2.2.3
+huggingface_hub==0.32.4
+emoji==0.6.0
