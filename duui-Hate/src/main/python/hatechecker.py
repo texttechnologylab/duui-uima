@@ -75,7 +75,19 @@ map_hate = {
     "Hate-speech-CNERG/dehatebert-mono-indonesian": {
         0: "NOT HATE",
         1: "HATE"
-    }
+    },
+    "facebook/roberta-hate-speech-dynabench-r4-target":{
+        0: "NOT HATE",
+        1: "HATE"
+    },
+    "irlab-udc/MetaHateBERT": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
+    "HateBERT_hateval": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
 }
 
 
@@ -105,4 +117,29 @@ class HateCheck:
                 for i in range(score.shape[0]):
                     score_dict_i.append({"label": self.labels[ranking[i]], "score": float(score_i[ranking[i]])})
                 score_list.append(score_dict_i)
+        return score_list
+
+
+class HateCheckEziisk:
+    def __init__(self, device='cuda:0'):
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained("EZiisk/EZ_finetune_Vidgen_model_RHS_Best_Tokenizer")
+        self.model = AutoModelForSequenceClassification.from_pretrained("EZiisk/EZ_finetune_Vidgen_model_RHS_Best").to(device)
+        self.class_mapping = self.model.config.id2label
+        self.labels = ["NOT HATE", "HATE"]
+
+    def hate_prediction(self, texts: List[str]):
+        score_list = []
+        inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(
+            self.device)
+        outputs = self.model(**inputs)
+        scores = outputs[0].detach().cpu().numpy()
+        for score in scores:
+            score_dict_i = []
+            score_i = softmax(score)
+            ranking = np.argsort(score_i)
+            ranking = ranking[::-1]
+            for i in range(score.shape[0]):
+                score_dict_i.append({"label": self.labels[ranking[i]], "score": float(score_i[ranking[i]])})
+            score_list.append(score_dict_i)
         return score_list
