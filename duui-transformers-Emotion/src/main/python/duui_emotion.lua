@@ -9,6 +9,7 @@ function serialize(inputCas, outputStream, parameters)
     local doc_lang = inputCas:getDocumentLanguage()
     local doc_text = inputCas:getDocumentText()
     local doc_len = TopicUtils:getDocumentTextLength(inputCas)
+    local token_reader = parameters["token"]
 --     print(doc_len)
 
     local selection_types = parameters["selection"]
@@ -55,6 +56,7 @@ function serialize(inputCas, outputStream, parameters)
         selections = selections,
         lang = doc_lang,
         doc_len = doc_len,
+        token_reader = token_reader
     }))
 end
 

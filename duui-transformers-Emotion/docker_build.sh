@@ -111,12 +111,63 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ####--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-export MODEL_NAME="pol_emo_mDeBERTa"
-export MODEL_SPECNAME="pol_emo_mdeberta"
-export MODEL_VERSION="523da7dc2523631787ef0712bad53bfe2ac46840"
-export MODEL_SOURCE="https://github.com/tweedmann/pol_emo_mDeBERTa2"
+#export MODEL_NAME="pol_emo_mDeBERTa"
+#export MODEL_SPECNAME="pol_emo_mdeberta"
+#export MODEL_VERSION="523da7dc2523631787ef0712bad53bfe2ac46840"
+#export MODEL_SOURCE="https://github.com/tweedmann/pol_emo_mDeBERTa2"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="pranaydeeps/EXALT-Baseline"
+#export MODEL_SPECNAME="exalt-baseline"
+#export MODEL_VERSION="4b5e2a38b4e72823c428891170aec8930f580bad"
+#export MODEL_SOURCE="https://huggingface.co/pranaydeeps/EXALT-Baseline"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="boltuix/bert-emotion"
+#export MODEL_SPECNAME="bert-emotion"
+#export MODEL_VERSION="00b4ef11958dd607b2ede29f6ed6d02338782c94"
+#export MODEL_SOURCE="https://huggingface.co/boltuix/bert-emotion"
+#export MODEL_LANG="EN"
+###--------------------------------------------------------------------
+
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="MilaNLProc/feel-it-italian-emotion"
+#export MODEL_SPECNAME="feel-it"
+#export MODEL_VERSION="6efdabf62230414aeba764986b4ae317ce7c5c47"
+#export MODEL_SOURCE="https://huggingface.co/MilaNLProc/feel-it-italian-emotion"
+#export MODEL_LANG="IT"
+###--------------------------------------------------------------------
+
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="cardiffnlp/twitter-roberta-base-emotion-multilabel-latest"
+#export MODEL_SPECNAME="cardiffnlp-multilabel"
+#export MODEL_VERSION="30a56d88e47e493f08f93c786d49c526550b55b9"
+#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-roberta-base-emotion-multilabel-latest"
+#export MODEL_LANG="EN"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="finiteautomata/beto-emotion-analysis"
+#export MODEL_SPECNAME="beto-es-analysis"
+#export MODEL_VERSION="9b628b0bd91471ad9bd709c10522c379ce09c32a"
+#export MODEL_SOURCE="https://huggingface.co/finiteautomata/beto-emotion-analysis"
+#export MODEL_LANG="ES"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+export MODEL_NAME="poltextlab/xlm-roberta-large-pooled-emotions6"
+export MODEL_SPECNAME="poltextlab-s6"
+export MODEL_VERSION="8b77f680ede4f60e5061bfa5a9663bd7fd87803c"
+export MODEL_SOURCE="https://huggingface.co/poltextlab/xlm-roberta-large-pooled-emotions6"
 export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
+
 
 
 docker build \

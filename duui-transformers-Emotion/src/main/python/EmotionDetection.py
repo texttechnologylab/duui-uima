@@ -135,6 +135,71 @@ map_emotion = {
         4: "surprise",
         5: "disgust",
         6: "fear"
+    },
+    "pranaydeeps/EXALT-Baseline": {
+        0: "love",
+        1: "joy",
+        2: "anger",
+        3: "fear",
+        4: "sadness",
+        5: "neutral"
+    },
+    "boltuix/bert-emotion": {
+        0: "sadness",
+        1: "anger",
+        2: "love",
+        3: "surprise",
+        4: "fear",
+        5: "happiness",
+        6: "neutral",
+        7: "disgust",
+        8: "shame",
+        9: "guilt",
+        10: "confusion",
+        11: "desire",
+        12: "sarcasm"
+    },
+    "MilaNLProc/feel-it-italian-emotion": {
+        0: "anger",
+        1: "fear",
+        2: "joy",
+        3: "sadness"
+    },
+    "cardiffnlp/twitter-roberta-base-emotion-multilabel-latest": {
+        0: "anger",
+        1: "anticipation",
+        2: "disgust",
+        3: "fear",
+        4: "joy",
+        5: "love",
+        6: "optimism",
+        7: "pessimism",
+        8: "sadness",
+        9: "surprise",
+        10: "trust"
+    },
+    "finiteautomata/beto-emotion-analysis": {
+        0: "others",
+        1: "joy",
+        2: "sadness",
+        3: "anger",
+        4: "surprise",
+        5: "disgust",
+        6: "fear"
+    },
+    "poltextlab/xlm-roberta-large-pooled-emotions6": {
+        0: "anger",
+        1: "fear",
+        2: "disgust",
+        3: "sadness",
+        4: "joy",
+        5: "neutral"
+    },
+    "cardiffnlp/twitter-roberta-base-emotion":{
+        0: "joy",
+        1: "optimism",
+        2: "anger",
+        3: "sadness"
     }
 }
 
@@ -191,6 +256,30 @@ class EmoAtlas:
             out_i = prediction_i
             output.append(out_i)
         return output
+
+class PolyTextLabEmotionModel:
+    def __init__(self, model_name: str, device='cuda:0', token_reader="default"):
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
+        self.model = AutoModelForSequenceClassification.from_pretrained("poltextlab/xlm-roberta-large-pooled-MORES", token=token_reader).to(device)
+        self.class_mapping = self.model.config.id2label
+        self.labels = list(self.class_mapping.values())
+
+    def emotion_prediction(self, texts: List[str]):
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
 
 
 if __name__ == '__main__':

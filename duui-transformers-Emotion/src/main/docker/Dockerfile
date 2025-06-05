@@ -4,16 +4,6 @@ WORKDIR /usr/src/app
 
 EXPOSE 9714
 
-
-# copy scripts
-COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml
-COPY ./src/main/python/Emo_mDeBERTa2.py ./Emo_mDeBERTa2.py
-COPY ./src/main/python/EmotionDetection.py ./EmotionDetection.py
-COPY ./src/main/python/duui_transformers_emotion.py ./duui_transformers_emotion.py
-COPY ./src/main/python/duui_emotion.lua ./duui_emotion.lua
-#COPY ./src/main/python/nltk_data/ ./nltk_data/
-COPY ./src/main/python/pol_emo_mDeBERTa/ ./pol_emo_mDeBERTa/
-
 # dependencies
 RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
@@ -32,7 +22,22 @@ RUN #python -c "import nltk; nltk.download('all', download_dir='nltk_data')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ActivationAI/distilbert-base-uncased-finetuned-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='SamLowe/roberta-base-go_emotions')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='mrm8488/t5-base-finetuned-emotion')"
-RUN python -c "from transformers import pipeline; pipeline(model='microsoft/mdeberta-v3-base')"
+#RUN python -c "from transformers import pipeline; pipeline(model='microsoft/mdeberta-v3-base')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='pranaydeeps/EXALT-Baseline')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='boltuix/bert-emotion')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/feel-it-italian-emotion')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion-multilabel-latest')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/beto-emotion-analysis')"
+RUN python -c "from transformers import AutoTokenizer, AutoModelForSequenceClassification; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-pooled-MORES', token='<TOKEN>'); AutoTokenizer.from_pretrained('lytang/MiniCheck-Flan-T5-Large')"
+
+# copy scripts
+COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml
+COPY ./src/main/python/Emo_mDeBERTa2.py ./Emo_mDeBERTa2.py
+COPY ./src/main/python/EmotionDetection.py ./EmotionDetection.py
+COPY ./src/main/python/duui_transformers_emotion.py ./duui_transformers_emotion.py
+COPY ./src/main/python/duui_emotion.lua ./duui_emotion.lua
+#COPY ./src/main/python/nltk_data/ ./nltk_data/
+#COPY ./src/main/python/pol_emo_mDeBERTa/ ./pol_emo_mDeBERTa/
 
 # log level
 ARG LOG_LEVEL="DEBUG"
