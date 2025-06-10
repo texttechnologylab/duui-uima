@@ -161,13 +161,77 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-export MODEL_NAME="poltextlab/xlm-roberta-large-pooled-emotions6"
-export MODEL_SPECNAME="poltextlab-s6"
-export MODEL_VERSION="8b77f680ede4f60e5061bfa5a9663bd7fd87803c"
-export MODEL_SOURCE="https://huggingface.co/poltextlab/xlm-roberta-large-pooled-emotions6"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="poltextlab/xlm-roberta-large-pooled-emotions6"
+#export MODEL_SPECNAME="poltextlab-s6"
+#export MODEL_VERSION="8b77f680ede4f60e5061bfa5a9663bd7fd87803c"
+#export MODEL_SOURCE="https://huggingface.co/poltextlab/xlm-roberta-large-pooled-emotions6"
+#export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="daveni/twitter-xlm-roberta-emotion-es"
+#export MODEL_SPECNAME="twitter-xlm-roberta"
+#export MODEL_VERSION="ab57a1137b2eb1f6c90fc77b0a4c4ced7dbd4d60"
+#export MODEL_SOURCE="https://huggingface.co/daveni/twitter-xlm-roberta-emotion-es"
+#export MODEL_LANG="ES"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="ChrisLalk/German-Emotions"
+#export MODEL_SPECNAME="german-emotions"
+#export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
+#export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
+#export MODEL_LANG="DE"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="msgfrom96/xlm_emo_multi"
+#export MODEL_SPECNAME="xlm-emo-multi"
+#export MODEL_VERSION="56b4b493b8591381fbd309eb4de118cd0771aa4a"
+#export MODEL_SOURCE="https://huggingface.co/msgfrom96/xlm_emo_multi"
+#export MODEL_LANG="EN,AR"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="cointegrated/rubert-tiny2-cedr-emotion-detection"
+#export MODEL_SPECNAME="rubert-cedr-emotion"
+#export MODEL_VERSION="453ae93ca895c98cda29522c72b6fbc5a08067b9"
+#export MODEL_SOURCE="https://huggingface.co/cointegrated/rubert-tiny2-cedr-emotion-detection"
+#export MODEL_LANG="RU"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="Aniemore/rubert-tiny2-russian-emotion-detection"
+#export MODEL_SPECNAME="rubert-tiny2-russian"
+#export MODEL_VERSION="a7b5618de479a2f77637393ed2931d48b9618208"
+#export MODEL_SOURCE="https://huggingface.co/Aniemore/rubert-tiny2-russian-emotion-detection"
+#export MODEL_LANG="RU"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="Johnson8187/Chinese-Emotion-Small"
+#export MODEL_SPECNAME="chinese-emotion-small"
+#export MODEL_VERSION="2c04ce86de44d232f0fbe31413868eb31d791aea"
+#export MODEL_SOURCE="https://huggingface.co/Johnson8187/Chinese-Emotion-Small"
+#export MODEL_LANG="ZH"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="Johnson8187/Chinese-Emotion"
+#export MODEL_SPECNAME="chinese-emotion"
+#export MODEL_VERSION="76f94d57b9fdf2b801b9ff9ef2d2af16d2ddf27e"
+#export MODEL_SOURCE="https://huggingface.co/Johnson8187/Chinese-Emotion"
+#export MODEL_LANG="ZH"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+export MODEL_NAME="AnasAlokla/multilingual_go_emotions"
+export MODEL_SPECNAME="multi-go-emotions"
+export MODEL_VERSION="64610deb3453acfff12bb8289e3e7d0913ae91df"
+export MODEL_SOURCE="https://huggingface.co/AnasAlokla/multilingual_go_emotions"
+export MODEL_LANG="AR,EN,FR,ES,NL,TR"
+###--------------------------------------------------------------------
 
 
 docker build \
