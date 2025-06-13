@@ -88,13 +88,24 @@ map_hate = {
         0: "NOT HATE",
         1: "HATE"
     },
+    "Exqrch/IndoBERTweet-HateSpeech": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
+    "MilaNLProc/hate-ita-xlm-r-large": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
 }
 
 
 class HateCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if model_name == "Exqrch/IndoBERTweet-HateSpeech":
+            self.tokenizer = AutoTokenizer.from_pretrained("indolem/indobertweet-base-uncased")
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})

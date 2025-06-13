@@ -99,9 +99,9 @@
             <version>${ttlab.duui.version}</version>
         </dependency>-->
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
+            <groupId>com.github.mevbagci</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>7cef2433b5</version>
+            <version>1.4.9</version>
         </dependency>
         <!--        <dependency>-->
         <!--            <groupId>com.github.texttechnologylab.textimager-uima</groupId>-->
@@ -110,9 +110,9 @@
         <!--        </dependency>-->
 
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
+            <groupId>com.github.mevbagci</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>05913ec35</version>
+            <version>3.0.13</version>
         </dependency>
 
 <!--        <dependency>-->

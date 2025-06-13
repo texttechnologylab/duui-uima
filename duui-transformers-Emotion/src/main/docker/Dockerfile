@@ -27,7 +27,7 @@ RUN #python -c "import nltk; nltk.download('all', download_dir='nltk_data')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='boltuix/bert-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/feel-it-italian-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion-multilabel-latest')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/beto-emotion-analysis')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/beto-emotion-analysis')"
 #RUN python -c "from transformers import AutoTokenizer, AutoModelForSequenceClassification; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-pooled-MORES', token='<TOKEN>'); AutoTokenizer.from_pretrained('lytang/MiniCheck-Flan-T5-Large')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='daveni/twitter-xlm-roberta-emotion-es')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ChrisLalk/German-Emotions')"
@@ -36,7 +36,7 @@ RUN #python -c "import nltk; nltk.download('all', download_dir='nltk_data')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Aniemore/rubert-tiny2-russian-emotion-detection')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Johnson8187/Chinese-Emotion-Small')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Johnson8187/Chinese-Emotion')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AnasAlokla/multilingual_go_emotions')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AnasAlokla/multilingual_go_emotions')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml

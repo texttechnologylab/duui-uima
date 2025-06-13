@@ -153,11 +153,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="finiteautomata/beto-emotion-analysis"
-#export MODEL_SPECNAME="beto-es-analysis"
-#export MODEL_VERSION="9b628b0bd91471ad9bd709c10522c379ce09c32a"
-#export MODEL_SOURCE="https://huggingface.co/finiteautomata/beto-emotion-analysis"
-#export MODEL_LANG="ES"
+export MODEL_NAME="finiteautomata/beto-emotion-analysis"
+export MODEL_SPECNAME="beto-es-analysis"
+export MODEL_VERSION="9b628b0bd91471ad9bd709c10522c379ce09c32a"
+export MODEL_SOURCE="https://huggingface.co/finiteautomata/beto-emotion-analysis"
+export MODEL_LANG="ES"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -226,11 +226,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-export MODEL_NAME="AnasAlokla/multilingual_go_emotions"
-export MODEL_SPECNAME="multi-go-emotions"
-export MODEL_VERSION="64610deb3453acfff12bb8289e3e7d0913ae91df"
-export MODEL_SOURCE="https://huggingface.co/AnasAlokla/multilingual_go_emotions"
-export MODEL_LANG="AR,EN,FR,ES,NL,TR"
+#export MODEL_NAME="AnasAlokla/multilingual_go_emotions"
+#export MODEL_SPECNAME="multi-go-emotions"
+#export MODEL_VERSION="64610deb3453acfff12bb8289e3e7d0913ae91df"
+#export MODEL_SOURCE="https://huggingface.co/AnasAlokla/multilingual_go_emotions"
+#export MODEL_LANG="AR,EN,FR,ES,NL,TR"
 ###--------------------------------------------------------------------
 
 

@@ -125,8 +125,6 @@ class TextImagerRequest(BaseModel):
     lang: str
     #
     selections:  List[UimaSentenceSelection]
-    #
-    token_reader: Optional[str]
 
 
 # UIMA type: mark modification of the document
@@ -220,7 +218,7 @@ def get_documentation():
     return "Test"
 
 @lru_cache_with_size
-def load_model(model_name, language="en", token_reader="default"):
+def load_model(model_name, language="en"):
     if model_name == "pol_emo_mDeBERTa":
         model_i = DebertaEmoCheck(f"{model_name}/model/pytorch_model.pt", device)
     elif model_name == "EmoAtlas":
@@ -230,8 +228,6 @@ def load_model(model_name, language="en", token_reader="default"):
             model_i = PySentimientoCheck(language)
         else:
             model_i = PySentimientoCheck("en")
-    elif "poltextlab/" in model_name:
-        model_i = PolyTextLabEmotionModel(model_name, device, token_reader=token_reader)
     else:
         model_i = EmotionCheck(model_name, device)
     return model_i
@@ -244,7 +240,7 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
-def process_selection(model_name, selection, doc_len, lang_document, token_reader="default"):
+def process_selection(model_name, selection, doc_len, lang_document):
     begin = []
     end = []
     results_out = []
@@ -261,7 +257,7 @@ def process_selection(model_name, selection, doc_len, lang_document, token_reade
     # logger.debug(texts)
 
     with model_lock:
-        classifier = load_model(model_name, lang_document, token_reader)
+        classifier = load_model(model_name, lang_document)
 
         results = classifier.emotion_prediction(texts)
         for c, res in enumerate(results):
@@ -324,8 +320,7 @@ def post_process(request: TextImagerRequest):
         mv = ""
 
         for selection in request.selections:
-            token_reader = request.token_reader if request.token_reader else "default"
-            processed_sentences, model_version_2 = process_selection(settings.model_name, selection, request.doc_len, lang_document, token_reader)
+            processed_sentences, model_version_2 = process_selection(settings.model_name, selection, request.doc_len, lang_document)
             begin = begin+ processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]

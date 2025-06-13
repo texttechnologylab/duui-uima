@@ -89,7 +89,7 @@ public class EmotionTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-                        .withParameter("token", "<TOKEN>")
+//                        .withParameter("token", "<TOKEN>")
         );
         List<String> sentences = Arrays.asList(
                 "I hate You. I'm very angry.",
