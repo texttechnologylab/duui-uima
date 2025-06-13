@@ -148,12 +148,70 @@ eport MODEL_CACHE_SIZE=3
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export  MODEL_NAME="HateCheckEziisk"
-export MODEL_SPECNAME="hate-check-eziisk"
-export MODEL_VERSION="acad8f3dfadfa4a86695398c01953bc324efe03b"
-export MODEL_SOURCE="https://huggingface.co/EZiisk/EZ_finetune_Vidgen_model_RHS_Best"
-export MODEL_LANG="EN"
+#export  MODEL_NAME="HateCheckEziisk"
+#export MODEL_SPECNAME="hate-check-eziisk"
+#export MODEL_VERSION="acad8f3dfadfa4a86695398c01953bc324efe03b"
+#export MODEL_SOURCE="https://huggingface.co/EZiisk/EZ_finetune_Vidgen_model_RHS_Best"
+#export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="Exqrch/IndoBERTweet-HateSpeech"
+#export MODEL_SPECNAME="indo-bert-tweet"
+#export MODEL_VERSION="3a4ea9e295cdca78f87581bbf39729b767e9521c"
+#export MODEL_SOURCE="https://huggingface.co/Exqrch/IndoBERTweet-HateSpeech"
+#export MODEL_LANG="EN, IN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="MilaNLProc/hate-ita-xlm-r-large"
+#export MODEL_SPECNAME="hate-ita-large"
+#export MODEL_VERSION="f7d96c3ee937fd8f01f98ce9b7783dfea0f5085d"
+#export MODEL_SOURCE="https://huggingface.co/MilaNLProc/hate-ita-xlm-r-large"
+#export MODEL_LANG="IT"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="MilaNLProc/hate-ita-xlm-r-base"
+#export MODEL_SPECNAME="hate-ita-base"
+#export MODEL_VERSION="723fa1158c76c684312c43692afb9780810be099"
+#export MODEL_SOURCE="https://huggingface.co/MilaNLProc/hate-ita-xlm-r-base"
+#export MODEL_LANG="IT"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="MilaNLProc/hate-ita"
+#export MODEL_SPECNAME="hate-ita"
+#export MODEL_VERSION="00a79c2221d16f04fcca2c9202dec85c6a815ba7"
+#export MODEL_SOURCE="https://huggingface.co/MilaNLProc/hate-ita"
+#export MODEL_LANG="IT"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="l3cube-pune/me-hate-bert"
+#export MODEL_SPECNAME="mehate-bert"
+#export MODEL_VERSION="407f19357c3b2166db6cbc2107807fc07a17b8f5"
+#export MODEL_SOURCE="https://huggingface.co/l3cube-pune/me-hate-bert"
+#export MODEL_LANG="Multi"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="HannahRoseKirk/Hatemoji"
+#export MODEL_SPECNAME="hatemoji"
+#export MODEL_VERSION="f2f98581ab15fb3ccf8b8a5465d7ca70c2958902"
+#export MODEL_SOURCE="https://huggingface.co/HannahRoseKirk/Hatemoji"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export MODEL_NAME="debajyotimaz/codemix_hate"
+export MODEL_SPECNAME="codemix-hate"
+export MODEL_VERSION="b07d73f1a05dd04c0adbb941b5446064b14feb10"
+export MODEL_SOURCE="https://huggingface.co/debajyotimaz/codemix_hate"
+export MODEL_LANG="EN, HI"
+##--------------------------------------------------------------------
+
+
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=
