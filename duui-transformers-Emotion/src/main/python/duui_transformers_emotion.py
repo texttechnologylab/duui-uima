@@ -8,7 +8,7 @@ from cassis import load_typesystem
 import torch
 from threading import Lock
 from functools import lru_cache
-from EmotionDetection import EmotionCheck, PySentimientoCheck, EmoAtlas, PolyTextLabEmotionModel
+from EmotionDetection import EmotionCheck, PySentimientoCheck, EmoAtlas, PolyTextLabEmotionModel, EmotionClassification
 from Emo_mDeBERTa2 import DebertaEmoCheck
 # from sp_correction import SentenceBestPrediction
 
@@ -228,6 +228,8 @@ def load_model(model_name, language="en"):
             model_i = PySentimientoCheck(language)
         else:
             model_i = PySentimientoCheck("en")
+    elif "UniversalJoy/" in model_name:
+        model_i = EmotionClassification(model_name, device)
     else:
         model_i = EmotionCheck(model_name, device)
     return model_i

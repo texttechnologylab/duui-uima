@@ -8,6 +8,14 @@ from typing import List
 import nltk
 from emoatlas import EmoScores
 
+from collections import namedtuple
+from script import BertForSequenceClassification
+from pytorch_transformers import (
+    BertTokenizer,
+    BertModel,
+    BertConfig,
+)
+
 # nltk.download('all', download_dir="nltk_data")
 nltk.data.path.append("nltk_data")
 
@@ -319,9 +327,161 @@ map_emotion = {
         5: "questioning",
         6: "surprise",
         7: "disgust",
+    },
+    "Zoopa/emotion-classification-model": {
+        0: "sadness",
+        1: "joy",
+        2: "love",
+        3: "anger",
+        4: "fear",
+        5: "surprise"
+    },
+    "esuriddick/distilbert-base-uncased-finetuned-emotion": {
+        0: "sadness",
+        1: "joy",
+        2: "love",
+        3: "anger",
+        4: "fear",
+        5: "surprise"
+    },
+    "Panda0116/emotion-classification-model": {
+        0: "sadness",
+        1: "joy",
+        2: "love",
+        3: "anger",
+        4: "fear",
+        5: "surprise"
+    },
+    "lordtt13/emo-mobilebert": {
+        0: "others",
+        1: "happy",
+        2: "sad",
+        3: "angry"
+    },
+    "alex-shvets/roberta-large-emopillars-contextual-emocontext": {
+        0: 'admiration',
+        1: 'amusement',
+        2: 'disapproval',
+        3: 'disgust',
+        4: 'embarrassment',
+        5: 'excitement',
+        6: 'fear',
+        7: 'gratitude',
+        8: 'grief',
+        9: 'joy',
+        10: 'love',
+        11: 'nervousness',
+        12: 'anger',
+        13: 'optimism',
+        14: 'pride',
+        15: 'realization',
+        16: 'relief',
+        17: 'remorse',
+        18: 'sadness',
+        19: 'surprise',
+        20: 'neutral',
+        21: 'annoyance',
+        22: 'approval',
+        23: 'caring',
+        24: 'confusion',
+        25: 'curiosity',
+        26: 'desire',
+        27: 'disappointment'
+    },
+    "AdapterHub/bert-base-uncased-pf-emo": {
+        0: "others",
+        1: "happy",
+        2: "sad",
+        3: "angry"
     }
 
 }
+
+Sample = namedtuple("Sample", [
+    "input_ids",
+    "input_mask",
+    "segment_ids",
+    "label_id",
+    "lang"
+])
+
+def to_sample(text, label, lang, tokenizer, max_seq_length):
+    # Tokenize and convert to ids
+    input_tokens = tokenizer.tokenize(text)
+
+    # Account for [CLS] and [SEP] with "- 2"
+    if len(input_tokens) > max_seq_length - 2:
+        input_tokens = input_tokens[:(max_seq_length - 2)]
+
+    # Add CLS and SEP tokens
+    input_tokens = [tokenizer.cls_token] + input_tokens + [tokenizer.sep_token]
+    input_ids = tokenizer.convert_tokens_to_ids(input_tokens)
+    segment_ids = [0 for i in range(len(input_ids))]
+
+    # Initialize padding mask
+    input_mask = [1] * len(input_ids)
+
+    # Pad to max_seq_length
+    padding_length = max_seq_length - len(input_ids)
+    input_ids = input_ids + ([0] * padding_length)
+    input_mask = input_mask + ([0] * padding_length)
+    segment_ids = segment_ids + ([0] * padding_length)
+
+    return Sample(
+        torch.tensor(input_ids),
+        torch.tensor(input_mask),
+        torch.tensor(segment_ids),
+        torch.tensor(label, dtype=torch.float),
+        lang
+    )
+
+
+class EmotionClassification:
+    def __init__(self, model_name, device, max_seq_length=256):
+        self.tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased",
+                                                       do_lower_case=False)
+        self.bert_config = BertConfig.from_pretrained("bert-base-multilingual-cased")
+        self.bert_model = BertModel.from_pretrained("bert-base-multilingual-cased")
+
+        self.model = BertForSequenceClassification(self.bert_model, self.bert_config, num_labels=5)
+
+        self.model = self.model.to(device)
+        # self.model.load_state_dict(torch.load(model_name))
+        self.max_seq_length = max_seq_length
+        self.emotions_labels = {
+            0: "anger",
+            1: "anticipation",
+            2: "fear",
+            3: "joy",
+            4: "sadness"
+        }
+        self.device = device
+
+
+    def emotion_prediction(self, texts):
+        dummy_labels = [np.zeros(5) for _ in texts]
+        samples = [to_sample(text, label, "nan", self.tokenizer, self.max_seq_length)
+                   for text, label in zip(texts, dummy_labels)]
+
+        results = []
+
+        for sample in samples:
+            inputs = {
+                'input_ids': sample[0].unsqueeze(0).to(self.device),
+                'attention_mask': sample[1].unsqueeze(0).to(self.device),
+                'token_type_ids': sample[2].unsqueeze(0).to(self.device),
+                'labels': sample[3].unsqueeze(0).to(self.device)
+            }
+            with torch.no_grad():
+                logits = self.model(**inputs)
+
+            probs = logits[0].detach().cpu().numpy()
+            probs = softmax(probs).tolist()
+            # probs = torch.sigmoid(logits).cpu().numpy().flatten()
+            # probs to float
+            emotion_scores = dict(zip(list(self.emotions_labels.values()), probs))
+            results.append(emotion_scores)
+        return results
 
 
 

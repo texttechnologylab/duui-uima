@@ -66,8 +66,8 @@
 
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <dkpro.core.version>2.4.0</dkpro.core.version>
         <!--        <ttlab.duui.version>f68ca579ab553074f76d061623dc9b00cf508276</ttlab.duui.version>-->
         <!--        <ttlab.typesystem.version>033beaa593a99c005400f4021ea8d6fa8957e6c3</ttlab.typesystem.version>-->
