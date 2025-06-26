@@ -10,18 +10,18 @@ For using GNfinder as a DUUI image it is necessary to use the Docker Unified UIM
 
 ## Use as Stand-Alone-Image
 ```bash
-docker run docker.texttechnologylab.org/gnfinder:latest
+docker run docker.texttechnologylab.org/duui-gnfinder:latest
 ```
 
 ## Run with a specific port
 ```bash
-docker run -p 1000:9714 docker.texttechnologylab.org/gnfinder:latest
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-gnfinder:latest
 ```
 
 ## Run within DUUI
 ```java
 composer.add(new DUUIDockerDriver.
-    Component("docker.texttechnologylab.org/gnfinder:latest")
+    Component("docker.texttechnologylab.org/duui-gnfinder:latest")
     .withScale(iWorkers)
     .withImageFetching());
 ```
