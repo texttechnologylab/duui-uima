@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-textreadability
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.2.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
@@ -12,12 +12,20 @@ eport MODEL_CACHE_SIZE=3
 #--------------------------------------------------------------------
 
 #---------------------------------------------------------------------
-export  MODEL_NAME="Diversity"
-export MODEL_SPECNAME="diversity"
-export MODEL_VERSION="0.2.2"
-export MODEL_SOURCE="https://pypi.org/project/diversity/"
-export MODEL_LANG="EN"
+#export  MODEL_NAME="Diversity"
+#export MODEL_SPECNAME="diversity"
+#export MODEL_VERSION="0.2.2"
+#export MODEL_SOURCE="https://pypi.org/project/diversity/"
+#export MODEL_LANG="EN"
 #--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export  MODEL_NAME="Readability"
+export MODEL_SPECNAME="readability"
+export MODEL_VERSION="0.3.2"
+export MODEL_SOURCE="https://pypi.org/project/readability/"
+export MODEL_LANG="EN"
+##--------------------------------------------------------------------
 
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"

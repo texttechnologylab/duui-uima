@@ -5,10 +5,11 @@
 DUUI implementation for selected text readability tools.
 ## Included Tools
 
-| Name      | Source                                                                       | Revision                                 | Languages          |
-|-----------|------------------------------------------------------------------------------|------------------------------------------|--------------------|
-| textstat  | https://github.com/textstat/textstat       | d47dc863cdff8db317b0999c8879a3d2ddf00f35 | EN                 |
-| diversity | https://pypi.org/project/diversity/ | 0.2.2                                    | EN                 |
+| Name        | Source                                                                     | Revision                                 | Languages          |
+|-------------|----------------------------------------------------------------------------|------------------------------------------|--------------------|
+| textstat    | https://github.com/textstat/textstat     | d47dc863cdff8db317b0999c8879a3d2ddf00f35 | EN                 |
+| diversity   | https://pypi.org/project/diversity/ | 0.2.2                                    | EN                 |
+| readability | https://pypi.org/project/readability/ | 0.3.2                                    | EN                 |
 
 
 # How To Use
