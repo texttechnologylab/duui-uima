@@ -1,7 +1,8 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
-Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
+-- Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
+Token = luajava.bindClass("org.texttechnologylab.uima.type.spacy.SpacyToken")
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -150,9 +151,39 @@ function deserialize(inputCas, inputStream)
             token_anno = all_tokens[i-1]
         elseif token["write_token"] then
             -- Create token annotation
-            token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", inputCas)
+--             token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", inputCas)
+            token_anno = luajava.newInstance("org.texttechnologylab.uima.type.spacy.SpacyToken", inputCas)
             token_anno:setBegin(token["begin"])
             token_anno:setEnd(token["end"])
+
+            -- spacy token extras
+            token_anno:setLikeUrl(token["like_url"])
+            token_anno:setHasVector(token["has_vector"])
+            token_anno:setLikeNum(token["like_num"])
+            token_anno:setIsStop(token["is_stop"])
+            token_anno:setIsOov(token["is_oov"])
+            token_anno:setIsCurrency(token["is_currency"])
+            token_anno:setIsQuote(token["is_quote"])
+            token_anno:setIsBracket(token["is_bracket"])
+            token_anno:setIsSentStart(token["is_sent_start"])
+            token_anno:setIsSentEnd(token["is_sent_end"])
+            token_anno:setIsLeftPunct(token["is_left_punct"])
+            token_anno:setIsRightPunct(token["is_right_punct"])
+            token_anno:setIsPunct(token["is_punct"])
+            token_anno:setIsTitle(token["is_title"])
+            token_anno:setIsUpper(token["is_upper"])
+            token_anno:setIsLower(token["is_lower"])
+            token_anno:setIsDigit(token["is_digit"])
+            token_anno:setIsAscii(token["is_ascii"])
+            token_anno:setIsAlpha(token["is_alpha"])
+
+            local vector_length = #token["vector"]
+            token_anno:setVector(luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length))
+            for vector_ind, vector_val in ipairs(token["vector"]) do
+                -- Note: Lua starts counting at 1, but Java at 0
+                token_anno:setVector(vector_ind-1, vector_val)
+            end
+
             token_anno:addToIndexes()
 
             -- URL detection

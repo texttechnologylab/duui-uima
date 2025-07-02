@@ -207,6 +207,12 @@ class DocumentModification(BaseModel):
     comment: str
 
 
+# Span
+class Span(BaseModel):
+    begin: int
+    end: int
+
+
 # Token
 class Token(BaseModel):
     begin: int
@@ -225,6 +231,26 @@ class Token(BaseModel):
     write_dep: bool = None
     like_url: bool = None
     url_parts: Union[None, dict] = None
+    has_vector: bool = None
+    vector: List[float] = None
+    like_num: bool = None
+    is_stop: bool = None
+    is_oov: bool = None
+    is_currency: bool = None
+    is_quote: bool = None
+    is_bracket: bool = None
+    is_sent_start: bool = None
+    is_sent_end: bool = None
+    is_left_punct: bool = None
+    is_right_punct: bool = None
+    is_punct: bool = None
+    is_title: bool = None
+    is_upper: bool = None
+    is_lower: bool = None
+    is_digit: bool = None
+    is_ascii: bool = None
+    is_alpha: bool = None
+
 
 
 # Dependency
@@ -264,6 +290,8 @@ class TextImagerResponse(BaseModel):
     dependencies: List[Dependency]
     # List of entities
     entities: List[Entity]
+    # List of noun phrases
+    noun_chunks: List[Span]
     # Annotation meta, containing model name, version and more
     # Note: Same for each annotation, so only returned once
     meta: Optional[AnnotationMeta] = None
@@ -589,6 +617,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     tokens = []
     dependencies = []
     entities = []
+    noun_chunks = []
     meta = None
     modification_meta = None
     is_pretokenized = False
@@ -895,7 +924,29 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                             # URL
                             like_url=token.like_url,
-                            url_parts=parse_url(token.text) if token.like_url else None
+                            url_parts=parse_url(token.text) if token.like_url else None,
+
+                            has_vector=token.has_vector,
+                            vector=token.vector,
+
+                            like_num=token.like_num,
+
+                            is_stop=token.is_stop,
+                            is_oov=token.is_oov,
+                            is_currency=token.is_currency,
+                            is_quote=token.is_quote,
+                            is_bracket=token.is_bracket,
+                            is_sent_start=token.is_sent_start,
+                            is_sent_end=token.is_sent_end,
+                            is_left_punct=token.is_left_punct,
+                            is_right_punct=token.is_right_punct,
+                            is_punct=token.is_punct,
+                            is_title=token.is_title,
+                            is_upper=token.is_upper,
+                            is_lower=token.is_lower,
+                            is_digit=token.is_digit,
+                            is_ascii=token.is_ascii,
+                            is_alpha=token.is_alpha
                         )
                         tokens.append(current_token)
                         token_ind += 1
@@ -956,6 +1007,17 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 except Exception as ex:
                     logger.exception("Error accessing named entities: %s", ex)
 
+                # Noun phrases
+                logger.debug("Writing Noun phrases...")
+                try:
+                    for chunk in doc.noun_chunks:
+                        noun_chunks.append(Span(
+                            begin=utf16_to_ext(doc_begin+chunk.start_char),
+                            end=utf16_to_ext(doc_begin+chunk.end_char)
+                        ))
+                except Exception as ex:
+                    logger.exception("Error accessing noun phrases: %s", ex)
+
                 # Add modification info
                 modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version}), spaCy ({spacy.__version__}), {spacy_meta['lang']} {spacy_meta['name']} ({spacy_meta['version']})"
                 modification_meta = DocumentModification(
@@ -973,6 +1035,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         tokens=tokens,
         dependencies=dependencies,
         entities=entities,
+        noun_chunks=noun_chunks,
         meta=meta,
         modification_meta=modification_meta,
         is_pretokenized=is_pretokenized
