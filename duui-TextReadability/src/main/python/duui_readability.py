@@ -49,6 +49,10 @@ with open(typesystem_filename, 'rb') as f:
 lua_communication_script_filename = "duui_readability.lua"
 logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 
+class DUUIParams(BaseModel):
+    homogenization: bool
+    compression: bool
+    ngram: int
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
@@ -63,6 +67,8 @@ class DUUIRequest(BaseModel):
     end: int
     # text
     text: str
+    #
+    params: DUUIParams
 
 
 # UIMA type: mark modification of the document
@@ -93,6 +99,7 @@ def process_selection(model_name, request):
     factors = []
     len_results = 0
     output = {}
+
     if model_name == "Textstat":
         # Readability metrics with textstat
         readability_metrics = ReadabilityMetricsTextStat()
@@ -106,7 +113,7 @@ def process_selection(model_name, request):
     elif model_name == "Diversity":
         # Readability metrics with diversity
         readability_metrics = ReadabilityMetricsDiversity()
-        results = readability_metrics.compute_diversity(request.text)
+        results = readability_metrics.compute_diversity(request.text, request.params)
         for key, value in results.items():
             results_out.append(key)
             factors.append(value)

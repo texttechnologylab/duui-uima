@@ -12,7 +12,7 @@ eport MODEL_CACHE_SIZE=3
 #--------------------------------------------------------------------
 
 #---------------------------------------------------------------------
-export  MODEL_NAME="Diversity"
+export MODEL_NAME="Diversity"
 export MODEL_SPECNAME="diversity"
 export MODEL_VERSION="0.2.2"
 export MODEL_SOURCE="https://pypi.org/project/diversity/"
