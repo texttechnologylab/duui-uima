@@ -13,7 +13,8 @@
         <maven.compiler.target>21</maven.compiler.target>
         <ttlab.duui.version>1.4.6</ttlab.duui.version>
 <!--        <ttlab.typesystem.version>3.0.10</ttlab.typesystem.version>-->
-        <ttlab.typesystem.version>68246f604c5b5603fb345f3acfb741b5e1c66eb0</ttlab.typesystem.version>
+<!--        <ttlab.typesystem.version>68246f604c5b5603fb345f3acfb741b5e1c66eb0</ttlab.typesystem.version>-->
+        <ttlab.typesystem.version>c83f8d42e8fb38dcb30691b028f2b7cfa918c591</ttlab.typesystem.version>
     </properties>
 
     <build>
@@ -58,7 +59,8 @@
         </dependency>
 
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
+<!--            <groupId>com.github.texttechnologylab</groupId>-->
+            <groupId>com.github.Myyyvothrr</groupId>
             <artifactId>UIMATypeSystem</artifactId>
             <version>${ttlab.typesystem.version}</version>
             <exclusions>
