@@ -433,4 +433,24 @@ function deserialize(inputCas, inputStream)
             meta_anno:addToIndexes()
         end
     end
+
+    -- Add noun chunks
+    for i, nc in ipairs(results["noun_chunks"]) do
+        local nc_anno = luajava.newInstance("org.texttechnologylab.uima.type.spacy.SpacyNounChunk", inputCas)
+        nc_anno:setBegin(nc["begin"])
+        nc_anno:setEnd(nc["end"])
+        nc_anno:addToIndexes()
+
+        local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", inputCas)
+        meta_anno:setReference(ent_anno)
+        meta_anno:setName(meta["name"])
+        meta_anno:setVersion(meta["version"])
+        meta_anno:setModelName(meta["modelName"])
+        meta_anno:setModelVersion(meta["modelVersion"])
+        meta_anno:setSpacyVersion(meta["spacyVersion"])
+        meta_anno:setModelLang(meta["modelLang"])
+        meta_anno:setModelSpacyVersion(meta["modelSpacyVersion"])
+        meta_anno:setModelSpacyGitVersion(meta["modelSpacyGitVersion"])
+        meta_anno:addToIndexes()
+    end
 end

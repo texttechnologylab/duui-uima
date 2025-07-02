@@ -18,6 +18,7 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.uima.type.spacy.SpacyToken;
+import org.texttechnologylab.uima.type.spacy.SpacyNounChunk;
 import org.xml.sax.SAXException;
 
 import java.io.ByteArrayOutputStream;
@@ -85,6 +86,11 @@ public class SpaCySmallTest {
                 list.add(value);
             }
             System.out.println(list);
+            System.out.println("***");
+        }
+
+        for (SpacyNounChunk chunk : JCasUtil.select(cas, SpacyNounChunk.class)) {
+            System.out.println(chunk.getCoveredText());
             System.out.println("***");
         }
 
