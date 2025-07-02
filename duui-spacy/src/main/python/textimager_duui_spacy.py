@@ -4,9 +4,10 @@ from platform import python_version
 from sys import version as sys_version
 from threading import Lock
 from time import time
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 from urllib.parse import urlparse
 
+import benepar
 import spacy
 from cassis import load_typesystem
 from cassis.cas import Utf16CodepointOffsetConverter
@@ -93,64 +94,71 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = {
 }
 TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings.variant])
 
+# benepar models
+# TODO configurable
+BENEPAR_MODELS = {
+    "en": "benepar_en3",
+    "de": "benepar_de2",
+}
+
 # spaCy models
 # Supporting the efficient and accurate variants
 # Note: Not all models might actually be available in the Docker image!
 # TODO test accurate models
 SPACY_MODELS = {
     "efficiency": {
-        "ca": "ca_core_news_sm",    # Catalan
-        "zh": "zh_core_web_sm",     # Chinese
-        "hr": "hr_core_news_sm",    # Croatian
-        "da": "da_core_news_sm",    # Danish
-        "nl": "nl_core_news_sm",    # Dutch
+        # "ca": "ca_core_news_sm",    # Catalan
+        # "zh": "zh_core_web_sm",     # Chinese
+        # "hr": "hr_core_news_sm",    # Croatian
+        # "da": "da_core_news_sm",    # Danish
+        # "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
-        "fi": "fi_core_news_sm",    # Finnish
-        "fr": "fr_core_news_sm",    # French
+        # "fi": "fi_core_news_sm",    # Finnish
+        # "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
-        "el": "el_core_news_sm",    # Greek
-        "it": "it_core_news_sm",    # Italian
-        "ja": "ja_core_news_sm",    # Japanese
-        "ko": "ko_core_news_sm",    # Korean
-        "lt": "lt_core_news_sm",    # Lithuanian
-        "mk": "mk_core_news_sm",    # Macedonian
-        "nb": "nb_core_news_sm",    # Norwegian Bokmal
-        "pl": "pl_core_news_sm",    # Polish
-        "pt": "pt_core_news_sm",    # Portugese
-        "ro": "ro_core_news_sm",    # Romanian
-        "ru": "ru_core_news_sm",    # Russian
-        "sl": "sl_core_news_sm",    # Slovenian
-        "es": "es_core_news_sm",    # Spanish
-        "sv": "sv_core_news_sm",    # Swedish
-        "uk": "uk_core_news_sm",    # Ukrainian
-        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+        # "el": "el_core_news_sm",    # Greek
+        # "it": "it_core_news_sm",    # Italian
+        # "ja": "ja_core_news_sm",    # Japanese
+        # "ko": "ko_core_news_sm",    # Korean
+        # "lt": "lt_core_news_sm",    # Lithuanian
+        # "mk": "mk_core_news_sm",    # Macedonian
+        # "nb": "nb_core_news_sm",    # Norwegian Bokmal
+        # "pl": "pl_core_news_sm",    # Polish
+        # "pt": "pt_core_news_sm",    # Portugese
+        # "ro": "ro_core_news_sm",    # Romanian
+        # "ru": "ru_core_news_sm",    # Russian
+        # "sl": "sl_core_news_sm",    # Slovenian
+        # "es": "es_core_news_sm",    # Spanish
+        # "sv": "sv_core_news_sm",    # Swedish
+        # "uk": "uk_core_news_sm",    # Ukrainian
+        # "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
     "accuracy": {
-        "ca": "ca_core_news_trf",
-        "zh": "zh_core_web_trf",
-        "hr": "hr_core_news_lg",
-        "da": "da_core_news_trf",
-        "nl": "nl_core_news_lg",
+        # "ca": "ca_core_news_trf",
+        # "zh": "zh_core_web_trf",
+        # "hr": "hr_core_news_lg",
+        # "da": "da_core_news_trf",
+        # "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
-        "fi": "fi_core_news_lg",
-        "fr": "fr_dep_news_trf",
+        # "fi": "fi_core_news_lg",
+        # "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
-        "el": "el_core_news_lg",
-        "it": "it_core_news_lg",
-        "ja": "ja_core_news_trf",
-        "ko": "ko_core_news_lg",
-        "lt": "lt_core_news_lg",
-        "mk": "mk_core_news_lg",
-        "nb": "nb_core_news_lg",
-        "pl": "pl_core_news_lg",
-        "pt": "pt_core_news_lg",
-        "ro": "ro_core_news_lg",
-        "ru": "ru_core_news_lg",
-        "sl": "sl_core_news_trf",
-        "es": "es_dep_news_trf",
-        "sv": "sv_core_news_lg",
-        "uk": "uk_core_news_trf",
-        "xx": "xx_ent_wiki_sm",
+        # "el": "el_core_news_lg",
+        # "it": "it_core_news_lg",
+        # "ja": "ja_core_news_trf",
+        # "ko": "ko_core_news_lg",
+        # "lt": "lt_core_news_lg",
+        # "mk": "mk_core_news_lg",
+        # "nb": "nb_core_news_lg",
+        # "pl": "pl_core_news_lg",
+        # "pt": "pt_core_news_lg",
+        # "ro": "ro_core_news_lg",
+        # "ru": "ru_core_news_lg",
+        # "sl": "sl_core_news_trf",
+        # "es": "es_dep_news_trf",
+        # "sv": "sv_core_news_lg",
+        # "uk": "uk_core_news_trf",
+        # "xx": "xx_ent_wiki_sm",
     }
 }
 
@@ -250,7 +258,7 @@ class Token(BaseModel):
     is_digit: bool = None
     is_ascii: bool = None
     is_alpha: bool = None
-
+    benepar_labels: Optional[Tuple[str]] = None
 
 
 # Dependency
@@ -413,7 +421,7 @@ with open(lua_communication_script_filename, 'rb') as f:
 
 # Load/cache spaCy model
 @lru_cache_with_size
-def load_cache_spacy_model(model_name, model_lang, enabled_tools):
+def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
     # What tools to enable in the pipeline?
     enabled_tools = None
     if settings.variant:
@@ -428,17 +436,23 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools):
     logger.info("Loading spaCy model \"%s\"...", model_name)
     nlp = spacy.load(model_name, enable=enabled_tools)
     logger.info("Finished loading spaCy model \"%s\"", model_name)
+
+    logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
+    if use_benepar:
+        # TODO check for model availability
+        nlp.add_pipe("benepar", config={"model": BENEPAR_MODELS[model_lang]})
+
     return nlp
 
 
 # Load spaCy model using LRU cached function
-def load_spacy_model(model_name, model_lang, enabled_tools):
+def load_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
     model_load_lock.acquire()
 
     err = None
     try:
         logger.info("Getting spaCy model \"%s\"...", model_name)
-        nlp = load_cache_spacy_model(model_name, model_lang, enabled_tools)
+        nlp = load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar)
     except Exception as ex:
         nlp = None
         err = str(ex)
@@ -646,7 +660,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         logger.info("Using spaCy model: \"%s\"", model_name)
 
         # Load model, this is cached
-        nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant)
+        use_benepar = request.parameters.get("use_benepar", "false").lower() == "true"
+        nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant, use_benepar)
         if nlp is None:
             raise Exception(f"spaCy model \"{model_name}\" could not be loaded: {nlp_err}")
 
@@ -948,6 +963,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                             is_ascii=token.is_ascii,
                             is_alpha=token.is_alpha
                         )
+
+                        # benepar
+                        if use_benepar:
+                            current_token.benepar_labels = token._.labels
+
                         tokens.append(current_token)
                         token_ind += 1
 

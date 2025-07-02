@@ -184,6 +184,15 @@ function deserialize(inputCas, inputStream)
                 token_anno:setVector(vector_ind-1, vector_val)
             end
 
+            -- benepar
+            local benepar_labels_length = #token["benepar_labels"]
+            if benepar_labels_length > 0 then
+                token_anno:setBeneparLabels(luajava.newInstance("org.apache.uima.jcas.cas.StringArray", inputCas, benepar_labels_length))
+                for label_ind, label_val in ipairs(token["benepar_labels"]) do
+                    token_anno:setBeneparLabels(label_ind-1, label_val)
+                end
+            end
+
             token_anno:addToIndexes()
 
             -- URL detection

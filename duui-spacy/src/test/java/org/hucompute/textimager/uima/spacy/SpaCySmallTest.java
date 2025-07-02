@@ -67,6 +67,7 @@ public class SpaCySmallTest {
     public void smallTestEn() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component("http://localhost:9714")
+                        .withParameter("use_benepar", String.valueOf(true))
         );
 
         String language = "en";
