@@ -440,7 +440,9 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
     logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
     if use_benepar:
         # TODO check for model availability
-        nlp.add_pipe("benepar", config={"model": BENEPAR_MODELS[model_lang]})
+        bnepar_model = BENEPAR_MODELS[model_lang]
+        logger.info("benepar model: %s (based on lang %s)", bnepar_model, model_lang)
+        nlp.add_pipe("benepar", config={"model": bnepar_model})
 
     return nlp
 

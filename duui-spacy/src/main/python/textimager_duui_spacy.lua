@@ -177,19 +177,23 @@ function deserialize(inputCas, inputStream)
             token_anno:setIsAscii(token["is_ascii"])
             token_anno:setIsAlpha(token["is_alpha"])
 
-            local vector_length = #token["vector"]
-            token_anno:setVector(luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length))
-            for vector_ind, vector_val in ipairs(token["vector"]) do
-                -- Note: Lua starts counting at 1, but Java at 0
-                token_anno:setVector(vector_ind-1, vector_val)
+            if token["vector"] ~= nil then
+                local vector_length = #token["vector"]
+                token_anno:setVector(luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length))
+                for vector_ind, vector_val in ipairs(token["vector"]) do
+                    -- Note: Lua starts counting at 1, but Java at 0
+                    token_anno:setVector(vector_ind-1, vector_val)
+                end
             end
 
             -- benepar
-            local benepar_labels_length = #token["benepar_labels"]
-            if benepar_labels_length > 0 then
-                token_anno:setBeneparLabels(luajava.newInstance("org.apache.uima.jcas.cas.StringArray", inputCas, benepar_labels_length))
-                for label_ind, label_val in ipairs(token["benepar_labels"]) do
-                    token_anno:setBeneparLabels(label_ind-1, label_val)
+            if token["benepar_labels"] ~= nil then
+                local benepar_labels_length = #token["benepar_labels"]
+                if benepar_labels_length > 0 then
+                    token_anno:setBeneparLabels(luajava.newInstance("org.apache.uima.jcas.cas.StringArray", inputCas, benepar_labels_length))
+                    for label_ind, label_val in ipairs(token["benepar_labels"]) do
+                        token_anno:setBeneparLabels(label_ind-1, label_val)
+                    end
                 end
             end
 

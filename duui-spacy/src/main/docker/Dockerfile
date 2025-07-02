@@ -72,7 +72,7 @@ RUN #python -m spacy download "xx_ent_wiki_sm"
 
 # benepar models
 RUN python -c "import benepar; benepar.download('benepar_en3')"
-RUN #python -c "import benepar; benepar.download('benepar_en3_large')"
+#RUN python -c "import benepar; benepar.download('benepar_en3_large')"
 RUN python -c "import benepar; benepar.download('benepar_de2')"
 
 # meta data
