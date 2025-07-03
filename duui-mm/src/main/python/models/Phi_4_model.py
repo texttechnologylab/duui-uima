@@ -212,7 +212,7 @@ class VllmMicrosoftPhi4:
 
         audio_b64, frames_b64_list = decouple_video(videobase64)
         print("total of ", len(frames_b64_list), " frames")
-        frames_b64_list = frames_b64_list[:3]
+        # frames_b64_list = frames_b64_list[:3]
         return self.process_video_and_audio(audio_b64, frames_b64_list, prompt)
 
 
