@@ -14,7 +14,7 @@
         <ttlab.duui.version>1.4.6</ttlab.duui.version>
 <!--        <ttlab.typesystem.version>3.0.10</ttlab.typesystem.version>-->
 <!--        <ttlab.typesystem.version>68246f604c5b5603fb345f3acfb741b5e1c66eb0</ttlab.typesystem.version>-->
-        <ttlab.typesystem.version>c83f8d42e8fb38dcb30691b028f2b7cfa918c591</ttlab.typesystem.version>
+        <ttlab.typesystem.version>9b5630a1cc563f688318f796c2db5a99d76f8834</ttlab.typesystem.version>
     </properties>
 
     <build>

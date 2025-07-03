@@ -32,13 +32,6 @@ function serialize(inputCas, outputStream, parameters)
             while tokens_it:hasNext() do
                 local token = tokens_it:next()
 
-                pos_value = ""
-                pos_coarse = ""
-                if token:getPos() ~= nil then
-                    pos_value = token:getPos():getPosValue()
-                    pos_coarse = token:getPos():getCoarseValue()
-                end
-
                 dep_type = ""
                 local deps_it = luajava.newInstance("java.util.ArrayList", JCasUtil:selectCovered(Dependency, sentence)):listIterator()
                 while deps_it:hasNext() do
@@ -49,15 +42,31 @@ function serialize(inputCas, outputStream, parameters)
                     end
                 end
 
+                local vector = nil
+                local has_vector = token:getHasVector()
+                if has_vector then
+                    vector = {}
+                    local vector_it = token:getVector():iterator();
+                    while vector_it:hasNext() do
+                        local vec = vector_it:next()
+                        vector[#vector + 1] = vec
+                    end
+                end
+
                 local token_data = {
                     begin = token:getBegin(),
                     ['end'] = token:getEnd(),
                     text = token:getCoveredText(),
                     lemma = token:getLemmaValue(),
-                    pos_value = pos_value,
-                    pos_coarse = pos_coarse,
+                    pos_value = token:getPos():getPosValue(),
+                    pos_coarse = token:getPos():getCoarseValue(),
                     is_alpha = token:getIsAlpha(),
+                    is_punct = token:getIsPunct(),
                     dep_type = dep_type,
+                    morph_person = token:getMorph():getPerson(),
+                    morph_number = token:getMorph():getNumber(),
+                    vector = vector,
+                    has_vector = has_vector,
                 }
                 sentence_data.tokens[#sentence_data.tokens + 1] = token_data
             end
@@ -78,6 +87,8 @@ function serialize(inputCas, outputStream, parameters)
     end
 
     outputStream:write(json.encode({
+        text = inputCas:getDocumentText(),
+        language = inputCas:getDocumentLanguage(),
         paragraphs = paragraphs,
         noun_chunks = noun_chunks,
     }))
@@ -105,10 +116,13 @@ function deserialize(inputCas, inputStream)
             index_anno:setEnd(doc_len)
             index_anno:setIndex(index["index"])
             index_anno:setTypeName(index["type_name"])
+            index_anno:setLabelTTLab(index["label_ttlab"])
             index_anno:setLabelV3(index["label_v3"])
             index_anno:setLabelV2(index["label_v2"])
             index_anno:setDescription(index["description"])
+            index_anno:setValue(index["value"])
             index_anno:setError(index["error"])
+            index_anno:setVersion(index["version"])
             index_anno:addToIndexes()
 
             local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)

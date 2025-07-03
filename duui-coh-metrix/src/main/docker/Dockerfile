@@ -9,6 +9,11 @@ RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
 
+RUN python -c "import nltk; nltk.download('wordnet')"
+RUN python -c "import nltk; nltk.download('omw-1.4')"
+
+ADD https://huggingface.co/datasets/StephanAkkerman/MRC-psycholinguistic-database/raw/main/mrc_psycholinguistic_database.csv ./src/main/resources/mrc_psycholinguistic_database.csv
+
 ARG DUUI_COH_METRIX_LOG_LEVEL="DEBUG"
 ENV DUUI_COH_METRIX_LOG_LEVEL=$DUUI_COH_METRIX_LOG_LEVEL
 

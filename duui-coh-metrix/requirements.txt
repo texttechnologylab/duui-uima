@@ -27,10 +27,12 @@ pydantic==2.11.5
 pydantic-settings==2.9.1
 pydantic_core==2.33.2
 pyparsing==3.2.3
+pyphen==0.17.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
 pytz==2025.2
 regex==2024.11.6
+scikit-learn==1.7.0
 scipy==1.16.0
 setuptools==78.1.1
 six==1.17.0
@@ -39,6 +41,7 @@ sortedcontainers==2.4.0
 starlette==0.46.2
 strsim==0.0.3
 textblob==0.19.0
+threadpoolctl==3.6.0
 toposort==1.10
 tqdm==4.67.1
 typing-inspection==0.4.1

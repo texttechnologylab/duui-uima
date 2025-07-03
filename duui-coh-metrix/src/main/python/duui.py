@@ -1,8 +1,11 @@
+import csv
 import logging
+import pyphen
+
 from platform import python_version
 from sys import version as sys_version
 from time import time
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Any
 
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
@@ -12,6 +15,11 @@ from pydantic_settings import BaseSettings
 from lexicalrichness import LexicalRichness
 from lexical_diversity import lex_div as ld
 from similarity.normalized_levenshtein import NormalizedLevenshtein
+from itertools import combinations
+from collections import defaultdict
+from nltk.corpus import wordnet as wn
+from sklearn.decomposition import TruncatedSVD
+from sklearn.metrics.pairwise import cosine_similarity
 
 import numpy as np
 
@@ -45,7 +53,6 @@ SUPPORTED_LANGS = [
     # all
 ]
 
-
 class Token(BaseModel):
     begin: int
     end: int
@@ -54,7 +61,12 @@ class Token(BaseModel):
     pos_coarse: str  # spacy pos_
     lemma: str
     is_alpha: bool
+    is_punct: bool
     dep_type: str
+    morph_person: Optional[str] = ""
+    morph_number: Optional[str] = ""
+    vector: Optional[List[float]] = None
+    has_vector: bool
 
 
 class NounChunk(BaseModel):
@@ -77,6 +89,8 @@ class Paragraph(BaseModel):
 
 
 class TextImagerRequest(BaseModel):
+    language: str
+    text: str
     paragraphs: List[Paragraph]
     noun_chunks: List[NounChunk]
 
@@ -97,11 +111,13 @@ class DocumentModification(BaseModel):
 class Index(BaseModel):
     index: int
     type_name: str
-    label_v3: str
-    label_v2: str
+    label_ttlab: Optional[str] = None
+    label_v3: Optional[str] = None
+    label_v2: Optional[str] = None
     description: str
     value: Optional[float]  # can be None if not applicable or on error
     error: Optional[str]    # fill with error message if applicable
+    version: Optional[str] = None
 
 
 class TextImagerResponse(BaseModel):
@@ -235,15 +251,25 @@ def cm_dessld(paragraphs: List[Paragraph]) -> Optional[float]:
     # Sentence length, number of words, standard deviation
     return np.std([len(s.tokens) for p in paragraphs for s in p.sentences])
 
-def cm_deswlsy(paragraphs: List[Paragraph]) -> Optional[float]:
-    # Word length, number of syllables, mean
-    # TODO
-    return None
+pyphens = {
+    "en": pyphen.Pyphen(lang='en'),
+    "de": pyphen.Pyphen(lang='de'),
+}
 
-def cm_deswlsyd(paragraphs: List[Paragraph]) -> Optional[float]:
+def _syllables_count(tokens: List[Token], lang: str) -> List[int]:
+    syllables_counts = [
+        len(pyphens[lang].positions(token.text))+1
+        for token in tokens
+    ]
+    return syllables_counts
+
+def cm_deswlsy(tokens: List[Token], lang: str) -> Optional[float]:
+    # Word length, number of syllables, mean
+    return np.mean(_syllables_count(tokens, lang))
+
+def cm_deswlsyd(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, standard deviation
-    # TODO
-    return None
+    return np.std(_syllables_count(tokens, lang))
 
 def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
     # Word length, number of letters, mean
@@ -515,6 +541,732 @@ def cm_synmedlem(tokens: List[Token]) -> Optional[float]:
 
     return np.mean(lemma_dists)
 
+def _compute_tree_similarity(nodes1, nodes2):
+    common = nodes1 & nodes2
+    total = len(nodes1) + len(nodes2) - len(common)
+    return len(common) / total if total else 0.0
+
+def _get_tree_nodes(deps, poses, puncts):
+    # Each node is a tuple of dependency + POS tag
+    nodes = set()
+    for token_pos, token_deps, token_punct in zip(poses, deps, puncts):
+        if not token_punct:
+            nodes.add((token_deps, token_pos))
+    return nodes
+
+def cm_synstruta(sentences: List[Sentence]) -> Optional[float]:
+    poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
+    puncts = [[token.is_punct for token in sent.tokens] for sent in sentences]
+
+    similarities = []
+    for i in range(len(deps) - 1):
+        sim = _compute_tree_similarity(
+            _get_tree_nodes(deps[i], poses[i], puncts[i]),
+            _get_tree_nodes(deps[i + 1], poses[i + 1], puncts[i + 1])
+        )
+        similarities.append(sim)
+
+    return np.mean(similarities) if similarities else 0.0
+
+def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
+    poses_paragraph = []
+    deps_paragraph = []
+    puncts_paragraph = []
+    for par in paragraphs:
+        poses_sent = []
+        deps_sent = []
+        puncts_sent = []
+        for sent in par.sentences:
+            poses_sent.append([token.pos_coarse for token in sent.tokens])
+            deps_sent.append([token.dep_type for token in sent.tokens])
+            puncts_sent.append([token.is_punct for token in sent.tokens])
+        poses_paragraph.append(poses_sent)
+        deps_paragraph.append(deps_sent)
+        puncts_paragraph.append(puncts_sent)
+
+    similarities = []
+    for s1, s2 in combinations(range(len(deps_paragraph) - 1), 2):
+        sim = _compute_tree_similarity(
+            _get_tree_nodes(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
+            _get_tree_nodes(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
+        )
+        similarities.append(sim)
+
+    return np.mean(similarities) if similarities else 0.0
+
+def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Dict[str, int]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    tags = [[token.pos_value for token in sent.tokens] for sent in sentences]
+    deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
+    puncts = [[token.is_punct for token in sent.tokens] for sent in sentences]
+
+    count_metrics_dict = {
+        "total_tokens": 0,
+        "total_sentences": 0,
+        "noun_phrase_count": 0,
+        "verb_count": 0,
+        "adverb_count": 0,
+        "prep_count": 0,
+        "passive_sentences": 0,
+        "neg_count": 0,
+        "gerund_count": 0,
+        "infinitive_count": 0
+    }
+
+    count_metrics_dict["noun_phrase_count"] = len(noun_chunks)
+
+    for c, tokens in enumerate(token_pos):
+        aux = False
+        for j, token_pos_i in enumerate(tokens):
+            match token_pos_i:
+                case "VERB":
+                    count_metrics_dict["verb_count"] += 1
+                case "ADV":
+                    count_metrics_dict["adverb_count"] += 1
+                case "ADP":
+                    count_metrics_dict["prep_count"] += 1
+            word_i = words[c][j]
+            tag_i = tags[c][j]
+            dep_i = deps[c][j]
+            if dep_i == "AUXPASS":
+                aux = True
+            if dep_i == "NEG":
+                count_metrics_dict["neg_count"] += 1
+            if tag_i == "VBG":
+                count_metrics_dict["gerund_count"] += 1
+            if 0 < j < len(tokens) - 1:
+                # TODO DE?
+                if word_i.lower() == "to" and tags[c][j+1] == "VB" and token_pos[c][j+1] == "VERB":
+                    count_metrics_dict["infinitive_count"] += 1
+        if aux:
+            count_metrics_dict["passive_sentences"] += 1
+
+    # iterate over puncts count falses
+    count_metrics_dict["total_tokens"] = len([token for sublist in puncts for token in sublist if not token])
+    count_metrics_dict["total_sentences"] = len(token_pos)
+
+    return count_metrics_dict
+
+def cm_drnp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["noun_phrase_count"] / total_tokens if total_tokens else 0
+
+def cm_drvp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["verb_count"] / total_tokens if total_tokens else 0
+
+def cm_drap(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["adverb_count"] / total_tokens if total_tokens else 0
+
+def cm_drpp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["prep_count"] / total_tokens if total_tokens else 0
+
+def cm_drpval(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_sentences = metrics_dict["total_sentences"]
+    return metrics_dict["passive_sentences"] / total_sentences if total_sentences else 0
+
+def cm_drneg(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["neg_count"] / total_tokens if total_tokens else 0
+
+def cm_drgerund(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["gerund_count"] / total_tokens if total_tokens else 0
+
+def cm_drinf(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+    metrics_dict = _count_metrics(sentences, noun_chunks)
+    total_tokens = metrics_dict["total_tokens"]
+    return metrics_dict["infinitive_count"] / total_tokens if total_tokens else 0
+
+def _incidence(count, total_words):
+    # Calculate incidence per 1000 words
+    return (count / total_words) * 1000 if total_words > 0 else 0
+
+def _count_words(poses: List[List[str]], words: List[List[str]], pronouns_category) -> Dict[str, int]:
+    total_words  = 0
+    for sent in words:
+        for word in sent:
+            if word.isalpha():
+                total_words += 1
+    counters = {
+        "noun": 0,
+        "verb": 0,
+        "adj": 0,
+        "adv": 0,
+        "pronoun_total": 0,
+        "prp1s": 0,  # first-person singular pronouns
+        "prp1p": 0,  # first-person plural pronouns
+        "prp2": 0,  # second-person pronouns
+        "prp3s": 0,  # third-person singular pronouns
+        "prp3p": 0  # third-person plural pronouns
+    }
+    for i, sent in enumerate(poses):
+        for j, pos in enumerate(sent):
+            word_i = words[i][j].lower()
+            match pos:
+                case "NOUN":
+                    counters["noun"] += 1
+                case "VERB":
+                    counters["verb"] += 1
+                case "ADJ":
+                    counters["adj"] += 1
+                case "ADV":
+                    counters["adv"] += 1
+                case "PRON":
+                    counters["pronoun_total"] += 1
+                    if "prp1s" in pronouns_category:
+                        if word_i in pronouns_category["prp1s"]:
+                            counters["prp1s"] += 1
+                    if "prp1p" in pronouns_category:
+                        if word_i in pronouns_category["prp1p"]:
+                            counters["prp1p"] += 1
+                    if "prp2" in pronouns_category:
+                        if word_i in pronouns_category["prp2"]:
+                            counters["prp2"] += 1
+                    if "prp3s" in pronouns_category:
+                        if word_i in pronouns_category["prp3s"]:
+                            counters["prp3s"] += 1
+                    if "prp3p" in pronouns_category:
+                        if word_i in pronouns_category["prp3p"]:
+                            counters["prp3p"] += 1
+    counter_1000 = {
+        "noun": 0,
+        "verb": 0,
+        "adj": 0,
+        "adv": 0,
+        "pronoun_total": 0,
+        "prp1s": 0,  # first-person singular pronouns
+        "prp1p": 0,  # first-person plural pronouns
+        "prp2": 0,  # second-person pronouns
+        "prp3s": 0,  # third-person singular pronouns
+        "prp3p": 0   # third-person plural pronouns
+    }
+    for key in counters:
+        counter_1000[key] = _incidence(counters[key], total_words)
+    return counter_1000
+
+def _get_morhological_features(poses: List[List[str]], words: List[List[str]], morph_Person, morph_Number) -> defaultdict[Any, set]:
+    pronouns_by_category = defaultdict(set)
+    for i, sent in enumerate(poses):
+        for  j, pos in enumerate(sent):
+            if pos != "PRON":
+                continue
+            person = morph_Person[i][j]
+            number = morph_Number[i][j]
+
+            person = person[0] if person else "Unknown"
+            number = number[0] if number else "Unknown"
+            if person == "2":
+                key = "prp2"
+            else:
+                key = f"prp{person.lower()}{'s' if number == 'Sing' else 'p'}"
+            pronouns_by_category[key].add(words[i][j].lower())
+
+    return pronouns_by_category
+
+def cm_wrdnoun(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["noun"]
+
+def cm_wrdverb(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["verb"]
+
+def cm_wrdadj(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["adj"]
+
+def cm_wrdadv(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["adv"]
+
+def cm_wrdpro(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["pronoun_total"]
+
+def cm_wrdprp1s(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["prp1s"]
+
+def cm_wrdprp1p(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["prp1p"]
+
+def cm_wrdprp2(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["prp2"]
+
+def cm_wrdprp3s(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["prp3s"]
+
+def cm_wrdprp3p(sentences: List[Sentence]) -> Optional[float]:
+    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
+    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
+
+    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
+    counts = _count_words(token_pos, words, pronouns_by_category)
+    return counts["prp3p"]
+
+def _load_mrc_database():
+    filepath = "src/main/resources/mrc_psycholinguistic_database.csv"
+    mrc_dict = {}
+    with open(filepath, 'r', encoding='utf-8') as file:
+        reader = csv.DictReader(file, delimiter=',')
+        for row in reader:
+            word = row['Word'].lower()
+            meaningful_colorado = int(row['Meaningfulness: Coloradao Norms']) if row['Meaningfulness: Coloradao Norms'] else None
+            meaningful_pavio = int(row['Meaningfulness: Pavio Norms']) if row[
+                'Meaningfulness: Pavio Norms'] else None
+            meaningful = None
+            if meaningful_colorado is not None and meaningful_pavio is not None:
+                meaningful = meaningful_colorado + meaningful_pavio
+            elif meaningful_colorado is not None:
+                meaningful = meaningful_colorado
+            elif meaningful_pavio is not None:
+                meaningful = meaningful_pavio
+            mrc_dict[word] = {
+                'AoA': int(row['Age of Acquisition Rating']) if row['Age of Acquisition Rating'] else None,
+                'Familiarity': int(row['Familiarity']) if row['Familiarity'] else None,
+                'Concreteness': int(row['Concreteness']) if row['Concreteness'] else None,
+                'Imageability': int(row['Imageability']) if row['Imageability'] else None,
+                'Meaningfulness': meaningful
+            }
+    return mrc_dict
+
+mrc_dict = _load_mrc_database()
+
+def _get_content_words(sentences: List[Sentence]):
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+
+    words_flatten = [word for sublist in words for word in sublist]
+    poses_flatten = [pos for sublist in poses for pos in sublist]
+
+    content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
+
+    content_words = [
+        word.lower()
+        for word, pos
+        in zip(words_flatten, poses_flatten)
+        if pos in content_pos and word.isalpha()
+    ]
+
+    return content_words, words, poses
+
+def _average_rating(words, mrc_dict, key):
+    ratings = [
+        mrc_dict[w][key]
+        for w
+        in words
+        if w in mrc_dict and mrc_dict[w][key] is not None
+    ]
+    if not ratings:
+        return None
+    return sum(ratings) / len(ratings)
+
+def cm_wrdaoac(sentences: List[Sentence]) -> Optional[float]:
+    content_words, _, _ = _get_content_words(sentences)
+    if not content_words:
+        return None
+    return _average_rating(content_words, mrc_dict, 'AoA')
+
+def cm_wrdfamc(sentences: List[Sentence]) -> Optional[float]:
+    content_words, _, _ = _get_content_words(sentences)
+    if not content_words:
+        return None
+    return _average_rating(content_words, mrc_dict, 'Familiarity')
+
+def cm_wrdcncc(sentences: List[Sentence]) -> Optional[float]:
+    content_words, _, _ = _get_content_words(sentences)
+    if not content_words:
+        return None
+    return _average_rating(content_words, mrc_dict, 'Concreteness')
+
+def cm_wrdimgc(sentences: List[Sentence]) -> Optional[float]:
+    content_words, _, _ = _get_content_words(sentences)
+    if not content_words:
+        return None
+    return _average_rating(content_words, mrc_dict, 'Imageability')
+
+def cm_wrdmeac(sentences: List[Sentence]) -> Optional[float]:
+    content_words, _, _ = _get_content_words(sentences)
+    if not content_words:
+        return None
+    return _average_rating(content_words, mrc_dict, 'Meaningfulness')
+
+def _get_polysemy(word):
+    synsets = wn.synsets(word)
+    return len(synsets)
+
+def _get_max_hypernym_depth(word, pos=None):
+    synsets = wn.synsets(word, pos=pos) if pos else wn.synsets(word)
+    if not synsets:
+        return None
+    depths = [synset.max_depth() for synset in synsets]
+    return max(depths)
+
+def cm_wrdpolc(sentences: List[Sentence]) -> Optional[float]:
+    polysemies = []
+
+    content_word, _, _ = _get_content_words(sentences)
+    for word in content_word:
+        poly = _get_polysemy(word)
+        if poly > 0:
+            polysemies.append(poly)
+
+    return np.mean(polysemies) if polysemies else None
+
+def _calc_wrdhyp(sentences: List[Sentence]) -> Dict[str, Optional[float]]:
+    hypernym_nouns = []
+    hypernym_verbs = []
+
+    content_word, words, poses = _get_content_words(sentences)
+    set_content_word = set(content_word)
+    for i, sent in enumerate(words):
+        for j, word in enumerate(sent):
+            pos = poses[i][j]
+            if word.lower() in set_content_word and (pos=="NOUN" or pos=="VERB"):
+                pos_in = None
+                if pos == "NOUN":
+                    pos_in = wn.NOUN
+                elif pos == "VERB":
+                    pos_in = wn.VERB
+                hyp = _get_max_hypernym_depth(word.lower(), pos=pos_in)
+                if hyp is not None:
+                    if pos == "NOUN":
+                        hypernym_nouns.append(hyp)
+                    elif pos == "VERB":
+                        hypernym_verbs.append(hyp)
+
+    # Average hypernymy for nouns and verbs separately
+    hypn_avg = sum(hypernym_nouns) / len(hypernym_nouns) if hypernym_nouns else None
+    hypv_avg = sum(hypernym_verbs) / len(hypernym_verbs) if hypernym_verbs else None
+    # Combined hypernymy average
+    combined = hypernym_nouns + hypernym_verbs
+    hypnv_avg = sum(combined) / len(combined) if combined else None
+
+    return {
+        "WRDHYPn": hypn_avg,
+        "WRDHYPv": hypv_avg,
+        "WRDHYPnv": hypnv_avg
+    }
+
+def cm_wrdhypn(sentences: List[Sentence]) -> Optional[float]:
+    return _calc_wrdhyp(sentences)["WRDHYPn"]
+
+def cm_wrdhypv(sentences: List[Sentence]) -> Optional[float]:
+    return _calc_wrdhyp(sentences)["WRDHYPv"]
+
+def cm_wrdhypnv(sentences: List[Sentence]) -> Optional[float]:
+    return _calc_wrdhyp(sentences)["WRDHYPnv"]
+
+# List has been generated by ChatGPT 4o based on the Coh-Metrix index definitions
+connectives_list = {
+    "Causal": {
+        "en": {"because", "since", "so", "therefore", "thus", "as", "due to", "consequently", "hence"},
+        "de": {"weil", "da", "denn", "also", "deshalb", "daher", "somit", "folglich", "aus", "wegen"}
+    },
+    "Logical": {
+        "en": {"and", "or", "either", "neither", "not only", "but also"},
+        "de": {"und", "oder", "entweder", "weder", "nicht nur", "sondern auch"}
+    },
+    "Adversative": {
+        "en": {"although", "though", "whereas", "while", "however", "nevertheless", "but", "on the other hand"},
+        "de": {"obwohl", "während", "hingegen", "jedoch", "trotzdem", "aber", "andererseits"}
+    },
+    "Temporal": {
+        "en": {"when", "before", "after", "until", "since", "as soon as"},
+        "de": {"wenn", "bevor", "nachdem", "bis", "seit", "sobald"}
+    },
+    "Expanded": {
+        "en": {"at first", "eventually", "finally", "meanwhile", "in the meantime", "subsequently", "thereafter"},
+        "de": {"zuerst", "schließlich", "endlich", "mittlerweile", "inzwischen", "anschließend", "danach"}
+    },
+    "Additive": {
+        "en": {"and", "also", "in addition", "moreover", "furthermore", "besides"},
+        "de": {"und", "auch", "außerdem", "zudem", "darüber hinaus", "ferner"}
+    },
+    "Positive": {
+        "en": {"also", "moreover", "likewise", "similarly", "in addition"},
+        "de": {"auch", "ebenso", "außerdem", "ebenso wie", "darüber hinaus"}
+    },
+    "Negative": {
+        "en": {"however", "but", "on the contrary", "yet", "although", "nevertheless"},
+        "de": {"jedoch", "aber", "hingegen", "dennoch", "obwohl", "trotzdem"}
+    }
+}
+
+all_connectives_list = {
+    "en": set(),
+    "de": set()
+}
+for category, connectives in connectives_list.items():
+    for lang, words in connectives.items():
+        all_connectives_list[lang].update(words)
+
+def _count_connectives_in_doc(text: str, connectives_set) -> int:
+    # Count occurrences of any connective in the text (single or multiword)
+    count = 0
+    for conn in connectives_set:
+        count += text.count(conn)
+    return count
+
+def _count_connectives(text: str, lang: str, total_words: int) -> Dict[str, float]:
+    count_list = {
+        "CNCAll": _count_connectives_in_doc(text, all_connectives_list[lang]),
+        "CNCCaus": _count_connectives_in_doc(text, connectives_list["Causal"][lang]),
+        "CNCLogic": _count_connectives_in_doc(text, connectives_list["Logical"][lang]),
+        "CNCADC": _count_connectives_in_doc(text, connectives_list["Adversative"][lang]),
+        "CNCTemp": _count_connectives_in_doc(text, connectives_list["Temporal"][lang]),
+        "CNCTempX": _count_connectives_in_doc(text, connectives_list["Expanded"][lang]),
+        "CNCAdd": _count_connectives_in_doc(text, connectives_list["Additive"][lang]),
+        "CNCPos": _count_connectives_in_doc(text, connectives_list["Positive"][lang]),
+        "CNCNeg": _count_connectives_in_doc(text, connectives_list["Negative"][lang])
+    }
+    count_list_per_1000_words = {k: (v / total_words * 1000) if total_words > 0 else 0 for k, v in count_list.items()}
+    return count_list_per_1000_words
+
+def cm_cncall(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCAll"]
+
+def cm_cnccaus(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCCaus"]
+
+def cm_cnclogic(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCLogic"]
+
+def cm_cncadc(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCADC"]
+
+def cm_cnctemp(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCTemp"]
+
+def cm_cnctempx(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCTempX"]
+
+def cm_cncadd(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCAdd"]
+
+def cm_cncpos(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCPos"]
+
+def cm_cncneg(text: str, lang: str, tokens_count: int) -> Optional[float]:
+    return _count_connectives(text, lang, tokens_count)["CNCNeg"]
+
+def _get_paragraph_token_vectors(paragraphs: List[Paragraph]) -> Tuple[List[List[List[List[float]]]], List[List[List[str]]]]:
+    token_vectors = []
+    token_words = []
+    for p in paragraphs:
+        vectors = []
+        words = []
+        for s in p.sentences:
+            vectors.append([
+                token.vector if token.has_vector else None
+                for token in s.tokens
+            ])
+            words.append([token.text for token in s.tokens])
+        token_vectors.append(vectors)
+        token_words.append(words)
+    return token_vectors, token_words
+
+def _sentence_vector(token_has_vector, words, tokens_vector_length: int):
+    vectors = []
+    for j, word in enumerate(words):
+        vector_i = token_has_vector[j]
+        if word.isalpha() and vector_i is not None:
+            vectors.append(vector_i)
+    if vectors:
+        return np.mean(vectors, axis=0)
+    else:
+        return np.zeros(tokens_vector_length)
+
+def _reduce_dimensionality(vectors, n_components=100):
+    if vectors.shape[0] == 0:
+        return vectors
+    svd = TruncatedSVD(n_components=min(n_components, vectors.shape[1]-1))
+    reduced = svd.fit_transform(vectors)
+    return reduced
+
+def _project_onto_hyperplane(v, basis):
+    if basis.shape[0] == 0:
+        return np.zeros_like(v), v
+    Q, _ = np.linalg.qr(basis.T)
+    p = Q @ (Q.T @ v)
+    return p, v - p
+
+def _lsa_given_new_for_vectors(vectors):
+    results = []
+    for i in range(len(vectors)):
+        current_vec = vectors[i]
+        if i == 0:
+            G = 0
+            N = np.linalg.norm(current_vec)
+        else:
+            basis = vectors[:i]
+            p, perp = _project_onto_hyperplane(current_vec, basis)
+            G = np.linalg.norm(p)
+            N = np.linalg.norm(perp)
+        given_new_ratio = G / (G + N) if (G + N) > 0 else 0
+        results.append(given_new_ratio)
+    return np.array(results)
+
+def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float]]]], words: List[List[List[str]]], tokens_vector_length: int, n_components) -> Dict[str, Any]:
+    all_sentences = []
+    sentence_vectors = []
+    paragraph_vectors = []
+    sentences_per_paragraph = []
+    for c, para in enumerate(vec_per_paragraph_sentences):
+        sentences_per_paragraph.append(len(para))
+        all_sentences.extend(para)
+        sent_vecs = np.array([_sentence_vector(sent, sent_words, tokens_vector_length) for sent, sent_words in zip(para, words[c]) if sent])
+        sentence_vectors.append(sent_vecs)
+        # paragraph vector = mean of sentence vectors
+        if len(sent_vecs) > 0:
+            paragraph_vectors.append(np.mean(sent_vecs, axis=0))
+        else:
+            paragraph_vectors.append(np.zeros(tokens_vector_length))
+
+    # Concatenate all sentence vectors
+    sentence_vectors_all = np.vstack(sentence_vectors) if sentence_vectors else np.empty((0, tokens_vector_length))
+    paragraph_vectors = np.array(paragraph_vectors)
+
+    # Reduce dimensionality (LSA)
+    sentence_vectors_reduced = _reduce_dimensionality(sentence_vectors_all, n_components)
+    paragraph_vectors_reduced = _reduce_dimensionality(paragraph_vectors, n_components)
+
+    # --- LSA similarity between adjacent sentences ---
+    adj_sent_sim = []
+    for i in range(len(sentence_vectors_reduced) - 1):
+        sim = cosine_similarity([sentence_vectors_reduced[i]], [sentence_vectors_reduced[i + 1]])[0][0]
+        adj_sent_sim.append(sim)
+    adj_sent_sim = np.array(adj_sent_sim)
+
+    # --- LSA similarity between all sentence pairs in paragraphs ---
+    all_sent_pairs_sim = []
+    idx = 0
+    for count in sentences_per_paragraph:
+        if count > 1:
+            sent_vecs = sentence_vectors_reduced[idx:idx + count]
+            sim_matrix = cosine_similarity(sent_vecs)
+            # Take upper triangle excluding diagonal
+            triu_indices = np.triu_indices(count, k=1)
+            sims = sim_matrix[triu_indices]
+            all_sent_pairs_sim.extend(sims)
+        idx += count
+    all_sent_pairs_sim = np.array(all_sent_pairs_sim)
+
+    # --- LSA similarity between adjacent paragraphs ---
+    adj_para_sim = []
+    for i in range(len(paragraph_vectors_reduced) - 1):
+        sim = cosine_similarity([paragraph_vectors_reduced[i]], [paragraph_vectors_reduced[i + 1]])[0][0]
+        adj_para_sim.append(sim)
+    adj_para_sim = np.array(adj_para_sim)
+
+    given_new_ratios = _lsa_given_new_for_vectors(sentence_vectors_reduced)
+
+    return {
+        'LSASS1': np.mean(adj_sent_sim) if adj_sent_sim.size > 0 else np.nan,
+        'LSASS1d': np.std(adj_sent_sim) if adj_sent_sim.size > 0 else np.nan,
+        'LSASSp': np.mean(all_sent_pairs_sim) if all_sent_pairs_sim.size > 0 else np.nan,
+        'LSASSpd': np.std(all_sent_pairs_sim) if all_sent_pairs_sim.size > 0 else np.nan,
+        'LSAPP1': np.mean(adj_para_sim) if adj_para_sim.size > 0 else np.nan,
+        'LSAPP1d': np.std(adj_para_sim) if adj_para_sim.size > 0 else np.nan,
+        'LSAGN': np.mean(given_new_ratios) if given_new_ratios.size > 0 else np.nan,
+        'LSAGNd': np.std(given_new_ratios) if given_new_ratios.size > 0 else np.nan,
+    }
+
+def cm_lsass1(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSASS1"]
+
+def cm_lsass1d(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSASS1d"]
+
+def cm_lsassp(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSASSp"]
+
+def cm_lsasspd(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSASSpd"]
+
+def cm_lsapp1(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSAPP1"]
+
+def cm_lsapp1d(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSAPP1d"]
+
+def cm_lsagn(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSAGN"]
+
+def cm_lsagnd(lsa_indices: Dict[str, Any]) -> Optional[float]:
+    return lsa_indices["LSAGNd"]
+
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
@@ -531,6 +1283,13 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         tokens = []
         for s in sentences:
             tokens.extend(s.tokens)
+        tokens_count = len(tokens)
+
+        tokens_vector_length = 0
+        for t in tokens:
+            if t.has_vector:
+                tokens_vector_length = len(t.vector)
+                break
 
         ### Descriptive
 
@@ -662,7 +1421,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DESWLsy
         try:
-            deswlsy = cm_deswlsy(request.paragraphs)
+            deswlsy = cm_deswlsy(tokens, request.language)
             deswlsy_error = None
         except Exception as e:
             logger.error("Error calculating DESWLsy: %s", e)
@@ -680,7 +1439,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DESWLsyd
         try:
-            deswlsyd = cm_deswlsyd(request.paragraphs)
+            deswlsyd = cm_deswlsyd(tokens, request.language)
             deswlsyd_error = None
         except Exception as e:
             logger.error("Error calculating DESWLsyd: %s", e)
@@ -1222,18 +1981,28 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         ### Lexical Diversity
 
+        try:
+            lsa_n_components = 100
+            token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
+            lsa_indices = _lsa_cohesion_indices(token_vectors, token_words, lsa_n_components, tokens_vector_length)
+            lsa_error = None
+        except Exception as e:
+            logger.error("Error calculating LSA: %s", e)
+            lsa_indices = None
+            lsa_error = str(e)
+
         # LSASS1
         try:
-            #lsass1 = cm_lsass1(sentences)
-            lsass1 = None
+            lsass1 = cm_lsass1(lsa_indices)
             lsass1_error = None
         except Exception as e:
             logger.error("Error calculating LSASS1: %s", e)
             lsass1 = None
-            lsass1_error = str(e)
+            lsass1_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=38,
             type_name="LSA",
+            label_ttlab="LSASS1_spacy",
             label_v3="LSASS1",
             label_v2="LSAassa",
             description="LSA overlap, adjacent sentences, mean",
@@ -1243,16 +2012,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSASS1d
         try:
-            #lsass1d = cm_lsass1d(sentences)
-            lsass1d = None
+            lsass1d = cm_lsass1d(lsa_indices)
             lsass1d_error = None
         except Exception as e:
             logger.error("Error calculating LSASS1d: %s", e)
             lsass1d = None
-            lsass1d_error = str(e)
+            lsass1d_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=39,
             type_name="LSA",
+            label_ttlab="LSASS1d_spacy",
             label_v3="LSASS1d",
             label_v2="LSAassd",
             description="LSA overlap, adjacent sentences, standard deviation",
@@ -1262,16 +2031,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSASSp
         try:
-            #lsassp = cm_lsassp(sentences)
-            lsassp = None
+            lsassp = cm_lsassp(lsa_indices)
             lsassp_error = None
         except Exception as e:
             logger.error("Error calculating LSASSp: %s", e)
             lsassp = None
-            lsassp_error = str(e)
+            lsassp_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=40,
             type_name="LSA",
+            label_ttlab="LSASSp_spacy",
             label_v3="LSASSp",
             label_v2="LSApssa",
             description="LSA overlap, all sentences in paragraph, mean",
@@ -1281,16 +2050,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSASSpd
         try:
-            #lsasspd = cm_lsasspd(sentences)
-            lsasspd = None
+            lsasspd = cm_lsasspd(lsa_indices)
             lsasspd_error = None
         except Exception as e:
             logger.error("Error calculating LSASSpd: %s", e)
             lsasspd = None
-            lsasspd_error = str(e)
+            lsasspd_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=41,
             type_name="LSA",
+            label_ttlab="LSASSpd_spacy",
             label_v3="LSASSpd",
             label_v2="LSApssd",
             description="LSA overlap, all sentences in paragraph, standard deviation",
@@ -1300,16 +2069,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSAPP1
         try:
-            #lsapp1 = cm_lsapp1(sentences)
-            lsapp1 = None
+            lsapp1 = cm_lsapp1(lsa_indices)
             lsapp1_error = None
         except Exception as e:
             logger.error("Error calculating LSAPP1: %s", e)
             lsapp1 = None
-            lsapp1_error = str(e)
+            lsapp1_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=42,
             type_name="LSA",
+            label_ttlab="LSAPP1_spacy",
             label_v3="LSAPP1",
             label_v2="LSAppa",
             description="LSA overlap, adjacent paragraphs, mean",
@@ -1319,16 +2088,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSAPP1d
         try:
-            #lsapp1d = cm_lsapp1d(sentences)
-            lsapp1d = None
+            lsapp1d = cm_lsapp1d(lsa_indices)
             lsapp1d_error = None
         except Exception as e:
             logger.error("Error calculating LSAPP1d: %s", e)
             lsapp1d = None
-            lsapp1d_error = str(e)
+            lsapp1d_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=43,
             type_name="LSA",
+            label_ttlab="LSAPP1d_spacy",
             label_v3="LSAPP1d",
             label_v2="LSAppd",
             description="LSA overlap, adjacent paragraphs, standard deviation",
@@ -1338,16 +2107,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSAGN
         try:
-            #lsagn = cm_lsagn(sentences)
-            lsagn = None
+            lsagn = cm_lsagn(lsa_indices)
             lsagn_error = None
         except Exception as e:
             logger.error("Error calculating LSAGN: %s", e)
             lsagn = None
-            lsagn_error = str(e)
+            lsagn_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=44,
             type_name="LSA",
+            label_ttlab="LSAGN_spacy",
             label_v3="LSAGN",
             label_v2="LSAGN",
             description="LSA given/new, sentences, mean",
@@ -1357,16 +2126,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # LSAGNd
         try:
-            #lsagnd = cm_lsagnd(sentences)
-            lsagnd = None
+            lsagnd = cm_lsagnd(lsa_indices)
             lsagnd_error = None
         except Exception as e:
             logger.error("Error calculating LSAGNd: %s", e)
             lsagnd = None
-            lsagnd_error = str(e)
+            lsagnd_error = lsa_error + "\n" + str(e)
         indices.append(Index(
             index=45,
             type_name="LSA",
+            label_ttlab="LSAGNd_spacy",
             label_v3="LSAGNd",
             label_v2="n/a",
             description="LSA given/new, sentences, standard deviation",
@@ -1452,8 +2221,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCAll
         try:
-            #cncall = cm_cncall(sentences)
-            cncall = None
+            cncall = cm_cncall(request.text, request.language, tokens_count)
             cncall_error = None
         except Exception as e:
             logger.error("Error calculating CNCAll: %s", e)
@@ -1471,8 +2239,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCCaus
         try:
-            #cnccaus = cm_cnccaus(sentences)
-            cnccaus = None
+            cnccaus = cm_cnccaus(request.text, request.language, tokens_count)
             cnccaus_error = None
         except Exception as e:
             logger.error("Error calculating CNCCaus: %s", e)
@@ -1490,8 +2257,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCLogic
         try:
-            #cnclogic = cm_cnclogic(sentences)
-            cnclogic = None
+            cnclogic = cm_cnclogic(request.text, request.language, tokens_count)
             cnclogic_error = None
         except Exception as e:
             logger.error("Error calculating CNCLogic: %s", e)
@@ -1509,8 +2275,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCADC
         try:
-            #cncadc = cm_cncadc(sentences)
-            cncadc = None
+            cncadc = cm_cncadc(request.text, request.language, tokens_count)
             cncadc_error = None
         except Exception as e:
             logger.error("Error calculating CNCADC: %s", e)
@@ -1528,8 +2293,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCTemp
         try:
-            #cnctemp = cm_cnctemp(sentences)
-            cnctemp = None
+            cnctemp = cm_cnctemp(request.text, request.language, tokens_count)
             cnctemp_error = None
         except Exception as e:
             logger.error("Error calculating CNCTemp: %s", e)
@@ -1547,8 +2311,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCTempx
         try:
-            #cnctempx = cm_cnctempx(sentences)
-            cnctempx = None
+            cnctempx = cm_cnctempx(request.text, request.language, tokens_count)
             cnctempx_error = None
         except Exception as e:
             logger.error("Error calculating CNCTempx: %s", e)
@@ -1566,8 +2329,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCAdd
         try:
-            #cncadd = cm_cncadd(sentences)
-            cncadd = None
+            cncadd = cm_cncadd(request.text, request.language, tokens_count)
             cncadd_error = None
         except Exception as e:
             logger.error("Error calculating CNCAdd: %s", e)
@@ -1585,8 +2347,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCPos
         try:
-            #cncpos = cm_cncpos(sentences)
-            cncpos = None
+            cncpos = cm_cncpos(request.text, request.language, tokens_count)
             cncpos_error = None
         except Exception as e:
             logger.error("Error calculating CNCPos: %s", e)
@@ -1604,8 +2365,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCNeg
         try:
-            #cncneg = cm_cncneg(sentences)
-            cncneg = None
+            cncneg = cm_cncneg(request.text, request.language, tokens_count)
             cncneg_error = None
         except Exception as e:
             logger.error("Error calculating CNCNeg: %s", e)
@@ -1869,8 +2629,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNSTRUTa
         try:
-            #synstruta = cm_synstruta(sentences)
-            synstruta = None
+            synstruta = cm_synstruta(sentences)
             synstruta_error = None
         except Exception as e:
             logger.error("Error calculating SYNSTRUTa: %s", e)
@@ -1888,8 +2647,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNSTRUTt
         try:
-            #synstrutt = cm_synstrutt(sentences)
-            synstrutt = None
+            synstrutt = cm_synstrutt(request.paragraphs)
             synstrutt_error = None
         except Exception as e:
             logger.error("Error calculating SYNSTRUTt: %s", e)
@@ -1909,8 +2667,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRNP
         try:
-            #drnp = cm_drnp(sentences)
-            drnp = None
+            drnp = cm_drnp(sentences, request.noun_chunks)
             drnp_error = None
         except Exception as e:
             logger.error("Error calculating DRNP: %s", e)
@@ -1928,8 +2685,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRVP
         try:
-            #drvp = cm_drvp(sentences)
-            drvp = None
+            drvp = cm_drvp(sentences, request.noun_chunks)
             drvp_error = None
         except Exception as e:
             logger.error("Error calculating DRVP: %s", e)
@@ -1947,8 +2703,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRAP
         try:
-            #drap = cm_drap(sentences)
-            drap = None
+            drap = cm_drap(sentences, request.noun_chunks)
             drap_error = None
         except Exception as e:
             logger.error("Error calculating DRAP: %s", e)
@@ -1966,8 +2721,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRPP
         try:
-            #drpp = cm_drpp(sentences)
-            drpp = None
+            drpp = cm_drpp(sentences, request.noun_chunks)
             drpp_error = None
         except Exception as e:
             logger.error("Error calculating DRPP: %s", e)
@@ -1985,8 +2739,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRPVAL
         try:
-            #drpval = cm_drpval(sentences)
-            drpval = None
+            drpval = cm_drpval(sentences, request.noun_chunks)
             drpval_error = None
         except Exception as e:
             logger.error("Error calculating DRPVAL: %s", e)
@@ -2004,8 +2757,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRNEG
         try:
-            #drneg = cm_drneg(sentences)
-            drneg = None
+            drneg = cm_drneg(sentences, request.noun_chunks)
             drneg_error = None
         except Exception as e:
             logger.error("Error calculating DRNEG: %s", e)
@@ -2023,8 +2775,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRGERUND
         try:
-            #drgerund = cm_drgerund(sentences)
-            drgerund = None
+            drgerund = cm_drgerund(sentences, request.noun_chunks)
             drgerund_error = None
         except Exception as e:
             logger.error("Error calculating DRGERUND: %s", e)
@@ -2042,8 +2793,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRINF
         try:
-            #drinf = cm_drinf(sentences)
-            drinf = None
+            drinf = cm_drinf(sentences, request.noun_chunks)
             drinf_error = None
         except Exception as e:
             logger.error("Error calculating DRINF: %s", e)
@@ -2063,8 +2813,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDNOUN
         try:
-            #wrdnoun = cm_wrdnoun(sentences)
-            wrdnoun = None
+            wrdnoun = cm_wrdnoun(sentences)
             wrdnoun_error = None
         except Exception as e:
             logger.error("Error calculating WRDNOUN: %s", e)
@@ -2082,8 +2831,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDVERB
         try:
-            #wrdverb = cm_wrdverb(sentences)
-            wrdverb = None
+            wrdverb = cm_wrdverb(sentences)
             wrdverb_error = None
         except Exception as e:
             logger.error("Error calculating WRDVERB: %s", e)
@@ -2101,8 +2849,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDADJ
         try:
-            #wrdadj = cm_wrdadj(sentences)
-            wrdadj = None
+            wrdadj = cm_wrdadj(sentences)
             wrdadj_error = None
         except Exception as e:
             logger.error("Error calculating WRDADJ: %s", e)
@@ -2120,8 +2867,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDADV
         try:
-            #wrdadv = cm_wrdadv(sentences)
-            wrdadv = None
+            wrdadv = cm_wrdadv(sentences)
             wrdadv_error = None
         except Exception as e:
             logger.error("Error calculating WRDADV: %s", e)
@@ -2139,8 +2885,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRO
         try:
-            #wrdpro = cm_wrdpro(sentences)
-            wrdpro = None
+            wrdpro = cm_wrdpro(sentences)
             wrdpro_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRO: %s", e)
@@ -2158,8 +2903,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP1s
         try:
-            #wrdprp1s = cm_wrdprp1s(sentences)
-            wrdprp1s = None
+            wrdprp1s = cm_wrdprp1s(sentences)
             wrdprp1s_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP1s: %s", e)
@@ -2177,8 +2921,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP1p
         try:
-            #wrdprp1p = cm_wrdprp1p(sentences)
-            wrdprp1p = None
+            wrdprp1p = cm_wrdprp1p(sentences)
             wrdprp1p_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP1p: %s", e)
@@ -2196,8 +2939,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP2
         try:
-            #wrdprp2 = cm_wrdprp2(sentences)
-            wrdprp2 = None
+            wrdprp2 = cm_wrdprp2(sentences)
             wrdprp2_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP2: %s", e)
@@ -2215,8 +2957,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP3s
         try:
-            #wrdprp3s = cm_wrdprp3s(sentences)
-            wrdprp3s = None
+            wrdprp3s = cm_wrdprp3s(sentences)
             wrdprp3s_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP3s: %s", e)
@@ -2234,8 +2975,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP3p
         try:
-            #wrdprp3p = cm_wrdprp3p(sentences)
-            wrdprp3p = None
+            wrdprp3p = cm_wrdprp3p(sentences)
             wrdprp3p_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP3p: %s", e)
@@ -2310,8 +3050,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDAOAc
         try:
-            #wrdaoac = cm_wrdaoac(sentences)
-            wrdaoac = None
+            wrdaoac = cm_wrdaoac(sentences)
             wrdaoac_error = None
         except Exception as e:
             logger.error("Error calculating WRDAOAc: %s", e)
@@ -2329,8 +3068,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDFAMc
         try:
-            #wrdfamc = cm_wrdfamc(sentences)
-            wrdfamc = None
+            wrdfamc = cm_wrdfamc(sentences)
             wrdfamc_error = None
         except Exception as e:
             logger.error("Error calculating WRDFAMc: %s", e)
@@ -2348,8 +3086,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDCNCc
         try:
-            #wrdcncc = cm_wrdcncc(sentences)
-            wrdcncc = None
+            wrdcncc = cm_wrdcncc(sentences)
             wrdcncc_error = None
         except Exception as e:
             logger.error("Error calculating WRDCNCc: %s", e)
@@ -2367,8 +3104,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDIMGc
         try:
-            #wrdimgc = cm_wrdimgc(sentences)
-            wrdimgc = None
+            wrdimgc = cm_wrdimgc(sentences)
             wrdimgc_error = None
         except Exception as e:
             logger.error("Error calculating WRDIMGc: %s", e)
@@ -2386,8 +3122,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDMEAc
         try:
-            #wrdmeac = cm_wrdmeac(sentences)
-            wrdmeac = None
+            wrdmeac = cm_wrdmeac(sentences)
             wrdmeac_error = None
         except Exception as e:
             logger.error("Error calculating WRDMEAc: %s", e)
@@ -2405,8 +3140,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPOLc
         try:
-            #wrdpolc = cm_wrdpolc(sentences)
-            wrdpolc = None
+            wrdpolc = cm_wrdpolc(sentences)
             wrdpolc_error = None
         except Exception as e:
             logger.error("Error calculating WRDPOLc: %s", e)
@@ -2424,8 +3158,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDHYPn
         try:
-            #wrdhypn = cm_wrdhypn(sentences)
-            wrdhypn = None
+            wrdhypn = cm_wrdhypn(sentences)
             wrdhypn_error = None
         except Exception as e:
             logger.error("Error calculating WRDHYPn: %s", e)
@@ -2443,8 +3176,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDHYPv
         try:
-            #wrdhypv = cm_wrdhypv(sentences)
-            wrdhypv = None
+            wrdhypv = cm_wrdhypv(sentences)
             wrdhypv_error = None
         except Exception as e:
             logger.error("Error calculating WRDHYPv: %s", e)
@@ -2462,8 +3194,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDHYPnv
         try:
-            #wrdhypnv = cm_wrdhypnv(sentences)
-            wrdhypnv = None
+            wrdhypnv = cm_wrdhypnv(sentences)
             wrdhypnv_error = None
         except Exception as e:
             logger.error("Error calculating WRDHYPnv: %s", e)
@@ -2521,7 +3252,26 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # RDL2
         try:
-            #rdl2 = cm_rdl2(sentences)
+            # rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
+            rdl2 = None
+            rdl2_error = None
+        except Exception as e:
+            logger.error("Error calculating RDL2: %s", e)
+            rdl2 = None
+            rdl2_error = str(e)
+        indices.append(Index(
+            index=106,
+            type_name="Readability",
+            label_v3="RDL2",
+            label_v2="L2",
+            description="Coh-Metrix L2 Readability",
+            value=rdl2,
+            error=rdl2_error
+        ))
+
+        # RDL2
+        try:
+            # rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
             rdl2 = None
             rdl2_error = None
         except Exception as e:
@@ -2560,8 +3310,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     duration = int(time()) - modification_timestamp_seconds
     logger.info("Processed in %d seconds", duration)
 
-    return TextImagerResponse(
+    response = TextImagerResponse(
         indices=indices,
         meta=meta,
         modification_meta=modification_meta,
     )
+    print(response)
+    return response
