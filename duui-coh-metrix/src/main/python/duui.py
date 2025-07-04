@@ -922,6 +922,24 @@ def _get_content_words(sentences: List[Sentence]):
 
     return content_words, words, poses
 
+def _get_content_words_per_sentence(sentences: List[Sentence]):
+    words = [[token.text for token in sent.tokens] for sent in sentences]
+    poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
+
+    content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
+
+    content_words = []
+    for swords, sposes in zip(words, poses):
+        content_words_sent = [
+            word.lower()
+            for word, pos
+            in zip(swords, sposes)
+            if pos in content_pos and word.isalpha()
+        ]
+        content_words.append(content_words_sent)
+
+    return content_words, words, poses
+
 def _average_rating(words, mrc_dict, key):
     ratings = [
         mrc_dict[w][key]
@@ -1267,6 +1285,78 @@ def cm_lsagn(lsa_indices: Dict[str, Any]) -> Optional[float]:
 
 def cm_lsagnd(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAGNd"]
+
+def _load_word_frequencies(path: str, lowercase_words=True) -> Dict[str, int]:
+    word_freq = {}
+    with open(path, "r", encoding="utf-8") as file:
+        skipped_first_line = False
+        for line in file:
+            if not skipped_first_line:
+                skipped_first_line = True
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) == 2:
+                word, freq = parts
+                if lowercase_words:
+                    word = word.lower()
+                word_freq[word] = int(freq)
+    return word_freq
+
+all_word_frequencies_map = {
+    "en": {
+        "wiki-20220301-sample10000": _load_word_frequencies("src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv"),
+    },
+    "de": {
+        "wiki-20220301-sample10000": _load_word_frequencies("src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv"),
+    }
+}
+
+def cm_wrdfrqc(sentences: List[Sentence], lang: str, frequencies_source: str) -> Optional[float]:
+    word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
+    content_words, _, _ = _get_content_words(sentences)
+    word_frequencies = [
+        word_frequencies_map.get(word, 0)
+        for word in content_words
+    ]
+    return np.mean(word_frequencies) if word_frequencies else 0.0
+
+def cm_wrdfrqa(tokens: List[Token], lang: str, frequencies_source: str) -> Optional[float]:
+    word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
+    word_frequencies = [
+        word_frequencies_map.get(word.text, 0)
+        for word in tokens
+    ]
+    log_word_frequencies = [
+        np.log(freq + 1e-5)  # smoothing to avoid log(0)
+        for freq in word_frequencies
+    ]
+    return np.mean(log_word_frequencies) if log_word_frequencies else 0.0
+
+def cm_wrdfrqmc(sentences: List[Sentence], lang: str, frequencies_source: str) -> Optional[float]:
+    # CELEX Log minimum frequency for content words, mean
+    # -> across sentences
+    word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
+    content_words, _, _ = _get_content_words_per_sentence(sentences)
+    sentence_min_frequencies = []
+    for sentence in content_words:
+        word_frequencies = [
+            word_frequencies_map.get(word, 0)
+            for word in sentence
+        ]
+        log_word_frequencies = [
+            np.log(freq + 1e-5)  # smoothing to avoid log(0)
+            for freq in word_frequencies
+        ]
+        min_freq = np.min(log_word_frequencies)
+        sentence_min_frequencies.append(min_freq)
+    return np.mean(sentence_min_frequencies) if sentence_min_frequencies else 0.0
+
+def cm_rdl2(crfcwo1: float, synstrut: float, wrdfrqmc: float) -> Optional[float]:
+    l2 = -45.032 + (52.230 * crfcwo1) + (61.306 * synstrut) + (22.205 * wrdfrqmc)
+    return l2
 
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
@@ -2996,7 +3086,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDFRQc
         try:
-            #wrdfrqc = cm_wrdfrqc(sentences)
+            # wrdfrqc = cm_wrdfrqc(sentences, request.language, "celex")
             wrdfrqc = None
             wrdfrqc_error = None
         except Exception as e:
@@ -3015,7 +3105,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDFRQa
         try:
-            #wrdfrqa = cm_wrdfrqa(sentences)
+            # wrdfrqa = cm_wrdfrqa(tokens, request.language, "celex")
             wrdfrqa = None
             wrdfrqa_error = None
         except Exception as e:
@@ -3034,7 +3124,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDFRQmc
         try:
-            #wrdfrqmc = cm_wrdfrqmc(sentences)
+            # wrdfrqmc = cm_wrdfrqmc(sentences, request.language, "celex")
             wrdfrqmc = None
             wrdfrqmc_error = None
         except Exception as e:
@@ -3047,6 +3137,66 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDFRQmc",
             label_v2="FRCLmcsm",
             description="CELEX Log minimum frequency for content words, mean",
+            value=wrdfrqmc,
+            error=wrdfrqmc_error
+        ))
+
+        # WRDFRQc
+        try:
+            wrdfrqc = cm_wrdfrqc(sentences, request.language, "wiki-20220301-sample10000")
+            wrdfrqc_error = None
+        except Exception as e:
+            logger.error("Error calculating WRDFRQc_wiki10000: %s", e)
+            wrdfrqc = None
+            wrdfrqc_error = str(e)
+        indices.append(Index(
+            index=92,
+            type_name="Word Information",
+            label_ttlab="WRDFRQc_wiki10000",
+            label_v3="WRDFRQc",
+            label_v2="FRCLacwm",
+            description="Wikipedia word frequency for content words, mean",
+            version="wiki-20220301-sample10000",
+            value=wrdfrqc,
+            error=wrdfrqc_error
+        ))
+
+        # WRDFRQa
+        try:
+            wrdfrqa = cm_wrdfrqa(tokens, request.language, "wiki-20220301-sample10000")
+            wrdfrqa_error = None
+        except Exception as e:
+            logger.error("Error calculating WRDFRQa_wiki10000: %s", e)
+            wrdfrqa = None
+            wrdfrqa_error = str(e)
+        indices.append(Index(
+            index=93,
+            type_name="Word Information",
+            label_ttlab="WRDFRQa_wiki10000",
+            label_v3="WRDFRQa",
+            label_v2="FRCLaewm",
+            description="Wikipedia Log frequency for all words, mean",
+            version="wiki-20220301-sample10000",
+            value=wrdfrqa,
+            error=wrdfrqa_error
+        ))
+
+        # WRDFRQmc
+        try:
+            wrdfrqmc = cm_wrdfrqmc(sentences, request.language, "wiki-20220301-sample10000")
+            wrdfrqmc_error = None
+        except Exception as e:
+            logger.error("Error calculating WRDFRQmc_wiki10000: %s", e)
+            wrdfrqmc = None
+            wrdfrqmc_error = str(e)
+        indices.append(Index(
+            index=94,
+            type_name="Word Information",
+            label_ttlab="WRDFRQmc_wiki10000",
+            label_v3="WRDFRQmc",
+            label_v2="FRCLmcsm",
+            description="Wikipedia Log minimum frequency for content words, mean",
+            version="wiki-20220301-sample10000",
             value=wrdfrqmc,
             error=wrdfrqmc_error
         ))
@@ -3442,8 +3592,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # RDL2
         try:
-            # rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
-            rdl2 = None
+            rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
             rdl2_error = None
         except Exception as e:
             logger.error("Error calculating RDL2: %s", e)
@@ -3452,6 +3601,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=106,
             type_name="Readability",
+            label_ttlab="RDL2_synstruta",
             label_v3="RDL2",
             label_v2="L2",
             description="Coh-Metrix L2 Readability",
@@ -3461,8 +3611,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # RDL2
         try:
-            # rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
-            rdl2 = None
+            rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
             rdl2_error = None
         except Exception as e:
             logger.error("Error calculating RDL2: %s", e)
@@ -3471,6 +3620,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=106,
             type_name="Readability",
+            label_ttlab="RDL2_synstrutt",
             label_v3="RDL2",
             label_v2="L2",
             description="Coh-Metrix L2 Readability",
