@@ -1,6 +1,7 @@
 import csv
 import logging
 import pyphen
+import textstat
 
 from platform import python_version
 from sys import version as sys_version
@@ -1276,6 +1277,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_meta = None
 
     try:
+        textstat.set_lang(request.language)
+
         sentences = []
         for p in request.paragraphs:
             sentences.extend(p.sentences)
@@ -3214,8 +3217,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # RDFRE
         try:
-            #rdfre = cm_rdfre(sentences)
-            rdfre = None
+            rdfre = textstat.flesch_reading_ease(request.text)
             rdfre_error = None
         except Exception as e:
             logger.error("Error calculating RDFRE: %s", e)
@@ -3224,6 +3226,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=104,
             type_name="Readability",
+            label_ttlab="RDFRE_textstat",
             label_v3="RDFRE",
             label_v2="READFRE",
             description="Flesch Reading Ease",
@@ -3233,8 +3236,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # RDFKGL
         try:
-            #rdfkgl = cm_rdfkgl(sentences)
-            rdfkgl = None
+            rdfkgl = textstat.flesch_kincaid_grade(request.text)
             rdfkgl_error = None
         except Exception as e:
             logger.error("Error calculating RDFKGL: %s", e)
@@ -3243,11 +3245,199 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=105,
             type_name="Readability",
+            label_ttlab="RDFKGL_textstat",
             label_v3="RDFKGL",
             label_v2="READFKGL",
             description="Flesch–Kincaid Grade Level",
             value=rdfkgl,
             error=rdfkgl_error
+        ))
+
+        # RDFOG
+        try:
+            rdfog = textstat.gunning_fog(request.text)
+            rdfog_error = None
+        except Exception as e:
+            logger.error("Error calculating RDFOG: %s", e)
+            rdfog = None
+            rdfog_error = str(e)
+        indices.append(Index(
+            index=1001,
+            type_name="Readability",
+            label_ttlab="RDFOG_textstat",
+            description="Gunning Fog Index",
+            value=rdfog,
+            error=rdfog_error
+        ))
+
+        # RDSMOG
+        try:
+            rdsmog = textstat.smog_index(request.text)
+            rdsmog_error = None
+        except Exception as e:
+            logger.error("Error calculating RDSMOG: %s", e)
+            rdsmog = None
+            rdsmog_error = str(e)
+        indices.append(Index(
+            index=1002,
+            type_name="Readability",
+            label_ttlab="RDSMOG_textstat",
+            description="SMOG Grade",
+            value=rdsmog,
+            error=rdsmog_error
+        ))
+
+        # RDARI
+        try:
+            rdari = textstat.automated_readability_index(request.text)
+            rdari_error = None
+        except Exception as e:
+            logger.error("Error calculating RDARI: %s", e)
+            rdari = None
+            rdari_error = str(e)
+        indices.append(Index(
+            index=1003,
+            type_name="Readability",
+            label_ttlab="RDARI_textstat",
+            description="Automated Readability Index",
+            value=rdari,
+            error=rdari_error
+        ))
+
+        # RDCLI
+        try:
+            rdcli = textstat.coleman_liau_index(request.text)
+            rdcli_error = None
+        except Exception as e:
+            logger.error("Error calculating RDCLI: %s", e)
+            rdcli = None
+            rdcli_error = str(e)
+        indices.append(Index(
+            index=1004,
+            type_name="Readability",
+            label_ttlab="RDCLI_textstat",
+            description="Coleman–Liau Index",
+            value=rdcli,
+            error=rdcli_error
+        ))
+
+        # RDLW
+        try:
+            rdlw = textstat.linsear_write_formula(request.text)
+            rdlw_error = None
+        except Exception as e:
+            logger.error("Error calculating RDLW: %s", e)
+            rdlw = None
+            rdlw_error = str(e)
+        indices.append(Index(
+            index=1005,
+            type_name="Readability",
+            label_ttlab="RDLW_textstat",
+            description="Linsear Write Formula",
+            value=rdlw,
+            error=rdlw_error
+        ))
+
+        # RDDCRS
+        try:
+            rddcrs = textstat.dale_chall_readability_score(request.text)
+            rddcrs_error = None
+        except Exception as e:
+            logger.error("Error calculating RDDCRS: %s", e)
+            rddcrs = None
+            rddcrs_error = str(e)
+        indices.append(Index(
+            index=1006,
+            type_name="Readability",
+            label_ttlab="RDDCRS_textstat",
+            description="Dale-Chall Readability Score",
+            value=rddcrs,
+            error=rddcrs_error
+        ))
+
+        # RDSPACHE
+        try:
+            rdspache = textstat.spache_readability(request.text)
+            rdspache_error = None
+        except Exception as e:
+            logger.error("Error calculating RDSPACHE: %s", e)
+            rdspache = None
+            rdspache_error = str(e)
+        indices.append(Index(
+            index=1007,
+            type_name="Readability",
+            label_ttlab="RDSPACHE_textstat",
+            description="Spache Readability Formula",
+            value=rdspache,
+            error=rdspache_error
+        ))
+
+        # RDWSTF1
+        try:
+            rdwstf = textstat.wiener_sachtextformel(request.text, variant=1)
+            rdwstf_error = None
+        except Exception as e:
+            logger.error("Error calculating RDWSTF1: %s", e)
+            rdwstf = None
+            rdwstf_error = str(e)
+        indices.append(Index(
+            index=1008,
+            type_name="Readability",
+            label_ttlab="RDWSTF1_textstat",
+            description="Wiener Sachtextformel 1",
+            value=rdwstf,
+            error=rdwstf_error
+        ))
+
+        # RDWSTF2
+        try:
+            rdwstf = textstat.wiener_sachtextformel(request.text, variant=2)
+            rdwstf_error = None
+        except Exception as e:
+            logger.error("Error calculating RDWSTF2: %s", e)
+            rdwstf = None
+            rdwstf_error = str(e)
+        indices.append(Index(
+            index=1009,
+            type_name="Readability",
+            label_ttlab="RDWSTF2_textstat",
+            description="Wiener Sachtextformel 2",
+            value=rdwstf,
+            error=rdwstf_error
+        ))
+
+        # RDWSTF3
+        try:
+            rdwstf = textstat.wiener_sachtextformel(request.text, variant=3)
+            rdwstf_error = None
+        except Exception as e:
+            logger.error("Error calculating RDWSTF3: %s", e)
+            rdwstf = None
+            rdwstf_error = str(e)
+        indices.append(Index(
+            index=1010,
+            type_name="Readability",
+            label_ttlab="RDWSTF3_textstat",
+            description="Wiener Sachtextformel 3",
+            value=rdwstf,
+            error=rdwstf_error
+        ))
+
+        # RDWSTF4
+        try:
+            rdwstf = textstat.wiener_sachtextformel(request.text, variant=4)
+            rdwstf_error = None
+        except Exception as e:
+            logger.error("Error calculating RDWSTF4: %s", e)
+            rdwstf = None
+            rdwstf_error = str(e)
+        indices.append(Index(
+            index=1011,
+            type_name="Readability",
+            label_ttlab="RDWSTF4_textstat",
+            description="Wiener Sachtextformel 4",
+            value=rdwstf,
+            error=rdwstf_error
         ))
 
         # RDL2
