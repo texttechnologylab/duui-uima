@@ -17,7 +17,7 @@ from lexicalrichness import LexicalRichness
 from lexical_diversity import lex_div as ld
 from similarity.normalized_levenshtein import NormalizedLevenshtein
 from itertools import combinations
-from collections import defaultdict
+from collections import defaultdict, Counter
 from nltk.corpus import wordnet as wn
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
@@ -66,6 +66,7 @@ class Token(BaseModel):
     dep_type: str
     morph_person: Optional[str] = ""
     morph_number: Optional[str] = ""
+    morph_tense: Optional[str] = ""
     vector: Optional[List[float]] = None
     has_vector: bool
 
@@ -1358,6 +1359,261 @@ def cm_rdl2(crfcwo1: float, synstrut: float, wrdfrqmc: float) -> Optional[float]
     l2 = -45.032 + (52.230 * crfcwo1) + (61.306 * synstrut) + (22.205 * wrdfrqmc)
     return l2
 
+def _sm_get_data(sentences: List[Sentence]):
+    words = []
+    tags = []
+    morph_tense = []
+    lemmas = []
+    poses = []
+    vectors = []
+    for sent in sentences:
+        # For each sentence, get the vectors of the tokens
+        vectors.append([token.vector if token.has_vector else None for token in sent.tokens])
+        words.append([token.text for token in sent.tokens])
+        tags.append([token.pos_value for token in sent.tokens])
+        morph_tense.append([token.morph_tense for token in sent.tokens])
+        lemmas.append([token.lemma for token in sent.tokens])
+        poses.append([token.pos_coarse for token in sent.tokens])
+
+    return words, tags, morph_tense, lemmas, poses, vectors
+
+def count_verbs(poses: List[List[str]], words: List[List[str]], lemmas: List[List[str]], tags: List[List[str]], morph_tense: List[List[str]], lang,causal_practical_set):
+    counters = {
+        "causal_verbs": 0,
+        "intentional_verbs": 0,
+        "causal_particles": 0,
+        "intentional_particles": 0
+    }
+    tenses = []
+
+    for i, sent in enumerate(poses):
+        for j, pos in enumerate(sent):
+            word_i = words[i][j].lower()
+            lemma_i = lemmas[i][j].lower()
+            tag_i = tags[i][j]
+            morph_i = morph_tense[i][j]
+            if pos == "VERB":
+                if lemma_i in causal_practical_set["causal_verbs"]:
+                    counters["causal_verbs"] += 1
+                if lemma_i in causal_practical_set["intentional_verbs"]:
+                    counters["intentional_verbs"] += 1
+            if word_i in causal_practical_set["causal_particles"]:
+                counters["causal_particles"] += 1
+            if word_i in causal_practical_set["intentional_particles"]:
+                counters["intentional_particles"] += 1
+
+            if lang=="en":
+                match tag_i:
+                    case "VBD" | "VBN":
+                        tenses.append("past")
+                    case "VB" | "VBP" | "VBZ":
+                        tenses.append("present")
+                    case "VBG":
+                        tenses.append("progressive")
+                    case "MD":
+                        tenses.append("modal")
+                    case _:
+                        tenses.append("other")
+            elif lang=="de":
+                if morph_i:
+                    tenses.append(morph_i[0].lower())
+                else:
+                    tenses.append("other")
+            else:
+                tenses.append("other")
+    return {
+        "counter": counters,
+        "tenses": tenses
+    }
+
+def _get_hyponyms(synset):
+    hypos = set()
+    for hypo in synset.hyponyms():
+        hypos.add(hypo)
+        hypos |= _get_hyponyms(hypo)
+    return hypos
+
+def _get_verb_lemmas_for_synset(synset):
+    verbs = set(synset.lemma_names())
+    for hypo in _get_hyponyms(synset):
+        verbs |= set(hypo.lemma_names())
+    return {v.replace('_', ' ') for v in verbs}
+
+def _causal_practical_verbs_intentional(lang: str):
+    cause_synset = wn.synset('cause.v.01')
+    causal_verbs_en = _get_verb_lemmas_for_synset(cause_synset)
+    intend_synset = wn.synset('intend.v.01')
+    plan_synset = wn.synset('plan.v.01')
+    intentional_verbs_en = _get_verb_lemmas_for_synset(intend_synset) | _get_verb_lemmas_for_synset(plan_synset)
+
+    causal_particles_en_seed = ["because", "therefore", "since", "so", "thus", "hence", "in order to"]
+    intentional_particles_en_seed = ["want", "need", "plan", "intend", "decide"]
+
+    causal_particles_de_seed = ["weil", "deshalb", "daher", "darum", "folglich", "infolgedessen", "aus diesem Grund"]
+    intentional_particles_de_seed = ["wollen", "planen", "beabsichtigen", "versuchen", "vorhaben"]
+
+    causal_verbs_de = {"brechen", "frieren", "schlagen", "bewegen", "treffen", "ausbrechen", "entdecken", "verursachen",
+                       "folgen"}
+    intentional_verbs_de = {"kontaktieren", "fallenlassen", "gehen", "sprechen", "kaufen", "erzählen", "fahren", "planen",
+                            "wollen", "entscheiden"}
+
+    if lang == "en":
+        return {
+            "causal_verbs": causal_verbs_en,
+            "intentional_verbs": intentional_verbs_en,
+            "causal_particles": causal_particles_en_seed,
+            "intentional_particles": intentional_particles_en_seed
+        }
+    elif lang == "de":
+        return {
+            "causal_verbs": causal_verbs_de,
+            "intentional_verbs": intentional_verbs_de,
+            "causal_particles": causal_particles_de_seed,
+            "intentional_particles": intentional_particles_de_seed
+        }
+
+def cm_smcausv(sentences: List[Sentence], lang: str) -> Optional[float]:
+    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
+    count_tenses = count_verbs(
+        poses,
+        words,
+        lemmas,
+        tags,
+        morph_tense,
+        lang,
+        _causal_practical_verbs_intentional(lang)
+    )
+    count_causal_verb = count_tenses["counter"]["causal_verbs"]
+    return count_causal_verb
+
+def cm_smcausvp(sentences: List[Sentence], lang: str) -> Optional[float]:
+    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
+    count_tenses = count_verbs(
+        poses,
+        words,
+        lemmas,
+        tags,
+        morph_tense,
+        lang,
+        _causal_practical_verbs_intentional(lang)
+    )
+    count_causal_verb = count_tenses["counter"]["causal_verbs"]
+    count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
+    return count_causal_verb + count_intentional_verb
+
+def cm_smintep(sentences: List[Sentence], lang: str) -> Optional[float]:
+    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
+    count_tenses = count_verbs(
+        poses,
+        words,
+        lemmas,
+        tags,
+        morph_tense,
+        lang,
+        _causal_practical_verbs_intentional(lang)
+    )
+    count_intentional_particle = count_tenses["counter"]["intentional_particles"]
+    return count_intentional_particle
+
+def cm_smcausr(sentences: List[Sentence], lang: str) -> Optional[float]:
+    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
+    count_tenses = count_verbs(
+        poses,
+        words,
+        lemmas,
+        tags,
+        morph_tense,
+        lang,
+        _causal_practical_verbs_intentional(lang)
+    )
+    count_causal_verb = count_tenses["counter"]["causal_verbs"]
+    count_causal_particle = count_tenses["counter"]["causal_particles"]
+    SMCAUSr = count_causal_particle / count_causal_verb if count_causal_verb > 0 else 0
+    return np.round(SMCAUSr, 3)
+
+def cm_sminter(sentences: List[Sentence], lang: str) -> Optional[float]:
+    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
+    count_tenses = count_verbs(
+        poses,
+        words,
+        lemmas,
+        tags,
+        morph_tense,
+        lang,
+        _causal_practical_verbs_intentional(lang)
+    )
+    count_intentional_particle = count_tenses["counter"]["intentional_particles"]
+    count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
+    SMINTEr = count_intentional_particle / count_intentional_verb if count_intentional_verb > 0 else 0
+    return np.round(SMINTEr, 3)
+
+def get_SMCAUSlsa(poses:List[List[str]], vectors: List[List[List[Any]]]):
+    all_verbs = []
+    for i, sent in enumerate(poses):
+        for j, pos in enumerate(sent):
+            if pos == "VERB":
+                if vectors[i][j] is not None:
+                    all_verbs.append(vectors[i][j])
+
+    cos_similarities = []
+    for i in range(len(all_verbs) - 1):
+        vec_i = all_verbs[i]
+        vec_j = all_verbs[i + 1]
+        if vec_i is not None and vec_j is not None:
+            cos_sim = np.dot(vec_i, vec_j) / (np.linalg.norm(vec_i) * np.linalg.norm(vec_j))
+            cos_similarities.append(cos_sim)
+
+    return np.mean(cos_similarities) if cos_similarities else 0.0
+
+def cm_smcauslsa(sentences: List[Sentence]) -> Optional[float]:
+    _, _, _, _, poses, vectors = _sm_get_data(sentences)
+    SMCAUSlsa = get_SMCAUSlsa(poses, vectors)
+    return np.round(SMCAUSlsa, 3)
+
+def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str):
+    verbs_lemma = []
+    if lang=="en":
+        syn_overlap_count = 0
+        total_pairs = 0
+        for i, sent in enumerate(poses):
+            for j, pos in enumerate(sent):
+                if pos == "VERB":
+                    lemma = word_lemma[i][j].lower()
+                    verbs_lemma.append(lemma)
+        for i, lemma in enumerate(verbs_lemma):
+            synsets_i = wn.synsets(lemma, pos=wn.VERB)
+            for j in range(i + 1, len(verbs_lemma)):
+                synsets_j = wn.synsets(verbs_lemma[j], pos=wn.VERB)
+                total_pairs = total_pairs + 1
+                if synsets_i and synsets_j and set(synsets_i).intersection(synsets_j):
+                    syn_overlap_count += 1
+        SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
+    else:
+        SMCAUSwn = -1.0
+    return SMCAUSwn
+
+def cm_smcauswn(sentences: List[Sentence]) -> Optional[float]:
+    _, _, _, lemmas, poses, vectors = _sm_get_data(sentences)
+    SMCAUSwn = get_SMCAUSwn(poses, lemmas, lang)
+    return np.round(SMCAUSwn, 3)
+
+def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
+    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
+    count_tenses = count_verbs(
+        poses,
+        words,
+        lemmas,
+        tags,
+        morph_tense,
+        lang,
+        _causal_practical_verbs_intentional(lang)
+    )
+    tense_distribution = Counter(count_tenses["tenses"])
+    tenses = count_tenses["tenses"]
+    dominant_tense_freq = tense_distribution.most_common(1)[0][1] if tense_distribution else 0
+    SMTEMP = dominant_tense_freq / len(tenses) if len(tenses) > 0 else 0
+    return np.round(SMTEMP, 3)
+
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
@@ -2478,8 +2734,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSv
         try:
-            #smcausv = cm_smcausv(sentences)
-            smcausv = None
+            smcausv = cm_smcausv(sentences, request.language)
             smcausv_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSv: %s", e)
@@ -2497,8 +2752,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSvp
         try:
-            #smcausvp = cm_smcausvp(sentences)
-            smcausvp = None
+            smcausvp = cm_smcausvp(sentences, request.language)
             smcausvp_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSvp: %s", e)
@@ -2516,8 +2770,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMINTEp
         try:
-            #smintep = cm_smintep(sentences)
-            smintep = None
+            smintep = cm_smintep(sentences, request.language)
             smintep_error = None
         except Exception as e:
             logger.error("Error calculating SMINTEp: %s", e)
@@ -2535,8 +2788,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSr
         try:
-            #smcausr = cm_smcausr(sentences)
-            smcausr = None
+            smcausr = cm_smcausr(sentences, request.language)
             smcausr_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSr: %s", e)
@@ -2554,8 +2806,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMINTEr
         try:
-            #sminter = cm_sminter(sentences)
-            sminter = None
+            sminter = cm_sminter(sentences, request.language)
             sminter_error = None
         except Exception as e:
             logger.error("Error calculating SMINTEr: %s", e)
@@ -2573,8 +2824,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSlsa
         try:
-            #smcauslsa = cm_smcauslsa(sentences)
-            smcauslsa = None
+            smcauslsa = cm_smcauslsa(sentences)
             smcauslsa_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSlsa: %s", e)
@@ -2592,8 +2842,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSwn
         try:
-            #smcauswn = cm_smcauswn(sentences)
-            smcauswn = None
+            smcauswn = cm_smcauswn(sentences)
             smcauswn_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSwn: %s", e)
@@ -2611,8 +2860,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMTEMP
         try:
-            #smtemp = cm_smtemp(sentences)
-            smtemp = None
+            smtemp = cm_smtemp(sentences, request.language)
             smtemp_error = None
         except Exception as e:
             logger.error("Error calculating SMTEMP: %s", e)

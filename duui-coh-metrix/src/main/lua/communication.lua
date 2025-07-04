@@ -65,6 +65,7 @@ function serialize(inputCas, outputStream, parameters)
                     dep_type = dep_type,
                     morph_person = token:getMorph():getPerson(),
                     morph_number = token:getMorph():getNumber(),
+                    morph_tense = token:getMorph():getTense(),
                     vector = vector,
                     has_vector = has_vector,
                 }
