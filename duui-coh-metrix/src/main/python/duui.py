@@ -58,8 +58,8 @@ class Token(BaseModel):
     begin: int
     end: int
     text: str
-    pos_value: str   # spacy tag_
-    pos_coarse: str  # spacy pos_
+    pos_value: str   # spacy tag_ -> language specific https://www.ling.upenn.edu/courses/Fall_2003/ling001/penn_treebank_pos.html https://homepage.ruhr-uni-bochum.de/stephen.berman/Korpuslinguistik/Tagsets-STTS.html
+    pos_coarse: str  # spacy pos_ -> Universal Dependencies https://universaldependencies.org/u/pos/index.html
     lemma: str
     is_alpha: bool
     is_punct: bool
@@ -291,39 +291,39 @@ def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
                 text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
     return np.std(text_letters)
 
+ud_noun_pos = {"NOUN", "PROPN"}
+ud_pronouns_pos = {"PRON", "DET"}
+ud_content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
+
 def _noun_overlap(sentence_a: Sentence, sentence_b: Sentence) -> int:
-    nouns_a = set([t.text for t in sentence_a.tokens if t.pos_value and t.pos_value.startswith('N')])
-    nouns_b = set([t.text for t in sentence_b.tokens if t.pos_value and t.pos_value.startswith('N')])
+    nouns_a = set([t.text for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
+    nouns_b = set([t.text for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
     return len(nouns_a.intersection(nouns_b))
 
 def _argument_overlap(sentence_a: Sentence, sentence_b: Sentence) -> int:
-    nouns_a = set([t.lemma for t in sentence_a.tokens if t.pos_value and t.pos_value.startswith('N')])
-    nouns_b = set([t.lemma for t in sentence_b.tokens if t.pos_value and t.pos_value.startswith('N')])
+    nouns_a = set([t.lemma for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
+    nouns_b = set([t.lemma for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
     noun_overlap = len(nouns_a.intersection(nouns_b))
 
-    promouns_a = set([t.text for t in sentence_a.tokens if t.pos_value and t.pos_value == 'PPER'])
-    promouns_b = set([t.text for t in sentence_b.tokens if t.pos_value and t.pos_value == 'PPER'])
+    promouns_a = set([t.text for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_pronouns_pos])
+    promouns_b = set([t.text for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_pronouns_pos])
     pronoun_overlap = len(promouns_a.intersection(promouns_b))
 
     return noun_overlap + pronoun_overlap
 
 def _stem_overlap(sentence_nouns: Sentence, sentence_contents: Sentence) -> int:
-    nouns_a = set([t.lemma for t in sentence_nouns.tokens if t.pos_value and t.pos_value.startswith('N')])
-    nouns_b = set([t.lemma for t in sentence_contents.tokens if t.pos_value and (
-        t.pos_value.startswith('N') or t.pos_value.startswith('V') or t.pos_value.startswith("ADJ") or t.pos_value.startswith("ADV")
-    )])
+    nouns_a = set([t.lemma for t in sentence_nouns.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
+    nouns_b = set([t.lemma for t in sentence_contents.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
     return len(nouns_a.intersection(nouns_b))
 
-def _word_overlap(sentence_nouns: Sentence, sentence_contents: Sentence) -> float:
-    nouns_a = set([t.lemma for t in sentence_nouns.tokens if t.pos_value and t.pos_value.startswith('N')])
-    nouns_b = set([t.lemma for t in sentence_contents.tokens if t.pos_value and (
-            t.pos_value.startswith('N') or t.pos_value.startswith('V') or t.pos_value.startswith("ADJ") or t.pos_value.startswith("ADV")
-    )])
+def _word_overlap(sentence_a: Sentence, sentence_b: Sentence) -> float:
+    nouns_a = set([t.lemma for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
+    nouns_b = set([t.lemma for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
     overlap = len(nouns_a.intersection(nouns_b))
 
     # TODO check
-    all_words = set([t.lemma for t in sentence_nouns.tokens])
-    all_words.update(set([t.lemma for t in sentence_contents.tokens]))
+    all_words = set([t.lemma for t in sentence_a.tokens])
+    all_words.update(set([t.lemma for t in sentence_b.tokens]))
 
     return overlap / len(all_words) if len(all_words) > 0 else 0.0
 
@@ -454,8 +454,7 @@ def cm_crfcwoad(sentences: List[Sentence]) -> Optional[float]:
 
 def _lexical_diversity_tokens(tokens: List[Token]) -> Tuple[List[str], List[str]]:
     tokens_alpha = [token.text.lower() for token in tokens if token.is_alpha]
-    content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
-    tokens_content = [token.text.lower() for token in tokens if token.pos_coarse in content_pos and token.is_alpha]
+    tokens_content = [token.text.lower() for token in tokens if token.pos_coarse in ud_content_pos and token.is_alpha]
     return tokens_alpha, tokens_content
 
 def cm_ldttrc(tokens: List[Token]) -> Optional[float]:
@@ -499,6 +498,7 @@ def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optiona
 
     modifier_counts = []
     for sent in deps:
+        # TODO DE/EN
         modifiers = [tok for tok in sent if tok in ("AMOD", "COMPOUND", "PREP")]
         modifier_counts.append(len(modifiers))
 
@@ -632,14 +632,16 @@ def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> D
             word_i = words[c][j]
             tag_i = tags[c][j]
             dep_i = deps[c][j]
+            # TODO DE/EN
             if dep_i == "AUXPASS":
                 aux = True
             if dep_i == "NEG":
                 count_metrics_dict["neg_count"] += 1
+            # TODO DE/EN
             if tag_i == "VBG":
                 count_metrics_dict["gerund_count"] += 1
             if 0 < j < len(tokens) - 1:
-                # TODO DE?
+                # TODO DE/EN
                 if word_i.lower() == "to" and tags[c][j+1] == "VB" and token_pos[c][j+1] == "VERB":
                     count_metrics_dict["infinitive_count"] += 1
         if aux:
@@ -767,6 +769,7 @@ def _get_morhological_features(poses: List[List[str]], words: List[List[str]], m
             person = morph_Person[i][j]
             number = morph_Number[i][j]
 
+            # TODO EN/DE
             person = person[0] if person else "Unknown"
             number = number[0] if number else "Unknown"
             if person == "2":
@@ -912,13 +915,11 @@ def _get_content_words(sentences: List[Sentence]):
     words_flatten = [word for sublist in words for word in sublist]
     poses_flatten = [pos for sublist in poses for pos in sublist]
 
-    content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
-
     content_words = [
         word.lower()
         for word, pos
         in zip(words_flatten, poses_flatten)
-        if pos in content_pos and word.isalpha()
+        if pos in ud_content_pos and word.isalpha()
     ]
 
     return content_words, words, poses
@@ -927,15 +928,13 @@ def _get_content_words_per_sentence(sentences: List[Sentence]):
     words = [[token.text for token in sent.tokens] for sent in sentences]
     poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
 
-    content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
-
     content_words = []
     for swords, sposes in zip(words, poses):
         content_words_sent = [
             word.lower()
             for word, pos
             in zip(swords, sposes)
-            if pos in content_pos and word.isalpha()
+            if pos in ud_content_pos and word.isalpha()
         ]
         content_words.append(content_words_sent)
 
@@ -1402,6 +1401,7 @@ def count_verbs(poses: List[List[str]], words: List[List[str]], lemmas: List[Lis
             if word_i in causal_practical_set["intentional_particles"]:
                 counters["intentional_particles"] += 1
 
+            # TODO DE/EN
             if lang=="en":
                 match tag_i:
                     case "VBD" | "VBN":
@@ -1547,7 +1547,7 @@ def cm_sminter(sentences: List[Sentence], lang: str) -> Optional[float]:
     SMINTEr = count_intentional_particle / count_intentional_verb if count_intentional_verb > 0 else 0
     return np.round(SMINTEr, 3)
 
-def get_SMCAUSlsa(poses:List[List[str]], vectors: List[List[List[Any]]]):
+def get_SMCAUSlsa(poses: List[List[str]], vectors: List[List[List[Any]]]):
     all_verbs = []
     for i, sent in enumerate(poses):
         for j, pos in enumerate(sent):
