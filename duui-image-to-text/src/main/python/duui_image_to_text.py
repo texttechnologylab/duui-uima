@@ -5,21 +5,32 @@ from functools import lru_cache
 from io import BytesIO
 from threading import Lock
 from typing import List, Optional
-
+import io
 import cv2
 import gc
 import numpy as np
 import torch
+import uvicorn
 from PIL import Image
 from cassis import load_typesystem
-from diffusers import DiffusionPipeline
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
-from huggingface_hub import login
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from torchvision.transforms import functional as T
-from transformers import AutoProcessor, AutoModelForVision2Seq
+from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig, AutoModelForVision2Seq
+from enum import Enum
+
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+os.environ['CURL_CA_BUNDLE'] = ''
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+
+
+# Global cache
+_loaded_models = {}
+_loaded_processors = {}
+
 
 
 def is_overlapping(rect1, rect2):
@@ -133,6 +144,128 @@ def draw_entity_boxes_on_image(image, entities, show=False, save_path=None):
     return new_image
 
 
+def plot_bbox(image, entities):
+    """Draw high-quality bounding boxes with smart label placement using OpenCV."""
+    if isinstance(image, Image.Image):
+        image = np.array(image.convert("RGB"))[:, :, ::-1]  # RGB to BGR
+
+    image_h, image_w = image.shape[:2]
+    image_copy = image.copy()
+    used_label_boxes = []
+
+    for entity in entities:
+        if not entity.bounding_box:
+            continue
+
+        x1, y1, x2, y2 = map(int, entity.bounding_box[0])
+        label = entity.name
+        color = tuple(np.random.randint(0, 255, size=3).tolist())
+
+        # Draw the bounding box
+        cv2.rectangle(image_copy, (x1, y1), (x2, y2), color, thickness=2)
+
+        # Label settings
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        thickness = 1
+
+        # Get label size
+        (text_w, text_h), baseline = cv2.getTextSize(label, font, font_scale, thickness)
+        label_pad = 4
+        box_w = text_w + 2 * label_pad
+        box_h = text_h + 2 * label_pad
+
+        # Default label position: above the bbox
+        label_x1 = x1
+        label_y1 = y1 - box_h if y1 - box_h > 0 else y1 + 2
+        label_x2 = label_x1 + box_w
+        label_y2 = label_y1 + box_h
+
+        # Clamp horizontally
+        if label_x2 > image_w:
+            label_x1 = image_w - box_w
+            label_x2 = image_w
+
+        # Avoid overlapping with other labels
+        max_attempts = 10
+        attempts = 0
+        while any(overlaps((label_x1, label_y1, label_x2, label_y2), box) for box in used_label_boxes) and attempts < max_attempts:
+            label_y1 += box_h + 2
+            label_y2 += box_h + 2
+            if label_y2 > image_h:
+                label_y1 = max(0, y1 - box_h)  # fallback to above box
+                label_y2 = label_y1 + box_h
+                break
+            attempts += 1
+
+        used_label_boxes.append((label_x1, label_y1, label_x2, label_y2))
+
+        # Draw label background
+        cv2.rectangle(image_copy, (label_x1, label_y1), (label_x2, label_y2), color, -1)
+
+        # Draw label text
+        text_x = label_x1 + label_pad
+        text_y = label_y2 - label_pad
+        cv2.putText(image_copy, label, (text_x, text_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+    return Image.fromarray(image_copy[:, :, ::-1])  # Convert BGR to RGB
+
+
+def overlaps(boxA, boxB, margin=4):
+    """Check if two rectangles overlap, with a small margin."""
+    ax1, ay1, ax2, ay2 = boxA
+    bx1, by1, bx2, by2 = boxB
+    return not (ax2 + margin < bx1 or ax1 - margin > bx2 or ay2 + margin < by1 or ay1 - margin > by2)
+
+
+
+
+def custom_post_process_generation(task_prompt, image=None, text_input=None):
+    # # Free GPU memory if available
+    # if torch.cuda.is_available():
+    #     torch.cuda.empty_cache()
+    #     gc.collect()
+
+    model_id = 'microsoft/Florence-2-large'
+
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+    florence_model, processor = get_model_and_processor(model_id)
+
+    if image is not None:
+        if not isinstance(image, Image.Image):
+            raise TypeError(f"Expected a PIL.Image.Image, got: {type(image)}")
+        image = image.convert("RGB")  # Ensure consistent format
+
+    # Prepare the prompt
+    prompt = task_prompt if text_input is None else task_prompt + text_input
+
+    # Processor returns float32 by default — keep it that way
+    inputs = processor(text=prompt, images=image, return_tensors="pt").to('cuda:0' if torch.cuda.is_available() else 'cpu', torch_dtype)
+
+    # Generate
+    generated_ids = florence_model.generate(
+        input_ids=inputs["input_ids"],
+        pixel_values=inputs["pixel_values"],
+        max_new_tokens=4096,
+        early_stopping=False,
+        do_sample=False,
+        num_beams=3,
+    )
+
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+
+    # Post-process
+    parsed_answer = processor.post_process_generation(
+        generated_text,
+        task=task_prompt,
+        image_size=(image.width, image.height)
+    )
+
+    return parsed_answer
+
+
+
 
 # Settings
 # These are automatically loaded from env variables
@@ -140,14 +273,17 @@ from starlette.responses import PlainTextResponse, JSONResponse
 model_lock = Lock()
 sources = {
     "microsoft/kosmos-2-patch14-224": "https://huggingface.co/microsoft/kosmos-2-patch14-224",
+    "microsoft/Phi-4-multimodal-instruct": "https://huggingface.co/microsoft/Phi-4-multimodal-instruct"
 }
 
 languages = {
     "microsoft/kosmos-2-patch14-224": "en",
+    "microsoft/Phi-4-multimodal-instruct": "multi",
 }
 
 versions = {
     "microsoft/kosmos-2-patch14-224": "e91cfbcb4ce051b6a55bfb5f96165a3bbf5eb82c",
+    "microsoft/Phi-4-multimodal-instruct": "0af439b3adb8c23fda473c4f86001dbf9a226021",
 }
 
 
@@ -223,17 +359,21 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
 typesystem_filename = '../resources/TypeSystemImageToText.xml'
-logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
+# logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
-    logger.debug("Base typesystem:")
-    logger.debug(typesystem.to_xml())
+    # logger.debug("Base typesystem:")
+    # logger.debug(typesystem.to_xml())
 
 # Load the Lua communication script
 lua_communication_script_filename = "duui_image_to_text.lua"
-logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
+# logger.debug("Loading Lua communication script from \"%s\"", lua_communication_script_filename)
 
+class ComplexOperatingMode(str, Enum):
+    SIMPLE = "simple"
+    COMPLEX_ONLY_ANSWER = "complex-only-answer"
+    COMPLEX_WITH_OD = "complex-with-od"
 
 
 # Request sent by DUUI
@@ -253,6 +393,12 @@ class ImageToTextRequest(BaseModel):
 
     # model name
     model_name: str
+
+    # individual or multiple image processing
+    individual: bool = True
+
+    # mode for complex
+    mode: ComplexOperatingMode = ComplexOperatingMode.SIMPLE
 
 
 
@@ -359,7 +505,10 @@ def get_documentation():
             "prompt": "Prompt",
             "number_of_images": "Number of images",
             "doc_lang": "Document language",
-            "model_name": "Model name"
+            "model_name": "Model name",
+            "individual": "A flag for processing the images as one (set of frames) or indivisual. Note: it only works in a complex-mode",
+            "mode": "a mode of operation, simple --> Kosmos-2 model only, complex-only-answer --> phi-4 MM model only, complex-with-OD --> phi-4 mm followed by Florence-2 model"
+
         }
     )
 
@@ -370,13 +519,40 @@ def load_model(model_name, low_cpu_mem_usage, input_text=None):
     Load the model and optionally check the input sequence length if input_text is provided.
     Automatically truncates the input if it exceeds the model's max sequence length.
     """
-    # Load the specified model
-    model = AutoModelForVision2Seq.from_pretrained(model_name, low_cpu_mem_usage=low_cpu_mem_usage, torch_dtype=torch.float16)
+    if model_name == "microsoft/kosmos-2-patch14-224":
 
+        # Load the specified model
+        model = AutoModelForVision2Seq.from_pretrained(model_name,
+                                                       low_cpu_mem_usage=low_cpu_mem_usage,
+                                                       torch_dtype=torch.float16)
+
+    elif model_name == "microsoft/Phi-4-multimodal-instruct":
+        model = AutoModelForCausalLM.from_pretrained(model_name,
+                                                     trust_remote_code=True,
+                                                     _attn_implementation='flash_attention_2',
+                                                     torch_dtype="auto").eval()
+
+    elif model_name == "microsoft/Florence-2-large":
+        model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True, torch_dtype="auto").eval()
+
+    else:
+        raise ValueError(f"Unsupported model name: {model_name}")
     # Move the pipeline to the appropriate device
     model.to(device)
 
     return model
+
+
+@lru_cache_with_size
+def get_model_and_processor(model_name):
+    if model_name not in _loaded_models:
+        print(f"Loading model: {model_name}")
+        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        _loaded_models[model_name] = load_model(model_name, low_cpu_mem_usage=True)
+        _loaded_processors[model_name] = AutoProcessor.from_pretrained(model_name, trust_remote_code=True, torch_dtype=torch_dtype)
+    return _loaded_models[model_name], _loaded_processors[model_name]
+
+
 
 
 
@@ -387,49 +563,268 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
-def convertBase64ToImage(base64_string):
+def convert_base64_to_image(base64_string):
     return Image.open(BytesIO(base64.b64decode(base64_string)))
 
-def convertImageToBase64(image):
+def convert_image_to_base64(image):
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
-def process_image(model_name, image, prompt):
+def find_label_positions(text, label):
+    start = text.find(label)
+    end = start + len(label) if start != -1 else -1
+    return start, end
 
+def process_complex(model_name, images, prompt, mode):
+
+    entities_all = []
+    result_images_all = []
+
+    # Load the model
+    model, processor = get_model_and_processor(model_name)
+
+
+    # convert images from base64 to PIL
+    images = [convert_base64_to_image(image.src) for image in images]
+
+    placeholder = "".join(f"<|image_{i}|>" for i in range(len(images)))
+
+    messages = [
+        {
+            "role": "user",
+            "content": f"{placeholder},Please describe or summarize the content of these images as they are a series of frames representa video. AND based on the the description, {prompt}"
+        }
+    ]
+
+
+    prompt = processor.tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    print("processed prompt is ", prompt)
+
+    inputs = processor(prompt, images=images, return_tensors='pt').to('cuda:0')
+
+    generation_args = {
+        "max_new_tokens": 512,
+        "temperature": 0.5,
+        "do_sample": True,
+    }
+
+    generation_config = GenerationConfig.from_pretrained(model_name)
+
+
+    generate_ids = model.generate(
+        **inputs,
+        **generation_args,
+        generation_config=generation_config,
+    )
+
+    generate_ids = generate_ids[:, inputs["input_ids"].shape[1]:]
+
+    generation_args = {
+        "max_new_tokens": 4096,
+        "return_full_text": False,
+        "temperature": 0.00001,
+        "top_p": 1.0,
+        "do_sample": True,
+    }
+
+    response = processor.batch_decode(
+        generate_ids,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+        **generation_args
+    )[0]
+    print("the answer is: ", response)
+    processed_text_all = response
+
+    detail = mode == ComplexOperatingMode.COMPLEX_WITH_OD
+
+    for image in images:
+    # #TODO: change this last image
+    # image = images[-1]
+        entities, processed_text, generated_grounding = generate_custom_entities(image, response, detail=detail)
+        sub_entities= []
+        for bbox, label in zip(entities['bboxes'], entities['labels']):
+            # Get the character positions
+            start, end = find_label_positions(processed_text, label)
+
+
+            x1, y1, x2, y2 = bbox
+            # Convert relative bboxes to absolute
+            absolute_bboxes = [
+                (
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2)
+                )
+            ]
+
+            # Add entity with updated position info
+            sub_entities.append(Entity(name=label, begin=start, end=end, bounding_box=absolute_bboxes))
+
+
+        image_results = plot_bbox(image, sub_entities)
+
+        entities_all.extend(sub_entities)
+
+        image_base64 = convert_image_to_base64(image_results)
+        image_width, image_height = image.size
+
+        result_images_all.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text_all)))
+
+    return processed_text_all, entities_all, result_images_all
+
+
+def generate_custom_entities(image, generated_text, return_gounding=False, detail =True):
+    print("processing entities with detail? ", detail)
+
+    if detail:
+        first_task_prompt = '<DETAILED_CAPTION>'
+
+        detailed_caption = custom_post_process_generation(first_task_prompt,  image.copy(), None)
+
+        print("detailed caption: ", detailed_caption)
+
+        generated_text = generated_text + " In general: " + detailed_caption[first_task_prompt]
+
+
+    print("generated text: ", generated_text)
+
+    second_task_prompt = "<CAPTION_TO_PHRASE_GROUNDING>"
+
+    processed_entities_text = custom_post_process_generation(second_task_prompt, image.copy(), generated_text)
+    entities = processed_entities_text[second_task_prompt]
+
+    return entities, generated_text, processed_entities_text if return_gounding else None
+
+def process_image(model_name, image, prompt, complex=False):
+    print("processing image, with prompt, ", prompt)
     # convert image from base64 to PIL
-    image = convertBase64ToImage(image)
+    image = convert_base64_to_image(image)
 
     # Load the model
     model = load_model(model_name, low_cpu_mem_usage=True)
     # Load the processor
-    processor = AutoProcessor.from_pretrained(model_name, device=device)
+    processor = AutoProcessor.from_pretrained(model_name, device=device, trust_remote_code=True)
+
+    # phi-4 model
+    if complex:
+        placeholder  = f"<|image_0|>"
+        messages = [
+            {
+                "role": "user",
+                "content": (
+                        placeholder
+                        + prompt
+                )
+            }
+        ]
+        prompt = processor.tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
 
     # get the inputs for the model
     inputs = processor(text=prompt, images=image, return_tensors="pt")
     inputs.to(device)
 
-    # generate the IDs
-    generated_ids = model.generate(
-        pixel_values=inputs["pixel_values"],
-        input_ids=inputs["input_ids"],
-        attention_mask=inputs["attention_mask"],
-        image_embeds=None,
-        image_embeds_position_mask=inputs["image_embeds_position_mask"],
-        use_cache=True,
-        max_new_tokens=128,
-    )
+    if complex:
+        generation_config = GenerationConfig.from_pretrained(model_name)
+
+        generation_args = {
+            "max_new_tokens": 512,
+            "temperature": 0.5,
+            "do_sample": True,
+        }
+
+        generated_ids = model.generate(
+            **inputs,
+            **generation_args,
+            generation_config=generation_config,
+        )
+    else:
+        # generate the IDs
+        generated_ids = model.generate(
+            pixel_values=inputs["pixel_values"],
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            image_embeds=None,
+            image_embeds_position_mask=inputs["image_embeds_position_mask"],
+            use_cache=True,
+            max_new_tokens=1024,
+        )
 
     generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-    # By default, the generated  text is cleanup and the entities are extracted.
-    processed_text, entities = processor.post_process_generation(generated_text)
+    generated_text = generated_text.replace(prompt, "")
 
+    if complex:
+
+        # # Free GPU memory if available
+        # model.to("cpu")
+
+        entities, processed_text, _ = generate_custom_entities(image.copy(), generated_text)
+
+        print("entities: ", entities)
+
+        entities_out = []
+        for bbox, label in zip(entities['bboxes'], entities['labels']):
+            # Get the character positions
+            start, end = find_label_positions(processed_text, label)
+
+
+            x1, y1, x2, y2 = bbox
+            # Convert relative bboxes to absolute
+            absolute_bboxes = [
+                (
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2)
+                )
+            ]
+
+            # Add entity with updated position info
+            entities_out.append(Entity(name=label, begin=start, end=end, bounding_box=absolute_bboxes))
+            entities = entities_out
+
+    else:
+        # By default, the generated  text is cleanup and the entities are extracted.
+        processed_text, entities = processor.post_process_generation(generated_text)
+
+    print("generated text: ", processed_text)
     # return the processed text and the entities, which are the bounding boxes
     return processed_text, entities
 
+def handle_image_results(image_path, entities):
+    result_entities = []
+    image_obj = convert_base64_to_image(image_path)
+    image_width, image_height = image_obj.size
+    # draw the entities on the image and save it into a buffer
+    image_entities = draw_entity_boxes_on_image(image_obj, entities, show=False, save_path=None)
+    image_base64 = convert_image_to_base64(Image.fromarray(image_entities[:, :, [2, 1, 0]]))
 
+    for entity in entities:
+        entity_name, (start, end), bboxes = entity
+        absolute_bboxes = [
+            (
+                int(x1 * image_width),
+                int(y1 * image_height),
+                int(x2 * image_width),
+                int(y2 * image_height)
+            )
+            for x1, y1, x2, y2 in bboxes
+        ]
+        result_entities.append(Entity(name=entity_name, begin=start, end=end, bounding_box=absolute_bboxes))
+
+    return result_entities, image_base64
 #
 
 # Process request from DUUI
@@ -448,37 +843,30 @@ def post_process(request: ImageToTextRequest):
     result_entities = []
     result_images = []
     errors_list = []
-    print("number of images ", len(request.images))
+    complex = request.model_name == "microsoft/Phi-4-multimodal-instruct"
+
+    mode = request.mode
+
+    print("processing with 'individual' = ", request.individual)
     try:
-        for image in request.images:
-            image_path = image.src
-            image_width = image.width
-            image_height = image.height
+        if complex and request.individual == False:
+            processed_text, result_entities, result_images = process_complex(request.model_name, request.images, prompt, mode)
+        else:
+            for image in request.images:
+                image_path = image.src
+                image_width = image.width
+                image_height = image.height
+                # process the image
+                processed_text, entities = process_image(request.model_name, image_path, prompt, complex)
+                if complex:
+                    result_entities = entities
+                    image_base64 = convert_image_to_base64(plot_bbox(convert_base64_to_image(image.src), entities))
 
-            # process the image
-            processed_text, entities = process_image(request.model_name, image_path, prompt)
-            image_obj = convertBase64ToImage(image_path)
-            image_width, image_height = image_obj.size
-            # draw the entities on the image and save it into a buffer
-            image_entities = draw_entity_boxes_on_image(image_obj, entities, show=False, save_path=None)
-            image_base64 = convertImageToBase64(Image.fromarray(image_entities[:, :, [2, 1, 0]]))
+                else:
+                    # handle the image results
+                    result_entities, image_base64 = handle_image_results(image_path, entities)
 
-            for entity in entities:
-                entity_name, (start, end), bboxes = entity
-                absolute_bboxes = [
-                    (
-                        int(x1 * image_width),
-                        int(y1 * image_height),
-                        int(x2 * image_width),
-                        int(y2 * image_height)
-                    )
-                    for x1, y1, x2, y2 in bboxes
-                ]
-                print(f"bboxes: {absolute_bboxes}")
-                result_entities.append(Entity(name=entity_name, begin=start, end=end, bounding_box=absolute_bboxes))
-            # append results to lists
-            print(processed_text)
-            result_images.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text)))
+                result_images.append(ImageType(src=f"{image_base64}", width=image_width, height=image_height, begin=0, end=len(processed_text)))
         # Return the processed data in response
         return ImageToTextResponse(
             processed_text=processed_text,
@@ -514,5 +902,6 @@ def post_process(request: ImageToTextRequest):
             gc.collect()
 
 
-
+if __name__ == "__main__":
+    uvicorn.run("duui_image_to_text:app", host="0.0.0.0", port=9714, workers=1)
 

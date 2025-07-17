@@ -30,7 +30,7 @@ public class EmotionTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:9714";
+    static String url = "http://127.0.0.1:8000";
 
 //    static String model = "pol_emo_mDeBERTa";
 
@@ -89,6 +89,7 @@ public class EmotionTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+//                        .withParameter("token", "<TOKEN>")
         );
         List<String> sentences = Arrays.asList(
                 "I hate You. I'm very angry.",

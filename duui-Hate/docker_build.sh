@@ -1,5 +1,5 @@
 export ANNOTATOR_NAME=duui-hate
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.3.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
@@ -116,11 +116,43 @@ eport MODEL_CACHE_SIZE=3
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-indonesian"
-export MODEL_SPECNAME="cnergid"
-export MODEL_VERSION="08693d6cc64f7e7b3019b2a3abe3b1a9c8ca74c2"
-export MODEL_SOURCE="https://huggingface.co/Hate-speech-CNERG/dehatebert-mono-indonesian"
-export MODEL_LANG="ID"
+#export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-indonesian"
+#export MODEL_SPECNAME="cnergid"
+#export MODEL_VERSION="08693d6cc64f7e7b3019b2a3abe3b1a9c8ca74c2"
+#export MODEL_SOURCE="https://huggingface.co/Hate-speech-CNERG/dehatebert-mono-indonesian"
+#export MODEL_LANG="ID"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export  MODEL_NAME="facebook/roberta-hate-speech-dynabench-r4-target"
+#export MODEL_SPECNAME="lftw-facebook"
+#export MODEL_VERSION="391c99ab8b3f65beb77746a2cf6ddf1ddf9817e6"
+#export MODEL_SOURCE="https://huggingface.co/facebook/roberta-hate-speech-dynabench-r4-target"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export  MODEL_NAME="irlab-udc/MetaHateBERT"
+#export MODEL_SPECNAME="metahatebert"
+#export MODEL_VERSION="60fa7df002300a3fdf56dbfb5c0fbe2a45ee43fa"
+#export MODEL_SOURCE="https://huggingface.co/irlab-udc/MetaHateBERT"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export  MODEL_NAME="HateBERT_hateval"
+#export MODEL_SPECNAME="hatebert-hateval"
+#export MODEL_VERSION="d90e681c672a494bb555de99fc7ae780"
+#export MODEL_SOURCE="https://osf.io/tbd58/files/osfstorage?view_only=d90e681c672a494bb555de99fc7ae780"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export  MODEL_NAME="HateCheckEziisk"
+export MODEL_SPECNAME="hate-check-eziisk"
+export MODEL_VERSION="acad8f3dfadfa4a86695398c01953bc324efe03b"
+export MODEL_SOURCE="https://huggingface.co/EZiisk/EZ_finetune_Vidgen_model_RHS_Best"
+export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"

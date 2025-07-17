@@ -6,13 +6,16 @@
 
 # Transformers FactChecking
 
-DUUI implementation for selected FactChecking Tools: [UniEval](https://github.com/maszhongming/UniEval) and [NUBIA](https://github.com/wl-research/nubia).
+DUUI implementation for selected FactChecking Tools: [UniEval](https://github.com/maszhongming/UniEval), [NUBIA](https://github.com/wl-research/nubia),[FactCC](https://huggingface.co/manueldeprada/FactCC) and [MiniCheck](https://github.com/Liyan06/MiniCheck)
 ## Included Models
 
-| Name                                                       | Revision                                 | Languages                              |
-|------------------------------------------------------------|------------------------------------------|----------------------------------------|
-| UniEval                                                    | d33e7b6cfebe97b2bafe435adbd818230d5a416a | EN                                     |
-| NUBIA                                                      | ba6569605671e88217a14b2b218ce6974be73775 | EN                                     |
+| Name                                                         | Revision                                 | Languages                              |
+|--------------------------------------------------------------|------------------------------------------|----------------------------------------|
+| unieval                                                      | d33e7b6cfebe97b2bafe435adbd818230d5a416a | EN                                     |
+| nubia                                                        | ba6569605671e88217a14b2b218ce6974be73775 | EN                                     |
+| factcc                                                       | c7b3148015d4ddc263f6e2acb2689e90ac061669 | EN                                     |
+| minicheck                                                    | 75ea32eca40730ed76e161cdcd893ac87eddef48 | EN                                     |
+| ------------------------------------------------------------ |------------------------------------------|----------------------------------------|
 # How To Use
 
 For using duui-FactChecking as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
@@ -23,9 +26,9 @@ For using duui-FactChecking as a DUUI image it is necessary to use the [Docker U
 docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-factchecking-[modelname]:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-factchecking-unieval/tags/list
-and 
-https://docker.texttechnologylab.org/v2/duui-factchecking-nubia/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-factchecking-unieval/tags/list,
+https://docker.texttechnologylab.org/v2/duui-factchecking-nubia/tags/list, https://docker.texttechnologylab.org/v2/duui-factchecking-factcc/tags/list,
+https://docker.texttechnologylab.org/v2/duui-factchecking-minicheck/tags/list
 
 ## Run within DUUI
 
