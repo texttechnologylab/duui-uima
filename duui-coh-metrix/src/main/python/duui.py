@@ -2,6 +2,7 @@ import csv
 import logging
 import pyphen
 import textstat
+import math
 
 from platform import python_version
 from sys import version as sys_version
@@ -11,7 +12,7 @@ from typing import List, Optional, Dict, Tuple, Any
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from pydantic_settings import BaseSettings
 from lexicalrichness import LexicalRichness
 from lexical_diversity import lex_div as ld
@@ -120,6 +121,13 @@ class Index(BaseModel):
     value: Optional[float]  # can be None if not applicable or on error
     error: Optional[str]    # fill with error message if applicable
     version: Optional[str] = None
+
+    @validator('value')
+    def value_must_be_finite(cls, v):
+        if v is not None and (math.isinf(v) or math.isnan(v)):
+            print("Validating value:", v, "index", cls.index)
+            return None
+        return v
 
 
 class TextImagerResponse(BaseModel):
@@ -488,7 +496,15 @@ def cm_synle(sentences: List[Sentence]) -> Optional[float]:
 
     return np.mean(word_counts) if word_counts else 0
 
-def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
+ud_tiger_dep_mapping_de = {
+    "de": {
+        "AMOD": ["NK", "ADC"],
+        "COMPOUND": ["NK"],
+        "PREP": ["MO", "AC", "PG"]
+    }
+}
+
+def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str) -> Optional[float]:
     deps = []
     for noun_chunk in noun_chunks:
         for sentence in sentences:
@@ -498,8 +514,14 @@ def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optiona
 
     modifier_counts = []
     for sent in deps:
-        # TODO DE/EN
-        modifiers = [tok for tok in sent if tok in ("AMOD", "COMPOUND", "PREP")]
+        dep_map_en = ["AMOD", "COMPOUND", "PREP"]
+        if lang == "de":
+            dep_map_de = []
+            for dep_en in dep_map_en:
+                dep_map_de.extend(ud_tiger_dep_mapping_de[lang][dep_en])
+            modifiers = [tok for tok in sent if tok in dep_map_de]
+        else:
+            modifiers = [tok for tok in sent if tok in dep_map_en]
         modifier_counts.append(len(modifiers))
 
     return np.mean(modifier_counts) if modifier_counts else 0
@@ -632,18 +654,29 @@ def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> D
             word_i = words[c][j]
             tag_i = tags[c][j]
             dep_i = deps[c][j]
-            # TODO DE/EN
-            if dep_i == "AUXPASS":
+            # AUXPASS EN, MO DE
+            if dep_i == "AUXPASS" or dep_i in ["MO", "AUX", "VP"]:
                 aux = True
-            if dep_i == "NEG":
+            if dep_i == "NEG" or dep_i == "NG":
                 count_metrics_dict["neg_count"] += 1
-            # TODO DE/EN
-            if tag_i == "VBG":
+            # VBG = EN, VVPP = DE
+            if tag_i == "VBG" or tag_i in ["VVPP", "ADJD"]:
                 count_metrics_dict["gerund_count"] += 1
             if 0 < j < len(tokens) - 1:
-                # TODO DE/EN
-                if word_i.lower() == "to" and tags[c][j+1] == "VB" and token_pos[c][j+1] == "VERB":
-                    count_metrics_dict["infinitive_count"] += 1
+                # DE = VVINF
+                #if (word_i.lower() == "to" or word_i.lower() == "zu") and (tags[c][j+1] == "VB" or tags[c][j+1] == "VVINF") and token_pos[c][j+1] == "VERB":
+                #    count_metrics_dict["infinitive_count"] += 1
+                if word_i.lower() == "to" or word_i.lower() == "zu":
+                    if j + 1 < len(tags[c]) and j + 1 < len(token_pos[c]):
+                        if (tags[c][j+1] in ["VB", "VVINF"]) and token_pos[c][j+1] == "VERB":
+                            count_metrics_dict["infinitive_count"] += 1
+                if tags[c][j] == "VM" and token_pos[c][j] == "VERB":
+                    for offset in range(1, 3):
+                        next_idx = j + offset
+                        if next_idx < len(tags[c]) and next_idx < len(token_pos[c]):
+                            if tags[c][next_idx] == "VVINF" and token_pos[c][next_idx] == "VERB":
+                                count_metrics_dict["infinitive_count"] += 1
+                                break
         if aux:
             count_metrics_dict["passive_sentences"] += 1
 
@@ -769,7 +802,6 @@ def _get_morhological_features(poses: List[List[str]], words: List[List[str]], m
             person = morph_Person[i][j]
             number = morph_Number[i][j]
 
-            # TODO EN/DE
             person = person[0] if person else "Unknown"
             number = number[0] if number else "Unknown"
             if person == "2":
@@ -1401,7 +1433,6 @@ def count_verbs(poses: List[List[str]], words: List[List[str]], lemmas: List[Lis
             if word_i in causal_practical_set["intentional_particles"]:
                 counters["intentional_particles"] += 1
 
-            # TODO DE/EN
             if lang=="en":
                 match tag_i:
                     case "VBD" | "VBN":
@@ -2898,7 +2929,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNNP
         try:
-            synnp = cm_synnp(sentences, request.noun_chunks)
+            synnp = cm_synnp(sentences, request.noun_chunks, request.language)
             synnp_error = None
         except Exception as e:
             logger.error("Error calculating SYNNP: %s", e)
