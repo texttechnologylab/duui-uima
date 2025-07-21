@@ -10,24 +10,31 @@ utils = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 function serialize(inputCas, outputStream, params)
     -- Get data from CAS
     local doc_text = inputCas:getDocumentText()
-    local sentences = utils:select(inputCas, sentence):iterator()
 
-    local sentences_array = {}
-    while sentences:hasNext() do
-        local s = sentences:next()
-        local tSentence = {
-            text = s:getCoveredText(),
-            iBegin = s:getBegin(),
-            iEnd = s:getEnd()
-            }
-        table.insert(sentences_array, tSentence)
+    local selection = params["selection"]
+
+    local selection_array = {}
+    if selection ~= nil then
+       local selectionSet = utils:select(inputCas, luajava.bindClass(selection)):iterator()
+
+       while selectionSet:hasNext() do
+           local s = selectionSet:next()
+           local tSelection = {
+               text = s:getCoveredText(),
+               iBegin = s:getBegin(),
+               iEnd = s:getEnd()
+               }
+           table.insert(selection_array, tSelection)
+       end
+
     end
+
 
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
         doc_text = doc_text,
-        sentences = sentences_array
+        selection = selection_array
     }))
 end
 

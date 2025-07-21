@@ -21,18 +21,18 @@ eport MODEL_CACHE_SIZE=3
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="lxyuan/distilbert-base-multilingual-cased-sentiments-student"
-#export MODEL_SPECNAME="distilbert-base-multilingual-cased-sentiments-student"
+#export MODEL_SPECNAME="distilbert-student"
 #export MODEL_VERSION="cf991100d706c13c0a080c097134c05b7f436c45"
 #export MODEL_SOURCE="https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student"
 #export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="philschmid/distilbert-base-multilingual-cased-sentiment"
-#export MODEL_SPECNAME="philschmid-distilbert-base-multilingual-cased-sentiments-student"
-#export MODEL_VERSION="b45a713783e49ac09c94dfda4bff847f4ad771c5"
-#export MODEL_SOURCE="https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment/tree/main"
-#export MODEL_LANG="Multi"
+export MODEL_NAME="philschmid/distilbert-base-multilingual-cased-sentiment"
+export MODEL_SPECNAME="distilbert-multilingual"
+export MODEL_VERSION="b45a713783e49ac09c94dfda4bff847f4ad771c5"
+export MODEL_SOURCE="https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment/tree/main"
+export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -52,11 +52,11 @@ eport MODEL_CACHE_SIZE=3
 ###--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="bardsai/finance-sentiment-de-base"
-export MODEL_SPECNAME="finance-sentiment-de"
-export MODEL_VERSION="51b3d03f716eaa093dc42130f675839675a07b9a"
-export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-de-base"
-export MODEL_LANG="DE"
+#export MODEL_NAME="bardsai/finance-sentiment-de-base"
+#export MODEL_SPECNAME="finance-sentiment-de"
+#export MODEL_VERSION="51b3d03f716eaa093dc42130f675839675a07b9a"
+#export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-de-base"
+#export MODEL_LANG="DE"
 ##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"

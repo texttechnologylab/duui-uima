@@ -1,0 +1,8 @@
+pydantic==2.10.5
+pydantic-settings==2.7.1
+pydantic_core==2.27.2
+regex==2023.12.25
+fastapi==0.115.6
+uvicorn==0.34.0
+dkpro-cassis==0.9.1
+openai==1.79.0
