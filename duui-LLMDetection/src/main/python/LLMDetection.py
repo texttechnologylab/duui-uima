@@ -1,5 +1,4 @@
 import torch.nn.functional as F
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from transformers.tokenization_utils_base import BatchEncoding
 from abc import ABC, abstractmethod
 from typing import TypedDict
@@ -7,7 +6,8 @@ import torch
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 import numpy as np
 import evaluate
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification, PreTrainedModel
+import inspect
 
 
 accuracy = evaluate.load("accuracy")
@@ -227,8 +227,8 @@ DEVICE_2 = "cuda:1" if torch.cuda.device_count() > 1 else DEVICE_1
 class Binoculars(DetectorABC):
     def __init__(
             self,
-            observer_name_or_path: str = "tiiuae/falcon-7b",
-            performer_name_or_path: str = "tiiuae/falcon-7b-instruct",
+            observer_name_or_path: str = "tiiuae/Falcon3-1B-Base",
+            performer_name_or_path: str = "tiiuae/Falcon3-1B-Instruct",
             use_bfloat16: bool = True,
             max_token_observed: int = 512,
     ) -> None:
@@ -310,7 +310,7 @@ class Binoculars(DetectorABC):
         }
 
     @torch.inference_mode()
-    def process_texts(self, texts: list[str]) -> list[float]:
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
         encodings = self.tokenizer(
             texts,
             return_tensors="pt",
@@ -328,7 +328,461 @@ class Binoculars(DetectorABC):
             self.tokenizer.pad_token_id,  # type: ignore
         )
         binoculars_scores = ppl / x_ppl
-        return binoculars_scores.tolist()
+        binoculars_scores = binoculars_scores.tolist()
+        binoculars_scores_list = [{"Binocular-Score": score_i} for score_i in binoculars_scores]
+        return binoculars_scores_list
+
+
+class E5Lora(DetectorABC):
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        super().__init__(
+            AutoTokenizer.from_pretrained(
+                "MayZhou/e5-small-lora-ai-generated-detector"
+            ),
+            device=device,
+        )
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            "MayZhou/e5-small-lora-ai-generated-detector"
+        )
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        encoding = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=512,
+        ).to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        prob_list = [{"LLM": prob, "Human": 1 - prob} for prob in output_probs]
+        return prob_list
+
+
+
+class MetricsCalculator(DetectorABC):
+    def __init__(
+            self,
+            model: str,
+            batch_size: int = 128,
+            max_length: int = 512,
+            device: str | torch.device = "cuda" if torch.cuda.is_available() else "cpu",
+    ):
+        super().__init__(AutoTokenizer.from_pretrained(model), device=device)
+        self.model = AutoModelForCausalLM.from_pretrained(model)
+        self.model.eval()
+        self.pad_token_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        self.tokenizer.pad_token_id = self.pad_token_id
+        self.batch_size = batch_size
+        self.max_length = max_length
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: PreTrainedModel):
+        self._model = model
+        self._requires_position_ids = "position_ids" in set(
+            inspect.signature(self.model.forward).parameters.keys()
+        )
+        self._model.to(self.device)
+
+    def to(self, device: str | torch.device):
+        self.device = torch.device(device)
+        self._model.to(self.device)
+        return self
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        # We can just pad to the right (not left), because we do not need to generate anything.
+        # Padding left would work too (given correct attention mask and position IDs),
+        # but slicing the outputs is a little bit more complicated.
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=self.max_length,
+            return_length=True,
+        )
+
+    def process(self, inputs: dict):
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    def predict(self, inputs: dict):
+        """
+        Calculate metrics for the given pre-processed dataset.
+
+        Args:
+            dataset (list[Sample]): A sequence of pre-processed documents to be processed.
+            pad_token_id (int): The token ID to use for padding.
+
+        Returns:
+            list[Metrics]: A list of calculated metrics.
+        """
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        return self._process_batch(
+            encoding.input_ids, encoding.attention_mask, self.pad_token_id
+        )
+
+
+    def _process_batch(
+            self,
+            input_ids: torch.Tensor,
+            attention_mask: torch.Tensor,
+            pad_token_id: int,
+    ) -> list[float]:
+        """
+        Process the a batch of input sequences and calculate transition scores.
+        Runs a forward pass on the model and extracts the top k probabilities.
+
+        Args:
+            input_ids (torch.Tensor): A list of input sequences, each represented as a list of token IDs.
+            attention_mask (torch.Tensor): A list of attention masks for each input sequence.
+            pad_token_id (int): The token ID that has been used for padding.
+
+        Returns:
+            list[TransitionScores]: A list output probability tuples.
+        """
+        (
+            batch_probabilities,
+            batch_log_probabilities,
+        ) = self._forward(input_ids, attention_mask)
+
+        results = []
+        for (
+                target_ids,
+                probabilities,
+                log_probabilities,
+        ) in zip(
+            input_ids.to(self.device),
+            batch_probabilities,
+            batch_log_probabilities,
+        ):
+            # Truncate the sequence to the last non-pad token
+            labels = target_ids[1:].view(-1, 1)
+            labels = labels[: labels.ne(pad_token_id).sum()]
+            labels = labels.to(log_probabilities.device)
+
+            probabilities: torch.Tensor = probabilities[: labels.size(0)]
+            log_probabilities: torch.Tensor = log_probabilities[: labels.size(0)]
+
+            log_likelihood = log_probabilities.gather(-1, labels).squeeze(-1)
+
+            # Get target probabilities and ranks
+            _, sorted_indices = torch.sort(probabilities, descending=True)
+            _, target_ranks = torch.where(sorted_indices.eq(labels))
+
+            score = self._calculate_score(
+                probabilities, log_probabilities, log_likelihood, target_ranks
+            )
+
+            results.append(score)
+
+        return results
+
+    @torch.no_grad()
+    def _forward(
+            self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Create `position_ids` on the fly, if required
+        # Source: https://github.com/huggingface/transformers/blob/v4.48.1/src/transformers/generation/utils.py#L414
+        position_ids = None
+        if self._requires_position_ids:
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            position_ids = position_ids.to(self.device)
+
+        outputs = self._model(
+            input_ids=input_ids.to(self.device),
+            attention_mask=attention_mask.to(self.device),
+            position_ids=position_ids,
+        )
+
+        probabilities: torch.Tensor = outputs.logits.softmax(-1)
+        log_probabilities: torch.Tensor = outputs.logits.log_softmax(-1)
+
+        return (
+            probabilities,
+            log_probabilities,
+        )
+
+    @abstractmethod
+    def _calculate_score(
+            self,
+            probabilities: torch.Tensor,
+            log_probabilities: torch.Tensor,
+            log_likelihoods: torch.Tensor,
+            target_ranks: torch.Tensor,
+            device: torch.device | None = None,
+    ) -> float: ...
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]):
+        encoding = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        ).to(self.device)
+        output = self._process_batch(
+            encoding.input_ids,
+            encoding.attention_mask,
+            self.pad_token_id,
+        )
+        return output
+
+
+class DetectLLM_LRR(MetricsCalculator):
+    @torch.inference_mode()
+    def _calculate_score(
+            self,
+            _probabilities: torch.Tensor,
+            _log_probabilities: torch.Tensor,
+            log_likelihoods: torch.Tensor,
+            target_ranks: torch.Tensor,
+            device: torch.device | None = None,
+    ) -> float:
+        """Implements the DetectLLM Log-Likelihood Log-Rank Ratio.
+
+        Args:
+            log_likelihoods (torch.Tensor): A tensor of log probabilities for each target token.
+            target_ranks (torch.Tensor): A tensor of ranks for each target token.
+            device (torch.device, optional): Device to run the calculations on. Defaults to None.
+
+        Returns:
+            float: The calculated log-likelihood log-rank ratio.
+
+        Source:
+            - Paper: https://aclanthology.org/2023.findings-emnlp.827.pdf
+            - GitHub: https://github.com/mbzuai-nlp/DetectLLM
+            - Implementation:
+                - https://github.com/mbzuai-nlp/DetectLLM/blob/main/baselines/all_baselines.py#L35:L42
+                - https://github.com/mbzuai-nlp/DetectLLM/blob/main/baselines/all_baselines.py#L94:L100
+        """
+        device = device or self.device
+        return (
+            -torch.div(
+                log_likelihoods.to(device).sum(),
+                target_ranks.to(device).log1p().sum(),
+            )
+            .cpu()
+            .item()
+        )
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]):
+        encoding = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        ).to(self.device)
+        output = self._process_batch(
+            encoding.input_ids,
+            encoding.attention_mask,
+            self.pad_token_id,
+        )
+        output_list = [{"DetectLLM-LRR": score_i} for score_i in output]
+        return output_list
+
+
+class FastDetectGPT(MetricsCalculator):
+    """Fast-DetectGPT analytic criterion using the **same model** for both reference and scoring."""
+
+    @torch.inference_mode()
+    def _calculate_score(
+            self,
+            probabilities: torch.Tensor,
+            log_probabilities: torch.Tensor,
+            log_likelihoods: torch.Tensor,
+            _target_ranks: torch.Tensor,
+            device: torch.device | None = None,
+    ) -> float:
+        """Implements the Fast-DetectGPT analytic criterion.
+        Here, we use the notation from the paper, instead of the implementation (where variables are named `probs_ref`, `mean_ref`, `var_ref`, etc.).
+
+        Source:
+            - Paper: https://arxiv.org/abs/2310.05130
+            - GitHub: https://github.com/baoguangsheng/fast-detect-gpt
+            - Implementation: https://github.com/baoguangsheng/fast-detect-gpt/blob/main/scripts/fast_detect_gpt.py#L52:L70
+        """
+        device = device or self.device
+
+        expectation = (probabilities.to(device) * log_probabilities.to(device)).sum(-1)
+        variance = (
+                           probabilities.to(device) * log_probabilities.to(device).square()
+                   ).sum(-1) - expectation.square()
+
+        fast_detect_gpt = (
+                                  log_likelihoods.to(device).sum(-1) - expectation.sum(-1)
+                          ) / variance.sum(-1).sqrt()
+
+        return fast_detect_gpt.cpu().item()
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]):
+        encoding = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        ).to(self.device)
+        output = self._process_batch(
+            encoding.input_ids,
+            encoding.attention_mask,
+            self.pad_token_id,
+        )
+        output_list = [{"Fast-DetectGPT": score_i} for score_i in output]
+        return output_list
+
+
+class FastDetectGPTwithScoring(FastDetectGPT):
+    """Fast-DetectGPT analytic criterion using **different models** for reference and scoring."""
+
+    def __init__(
+            self,
+            reference_model: str,
+            scoring_model: str,
+            batch_size: int = 128,
+            max_length: int = 512,
+            device_1: str | torch.device = DEVICE_1,
+            device_2: str | torch.device = DEVICE_2,
+    ):
+        vocab_s = set(AutoTokenizer.from_pretrained(scoring_model).get_vocab().keys())
+        vocab_r = set(AutoTokenizer.from_pretrained(reference_model).get_vocab().keys())
+        # Check if:
+        assert (
+            # both vocabularies are equal or
+                vocab_r == vocab_s
+                # either vocabulary is a superset of the other (-> empty difference)
+                or not vocab_r.difference(vocab_s)
+                or not vocab_s.difference(vocab_r)
+        ), (
+            "The tokenizer vocabularies of the reference model and scoring model must match!"
+        )
+        super().__init__(reference_model, batch_size, max_length, device_1)
+        self.device_2 = torch.device(device_2 or self.device)
+        self.scoring_model = AutoModelForCausalLM.from_pretrained(scoring_model)
+        self.scoring_model.eval()
+        self.vocab_size = min(len(vocab_s), len(vocab_r))
+
+    @property
+    def scoring_model(self):
+        return self._scoring_model
+
+    @scoring_model.setter
+    def scoring_model(self, model: PreTrainedModel):
+        self._scoring_model = model
+        self._scoring_requires_position_ids = "position_ids" in set(
+            inspect.signature(self.model.forward).parameters.keys()
+        )
+        self._scoring_model.to(self.device_2)
+
+    def to(
+            self, device: str | torch.device, device_2: str | torch.device | None = None
+    ):
+        device_2 = device_2 or device
+        self.device = torch.device(device)
+        self.device_2 = torch.device(device_2)
+        self.model.to(self.device)
+        self.scoring_model.to(self.device_2)
+        return self
+
+    @torch.inference_mode()
+    def _forward(
+            self, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Create `position_ids` on the fly, if required
+        # Source: https://github.com/huggingface/transformers/blob/v4.48.1/src/transformers/generation/utils.py#L414
+        position_ids = None
+        if self._requires_position_ids or self._scoring_requires_position_ids:
+            position_ids = attention_mask.long().cumsum(-1) - 1
+            position_ids.masked_fill_(attention_mask == 0, 1)
+            position_ids = position_ids
+
+        reference_probs: torch.Tensor = (
+            self._model(
+                input_ids=input_ids.to(self.device),
+                attention_mask=attention_mask.to(self.device),
+                position_ids=position_ids is not None and position_ids.to(self.device),
+            )
+            .logits[:, :, : self.vocab_size]
+            .softmax(-1)
+            .to(self.device_2)
+        )
+
+        scoring_log_probs: torch.Tensor = (
+            self._scoring_model(
+                input_ids=input_ids.to(self.device_2),
+                attention_mask=attention_mask.to(self.device_2),
+                position_ids=position_ids is not None and position_ids.to(self.device_2),
+            )
+            .logits[:, :, : self.vocab_size]
+            .log_softmax(-1)
+            .to(self.device_2)
+        )
+
+        return (
+            reference_probs,
+            scoring_log_probs,
+        )
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]):
+        encoding = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        ).to(self.device)
+        output = self._process_batch(
+            encoding.input_ids,
+            encoding.attention_mask,
+            self.pad_token_id,
+        )
+        output_list = [{"Fast-DetectGPTwithScoring": score_i} for score_i in output]
+        return output_list
+
 
 
 

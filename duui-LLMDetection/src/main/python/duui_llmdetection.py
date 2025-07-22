@@ -8,7 +8,7 @@ from cassis import load_typesystem
 from functools import lru_cache
 from threading import Lock
 from starlette.responses import PlainTextResponse
-from LLMDetection import RoBERTaClassifier, Radar, Binoculars
+from LLMDetection import RoBERTaClassifier, Radar, Binoculars, E5Lora, DetectLLM_LRR, FastDetectGPT, FastDetectGPTwithScoring
 
 model_lock = Lock()
 
@@ -130,6 +130,14 @@ def process_selection(model_name, selection):
                     def_i.append("Probability that the sentence is human written")
                 elif i == "LLM":
                     def_i.append("Probability that the sentence is written by a large language model (LLM)")
+                elif i == "Binocular-Score":
+                    def_i.append("Binoculars Score for the sentence")
+                elif i == "DetectLLM-LRR":
+                    def_i.append("DetectLLM Log-Likelihood Log-Rank Ratio Score for the sentence")
+                elif i == "Fast-DetectGPT":
+                    def_i.append("Fast-DetectGPT Score for the sentence (same model for both reference and scoring)")
+                elif i == "Fast-DetectGPTwithScoring":
+                    def_i.append("Fast-DetectGPTwithScoring Score for the sentence (different model for reference and scoring)")
                 else :
                     def_i.append("Other Metric")
             definitions.append(def_i)
@@ -271,12 +279,20 @@ def post_process(request: DUUIRequest):
 @lru_cache_with_size
 def load_model(model_name: str) -> Union[RoBERTaClassifier, Radar, Binoculars]:
     match model_name:
-        case "Hello-SimpleAI":
+        case "HelloSimpleAI":
             model_i = RoBERTaClassifier()
         case "Radar":
             model_i = Radar()
-        case "Binoculars":
+        case "Binocular":
             model_i = Binoculars()
+        case "E5LoRA":
+            model_i = E5Lora()
+        case "DetectLLM-LRR":
+            model_i = DetectLLM_LRR("gpt2")
+        case "Fast-DetectGPT":
+            model_i = FastDetectGPT("gpt2")
+        case "Fast-DetectGPTwithScoring":
+            model_i = FastDetectGPTwithScoring("tiiuae/Falcon3-1B-Base","tiiuae/Falcon3-1B-Instruct")
         case _:
             raise ValueError(f"Unknown model name: {model_name}")
     return model_i

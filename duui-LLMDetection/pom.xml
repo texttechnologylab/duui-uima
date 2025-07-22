@@ -118,7 +118,7 @@
         <dependency>
             <groupId>com.github.mevbagci</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>6b01d03d01</version>
+            <version>ccba0c546f</version>
         </dependency>
 
 <!--        <dependency>-->

@@ -102,7 +102,7 @@ public class MultiTestLLMDetection {
             System.out.println("LLMMetric:" + llmMetric.getBegin());
             System.out.println("LLMMetric:" + llmMetric.getEnd());
             System.out.println("LLMMetric:" + llmMetric.getValue());
-            System.out.println("Key"+ llmMetric.getKeyName());
+            System.out.println("Key: "+ llmMetric.getKeyName());
             System.out.println("Definition:" + llmMetric.getDefinition());
             System.out.println("Model:" + llmMetric.getModel().getModelName());
         }

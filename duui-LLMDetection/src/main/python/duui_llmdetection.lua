@@ -78,13 +78,13 @@ function deserialize(inputCas, inputStream)
  --         print("setMetaData")
          local model_meta = luajava.newInstance("org.texttechnologylab.annotation.model.MetaData", inputCas)
          model_meta:setModelVersion(model_version)
-         print(model_version)
+--          print(model_version)
          model_meta:setModelName(model_name)
-         print(model_name)
+--          print(model_name)
          model_meta:setSource(source)
-         print(source)
+--          print(source)
          model_meta:setLang(model_lang)
-         print(model_lang)
+--          print(model_lang)
          model_meta:addToIndexes()
 
          local meta = results["meta"]
@@ -98,21 +98,22 @@ function deserialize(inputCas, inputStream)
 
          for i, value in ipairs(values) do
              local begin_i = begin_read[i]
-             print(begin_i)
+--              print(begin_i)
              local end_i = end_read[i]
              local len_i = len_results[i]
 
              local value_i = values[i]
              local key_i = keys[i]
-             print(end_i)
+--              print(end_i)
              local def_i = definitions[i]
-             print(def_i)
+--              print(def_i)
 
-             for j, key_j in ipairs(keys[i]) do
-                 print(j)
+             for j, key_j in ipairs(key_i) do
+--                  print(j)
                  local llm_detect = luajava.newInstance("org.texttechnologylab.annotation.LLMMetric", inputCas)
                  value_j = value_i[j]
                  key_j = key_i[j]
+--                  print(key_j)
                  def_j = def_i[j]
                  llm_detect:setBegin(begin_i)
                  llm_detect:setEnd(end_i)

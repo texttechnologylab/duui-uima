@@ -6,17 +6,29 @@ EXPOSE 9714
 
 COPY ./reqiurements.txt ./reqiurements.txt
 RUN pip install -r reqiurements.txt
-RUN python -c "import stanza; stanza.download('en'); stanza.download('de');"
+
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('TrustSafeAI/RADAR-Vicuna-7B'); AutoTokenizer.from_pretrained('TrustSafeAI/RADAR-Vicuna-7B')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('Hello-SimpleAI/chatgpt-detector-roberta'); AutoTokenizer.from_pretrained('Hello-SimpleAI/chatgpt-detector-roberta')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('MayZhou/e5-small-lora-ai-generated-detector'); AutoTokenizer.from_pretrained('MayZhou/e5-small-lora-ai-generated-detector')"
+
+#RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('tiiuae/Falcon3-1B-Base'); AutoTokenizer.from_pretrained('tiiuae/Falcon3-1B-Base'); AutoModelForCausalLM.from_pretrained('tiiuae/Falcon3-1B-Instruct'); AutoTokenizer.from_pretrained('tiiuae/Falcon3-1B-Instruct');"
+
+#RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('gpt2'); AutoTokenizer.from_pretrained('gpt2');"
+
+RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('gpt2'); AutoTokenizer.from_pretrained('gpt2'); AutoModelForCausalLM.from_pretrained('tiiuae/Falcon3-1B-Instruct'); AutoTokenizer.from_pretrained('tiiuae/Falcon3-1B-Instruct');"
 
 # service script
-COPY ./src/main/python/TypeSystemL2SCA.xml ./TypeSystemL2SCA.xml
-COPY ./src/main/python/L2SCA_Scorer.py ./L2SCA_Scorer.py
-COPY ./src/main/python/duui_l2sca.lua ./duui_l2sca.lua
-COPY ./src/main/python/duui_l2sca.py ./duui_l2sca.py
+COPY ./src/main/python/TypeSystemLLMDetection.xml ./TypeSystemLLMDetection.xml
+COPY ./src/main/python/LLMDetection.py ./LLMDetection.py
+COPY ./src/main/python/duui_llmdetection.lua ./duui_llmdetection.lua
+COPY ./src/main/python/duui_llmdetection.py ./duui_llmdetection.py
 
 
 # meta data
-ARG ANNOTATOR_NAME="duui-l2sca:app"
+ARG ANNOTATOR_NAME="duui_llmdetection:app"
 ENV ANNOTATOR_NAME=$ANNOTATOR_NAME
 ARG ANNOTATOR_VERSION="unset"
 ENV ANNOTATOR_VERSION=$ANNOTATOR_VERSION
@@ -38,7 +50,11 @@ ARG MODEL_LANG=""
 ENV MODEL_LANG=$MODEL_LANG
 
 
+# offline mode for huggingface
+ARG TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE
 
-ENTRYPOINT ["uvicorn", "duui_l2sca:app", "--host", "0.0.0.0", "--port" ,"9714"]
+
+ENTRYPOINT ["uvicorn", "duui_llmdetection:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
 
