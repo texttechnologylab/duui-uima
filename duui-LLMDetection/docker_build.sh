@@ -53,13 +53,80 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="Fast-DetectGPTwithScoring"
+#export MODEL_SPECNAME="fast-detectgpt-dif-gpt-neo"
+#export MODEL_VERSION="dbe59a7f4a88d01d1ba9798d78dbe3fe038792c8,21def0189f5705e2521767faed922f1f15e7d7db"
+#export MODEL_SOURCE="https://huggingface.co/EleutherAI/gpt-neo-1.3B,https://huggingface.co/EleutherAI/gpt-neo-125m"
+#export MODEL_LANG="Multi"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="MachineTextDetector"
+#export MODEL_SPECNAME="machine-text-detector"
+#export MODEL_VERSION="08f218f1d05791ad99c26ede421f69c781a50360"
+#export MODEL_SOURCE="https://huggingface.co/GeorgeDrayson/modernbert-ai-detection"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AIGCDetectorEn"
+#export MODEL_SPECNAME="aigc-detector-en"
+#export MODEL_VERSION="d67ec874221b33c7abb2c9a78019cb08f10a1da1"
+#export MODEL_SOURCE="https://huggingface.co/yuchuantian/AIGC_detector_env2"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AIGCDetectorZh"
+#export MODEL_SPECNAME="aigc-detector-zh"
+#export MODEL_VERSION="547d42d7ed6423edce77296b4b06d375ae1a7e0f"
+#export MODEL_SOURCE="https://huggingface.co/yuchuantian/AIGC_detector_zhv2"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="SuperAnnotate"
+#export MODEL_SPECNAME="super-annotate"
+#export MODEL_VERSION="74b2b8580915c202607c09f64f8170eaa87a6a14"
+#export MODEL_SOURCE="https://huggingface.co/SuperAnnotate/ai-detector"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="FakeSpotAI"
+#export MODEL_SPECNAME="fakespotai"
+#export MODEL_VERSION="f9cdb14d1f8b105f597d80fa7b56f20c6ea0e9db"
+#export MODEL_SOURCE="https://huggingface.co/fakespot-ai/roberta-base-ai-text-detection-v1"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="Desklib"
+#export MODEL_SPECNAME="desklib"
+#export MODEL_VERSION="2bf0bfc06f980531bc49aa70fa06034febc85d5b"
+#export MODEL_SOURCE="https://huggingface.co/desklib/ai-text-detector-v1.01"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="Mage"
+#export MODEL_SPECNAME="mage"
+#export MODEL_VERSION="0d82ca0fdf6ebef5babb813cc11bd8eb2552c846"
+#export MODEL_SOURCE="https://huggingface.co/yaful/MAGE"
+#export MODEL_LANG="En"
+###---------------------------------------------------------------------
+
+
 ##---------------------------------------------------------------------
-export MODEL_NAME="Fast-DetectGPTwithScoring"
-export MODEL_SPECNAME="fast-detectgpt-dif-falcon3-1"
-export MODEL_VERSION="cb37ef3559b157b5c9d9226296ba01a5162da1f7,28ba2251970a01dd1edc7ba7dad2eb71216ccfdf"
-export MODEL_SOURCE="https://huggingface.co/tiiuae/Falcon3-1B-Base,https://huggingface.co/tiiuae/Falcon3-1B-Instrcut"
+export MODEL_NAME="PHDScore"
+export MODEL_SPECNAME="phdscore-xlm-roberta"
+export MODEL_VERSION="0d82ca0fdf6ebef5babb813cc11bd8eb2552c846"
+export MODEL_SOURCE="https://huggingface.co/yaful/MAGE"
 export MODEL_LANG="Multi"
 ##---------------------------------------------------------------------
+
+
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=

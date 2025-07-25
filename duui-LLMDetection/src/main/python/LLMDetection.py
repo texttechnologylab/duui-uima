@@ -1,20 +1,21 @@
-import torch.nn.functional as F
 from transformers.tokenization_utils_base import BatchEncoding
 from abc import ABC, abstractmethod
 from typing import TypedDict
 import torch
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
+from torch import nn
+import torch.nn.functional as F
 import numpy as np
 import evaluate
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification, PreTrainedModel
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification, PreTrainedModel, RobertaModel, AutoModel, AutoConfig, PreTrainedTokenizer, PreTrainedTokenizerFast
 import inspect
+from transformers.modeling_outputs import SequenceClassifierOutput
+from huggingface_hub import PyTorchModelHubMixin
 
 
 accuracy = evaluate.load("accuracy")
 
 class PredictionResults(TypedDict):
     prediction: list[float]
-
 
 class DetectorABC(ABC):
     def __init__(
@@ -31,6 +32,489 @@ class DetectorABC(ABC):
 
     @abstractmethod
     def process(self, inputs: dict) -> PredictionResults: ...
+
+class MachineTextDetector(DetectorABC):
+    def __init__(self, device: str | torch.device = ("cuda" if torch.cuda.is_available() else "cpu")):
+        super().__init__(AutoTokenizer.from_pretrained("GeorgeDrayson/modernbert-ai-detection"), device=device)
+        self.device = torch.device(device)
+        self.model = AutoModelForSequenceClassification.from_pretrained("GeorgeDrayson/modernbert-ai-detection")
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            encoding = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=512,
+            ).to(self.device)
+            outputs = self.model(**encoding)
+            output_probs = F.log_softmax(outputs.logits, -1)[:, 0].exp().tolist()
+            output_list = [{"LLM": score, "Human": 1 - score} for score in output_probs]
+        return output_list
+
+class AIGCDetector(DetectorABC):
+    def __init__(self, lang, device: str | torch.device = ("cuda" if torch.cuda.is_available() else "cpu")):
+        if lang == "zh":
+            model_name = "yuchuantian/AIGC_detector_zhv2"
+        else:
+            model_name = "yuchuantian/AIGC_detector_env2"
+        super().__init__(AutoTokenizer.from_pretrained(model_name), device=device)
+        self.device = torch.device(device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            encoding = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=512,
+            ).to(self.device)
+            outputs = self.model(**encoding)
+            output_probs = F.log_softmax(outputs.logits, -1)[:, 0].exp().tolist()
+            output_list = [{"LLM": score, "Human": 1-score} for score in output_probs]
+        return output_list
+
+class BCEWithLogitsLossSmoothed(nn.Module):
+    """BCEWithLogitsLoss with label smoothing.
+
+    :param label_smoothing: The label smoothing factor (from 0 to 1), defaults to 0.0
+    :type label_smoothing: float, optional
+    :param reduction: Specifies the reduction to apply to the output, defaults to 'mean'
+    :type reduction: str, optional
+    """
+    def __init__(self, label_smoothing=0.0, reduction='mean'):
+        super(BCEWithLogitsLossSmoothed, self).__init__()
+        assert 0 <= label_smoothing <= 1, "label_smoothing value must be from 0 to 1"
+        self.label_smoothing = label_smoothing
+        self.reduction = reduction
+
+        self.bce_with_logits = nn.BCEWithLogitsLoss(reduction=reduction)
+        self.bce = nn.BCELoss()
+
+    def forward(self, logits: torch.Tensor, target: torch.Tensor) ->  torch.Tensor:
+        """Forward pass of the loss function.
+
+        :param input: The logits tensor
+        :type input: torch.Tensor
+        :param target: The target tensor
+        :type target: torch.Tensor
+        :return: Computed loss
+        :rtype: torch.Tensor
+        """
+        logits, target = logits.squeeze(), target.squeeze()
+        pred_probas = F.sigmoid(logits)
+        entropy = self.bce(pred_probas, pred_probas)
+        bce_loss = self.bce_with_logits(logits, target)
+        loss = bce_loss - self.label_smoothing * entropy
+
+        return loss
+
+class RobertaClassifier(nn.Module, PyTorchModelHubMixin):
+    """Roberta based text classifier.
+
+    :param config: Configuration dictionary containing model parameters
+        should contain following keys: `pretrain_checkpoint`, `classifier_dropout`, `num_labels`, `label_smoothing`
+    :type config: dict
+    """
+
+    def __init__(self, config: dict):
+        super().__init__()
+
+        self.roberta = RobertaModel.from_pretrained(config["pretrain_checkpoint"], add_pooling_layer=False)
+
+        self.dropout = nn.Dropout(config["classifier_dropout"])
+        self.dense = nn.Linear(self.roberta.config.hidden_size, config["num_labels"])
+
+        self.loss_func = BCEWithLogitsLossSmoothed(config["label_smoothing"])
+
+    def forward(
+            self,
+            input_ids: torch.LongTensor | None,
+            attention_mask: torch.FloatTensor | None = None,
+            token_type_ids: torch.LongTensor | None = None,
+            position_ids: torch.LongTensor | None = None,
+            head_mask: torch.FloatTensor | None = None,
+            inputs_embeds: torch.FloatTensor | None = None,
+            labels: torch.LongTensor | None = None,
+            output_attentions: bool | None = None,
+            output_hidden_states: bool | None = None,
+            return_dict: bool | None = None,
+            cls_output: bool | None = None,
+    ):
+        """Forward pass of the classifier.
+
+        :param input_ids: Input token IDs
+        :type input_ids: torch.LongTensor, optional
+        :param attention_mask: Mask to avoid performing attention on padding token indices, defaults to None
+        :type attention_mask: torch.FloatTensor, optional
+        :param token_type_ids: Segment token indices to indicate first and second portions of the inputs, defaults to None
+        :type token_type_ids: torch.LongTensor, optional
+        :param position_ids: Indices of positions of each input sequence, defaults to None
+        :type position_ids: torch.LongTensor, optional
+        :param head_mask: Mask to nullify selected heads of the self-attention modules, defaults to None
+        :type head_mask: torch.FloatTensor, optional
+        :param inputs_embeds: Alternative to input_ids, allows direct input of embeddings, defaults to None
+        :type inputs_embeds: torch.FloatTensor, optional
+        :param labels: Target labels, defaults to None
+        :type labels: torch.LongTensor, optional
+        :param output_attentions: Whether or not to return the attentions tensors of all attention layers, defaults to None
+        :type output_attentions: bool, optional
+        :param output_hidden_states: Whether or not to return the hidden states tensors of all layers, defaults to None
+        :type output_hidden_states: bool, optional
+        :param return_dict: Whether or not to return a dictionary, defaults to None
+        :type return_dict: bool, optional
+        :param cls_output: Whether or not to return the classifier output, defaults to None
+        :type cls_output: bool, optional
+        :return: Classifier output if cls_output is True, otherwise returns loss and logits
+        :rtype: Union[SequenceClassifierOutput, Tuple[torch.Tensor, torch.Tensor]]
+        """
+
+        # Forward pass through Roberta model
+        outputs = self.roberta(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict
+        )
+
+        x = outputs[0][:, 0, :]  # take <s> token (equiv. to [CLS])
+        x = self.dropout(x)
+        logits = self.dense(x)
+
+        loss = None
+        if labels is not None:
+            loss = self.loss_func(logits, labels)
+
+        if cls_output:
+            return SequenceClassifierOutput(
+                loss=loss,
+                logits=logits,
+                hidden_states=outputs.hidden_states,
+                attentions=outputs.attentions,
+            )
+
+        return loss, logits
+
+class SuperAnnotate(DetectorABC):
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        super().__init__(
+            AutoTokenizer.from_pretrained("SuperAnnotate/ai-detector"),
+            device=device,
+        )
+        self.device = torch.device(device)
+        self.model = RobertaClassifier.from_pretrained(
+            "SuperAnnotate/ai-detector",
+        )
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            encoding = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=512,
+            ).to(self.device)
+            _, logits = self.model(**encoding)
+            probabilities = F.sigmoid(logits).squeeze().tolist()
+            output_list = [{"LLM": score, "Human": 1 - score} for score in probabilities]
+        return output_list
+
+class FakeSpotAI(DetectorABC):
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        super().__init__(
+            AutoTokenizer.from_pretrained("fakespot-ai/roberta-base-ai-text-detection-v1"),
+            device=device,
+        )
+        self.device = torch.device(device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            "fakespot-ai/roberta-base-ai-text-detection-v1",
+        )
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            encoding = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=512,
+            ).to(self.device)
+            outputs = self.model(**encoding)
+            output_probs = F.log_softmax(outputs.logits, -1)[:, 0].exp().tolist()
+            output_list = [{"LLM": score, "Human": 1-score} for score in output_probs]
+        return output_list
+
+class DesklibAIDetectionModel(PreTrainedModel):
+    config_class = AutoConfig
+
+    def __init__(self, config):
+        super().__init__(config)
+        # Initialize the base transformer model.
+        self.model = AutoModel.from_config(config)
+        # Define a classifier head.
+        self.classifier = nn.Linear(config.hidden_size, 1)
+        # Initialize weights (handled by PreTrainedModel)
+        self.init_weights()
+
+    def forward(self, input_ids, attention_mask=None, labels=None):
+        # Forward pass through the transformer
+        outputs = self.model(input_ids, attention_mask=attention_mask)
+        last_hidden_state = outputs[0]
+        # Mean pooling
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        sum_embeddings = torch.sum(last_hidden_state * input_mask_expanded, dim=1)
+        sum_mask = torch.clamp(input_mask_expanded.sum(dim=1), min=1e-9)
+        pooled_output = sum_embeddings / sum_mask
+
+        # Classifier
+        logits = self.classifier(pooled_output)
+        loss = None
+        if labels is not None:
+            loss_fct = nn.BCEWithLogitsLoss()
+            loss = loss_fct(logits.view(-1), labels.float())
+
+        output = {"logits": logits}
+        if loss is not None:
+            output["loss"] = loss
+        return output
+
+class Desklib(DetectorABC):
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        super().__init__(
+            AutoTokenizer.from_pretrained("desklib/ai-text-detector-v1.01"),
+            device=device,
+        )
+        self.device = torch.device(device)
+        self.model = DesklibAIDetectionModel.from_pretrained("desklib/ai-text-detector-v1.01")
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[float]:
+        self.model.eval()
+        with torch.no_grad():
+            encoding = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=768,
+            ).to(self.device)
+            input_ids = encoding['input_ids'].to(self.device)
+            attention_mask = encoding['attention_mask'].to(self.device)
+            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = outputs["logits"]
+            probabilities = torch.sigmoid(logits).squeeze().tolist()
+            output_list = [{"LLM": score, "Human": 1 - score} for score in probabilities]
+        return output_list
+
+class Mage(DetectorABC):
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        super().__init__(
+            AutoTokenizer.from_pretrained("yaful/MAGE"),
+            device=device,
+        )
+        self.device = torch.device(device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            "yaful/MAGE",
+        )
+        self.model.eval()
+        self.model.to(self.device)
+
+    def tokenize(self, texts: list[str]) -> BatchEncoding:
+        return self.tokenizer(
+            texts,
+            padding=False,
+            truncation=True,
+            max_length=512,
+            return_length=True,
+        )
+
+    @torch.inference_mode()
+    def predict(self, inputs: dict) -> list[float]:
+        encoding = self.tokenizer.pad(inputs, return_tensors="pt").to(self.device)
+        outputs = self.model(**encoding)
+        output_probs = F.log_softmax(outputs.logits, -1)[:, 1].exp().tolist()
+        return output_probs
+
+    def process(self, inputs: dict) -> dict[str, list[float]]:
+        return {
+            "prediction": self.predict(
+                {
+                    "input_ids": inputs["input_ids"],
+                    "attention_mask": inputs["attention_mask"],
+                }
+            )
+        }
+
+    @torch.inference_mode()
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            encoding = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=512,
+            ).to(self.device)
+            outputs = self.model(**encoding)
+            output_probs = F.log_softmax(outputs.logits, -1)[:, 0].exp().tolist()
+            output_list = [{"LLM": score, "Human": 1-score} for score in output_probs]
+        return output_list
+
+
+
 
 
 class Radar(DetectorABC):

@@ -8,8 +8,9 @@ from cassis import load_typesystem
 from functools import lru_cache
 from threading import Lock
 from starlette.responses import PlainTextResponse
-from LLMDetection import RoBERTaClassifier, Radar, Binoculars, E5Lora, DetectLLM_LRR, FastDetectGPT, FastDetectGPTwithScoring
-
+from LLMDetection import RoBERTaClassifier, Radar, Binoculars, E5Lora, DetectLLM_LRR, FastDetectGPT, FastDetectGPTwithScoring, MachineTextDetector, AIGCDetector, SuperAnnotate, FakeSpotAI, Desklib, Mage
+from PHDScore import  PDHScorer
+import torch
 model_lock = Lock()
 
 class UimaSentence(BaseModel):
@@ -138,6 +139,10 @@ def process_selection(model_name, selection):
                     def_i.append("Fast-DetectGPT Score for the sentence (same model for both reference and scoring)")
                 elif i == "Fast-DetectGPTwithScoring":
                     def_i.append("Fast-DetectGPTwithScoring Score for the sentence (different model for reference and scoring)")
+                elif i == "PHD":
+                    def_i.append("PHD Score for the sentence (Intrinsic Dimensionality)")
+                elif i == "MLE":
+                    def_i.append("MLE Score for the sentence (Intrinsic Dimensionality)")
                 else :
                     def_i.append("Other Metric")
             definitions.append(def_i)
@@ -292,8 +297,25 @@ def load_model(model_name: str) -> Union[RoBERTaClassifier, Radar, Binoculars]:
         case "Fast-DetectGPT":
             model_i = FastDetectGPT("gpt2")
         case "Fast-DetectGPTwithScoring":
-            model_i = FastDetectGPTwithScoring("tiiuae/Falcon3-1B-Base","tiiuae/Falcon3-1B-Instruct")
+            model_i = FastDetectGPTwithScoring("EleutherAI/gpt-neo-1.3B","EleutherAI/gpt-neo-125m")
+        case "MachineTextDetector":
+            model_i = MachineTextDetector()
+        case "AIGCDetectorEn":
+            model_i = AIGCDetector("en")
+        case "AIGCDetectorZh":
+            model_i = AIGCDetector("zh")
+        case "SuperAnnotate":
+            model_i = SuperAnnotate()
+        case "FakeSpotAI":
+            model_i = FakeSpotAI()
+        case "Desklib":
+            model_i = Desklib()
+        case "Mage":
+            model_i = Mage()
+        case "PHDScore":
+            model_i = PDHScorer("FacebookAI/xlm-roberta-base", "cuda" if torch.cuda.is_available() else "cpu", alpha=1.0, metric="euclidean", n_points=9, n_reruns=3)
         case _:
-            raise ValueError(f"Unknown model name: {model_name}")
+            print("ModelName")
+            raise ValueError(f";{model_name};")
     return model_i
 

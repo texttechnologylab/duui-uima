@@ -6,6 +6,7 @@ EXPOSE 9714
 
 COPY ./reqiurements.txt ./reqiurements.txt
 RUN pip install -r reqiurements.txt
+COPY ./src/main/python/LLMDetection.py ./LLMDetection.py
 
 
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('TrustSafeAI/RADAR-Vicuna-7B'); AutoTokenizer.from_pretrained('TrustSafeAI/RADAR-Vicuna-7B')"
@@ -18,13 +19,30 @@ RUN pip install -r reqiurements.txt
 
 #RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('gpt2'); AutoTokenizer.from_pretrained('gpt2');"
 
-RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('gpt2'); AutoTokenizer.from_pretrained('gpt2'); AutoModelForCausalLM.from_pretrained('tiiuae/Falcon3-1B-Instruct'); AutoTokenizer.from_pretrained('tiiuae/Falcon3-1B-Instruct');"
+#RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-neo-1.3B'); AutoTokenizer.from_pretrained('EleutherAI/gpt-neo-1.3B'); AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-neo-125m'); AutoTokenizer.from_pretrained('EleutherAI/gpt-neo-125m');"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('GeorgeDrayson/modernbert-ai-detection'); AutoTokenizer.from_pretrained('GeorgeDrayson/modernbert-ai-detection')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('yuchuantian/AIGC_detector_env2'); AutoTokenizer.from_pretrained('yuchuantian/AIGC_detector_env2')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('yuchuantian/AIGC_detector_zhv2'); AutoTokenizer.from_pretrained('yuchuantian/AIGC_detector_zhv2')"
+
+#RUN python -c "from transformers import AutoTokenizer; from LLMDetection import RobertaClassifier; RobertaClassifier.from_pretrained('SuperAnnotate/ai-detector'); AutoTokenizer.from_pretrained('SuperAnnotate/ai-detector')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('fakespot-ai/roberta-base-ai-text-detection-v1'); AutoTokenizer.from_pretrained('fakespot-ai/roberta-base-ai-text-detection-v1')"
+
+#RUN python -c "from transformers import AutoTokenizer; from LLMDetection import DesklibAIDetectionModel; DesklibAIDetectionModel.from_pretrained('desklib/ai-text-detector-v1.01'); AutoTokenizer.from_pretrained('desklib/ai-text-detector-v1.01')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('yaful/MAGE'); AutoTokenizer.from_pretrained('yaful/MAGE')"
+
+RUN python -c "from transformers import AutoModel, AutoTokenizer; AutoModel.from_pretrained('FacebookAI/xlm-roberta-base'); AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-base')"
 
 # service script
 COPY ./src/main/python/TypeSystemLLMDetection.xml ./TypeSystemLLMDetection.xml
-COPY ./src/main/python/LLMDetection.py ./LLMDetection.py
 COPY ./src/main/python/duui_llmdetection.lua ./duui_llmdetection.lua
 COPY ./src/main/python/duui_llmdetection.py ./duui_llmdetection.py
+COPY ./src/main/python/PHDScore.py ./PHDScore.py
+COPY ./src/main/python/InstrinsicDim.py ./InstrinsicDim.py
 
 
 # meta data
