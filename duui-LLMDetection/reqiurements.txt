@@ -15,3 +15,4 @@ torch==2.7.1
 tqdm==4.67.1
 transformers==4.53.0
 scikit-dimension==0.3.4
+sentencepiece==0.2.0

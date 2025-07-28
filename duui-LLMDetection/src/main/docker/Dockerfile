@@ -37,6 +37,27 @@ COPY ./src/main/python/LLMDetection.py ./LLMDetection.py
 
 RUN python -c "from transformers import AutoModel, AutoTokenizer; AutoModel.from_pretrained('FacebookAI/xlm-roberta-base'); AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-base')"
 
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('VSAsteroid/ai-text-detector-hc3'); AutoTokenizer.from_pretrained('VSAsteroid/ai-text-detector-hc3')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('SJTU-CL/RoBERTa-large-ArguGPT-sent'); AutoTokenizer.from_pretrained('SJTU-CL/RoBERTa-large-ArguGPT-sent')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('SJTU-CL/RoBERTa-large-ArguGPT'); AutoTokenizer.from_pretrained('SJTU-CL/RoBERTa-large-ArguGPT')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('raj-tomar001/LLM-DetectAIve_deberta-base'); AutoTokenizer.from_pretrained('raj-tomar001/LLM-DetectAIve_deberta-base')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('wangkevin02/AI_Detect_Model'); AutoTokenizer.from_pretrained('wangkevin02/AI_Detect_Model')"
+
+#RUN python -c "from transformers import AutoModelForCausalLM, AutoTokenizer; AutoModelForCausalLM.from_pretrained('openai-community/gpt2-medium'); AutoTokenizer.from_pretrained('openai-community/gpt2-medium')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='nealcly/detection-longformer', tokenizer='nealcly/detection-longformer', max_length=512, truncation=True, padding=True)"
+
+#RUN python -c "from transformers import T5ForConditionalGeneration, T5Tokenizer; T5ForConditionalGeneration.from_pretrained('google-t5/t5-small', return_dict=True); T5Tokenizer.from_pretrained('google-t5/t5-small')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('openai-community/roberta-large-openai-detector'); AutoTokenizer.from_pretrained('openai-community/roberta-large-openai-detector')"
+
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('PirateXX/AI-Content-Detector'); AutoTokenizer.from_pretrained('PirateXX/AI-Content-Detector')"
+
+
 # service script
 COPY ./src/main/python/TypeSystemLLMDetection.xml ./TypeSystemLLMDetection.xml
 COPY ./src/main/python/duui_llmdetection.lua ./duui_llmdetection.lua
@@ -44,6 +65,7 @@ COPY ./src/main/python/duui_llmdetection.py ./duui_llmdetection.py
 COPY ./src/main/python/PHDScore.py ./PHDScore.py
 COPY ./src/main/python/InstrinsicDim.py ./InstrinsicDim.py
 
+#COPY ./src/main/python/T5Sentinel.0613.pt ./T5Sentinel.0613.pt
 
 # meta data
 ARG ANNOTATOR_NAME="duui_llmdetection:app"

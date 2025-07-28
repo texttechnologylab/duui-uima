@@ -8,7 +8,7 @@ from cassis import load_typesystem
 from functools import lru_cache
 from threading import Lock
 from starlette.responses import PlainTextResponse
-from LLMDetection import RoBERTaClassifier, Radar, Binoculars, E5Lora, DetectLLM_LRR, FastDetectGPT, FastDetectGPTwithScoring, MachineTextDetector, AIGCDetector, SuperAnnotate, FakeSpotAI, Desklib, Mage
+from LLMDetection import RoBERTaClassifier, Radar, Binoculars, E5Lora, DetectLLM_LRR, FastDetectGPT, FastDetectGPTwithScoring, MachineTextDetector, AIGCDetector, SuperAnnotate, FakeSpotAI, Desklib, Mage, HC3AIDetect, ArguGPT, DetectAIve, AIDetectModel, LogRank, Wild, T5Sentinel, OpenAIDetector, PirateXXAIDetector
 from PHDScore import  PDHScorer
 import torch
 model_lock = Lock()
@@ -143,6 +143,12 @@ def process_selection(model_name, selection):
                     def_i.append("PHD Score for the sentence (Intrinsic Dimensionality)")
                 elif i == "MLE":
                     def_i.append("MLE Score for the sentence (Intrinsic Dimensionality)")
+                elif i == "Machine-Polished":
+                    def_i.append("Probability that the sentence is machine polished")
+                elif i == "Machine-Humanized":
+                    def_i.append("Probability that the sentence is machine humanized")
+                elif i == "LogRank":
+                    def_i.append("Log-Rank Score for the sentence")
                 else :
                     def_i.append("Other Metric")
             definitions.append(def_i)
@@ -314,6 +320,26 @@ def load_model(model_name: str) -> Union[RoBERTaClassifier, Radar, Binoculars]:
             model_i = Mage()
         case "PHDScore":
             model_i = PDHScorer("FacebookAI/xlm-roberta-base", "cuda" if torch.cuda.is_available() else "cpu", alpha=1.0, metric="euclidean", n_points=9, n_reruns=3)
+        case "HC3AIDetect":
+            model_i = HC3AIDetect()
+        case "ArguGPTSentence":
+            model_i = ArguGPT()
+        case "ArguGPTDocument":
+            model_i = ArguGPT("SJTU-CL/RoBERTa-large-ArguGPT")
+        case "DetectAIve":
+            model_i = DetectAIve()
+        case "AIDetectModel":
+            model_i = AIDetectModel()
+        case "LogRank":
+            model_i = LogRank()
+        case "Wild":
+            model_i = Wild()
+        case "T5Sentinel":
+            model_i = T5Sentinel()
+        case "OpenAIDetector":
+            model_i = OpenAIDetector()
+        case "PirateXXAIDetector":
+            model_i = PirateXXAIDetector()
         case _:
             print("ModelName")
             raise ValueError(f";{model_name};")

@@ -6,10 +6,11 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 import evaluate
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification, PreTrainedModel, RobertaModel, AutoModel, AutoConfig, PreTrainedTokenizer, PreTrainedTokenizerFast
+from transformers import AutoModelForCausalLM, AutoTokenizer, AutoModelForSequenceClassification, PreTrainedModel, RobertaModel, AutoModel, AutoConfig, PreTrainedTokenizer, PreTrainedTokenizerFast, pipeline, T5ForConditionalGeneration, T5Tokenizer, LongformerTokenizer, LongformerForSequenceClassification, RobertaForSequenceClassification, RobertaTokenizer
 import inspect
 from transformers.modeling_outputs import SequenceClassifierOutput
 from huggingface_hub import PyTorchModelHubMixin
+from scipy.special import softmax
 
 
 accuracy = evaluate.load("accuracy")
@@ -512,10 +513,6 @@ class Mage(DetectorABC):
             output_probs = F.log_softmax(outputs.logits, -1)[:, 0].exp().tolist()
             output_list = [{"LLM": score, "Human": 1-score} for score in output_probs]
         return output_list
-
-
-
-
 
 class Radar(DetectorABC):
     def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
@@ -1268,8 +1265,319 @@ class FastDetectGPTwithScoring(FastDetectGPT):
         return output_list
 
 
+class HC3AIDetect:
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.tokenizer = AutoTokenizer.from_pretrained("VSAsteroid/ai-text-detector-hc3")
+        self.model = AutoModelForSequenceClassification.from_pretrained("VSAsteroid/ai-text-detector-hc3").to(device)
+        self.device = torch.device(device)
+        self.model.eval()
+        self.labels = {
+            0: "Human",
+            1: "LLM"
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
+
+class ArguGPT:
+    def __init__(
+            self,
+            model_name="SJTU-CL/RoBERTa-large-ArguGPT-sent",
+            device="cuda" if torch.cuda.is_available() else "cpu",
+    ):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+        self.device = torch.device(device)
+        self.model = self.model.to(self.device)
+        self.model.eval()
+        self.labels = {
+            0: "LLM",
+            1: "Human",
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
+
+class DetectAIve:
+    def __init__(
+            self,
+            model_name="raj-tomar001/LLM-DetectAIve_deberta-base",
+            device="cuda" if torch.cuda.is_available() else "cpu",
+    ):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+        self.device = torch.device(device)
+        self.model = self.model.to(self.device)
+        self.model.eval()
+        self.labels = {
+            0: "LLM",
+            1: "Human",
+            2: "Machine-Humanized",
+            3: "Machine-Polished"
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
+
+class AIDetectModel:
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu", max_length=4096):
+        self.tokenizer = LongformerTokenizer.from_pretrained("wangkevin02/AI_Detect_Model")
+        self.model = LongformerForSequenceClassification.from_pretrained("wangkevin02/AI_Detect_Model").to(device)
+        self.model.eval()
+        self.max_length = max_length
+        self.tokenizer.padding_side = "right"
+        self.labels = {
+            0: "Human",
+            1: "LLM"
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=self.max_length).to(self.model.device)
+            outputs = self.model(**inputs)
+            scores = outputs.logits.detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
 
 
+#https://aclanthology.org/2024.acl-long.3/
+class Wild:
+    def __init__(self, device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.model = pipeline(
+            "text-classification",
+            model="nealcly/detection-longformer",
+            tokenizer="nealcly/detection-longformer",
+            max_length=512,
+            truncation=True,
+            padding=True,
+            device=device,
+        )
+        self.labels = {
+            0: "LLM",
+            1: "Human"
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        scores = self.model(texts)
+        output_list = []
+        for score in scores:
+            score_dict_i = {}
+            score_label = score["label"]
+            score_out = score["score"]
+            if score_label == 0:
+                score_dict_i[self.labels[0]] = score_out
+                score_dict_i[self.labels[1]] = 1 - score_out
+            else:
+                score_dict_i[self.labels[1]] = score_out
+                score_dict_i[self.labels[0]] = 1 - score_out
+            output_list.append(score_dict_i)
+        return output_list
+
+
+#https://aclanthology.org/2023.findings-emnlp.827.pdf
+class LogRank:
+    def __init__(self, model_path="openai-community/gpt2-medium",  device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.device = device
+        self.base_model = AutoModelForCausalLM.from_pretrained(
+            model_path, torch_dtype=torch.bfloat16
+        ).to(self.device)
+        self.base_tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.base_tokenizer.pad_token_id = self.base_tokenizer.eos_token_id
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        results = []
+        for text in texts:
+            with torch.no_grad():
+                tokenized = self.base_tokenizer(
+                    text, return_tensors="pt",
+                    max_length=min(1024, self.base_model.config.max_position_embeddings),
+                    truncation=True
+                ).to(self.device)
+                logits = self.base_model(**tokenized).logits[:, :-1]
+                labels = tokenized.input_ids[:, 1:]
+
+                matches = (
+                        logits.argsort(-1, descending=True) == labels.unsqueeze(-1)
+                ).nonzero()
+
+                assert (
+                        matches.shape[1] == 3
+                ), f"Expected 3 dimensions in matches tensor, got\
+                    {matches.shape}"
+
+                ranks, timesteps = matches[:, -1], matches[:, -2]
+
+                assert (
+                        timesteps
+                        == torch.arange(len(timesteps)).to(timesteps.device)
+                ).all(), "Expected one match per timestep"
+
+                ranks = ranks.float() + 1
+                ranks = torch.log(ranks)
+
+                ranks_out = ranks.float().mean().item()
+
+                results.append({"LogRank": ranks_out})
+        return results
+
+
+class T5Sentinel:
+    def __init__(
+            self, model_path="T5Sentinel.0613.pt", device="cuda" if torch.cuda.is_available() else "cpu"
+    ):
+        self.device = device
+        self.model = T5ForConditionalGeneration.from_pretrained(
+            "google-t5/t5-small", return_dict=True
+        )
+        self.tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+        state_dict = torch.load(
+            model_path, map_location=torch.device(self.device)
+        )["model"]
+        adjusted_state_dict = {
+            k.replace("backbone.", ""): v for k, v in state_dict.items()
+        }
+        self.model.load_state_dict(adjusted_state_dict, strict=True)
+        self.model.eval()
+        self.model.to(self.device)
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        results = []
+        for i in range(len(texts)):
+            input_ids = self.tokenizer.encode(
+                texts[i],
+                return_tensors="pt",
+                max_length=512,
+                truncation=True,
+            ).to(self.device)
+            output = self.model.generate(input_ids, max_length=2)
+
+            logits = self.model(
+                input_ids, decoder_input_ids=output, return_dict=True
+            ).logits[0][0]
+            positive_idx = self.tokenizer.convert_tokens_to_ids("positive")
+            negative_idx = self.tokenizer.convert_tokens_to_ids("negative")
+
+            new_logits = torch.full_like(logits, float("-inf"))
+            new_logits[positive_idx] = logits[positive_idx]
+            new_logits[negative_idx] = logits[negative_idx]
+
+            softmax_probs = F.softmax(new_logits, dim=-1)
+            positive_prob = softmax_probs[positive_idx].item()
+            negative_prob = softmax_probs[negative_idx].item()
+
+            # results.append(positive_prob - negative_prob)
+
+            ai_generated = positive_prob - negative_prob
+
+            human_generated = 1 - ai_generated
+
+            results.append({
+                "LLM": ai_generated,
+                "Human": human_generated
+            })
+        return results
+
+
+class OpenAIDetector:
+    def __init__(self, model_name="openai-community/roberta-large-openai-detector", device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+        self.device = torch.device(device)
+        self.model.eval()
+        self.labels = {
+            0: "LLM",
+            1: "Human"
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
+
+class PirateXXAIDetector:
+    def __init__(self, model_name="PirateXX/AI-Content-Detector", device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+        self.device = torch.device(device)
+        self.model.eval()
+        self.labels = {
+            0: "LLM",
+            1: "Human"
+        }
+
+    def process_texts(self, texts: list[str]) -> list[dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
 
 if __name__ == '__main__':
     texts = [
