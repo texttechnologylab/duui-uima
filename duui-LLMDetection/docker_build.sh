@@ -199,13 +199,13 @@ export MODEL_LANG="Multi"
 #export MODEL_LANG="EN"
 ###----------------------------------------------------------------------
 
-##---------------------------------------------------------------------
-export MODEL_NAME="PirateXXAIDetector"
-export MODEL_SPECNAME="piratexx-ai-detector"
-export MODEL_VERSION="0d5450c5baf7c6ccab387a120bcc9c2a4d2d3d9c"
-export MODEL_SOURCE="https://huggingface.co/PirateXX/AI-Content-Detector"
-export MODEL_LANG="EN"
-##----------------------------------------------------------------------
+###---------------------------------------------------------------------
+#export MODEL_NAME="PirateXXAIDetector"
+#export MODEL_SPECNAME="piratexx-ai-detector"
+#export MODEL_VERSION="0d5450c5baf7c6ccab387a120bcc9c2a4d2d3d9c"
+#export MODEL_SOURCE="https://huggingface.co/PirateXX/AI-Content-Detector"
+#export MODEL_LANG="EN"
+###----------------------------------------------------------------------
 
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
