@@ -210,7 +210,7 @@ def post_process(request: DUUIRequest):
             end_prompts.append(prompt_end)
             id_prompts.append(id_prompt)
             prompt_text = prompt_i["text"]
-            start_time = time.time()
+
             response_llm = llm.process(prompt_text, model_name, system_prompt=systemprompt, prefix_prompt=prefix, suffix_prompt=suffix)
             time_seconds = time.time() - start_time
             additional.append(json.dumps({"url": url, "port": port, "model_name": request.model_name, "seed": seed, "temperature": temperature, "duration": time_seconds}))

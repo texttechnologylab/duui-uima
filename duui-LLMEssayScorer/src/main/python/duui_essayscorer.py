@@ -2,13 +2,15 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from typing import List, Optional, Dict, Union
 import logging
-from time import time
 from fastapi import FastAPI, Response
 from cassis import load_typesystem
 from functools import lru_cache
 from threading import Lock
 from starlette.responses import PlainTextResponse
 from EssayScorer import EssayScorer
+from BeGradingScorer import BeGradingScorer
+import json
+import time
 import torch
 model_lock = Lock()
 
@@ -41,6 +43,7 @@ class Settings(BaseSettings):
     model_source: str
     # # language of the model
     model_lang: str
+    # Optional: API key for OpenAI
 
 
 # Load settings from env vars
@@ -71,9 +74,28 @@ class DUUIRequest(BaseModel):
     #
     lang: str
     #
+    scenarios: list
+    #
+    scenario_ids: list
+    #
     questions:  list
     #
+    question_ids: list
+    #
     answers: list
+    #
+    answer_ids : list
+    #
+    seed: int = None
+    #
+    temperature: float = None
+    #
+    url: str
+    #
+    port: int
+    #
+    model_llm: str
+
 
 
 
@@ -98,51 +120,104 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
-def process_selection(questions, answers, model_name: str) -> Dict[str, Union[List[int], List[str], List[float]]]:
+def process_selection(request, model_name: str) -> Dict[str, Union[List[int], List[str], List[float]]]:
     begin = []
     end = []
     results_out = []
     factors = []
     definitions = []
-    len_results = []
+    question_ids = []
+    answer_ids = []
+    scene_ids = []
+    contents = []
+    responses = []
+    additional = []
+    reasons = []
+
     # Load the model
     with model_lock:
-        model = load_model(model_name, device="cuda" if torch.cuda.is_available() else "cpu")
         # Process each question-answer pair
         all_answers = [
-            s["text"] for s in answers
+            s["text"] for s in request.answers
         ]
         all_questions = [
-            s["text"] for s in questions
+            s["text"] for s in request.questions
         ]
+        all_scenes = []
+        if (len(request.scenarios) > 0):
+            all_scenes = [
+                s["text"] for s in request.scenarios
+            ]
+
         match model_name:
             case "KevSun/Engessay_grading_ML":
+                model = load_model(model_name, device="cuda" if torch.cuda.is_available() else "cpu")
                 outputs = model.run_messages(all_answers)
                 for i, output in enumerate(outputs):
-                    begin.append(answers[i]["begin"])
-                    end.append(answers[i]["end"])
-                    len_results.append(len(output))
-                    results_out.append(all_questions[i])
-                    factors.append(output)
-                    definitions.append("Essay scoring factors")
+                    for name in output:
+                        score = output[name]
+                        begin.append(request.answers[i]["begin"])
+                        end.append(request.answers[i]["end"])
+                        results_out.append(name)
+                        factors.append(score)
+                        definitions.append("Essay scoring factors")
+                        answer_ids.append(request.answer_ids[i])
             case "JacobLinCool/IELTS_essay_scoring_safetensors":
+                model = load_model(model_name, device="cuda" if torch.cuda.is_available() else "cpu")
                 outputs = model.run_messages(all_answers)
                 for i, output in enumerate(outputs):
-                    begin.append(answers[i]["begin"])
-                    end.append(answers[i]["end"])
-                    len_results.append(len(output))
-                    results_out.append(all_questions[i])
-                    factors.append(output)
-                    definitions.append("Essay scoring factors")
+                    for name in output:
+                        score = output[name]
+                        begin.append(request.answers[i]["begin"])
+                        end.append(request.answers[i]["end"])
+                        results_out.append(name)
+                        factors.append(score)
+                        definitions.append("Essay scoring factors")
+                        answer_ids.append(request.answer_ids[i])
+            case "BeGradingScorer":
+                be_scorer = BeGradingScorer(
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    start_time = time.time()
+                    output = be_scorer.run_message(
+                        model_name=request.model_llm,
+                        question=question,
+                        solution=answer,
+                        category="Scoring"
+                    )
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    results_out.append("BeGradingScore")
+                    factors.append(output["score"])
+                    reasons.append(output["reason"])
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("BeGrading Score")
+                    time_seconds = time.time() - start_time
+                    additional.append(json.dumps({"url": settings.url, "port": settings.port, "model_name": settings.model_llm, "seed": settings.seed, "temperature": settings.temperature, "duration": time_seconds}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
             case _:
                 raise ValueError(f"Model {model_name} is not supported.")
     output = {
         "begin": begin,
         "end": end,
-        "len_results": len_results,
         "keys": results_out,
         "values": factors,
         "definitions": definitions,
+        "answer_ids": answer_ids,
+        "question_ids": question_ids,
+        "scene_ids": scene_ids,
+        "contents": contents,
+        "responses": responses,
+        "additional": additional,
+        "reasons": reasons,
     }
     return output
 
@@ -167,11 +242,18 @@ class DUUIResponse(BaseModel):
     values: List
     keys: List
     definitions: List
-    len_results: List[int]
-    # model_name: str
-    # model_version: str
-    # model_source: str
-    # model_lang: str
+    answer_ids: List[str]
+    question_ids: List[str]
+    scene_ids: List[str]
+    model_name: str
+    model_version: str
+    model_source: str
+    model_lang: str
+    contents: List[str]
+    responses: List[str]
+    additional: List[str]
+    reasons: List[str]
+    llmUsed: bool
 
 
 app = FastAPI(
@@ -221,7 +303,7 @@ def get_communication_layer() -> str:
 # Return documentation info
 @app.get("/v1/documentation")
 def get_documentation():
-    return "Test"
+    return f"EssayScorer: {settings.model_name}"
 
 
 # Process request from DUUI
@@ -229,15 +311,25 @@ def get_documentation():
 def post_process(request: DUUIRequest):
     # Return data
     # Save modification start time for later
-    modification_timestamp_seconds = int(time())
+    modification_timestamp_seconds = int(time.time())
     begin = []
     end = []
     values = []
     keys = []
     definitions = []
-    len_results = []
+    answer_ids = []
+    question_ids = []
+    scene_ids = []
+    contents = []
+    responses = []
+    additional = []
+    reasons = []
+    llm_list = {"BeGradingScorer"}
     try:
-
+        if request.model_llm not in llm_list:
+            llm_used = False
+        else:
+            llm_used = True
         # set meta Informations
         meta = AnnotationMeta(
             name=settings.annotator_name,
@@ -252,16 +344,23 @@ def post_process(request: DUUIRequest):
             timestamp=modification_timestamp_seconds,
             comment=modification_meta_comment
         )
-        processed_sentences = process_selection(request.questions, request.questions, settings.model_name)
+        processed_sentences = process_selection(request, settings.model_name)
         begin.extend(processed_sentences["begin"])
         end.extend(processed_sentences["end"])
         values.extend(processed_sentences["values"])
         keys.extend(processed_sentences["keys"])
         definitions.extend(processed_sentences["definitions"])
-        len_results.extend(processed_sentences["len_results"])
+        answer_ids.extend(processed_sentences["answer_ids"])
+        question_ids.extend(processed_sentences["question_ids"])
+        scene_ids.extend(processed_sentences["scene_ids"])
+        contents.extend(processed_sentences["contents"])
+        responses.extend(processed_sentences["responses"])
+        additional.extend(processed_sentences["additional"])
+        reasons.extend(processed_sentences["reasons"])
     except Exception as ex:
         logger.exception(ex)
-    return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, values=values, keys=keys, definitions=definitions, len_results=len_results)
+    return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, values=values, keys=keys, definitions=definitions, answer_ids=answer_ids, question_ids=question_ids, scene_ids=scene_ids, model_source=settings.model_source, model_name=settings.model_name, model_version=settings.model_version, model_lang=settings.model_lang, contents=contents, responses=responses, additional=additional, reasons=reasons,
+                        llmUsed=llm_used)
 
 @lru_cache_with_size
 def load_model(model_name: str, device: str) -> EssayScorer:

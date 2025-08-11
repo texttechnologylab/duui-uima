@@ -6,6 +6,7 @@ import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
+import org.apache.uima.util.CasIOUtils;
 import org.apache.uima.util.XmlCasSerializer;
 import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
@@ -15,11 +16,18 @@ import org.xml.sax.SAXException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
+
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Div;
+import org.texttechnologylab.annotation.EssayScore;
+import org.texttechnologylab.annotation.model.EssayScoreModel;
 
 import org.texttechnologylab.annotation.LLMMetric;
 
@@ -87,50 +95,66 @@ public class MultiTestEssayScorer {
 //                .withImageFetching());
         composer.add(
                 new DUUIRemoteDriver.Component(url)
-                        .withParameter("div_questions", "Question1,Question2")
-                        .withParameter("div_answers", "Answer1,Answer2")
+                        .withParameter("div_scenarios", "p_scenario,t_scenario,f_scenario")
+                        .withParameter("div_questions", "p_reas_question,t_reas_question,f_reas_question")
+                        .withParameter("div_answers", "p_reas_answer,t_reas_answer,f_reas_answer")
+                        .withParameter("seed", "42")
+                        .withParameter("model_llm", "test:DeepSeek-R1")
+                        .withParameter("url", "anduin.hucompute.org")
+                        .withParameter("temperature", "1.0")
+                        .withParameter("port", "11434")
         );
-        String question = "What is the topic of this text?";
-        String answer = "The topic of this text is about the topic of the text.";
-        String question2 = "What is the sentiment of this text?";
-        String answer2 = "The sentiment of this text is positive.";
-        List<String> sentences = Arrays.asList(
-                question,
-                answer,
-                question2,
-                answer2
-        );
-        createCas("en", sentences);
-        ArrayList<String> ids_list = new ArrayList<>();
-        ids_list.add("Question1");
-        ids_list.add("Answer1");
-        ids_list.add("Question2");
-        ids_list.add("Answer2");
-        int i = 0;
-        Collection<Sentence> sentences_list = JCasUtil.select(cas, Sentence.class);
-        for (Sentence sentence : sentences_list) {
-            Div div = new Div(cas, sentence.getBegin(), sentence.getEnd());
-            div.setId(ids_list.get(i));
-            // if i is even, set the role to "question", otherwise set it to "answer"
-            if (i % 2 == 0) {
-                div.setDivType("question");
-            } else {
-                div.setDivType("answer");
-            }
-            div.addToIndexes();
-            i++;
+        JCas jCas = JCasFactory.createJCas();
+        try (InputStream fileStream = Files.newInputStream(Paths.get("/storage/projects/CORE/data/uce/med_t0/ta_export_spacy_paragraphs/31400.xmi.gz.xmi.gz"));
+             InputStream gzipStream = new GZIPInputStream(fileStream)) {
+            CasIOUtils.load(gzipStream, jCas.getCas());
         }
+//        String scenario = "This text is about the topic of the text. It discusses various aspects and provides insights.";
+//        String question = "What is the topic of this text?";
+//        String answer = "The topic of this text is about the topic of the text.";
+//        String scenario2 = "This text is about sentiment analysis. It discusses how to determine the sentiment of a text.";
+//        String question2 = "What is the sentiment of this text?";
+//        String answer2 = "The sentiment of this text is positive.";
+//        List<String> sentences = Arrays.asList(
+//                scenario,
+//                question,
+//                answer,
+//                scenario2,
+//                question2,
+//                answer2
+//        );
+//        createCas("en", sentences);
+//        ArrayList<String> ids_list = new ArrayList<>();
+//        ids_list.add("Scenario1");
+//        ids_list.add("Question1");
+//        ids_list.add("Answer1");
+//        ids_list.add("Scenario2");
+//        ids_list.add("Question2");
+//        ids_list.add("Answer2");
+//        int i = 0;
+//        Collection<Sentence> sentences_list = JCasUtil.select(cas, Sentence.class);
+//        for (Sentence sentence : sentences_list) {
+//            Div div = new Div(cas, sentence.getBegin(), sentence.getEnd());
+//            div.setId(ids_list.get(i));
+//            // if i is even, set the role to "question", otherwise set it to "answer"
+//            if (i == 0 || i == 3) {
+//                div.setDivType("scenario");
+//            } else if (i == 1 || i == 4) {
+//                div.setDivType("question");
+//            } else {
+//                div.setDivType("answer");
+//            }
+//            div.addToIndexes();
+//            i++;
+//        }
 
-        composer.run(cas);
-
-        Collection<LLMMetric> all_llm_metrics = JCasUtil.select(cas, LLMMetric.class);
-        for (LLMMetric llmMetric : all_llm_metrics) {
-            System.out.println("LLMMetric:" + llmMetric.getBegin());
-            System.out.println("LLMMetric:" + llmMetric.getEnd());
-            System.out.println("LLMMetric:" + llmMetric.getValue());
-            System.out.println("Key: "+ llmMetric.getKeyName());
-            System.out.println("Definition:" + llmMetric.getDefinition());
-            System.out.println("Model:" + llmMetric.getModel().getModelName());
+        composer.run(jCas);
+        Collection<EssayScore> all_essay_scores = JCasUtil.select(jCas, EssayScore.class);
+        for (EssayScore essayScore : all_essay_scores) {
+            System.out.println("EssayScore:" + essayScore.getBegin());
+            System.out.println("EssayScore:" + essayScore.getEnd());
+            System.out.println("EssayScore:" + essayScore.getValue());
+            System.out.println("Name: " + essayScore.getName());
         }
 
     }

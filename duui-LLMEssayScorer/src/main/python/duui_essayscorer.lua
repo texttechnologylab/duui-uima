@@ -13,18 +13,49 @@ function serialize(inputCas, outputStream, parameters)
     -- multiple selection types can be given, separated by commas
     local div_questions = parameters["div_questions"]
     local div_answers = parameters["div_answers"]
+    local div_scenarios = parameters["div_scenarios"]
+
+    local seed = parameters["seed"]
+    local temperature = parameters["temperature"]
+    local url = parameters["url"]
+    local port = parameters["port"]
+    local model_llm = parameters["model_llm"]
+    if seed == nil then
+        seed = -100
+    end
+    if temperature == nil then
+        temperature = -100.0
+    end
+    if url == nil then
+        url = ""
+    end
+    if port == nil then
+        port = -100
+    end
+    if model_llm == nil then
+        model_llm = ""
+    end
+
 
     div_id_map = {}
     local all_divs = JCasUtil:select(inputCas, Divs):iterator()
     while all_divs:hasNext() do
         local div = all_divs:next()
-        print(div)
-        local div_id = div:getId()
-        div_id_map[div_id] = div
+--         print(div)
+        local div_name = div:getType():getName()
+        if div_name == "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Div" then
+            local div_id = div:getId()
+--             print(div_id)
+            div_id_map[div_id] = div
+        end
     end
 
     answers = {}
     questions = {}
+    scenarios = {}
+    answer_id = {}
+    question_id = {}
+    scenario_id = {}
 
     print(div_questions)
     i = 1
@@ -32,6 +63,7 @@ function serialize(inputCas, outputStream, parameters)
         for div_id in string.gmatch(div_questions, '([^,]+)') do
             local div = div_id_map[div_id]
             if div ~= nil then
+                print(div_id)
                 local question = {
                     text = div:getCoveredText(),
                     begin = div:getBegin(),
@@ -39,19 +71,21 @@ function serialize(inputCas, outputStream, parameters)
                     typeName = div_id
                 }
                 questions[i] = question
+                question_id[i] = div_id
+                i = i + 1
             end
-            i = i + 1
         end
     end
 
     print(div_answers)
     i = 1
     if div_answers ~= nil then
-        print(div_answers)
+--         print(div_answers)
         for div_id in string.gmatch(div_answers, '([^,]+)') do
-            print(div_id)
+--             print(div_id)
             local div = div_id_map[div_id]
             if div ~= nil then
+                print(div_id)
                 local answer = {
                     text = div:getCoveredText(),
                     begin = div:getBegin(),
@@ -59,8 +93,29 @@ function serialize(inputCas, outputStream, parameters)
                     typeName = div_id
                 }
                 answers[i] = answer
+                answer_id[i] = div_id
+                i = i + 1
             end
-            i = i + 1
+        end
+    end
+
+    print(div_scenarios)
+    i = 1
+    if div_scenarios ~= nil then
+        for div_id in string.gmatch(div_scenarios, '([^,]+)') do
+            local div = div_id_map[div_id]
+            if div ~= nil then
+                print(div_id)
+                local scenario = {
+                    text = div:getCoveredText(),
+                    begin = div:getBegin(),
+                    ['end'] = div:getEnd(),
+                    typeName = div_id
+                }
+                scenarios[i] = scenario
+                scenario_id[i] = div_id
+                i = i + 1
+            end
         end
     end
 
@@ -70,7 +125,16 @@ function serialize(inputCas, outputStream, parameters)
         lang = doc_lang,
         doc_len = doc_len,
         questions = questions,
-        answers = answers
+        question_ids = question_id,
+        answers = answers,
+        answer_ids = answer_id,
+        scenarios = scenarios,
+        scenario_ids = scenario_id,
+        seed = seed,
+        temperature = temperature,
+        url = url,
+        port = port,
+        model_llm = model_llm,
     }))
 end
 
@@ -113,36 +177,64 @@ function deserialize(inputCas, inputStream)
          local values = results["values"]
          local keys = results["keys"]
          local definitions = results["definitions"]
-         local len_results = results["len_results"]
-
+         local answer_ids = results["answer_ids"]
+         local question_ids = results["question_ids"]
+         local scenario_ids = results["scenario_ids"]
+         local contents = results["contents"]
+         local
 
          for i, value in ipairs(values) do
              local begin_i = begin_read[i]
---              print(begin_i)
              local end_i = end_read[i]
-             local len_i = len_results[i]
-
              local value_i = values[i]
              local key_i = keys[i]
---              print(end_i)
              local def_i = definitions[i]
---              print(def_i)
-
-             for j, key_j in ipairs(key_i) do
---                  print(j)
-                 local llm_detect = luajava.newInstance("org.texttechnologylab.annotation.LLMMetric", inputCas)
-                 value_j = value_i[j]
-                 key_j = key_i[j]
---                  print(key_j)
-                 def_j = def_i[j]
-                 llm_detect:setBegin(begin_i)
-                 llm_detect:setEnd(end_i)
-                 llm_detect:setValue(value_j)
-                 llm_detect:setKeyName(key_j)
-                 llm_detect:setDefinition(def_j)
-                 llm_detect:setModel(model_meta)
-                 llm_detect:addToIndexes()
+             local answer_id_i =answer_ids[i]
+             local question_id_i = nil
+             if question_ids ~= nil then
+                 question_id_i = question_ids[i]
              end
+             local scenario_id_i = nil
+             if scenario_ids ~= nil then
+                 scenario_id_i = scenario_ids[i]
+             end
+             local essay_score = luajava.newInstance("org.texttechnologylab.annotation.EssayScore", inputCas)
+             essay_score:setBegin(begin_i)
+             essay_score:setEnd(end_i)
+             essay_score:setValue(value_i)
+             essay_score:setName(key_i)
+             essay_score:setReason("")
+             local comment_answer = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+             comment_answer:setReference(essay_score)
+             comment_answer:setKey("div_answers")
+             comment_answer:setValue(answer_id_i)
+             comment_answer:addToIndexes()
+             essay_score:setInputAnswer(comment_answer)
+             if question_id_i ~= nil then
+                 local comment_question = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+                 comment_question:setReference(essay_score)
+                 comment_question:setKey("div_questions")
+                 comment_question:setValue(question_id_i)
+                 comment_question:addToIndexes()
+                 essay_score:setInputQuestion(comment_question)
+             end
+             if scenario_id_i ~= nil then
+                 local comment_scenario = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+                 comment_scenario:setReference(essay_score)
+                 comment_scenario:setKey("div_scenarios")
+                 comment_scenario:setValue(scenario_id_i)
+                 comment_scenario:addToIndexes()
+                 essay_score:setInputScenario(comment_scenario)
+             end
+             essay_score:addToIndexes()
+
+            -- Model Def
+            local EssayScoreModel = luajava.newInstance("org.texttechnologylab.annotation.model.EssayScoreModel", inputCas)
+             EssayScoreModel:setBegin(begin_i)
+             EssayScoreModel:setEnd(end_i)
+             EssayScoreModel:setModel(model_meta)
+             EssayScoreModel:setScoreReference(essay_score)
+             EssayScoreModel:addToIndexes()
          end
      end
  end

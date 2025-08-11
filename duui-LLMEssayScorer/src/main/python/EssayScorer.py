@@ -28,14 +28,19 @@ class EssayScorer:
                 case "KevSun/Engessay_grading_ML":
                     # Scale predictions from 1 to 10 and round to the nearest 0.5
                     scaled_scores = 2.25 * predicted_scores - 1.25
-                    rounded_scores = [round(score * 2) / 2 for score in scaled_scores]  # Round to nearest 0.5
+                    rounded_scores = np.round(scaled_scores * 2) / 2# Round to nearest 0.5
                 case "JacobLinCool/IELTS_essay_scoring_safetensors":
                     normalized_scores = (predicted_scores / predicted_scores.max()) * 9  # Scale to 9
                     rounded_scores = np.round(normalized_scores * 2) / 2
                 case _:
                     raise ValueError(f"Model {self.model_name} is not supported.")
-            for item, score in zip(item_names, rounded_scores):
-                score_dict = {item: float(score)}
+            # if rounded_scores.ndim == 1: format to 2dim
+            if rounded_scores.ndim == 1:
+                rounded_scores = rounded_scores.reshape(1, -1)
+            for scores in rounded_scores:
+                score_dict = {}
+                for item, score in zip(item_names, scores):
+                    score_dict[item] = float(score)
                 score_list.append(score_dict)
         return score_list
 
