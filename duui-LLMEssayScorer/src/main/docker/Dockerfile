@@ -10,13 +10,23 @@ RUN pip install -r reqiurements.txt
 
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('KevSun/Engessay_grading_ML'); AutoTokenizer.from_pretrained('KevSun/Engessay_grading_ML')"
 
-RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('JacobLinCool/IELTS_essay_scoring_safetensors'); AutoTokenizer.from_pretrained('JacobLinCool/IELTS_essay_scoring_safetensors')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('JacobLinCool/IELTS_essay_scoring_safetensors'); AutoTokenizer.from_pretrained('JacobLinCool/IELTS_essay_scoring_safetensors')"
+
+#Begrading Models runs on different Server. The Information are given by the user with the parameters by the service call.
+
+#LLMAESSlowScorer Models runs on different Server. The Information are given by the user with the parameters by the service call.
 
 # service script
 COPY ./src/main/python/TypeSystemEssayScorer.xml ./TypeSystemEssayScorer.xml
 COPY ./src/main/python/duui_essayscorer.lua ./duui_essayscorer.lua
 COPY ./src/main/python/duui_essayscorer.py ./duui_essayscorer.py
 COPY ./src/main/python/EssayScorer.py ./EssayScorer.py
+COPY ./src/main/python/BeGradingScorer.py ./BeGradingScorer.py
+COPY ./src/main/python/LLMAESDataset.py ./LLMAESDataset.py
+COPY ./src/main/python/LLMAESScorer.py ./LLMAESScorer.py
+COPY ./src/main/python/AAGScorer.py ./AAGScorer.py
+COPY ./src/main/python/GradingMedicalEducation.py ./GradingMedicalEducation.py
+
 
 
 # meta data

@@ -28,6 +28,7 @@ import java.util.zip.GZIPInputStream;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Div;
 import org.texttechnologylab.annotation.EssayScore;
 import org.texttechnologylab.annotation.model.EssayScoreModel;
+import org.texttechnologylab.annotation.model.EssayScoreLLM;
 
 import org.texttechnologylab.annotation.LLMMetric;
 
@@ -37,7 +38,7 @@ public class MultiTestEssayScorer {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
 //    static String model = "pol_emo_mDeBERTa";
 
     @BeforeAll
@@ -46,7 +47,7 @@ public class MultiTestEssayScorer {
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
 
-        DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
+        DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver(2000);
         composer.addDriver(remoteDriver);
 //        DUUIDockerDriver docker_driver = new DUUIDockerDriver();
 //        composer.addDriver(docker_driver);
@@ -94,15 +95,17 @@ public class MultiTestEssayScorer {
 //                .withScale(1)
 //                .withImageFetching());
         composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("div_scenarios", "p_scenario,t_scenario,f_scenario")
-                        .withParameter("div_questions", "p_reas_question,t_reas_question,f_reas_question")
-                        .withParameter("div_answers", "p_reas_answer,t_reas_answer,f_reas_answer")
+                new DUUIRemoteDriver.Component(url).build()
+                        .withParameter("div_scenarios", "p_scenario,t_scenario")
+                        .withParameter("div_questions", "p_reas_question,t_reas_question")
+                        .withParameter("div_answers", "p_reas_answer,t_reas_answer")
                         .withParameter("seed", "42")
                         .withParameter("model_llm", "test:DeepSeek-R1")
-                        .withParameter("url", "anduin.hucompute.org")
+                        .withParameter("name_model", "DeepSeek-R1:70B")
+                        .withParameter("url", "localhost")
                         .withParameter("temperature", "1.0")
                         .withParameter("port", "11434")
+                        .withTimeout(2000)
         );
         JCas jCas = JCasFactory.createJCas();
         try (InputStream fileStream = Files.newInputStream(Paths.get("/storage/projects/CORE/data/uce/med_t0/ta_export_spacy_paragraphs/31400.xmi.gz.xmi.gz"));
@@ -151,10 +154,24 @@ public class MultiTestEssayScorer {
         composer.run(jCas);
         Collection<EssayScore> all_essay_scores = JCasUtil.select(jCas, EssayScore.class);
         for (EssayScore essayScore : all_essay_scores) {
-            System.out.println("EssayScore:" + essayScore.getBegin());
-            System.out.println("EssayScore:" + essayScore.getEnd());
+            System.out.println("Begin:" + essayScore.getBegin());
+            System.out.println("End:" + essayScore.getEnd());
             System.out.println("EssayScore:" + essayScore.getValue());
             System.out.println("Name: " + essayScore.getName());
+            System.out.println("Reason: " + essayScore.getReason());
+            System.out.println("Input Question: " + essayScore.getInputQuestion().getValue());
+            System.out.println("Input Answer: " + essayScore.getInputAnswer().getValue());
+            System.out.println("Input Scene " + essayScore.getInputScene().getValue());
+        }
+        Collection<EssayScoreLLM> all_essay_scores_llm = JCasUtil.select(jCas, EssayScoreLLM.class);
+        for (EssayScoreLLM essayScoreLLM : all_essay_scores_llm) {
+            System.out.println("Begin:" + essayScoreLLM.getBegin());
+            System.out.println("End:" + essayScoreLLM.getEnd());
+            System.out.println(essayScoreLLM.getModelName() + ": ModelName");
+            System.out.println(essayScoreLLM.getContents() + ": Contents");
+            System.out.println(essayScoreLLM.getResponse() + ": Response");
+            System.out.println(essayScoreLLM.getAdditionalInformation() + ": AdditionalInformation");
+            System.out.println(essayScoreLLM.getModel().getModelName() + ": ModelName");
         }
 
     }

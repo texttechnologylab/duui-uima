@@ -9,6 +9,9 @@ from threading import Lock
 from starlette.responses import PlainTextResponse
 from EssayScorer import EssayScorer
 from BeGradingScorer import BeGradingScorer
+from LLMAESScorer import ScoreSlowStudent,ScoreStudent,all_rubrics
+from AAGScorer import AGGScore
+from GradingMedicalEducation import GradingMedicalEducationScorer
 import json
 import time
 import torch
@@ -95,6 +98,8 @@ class DUUIRequest(BaseModel):
     port: int
     #
     model_llm: str
+    # The model name to use for scoring
+    name_model: str
 
 
 
@@ -133,6 +138,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
     responses = []
     additional = []
     reasons = []
+    nameLLMModel=[]
 
     # Load the model
     with model_lock:
@@ -148,7 +154,9 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
             all_scenes = [
                 s["text"] for s in request.scenarios
             ]
-
+        logger.info("Processing %d questions and %d answers with model %s", len(all_questions), len(all_answers), model_name)
+        model_spec_name = settings.model_spec_name
+        logger.info(f"Model spec name: {model_spec_name}")
         match model_name:
             case "KevSun/Engessay_grading_ML":
                 model = load_model(model_name, device="cuda" if torch.cuda.is_available() else "cpu")
@@ -183,6 +191,10 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     api_key=None
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
                     start_time = time.time()
                     output = be_scorer.run_message(
                         model_name=request.model_llm,
@@ -200,9 +212,273 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     responses.append(json_llm_string)
                     definitions.append("BeGrading Score")
                     time_seconds = time.time() - start_time
-                    additional.append(json.dumps({"url": settings.url, "port": settings.port, "model_name": settings.model_llm, "seed": settings.seed, "temperature": settings.temperature, "duration": time_seconds}))
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds}))
                     answer_ids.append(request.answer_ids[i])
                     question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
+            case "LLMAESSlowScorer":
+                slow_scorer = ScoreSlowStudent(
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    output = slow_scorer.run_message(
+                        model_name=request.model_llm,
+                        essay=answer,
+                        task=question
+                    )
+                    time_seconds = time.time() - start_time
+                    # content info
+                    try:
+                        content_info = output["content_info"]
+                        results_out.append("LLMAESSlow-ContentScore")
+                        factors.append(content_info["score"])
+                        reasons.append(content_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing content info: {e}")
+                        results_out.append("LLMAESSlow-ContentScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing content info")
+                    # language info
+                    try:
+                        language_info = output["language_info"]
+                        results_out.append("LLMAESSlow-LanguageScore")
+                        factors.append(language_info["score"])
+                        reasons.append(language_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing language info: {e}")
+                        results_out.append("LLMAESSlow-LanguageScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing language info")
+                    # structure info
+                    try:
+                        structure_info = output["structure_info"]
+                        results_out.append("LLMAESSlow-StructureScore")
+                        factors.append(structure_info["score"])
+                        reasons.append(structure_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing structure info: {e}")
+                        results_out.append("LLMAESSlow-StructureScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing structure info")
+                    # overall info
+                    try:
+                        overall_info = output["overall_info"]
+                        results_out.append("LLMAESSlow-OverallScore")
+                        factors.append(overall_info["score"])
+                        reasons.append(overall_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing overall info: {e}")
+                        results_out.append("LLMAESSlow-OverallScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing overall info")
+                    for _ in range(4):
+                        begin.append(request.answers[i]["begin"])
+                        end.append(request.answers[i]["end"])
+                        json_llm_string = json.dumps(output)
+                        contents.append(output["output"])
+                        responses.append(json_llm_string)
+                        definitions.append("LLMAESSlow Score")
+                        additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds}))
+                        answer_ids.append(request.answer_ids[i])
+                        question_ids.append(request.question_ids[i])
+                        nameLLMModel.append(request.name_model)
+                        if len(all_scenes) > 0:
+                            scene_ids.append(request.scenario_ids[i])
+            case "LLMAESSScorer":
+                llm_scorer = ScoreStudent(
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    output = {}
+                    if model_spec_name == "llmaes-scorer-norubrics":
+                        output = llm_scorer.run_message(
+                            model_name=request.model_llm,
+                            set_essay=answer,
+                            set_prompt=question,
+                            category="zeroshot_norubrics"
+                        )
+                        logger.info(f"LLMAESSScorer without rubrics")
+                    if "llmaes-scorer-zeroshot" in model_spec_name:
+                        index_zero = model_spec_name.split("-")[-1]
+                        index_zero = int(index_zero) - 1
+                        output = llm_scorer.run_message(
+                            model_name=request.model_llm,
+                            set_essay=answer,
+                            set_prompt=question,
+                            set_rubrics=all_rubrics[index_zero],
+                            category="zeroshot"
+                        )
+                        logger.info(f"LLMAESSScorer with rubrics {index_zero + 1}")
+                    if "llmaes-scorer-fewshot" in model_spec_name:
+                        index_few = model_spec_name.split("-")[-1]
+                        index_few = int(index_few) - 1
+                        output = llm_scorer.run_message(
+                            model_name=request.model_llm,
+                            set_essay=answer,
+                            set_prompt=question,
+                            set_rubrics=all_rubrics[index_few],
+                            category="fewshot"
+                        )
+                        logger.info(f"LLMAESSScorer with fewshot rubrics {index_few + 1}")
+                    time_seconds = time.time() - start_time
+                    # content info
+                    try:
+                        content_info = output["content_score"]
+                        results_out.append(f"LLMAESS-ContentScore")
+                        factors.append(content_info["score"])
+                        reasons.append(content_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing content info: {e}")
+                        results_out.append("LLMAESS-ContentScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing content info")
+                    # language info
+                    try:
+                        language_info = output["language_score"]
+                        results_out.append("LLMAESS-LanguageScore")
+                        factors.append(language_info["score"])
+                        reasons.append(language_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing language info: {e}")
+                        results_out.append("LLMAESS-LanguageScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing language info")
+                    # structure info
+                    try:
+                        structure_info = output["structure_score"]
+                        results_out.append("LLMAESS-StructureScore")
+                        factors.append(structure_info["score"])
+                        reasons.append(structure_info["reason"])
+                    except Exception as e:
+                        logger.error(f"Error processing structure info: {e}")
+                        results_out.append("LLMAESS-StructureScore")
+                        factors.append(-1.0)
+                        reasons.append("Error processing structure info")
+                    # overall info
+                    try:
+                        overall_info = output["total_score"]
+                        results_out.append("LLMAESS-OverallScore")
+                        factors.append(overall_info["score"])
+                        reasons.append("Overall score based on all factors")
+                    except Exception as e:
+                        try:
+                            # Try to compute overall score from individual scores
+                            overall_score = output["content_score"]["score"] + output["language_score"]["score"] + output["structure_score"]["score"]
+                            results_out.append("LLMAESS-OverallScore")
+                            factors.append(overall_score)
+                            reasons.append("Overall score computed from content, language, and structure scores")
+                        except Exception as e:
+                            logger.error(f"Error processing overall info: {e}")
+                            results_out.append("LLMAESS-OverallScore")
+                            factors.append(-1.0)
+                            reasons.append("Error processing overall info")
+                    for _ in range(4):
+                        begin.append(request.answers[i]["begin"])
+                        end.append(request.answers[i]["end"])
+                        json_llm_string = json.dumps(output)
+                        contents.append(output["output"])
+                        responses.append(json_llm_string)
+                        definitions.append("LLMAESS Score")
+                        additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds, "model_spec_name": model_spec_name}))
+                        answer_ids.append(request.answer_ids[i])
+                        question_ids.append(request.question_ids[i])
+                        nameLLMModel.append(request.name_model)
+                        if len(all_scenes) > 0:
+                            scene_ids.append(request.scenario_ids[i])
+            case "AAGScorer":
+                aag_scorer = AGGScore(
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    output = aag_scorer.run_message(
+                        model_name=request.model_llm,
+                        course="Experiments",
+                        question=question,
+                        student_answer=answer
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    results_out.append("AAGScore")
+                    factors.append(output["score"])
+                    reasons.append(output["reason"])
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("AAG Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds, "model_spec_name": model_spec_name}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
+            case "GradingMedicalEducation":
+                med_scorer = GradingMedicalEducationScorer(
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    output = med_scorer.run_message(
+                        model_name=request.model_llm,
+                        course="",
+                        question_text=question,
+                        student_answer=answer,
+                        key_text="<Score Point from 1 to 10>",
+                        max_points=10,
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    results_out.append("MedScore")
+                    factors.append(output["score"])
+                    reasons.append(output["reason"])
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("Medical Education Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds, "model_spec_name": model_spec_name}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
             case _:
                 raise ValueError(f"Model {model_name} is not supported.")
     output = {
@@ -218,6 +494,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
         "responses": responses,
         "additional": additional,
         "reasons": reasons,
+        "nameLLMModel": nameLLMModel,
     }
     return output
 
@@ -253,7 +530,8 @@ class DUUIResponse(BaseModel):
     responses: List[str]
     additional: List[str]
     reasons: List[str]
-    llmUsed: bool
+    llmUsed: str
+    NameModel: List[str] # List of model names used for scoring, if applicable
 
 
 app = FastAPI(
@@ -324,12 +602,12 @@ def post_process(request: DUUIRequest):
     responses = []
     additional = []
     reasons = []
-    llm_list = {"BeGradingScorer"}
+    nameLLMModel = []
+    llm_list = {"BeGradingScorer", "LLMAESSlowScorer", "LLMAESSScorer", "AAGScorer", "GradingMedicalEducation"}
+    llm_used = "No"
     try:
-        if request.model_llm not in llm_list:
-            llm_used = False
-        else:
-            llm_used = True
+        if settings.model_name in llm_list:
+            llm_used = "Yes"
         # set meta Informations
         meta = AnnotationMeta(
             name=settings.annotator_name,
@@ -357,10 +635,10 @@ def post_process(request: DUUIRequest):
         responses.extend(processed_sentences["responses"])
         additional.extend(processed_sentences["additional"])
         reasons.extend(processed_sentences["reasons"])
+        nameLLMModel.extend(processed_sentences["nameLLMModel"])
     except Exception as ex:
         logger.exception(ex)
-    return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, values=values, keys=keys, definitions=definitions, answer_ids=answer_ids, question_ids=question_ids, scene_ids=scene_ids, model_source=settings.model_source, model_name=settings.model_name, model_version=settings.model_version, model_lang=settings.model_lang, contents=contents, responses=responses, additional=additional, reasons=reasons,
-                        llmUsed=llm_used)
+    return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, values=values, keys=keys, definitions=definitions, answer_ids=answer_ids, question_ids=question_ids, scene_ids=scene_ids, model_source=settings.model_source, model_name=settings.model_name, model_version=settings.model_version, model_lang=settings.model_lang, contents=contents, responses=responses, additional=additional, reasons=reasons,llmUsed=llm_used, NameModel=nameLLMModel)
 
 @lru_cache_with_size
 def load_model(model_name: str, device: str) -> EssayScorer:

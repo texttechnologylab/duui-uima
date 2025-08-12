@@ -20,6 +20,7 @@ function serialize(inputCas, outputStream, parameters)
     local url = parameters["url"]
     local port = parameters["port"]
     local model_llm = parameters["model_llm"]
+    local name_model = parameters["name_model"]
     if seed == nil then
         seed = -100
     end
@@ -34,6 +35,10 @@ function serialize(inputCas, outputStream, parameters)
     end
     if model_llm == nil then
         model_llm = ""
+    end
+
+    if name_model == nil then
+        name_model = "No model name given"
     end
 
 
@@ -135,6 +140,7 @@ function serialize(inputCas, outputStream, parameters)
         url = url,
         port = port,
         model_llm = model_llm,
+        name_model = name_model,
     }))
 end
 
@@ -179,9 +185,16 @@ function deserialize(inputCas, inputStream)
          local definitions = results["definitions"]
          local answer_ids = results["answer_ids"]
          local question_ids = results["question_ids"]
-         local scenario_ids = results["scenario_ids"]
+         local scenario_ids = results["scene_ids"]
          local contents = results["contents"]
-         local
+         local responses = results["responses"]
+         local additional = results["additional"]
+         local reasons = results["reasons"]
+         local llmUsed = results["llmUsed"]
+         local nameLLMModel = results["NameModel"]
+--          print(nameLLMModel)
+--          print("LLMUsed: " .. llmUsed)
+
 
          for i, value in ipairs(values) do
              local begin_i = begin_read[i]
@@ -198,12 +211,46 @@ function deserialize(inputCas, inputStream)
              if scenario_ids ~= nil then
                  scenario_id_i = scenario_ids[i]
              end
+             local content_i = nil
+             if contents ~= nil then
+                 content_i = contents[i]
+             end
+             local response_i = nil
+             if responses ~= nil then
+                 response_i = responses[i]
+             end
+             local additional_i = nil
+             if additional ~= nil then
+                 additional_i = additional[i]
+             end
+             local reason_i = nil
+             if reasons ~= nil then
+                 reason_i = reasons[i]
+             end
+             local name_llm_model_i = nil
+             if nameLLMModel ~= nil then
+                 name_llm_model_i = nameLLMModel[i]
+--                  print(name_llm_model_i)
+             end
+--              print("step1")
+
              local essay_score = luajava.newInstance("org.texttechnologylab.annotation.EssayScore", inputCas)
              essay_score:setBegin(begin_i)
              essay_score:setEnd(end_i)
              essay_score:setValue(value_i)
              essay_score:setName(key_i)
-             essay_score:setReason("")
+             if llmUsed == "Yes" then
+                 if reason_i ~= nil then
+                     essay_score:setReason(reason_i)
+--                      print(reason_i)
+                 else
+                     essay_score:setReason("LLM used, no reason given")
+                 end
+             else
+                essay_score:setReason("")
+             end
+--              print("step2")
+
              local comment_answer = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
              comment_answer:setReference(essay_score)
              comment_answer:setKey("div_answers")
@@ -218,18 +265,45 @@ function deserialize(inputCas, inputStream)
                  comment_question:addToIndexes()
                  essay_score:setInputQuestion(comment_question)
              end
+--              print("step3")
+
              if scenario_id_i ~= nil then
                  local comment_scenario = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
                  comment_scenario:setReference(essay_score)
                  comment_scenario:setKey("div_scenarios")
                  comment_scenario:setValue(scenario_id_i)
                  comment_scenario:addToIndexes()
-                 essay_score:setInputScenario(comment_scenario)
+                 essay_score:setInputScene(comment_scenario)
              end
              essay_score:addToIndexes()
-
+--              print("step4")
+             local EssayScoreModel = nil
             -- Model Def
-            local EssayScoreModel = luajava.newInstance("org.texttechnologylab.annotation.model.EssayScoreModel", inputCas)
+             if llmUsed == "Yes" then
+                 print("LLM used")
+                EssayScoreModel = luajava.newInstance("org.texttechnologylab.annotation.model.EssayScoreLLM", inputCas)
+                if content_i ~= nil then
+                    EssayScoreModel:setContents(content_i)
+--                     print(content_i)
+                end
+                if response_i ~= nil then
+                    EssayScoreModel:setResponse(response_i)
+--                     print(response_i)
+                end
+                if additional_i ~= nil then
+                    EssayScoreModel:setAdditionalInformation(additional_i)
+--                     print(additional_i)
+                end
+                if name_llm_model_i ~= nil then
+                    EssayScoreModel:setModelName(name_llm_model_i)
+--                     print(name_llm_model_i)
+                end
+             else
+                print("LLM not used")
+                EssayScoreModel = luajava.newInstance("org.texttechnologylab.annotation.model.EssayScoreModel", inputCas)
+             end
+--              print("step5")
+
              EssayScoreModel:setBegin(begin_i)
              EssayScoreModel:setEnd(end_i)
              EssayScoreModel:setModel(model_meta)

@@ -22,7 +22,7 @@ class EssayScorer:
             inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
             outputs = self.model(**inputs)
             predictions = outputs.logits.squeeze()
-            predicted_scores = predictions.numpy()
+            predicted_scores = predictions.detach().cpu().numpy()
             item_names = model_name_list[self.model_name]
             match self.model_name:
                 case "KevSun/Engessay_grading_ML":
