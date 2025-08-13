@@ -102,7 +102,7 @@ public class MultiTestEssayScorer {
                         .withParameter("seed", "42")
                         .withParameter("model_llm", "test:DeepSeek-R1")
                         .withParameter("name_model", "DeepSeek-R1:70B")
-                        .withParameter("url", "localhost")
+                        .withParameter("url", "gondor.hucompute.org")
                         .withParameter("temperature", "1.0")
                         .withParameter("port", "11434")
                         .withTimeout(2000)

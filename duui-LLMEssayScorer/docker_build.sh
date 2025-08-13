@@ -21,7 +21,7 @@ eport MODEL_CACHE_SIZE=3
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="BeGradingScorer"
-#export MODEL_SPECNAME="be-grading-scorer"
+#export MODEL_SPEC_NAME="be-grading-scorer"
 #export MODEL_VERSION="0.0.1"
 #export MODEL_SOURCE="https://link.springer.com/article/10.1007/s00521-024-10449-y"
 #export MODEL_LANG="-"
@@ -117,11 +117,653 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="-"
 ###---------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="GradingMedicalEducation"
+#export MODEL_SPEC_NAME="grading-medical-education"
+#export MODEL_VERSION="0.0.1"
+#export MODEL_SOURCE="https://bmcmededuc.biomedcentral.com/articles/10.1186/s12909-024-06026-5"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-1-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-1-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-1-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-1-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-2-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-2-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-2-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-2-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-3-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-3-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-3-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-3-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-4-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-4-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-4-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-4-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-5-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+#
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-5-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-5-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+#
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-5-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-6-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-6-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-6-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-6-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-7-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-7-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-7-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-7-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-8-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-8-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-8-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-mts-scorer-8-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-5"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-6"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-7"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-ASAP-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-asap-vanilla-scorer-8"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-1-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-1-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-1-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-1-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-2-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-2-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-2-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-2-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+#
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-3-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-3-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-3-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-3-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-4-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-4-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-4-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+#
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-4-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+#
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-5-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-5-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-5-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-5-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-6-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-6-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-6-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-6-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-7-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-7-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-7-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-7-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-8-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-8-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-8-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-MTS-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-mts-scorer-8-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-1"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-2"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-3"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-4"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-5"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-6"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-7"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
+
 ##---------------------------------------------------------------------
-export MODEL_NAME="GradingMedicalEducation"
-export MODEL_SPEC_NAME="grading-medical-education"
-export MODEL_VERSION="0.0.1"
-export MODEL_SOURCE="https://bmcmededuc.biomedcentral.com/articles/10.1186/s12909-024-06026-5"
+export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-8"
+export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
 export MODEL_LANG="-"
 ##---------------------------------------------------------------------
 

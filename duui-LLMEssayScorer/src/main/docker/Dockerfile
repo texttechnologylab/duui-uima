@@ -26,6 +26,11 @@ COPY ./src/main/python/LLMAESDataset.py ./LLMAESDataset.py
 COPY ./src/main/python/LLMAESScorer.py ./LLMAESScorer.py
 COPY ./src/main/python/AAGScorer.py ./AAGScorer.py
 COPY ./src/main/python/GradingMedicalEducation.py ./GradingMedicalEducation.py
+COPY ./src/main/python/ASAP_template_mts.xlsx ./ASAP_template_mts.xlsx
+COPY ./src/main/python/toefel11_template_mts.xlsx ./toefel11_template_mts.xlsx
+COPY ./src/main/python/ASAP_template_vanilla.xlsx ./ASAP_template_vanilla.xlsx
+COPY ./src/main/python/toefel11_template_vanilla.xlsx ./toefel11_template_vanilla.xlsx
+COPY ./src/main/python/AESMTSScorer.py ./AESMTSScorer.py
 
 
 

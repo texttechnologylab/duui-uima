@@ -12,6 +12,7 @@ from BeGradingScorer import BeGradingScorer
 from LLMAESScorer import ScoreSlowStudent,ScoreStudent,all_rubrics
 from AAGScorer import AGGScore
 from GradingMedicalEducation import GradingMedicalEducationScorer
+from AESMTSScorer import Vanilla_OpenAI, MTS_OpenAI
 import json
 import time
 import torch
@@ -474,6 +475,200 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     responses.append(json_llm_string)
                     definitions.append("Medical Education Score")
                     additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds, "model_spec_name": model_spec_name}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
+            case "AES-ASAP-MTS-Scorer":
+                mts_scorer = MTS_OpenAI(
+                    template_path="ASAP_template_mts.xlsx",
+                    category="ASAP",
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    model_spec_name_split = settings.model_spec_name.split("-")
+                    trait_id = model_spec_name_split[-1]
+                    trait_id = int(trait_id)  # Convert to zero-based index
+                    template_id = model_spec_name_split[-2]
+                    template_id = int(template_id)  # Convert to zero-based index
+                    output = mts_scorer.run_message(
+                        template_id=template_id,
+                        traid_id=trait_id,
+                        task=question,
+                        essay=answer,
+                        model_name=request.model_llm
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    trait_name = output["score"]["trait"]
+                    score_out = output["score"]["score"]
+                    if score_out == -1:
+                        reason_i = "Error processing score"
+                    else:
+                        reason_i = "Score based on the MTS model"
+                    results_out.append(trait_name)
+                    factors.append(score_out)
+                    reasons.append(reason_i)
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["score"]["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("MTS Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
+            case "AES-ASAP-Vanilla-Scorer":
+                vanilla_scorer = Vanilla_OpenAI(
+                    template_path="ASAP_template_vanilla.xlsx",
+                    category="ASAP",
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    model_spec_name_split = settings.model_spec_name.split("-")
+                    template_id = model_spec_name_split[-1]
+                    template_id = int(template_id) # Convert to zero-based index
+                    output = vanilla_scorer.run_message(
+                        template_id=template_id,
+                        prompt=question,
+                        essay=answer,
+                        model_name=request.model_llm
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    trait_name = output["score"]["trait"]
+                    score_out = output["score"]["score"]
+                    if score_out == -1:
+                        reason_i = "Error processing score"
+                    else:
+                        reason_i = "Score based on the Vanilla model"
+                    results_out.append(trait_name)
+                    factors.append(score_out)
+                    reasons.append(reason_i)
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["score"]["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("Vanilla Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
+            case "AES-TOEFEL11-MTS-Scorer":
+                mts_scorer = MTS_OpenAI(
+                    template_path="toefel11_template_mts.xlsx",
+                    category="TOEFEL11",
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    model_spec_name_split = settings.model_spec_name.split("-")
+                    trait_id = model_spec_name_split[-1]
+                    trait_id = int(trait_id)  # Convert to zero-based index
+                    template_id = model_spec_name_split[-2]
+                    template_id = int(template_id)  # Convert to zero-based index
+                    output = mts_scorer.run_message(
+                        template_id=template_id,
+                        traid_id=trait_id,
+                        task=question,
+                        essay=answer,
+                        model_name=request.model_llm
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    trait_name = output["score"]["trait"]
+                    score_out = output["score"]["score"]
+                    if score_out == -1:
+                        reason_i = "Error processing score"
+                    else:
+                        reason_i = "Score based on the MTS model"
+                    results_out.append(trait_name)
+                    factors.append(score_out)
+                    reasons.append(reason_i)
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["score"]["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("MTS Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
+            case "AES-TOEFEL11-Vanilla-Scorer":
+                vanilla_scorer = Vanilla_OpenAI(
+                    template_path="toefel11_template_vanilla.xlsx",
+                    category="TOEFEL11",
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    model_spec_name_split = settings.model_spec_name.split("-")
+                    template_id = model_spec_name_split[-1]
+                    template_id = int(template_id) # Convert to zero-based index
+                    output = vanilla_scorer.run_message(
+                        template_id=template_id,
+                        prompt=question,
+                        essay=answer,
+                        model_name=request.model_llm
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    trait_name = output["score"]["trait"]
+                    score_out = output["score"]["score"]
+                    if score_out == -1:
+                        reason_i = "Error processing score"
+                    else:
+                        reason_i = "Score based on the Vanilla model"
+                    results_out.append(trait_name)
+                    factors.append(score_out)
+                    reasons.append(reason_i)
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["score"]["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("Vanilla Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds}))
                     answer_ids.append(request.answer_ids[i])
                     question_ids.append(request.question_ids[i])
                     nameLLMModel.append(request.name_model)
