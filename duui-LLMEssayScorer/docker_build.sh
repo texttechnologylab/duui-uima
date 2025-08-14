@@ -758,12 +758,20 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="-"
 ###---------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
+#export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-8"
+#export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
+#export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="AES-TOEFEL11-Vanilla-Scorer"
-export MODEL_SPEC_NAME="aes-toefel11-vanilla-scorer-8"
-export MODEL_VERSION="ec0abd38d3f130a2d6dfa645298bb95de189be39"
-export MODEL_SOURCE="https://github.com/sanwooo/mts-llm-aes"
+export MODEL_NAME="GradingLikeHumanScorer"
+export MODEL_SPEC_NAME="grading-like-human-scorer-1"
+export MODEL_VERSION="0.1.0"
+export MODEL_SOURCE="https://arxiv.org/pdf/2405.19694"
 export MODEL_LANG="-"
 ##---------------------------------------------------------------------
 

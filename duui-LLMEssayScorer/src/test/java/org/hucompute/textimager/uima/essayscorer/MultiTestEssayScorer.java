@@ -38,7 +38,7 @@ public class MultiTestEssayScorer {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:9714";
+    static String url = "http://127.0.0.1:8000";
 //    static String model = "pol_emo_mDeBERTa";
 
     @BeforeAll
@@ -102,7 +102,7 @@ public class MultiTestEssayScorer {
                         .withParameter("seed", "42")
                         .withParameter("model_llm", "test:DeepSeek-R1")
                         .withParameter("name_model", "DeepSeek-R1:70B")
-                        .withParameter("url", "gondor.hucompute.org")
+                        .withParameter("url", "localhost")
                         .withParameter("temperature", "1.0")
                         .withParameter("port", "11434")
                         .withTimeout(2000)

@@ -31,6 +31,7 @@ COPY ./src/main/python/toefel11_template_mts.xlsx ./toefel11_template_mts.xlsx
 COPY ./src/main/python/ASAP_template_vanilla.xlsx ./ASAP_template_vanilla.xlsx
 COPY ./src/main/python/toefel11_template_vanilla.xlsx ./toefel11_template_vanilla.xlsx
 COPY ./src/main/python/AESMTSScorer.py ./AESMTSScorer.py
+COPY ./src/main/python/GradeLikeHuman.py ./GradeLikeHuman.py
 
 
 
