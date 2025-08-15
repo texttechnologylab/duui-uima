@@ -11,6 +11,7 @@ from EssayScorer import EssayScorer
 from BeGradingScorer import BeGradingScorer
 from LLMAESScorer import ScoreSlowStudent,ScoreStudent,all_rubrics
 from GradeLikeHuman import GradingLikeHumanScorer
+from EssayEvalScoring import EssayEvalScoring
 from AAGScorer import AGGScore
 from GradingMedicalEducation import GradingMedicalEducationScorer
 from AESMTSScorer import Vanilla_OpenAI, MTS_OpenAI
@@ -723,6 +724,41 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         nameLLMModel.append(request.name_model)
                         if len(all_scenes) > 0:
                             scene_ids.append(request.scenario_ids[i])
+            case "EssayEvalScoring":
+                essay_eval_scorer = EssayEvalScoring(
+                    url=request.url,
+                    port=request.port,
+                    seed=request.seed,
+                    temperature=request.temperature,
+                    api_key=None
+                )
+                for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
+                    if len(all_scenes) > 0:
+                        scene = all_scenes[i]
+                        # scene_ids.append(request.scenario_ids[i])
+                        question = f"Scene:{scene}\nTask:{question}"
+                    start_time = time.time()
+                    output = essay_eval_scorer.run_message(
+                        model_name=request.model_llm,
+                        task=question,
+                        essay=answer
+                    )
+                    time_seconds = time.time() - start_time
+                    begin.append(request.answers[i]["begin"])
+                    end.append(request.answers[i]["end"])
+                    results_out.append("EssayEvalScore")
+                    factors.append(output["Scoring"]["score"])
+                    reasons.append(output["Scoring"]["reason"])
+                    json_llm_string = json.dumps(output)
+                    contents.append(output["Scoring"]["output"])
+                    responses.append(json_llm_string)
+                    definitions.append("Essay Evaluation Score")
+                    additional.append(json.dumps({"url": request.url, "port": request.port, "model_name": request.model_llm, "seed": request.seed, "temperature": request.temperature, "duration": time_seconds, "model_spec_name": model_spec_name}))
+                    answer_ids.append(request.answer_ids[i])
+                    question_ids.append(request.question_ids[i])
+                    nameLLMModel.append(request.name_model)
+                    if len(all_scenes) > 0:
+                        scene_ids.append(request.scenario_ids[i])
             case _:
                 raise ValueError(f"Model {model_name} is not supported.")
     output = {
@@ -847,7 +883,7 @@ def post_process(request: DUUIRequest):
     additional = []
     reasons = []
     nameLLMModel = []
-    llm_list = {"BeGradingScorer", "LLMAESSlowScorer", "LLMAESSScorer", "AAGScorer", "GradingMedicalEducation", "GradingLikeHumanScorer"}
+    llm_list = {"BeGradingScorer", "LLMAESSlowScorer", "LLMAESSScorer", "AAGScorer", "GradingMedicalEducation", "GradingLikeHumanScorer", "EssayEvalScoring"}
     llm_used = "No"
     try:
         if settings.model_name in llm_list:

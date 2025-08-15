@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from openai import OpenAI
 from scipy.special import softmax
+from langchain_core.runnables import RunnableLambda
 model_name_list = {
 "KevSun/Engessay_grading_ML": ["cohesion", "syntax", "vocabulary", "phraseology", "grammar", "conventions"],
 "JacobLinCool/IELTS_essay_scoring_safetensors": ["Task Achievement", "Coherence and Cohesion", "Vocabulary", "Grammar", "Overall"]
@@ -76,6 +77,15 @@ class OpenAIProcessing:
             messages=messages,
             temperature=self.temperature,
         ).to_dict()
+
+    def get_llm_runnable(self, model_name: str):
+        def _call(inputs):
+            prompt = str(inputs)
+            messages = [{"role": "user", "content": prompt}]
+            result = self.process_messages(model_name=model_name, messages=messages)
+            return result["choices"][0]["message"]["content"]
+
+        return RunnableLambda(_call)
 
 
 if __name__ == '__main__':

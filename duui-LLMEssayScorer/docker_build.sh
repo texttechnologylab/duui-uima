@@ -767,11 +767,19 @@ eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
 
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="GradingLikeHumanScorer"
+#export MODEL_SPEC_NAME="grading-like-human-scorer-1"
+#export MODEL_VERSION="0.1.0"
+#export MODEL_SOURCE="https://arxiv.org/pdf/2405.19694"
+#export MODEL_LANG="-"
+###---------------------------------------------------------------------
+
 ##---------------------------------------------------------------------
-export MODEL_NAME="GradingLikeHumanScorer"
-export MODEL_SPEC_NAME="grading-like-human-scorer-1"
-export MODEL_VERSION="0.1.0"
-export MODEL_SOURCE="https://arxiv.org/pdf/2405.19694"
+export MODEL_NAME="EssayEvalScoring"
+export MODEL_SPEC_NAME="essay-eval-scoring"
+export MODEL_VERSION="f7bfdc023b0b4a0810437bbed1ac7f7b11a36db8"
+export MODEL_SOURCE="https://github.com/JoeyHou/essay_eval"
 export MODEL_LANG="-"
 ##---------------------------------------------------------------------
 
