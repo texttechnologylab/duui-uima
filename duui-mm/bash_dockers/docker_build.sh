@@ -6,7 +6,7 @@ export MM_ANNOTATOR_CUDA=transformer
 #export DUUI_MM_CUDA="-cuda"
 
 export MM_ANNOTATOR_NAME=duui-mutlimodality
-export MM_ANNOTATOR_VERSION=0.1.0
+export MM_ANNOTATOR_VERSION=0.2.0
 export MM_LOG_LEVEL=DEBUG
 export MM_MODEL_CACHE_SIZE=3
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
