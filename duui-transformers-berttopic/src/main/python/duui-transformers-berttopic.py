@@ -1,5 +1,6 @@
 import yaml
 from bertopic import BERTopic
+import numpy as np
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 from typing import List, Optional, Dict, Union
@@ -11,6 +12,8 @@ import torch
 from functools import lru_cache
 
 from starlette.responses import PlainTextResponse
+import pandas as pd
+from collections import defaultdict as dd
 
 class Config(BaseSettings):
     # Name of this annotator
@@ -54,9 +57,11 @@ class DUUIRequest(BaseModel):
 class DUUIResponse(BaseModel):
     begin: List[int]
     end: List[int]
-    results: List[str]
-    factors: List[float]
+    results: List
+    factors: List
     len_results: List[int]
+    words: List
+    words_prob: List
     model_name: str
     model_version: str
     model_lang: str
@@ -70,6 +75,33 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
+def get_word_dist(topic_model, texts, topic_token_distr):
+    word_dist = dd(lambda: dd())
+    analyzer = topic_model.vectorizer_model.build_tokenizer()
+    for i, text in enumerate(texts):
+        tokens = analyzer(text)
+
+        # Prepare dataframe with results
+        df = pd.DataFrame(topic_token_distr[i] / topic_token_distr[i].sum()).T
+        #df = pd.DataFrame(topic_token_distr).T
+
+        df.columns = [f"{token}_{i}" for i, token in enumerate(tokens)]
+        df.columns = [f"{token}{' ' * i}" for i, token in enumerate(tokens)]
+        df.index = list(topic_model.topic_labels_.values())[topic_model._outliers :]
+        df = df.loc[(df.sum(axis=1) != 0), :]
+
+        # Filter each row to only include words with probability > 0
+        filtered_topics = {topic: row[row > 0] for topic, row in df.iterrows()}
+
+        word_list = []
+        prob_list = []
+        for topic, words in filtered_topics.items():
+            word_list.append([k.strip() for k in words.to_dict().keys()])
+            prob_list.append(list(words.to_dict().values()))
+        word_dist[i]['words'] = word_list
+        word_dist[i]['prob'] = prob_list
+
+    return word_dist
 
 def process_selection(model_name, selection):
     begin = []
@@ -77,6 +109,8 @@ def process_selection(model_name, selection):
     results_out = []
     factors = []
     len_results = []
+    words = []
+    words_prob = []
     for s in selection.sentences:
         s.text = fix_unicode_problems(s.text)
 
@@ -87,19 +121,31 @@ def process_selection(model_name, selection):
     logger.debug("Preprocessed texts:")
     logger.debug(texts)
 
-    topic_model = BERTopic.load(model_name)
-    topics, probs= topic_model.transform(texts)
+    topic_model = BERTopic.load(model_name, embedding_model="BAAI/bge-small-en")
+    topic_distr, topic_token_distr = topic_model.approximate_distribution(texts, calculate_tokens=True)
+    topic_indices_per_doc = [list(np.where(row > 0)[0]) for row in topic_distr]
+    word_dists = get_word_dist(topic_model, texts, topic_token_distr)
 
-    for idx, topic in enumerate(topics):
-        sentence_i = selection.sentences[idx]
+    for doc_idx, topic_idxs in enumerate(topic_indices_per_doc):
+        t = []
+        p = []
+        w = word_dists[doc_idx]['words']
+        wp = word_dists[doc_idx]['prob']
+        for topic_idx in topic_idxs:
+            t.append(topic_model.custom_labels_[topic_idx])
+            p.append(topic_distr[doc_idx][topic_idx])
+
+        sentence_i = selection.sentences[doc_idx]
         begin_i = sentence_i.begin
         end_i = sentence_i.end
-        len_i = 1 #len(topic_model.topic_labels_)
+        len_i = len(t)
         begin.append(begin_i)
         end.append(end_i)
-        results_out.append(topic_model.topic_labels_[topic])
+        results_out.append(t)
         len_results.append(len_i)
-        factors.append(probs[idx])
+        factors.append(p)
+        words.append(w)
+        words_prob.append(wp)
 
 
     output = {
@@ -107,7 +153,9 @@ def process_selection(model_name, selection):
         "end": end,
         "len_results": len_results,
         "results": results_out,
-        "factors": factors
+        "factors": factors,
+        "words": words,
+        "words_prob": words_prob
     }
 
     return output
@@ -130,7 +178,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
 logger.info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
-typesystem_filename = 'TypeSystemBertTopic.xml'
+typesystem_filename = 'TypeSystemUnifiedTopic.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
 with open(typesystem_filename, 'rb') as f:
     typesystem = load_typesystem(f)
@@ -202,6 +250,8 @@ def post_process(request: DUUIRequest):
     len_results = []
     results = []
     factors = []
+    words = []
+    words_prob = []
     try:
         for selection in request.selections:
             processed_sentences = process_selection(config.model_name, selection)
@@ -210,9 +260,11 @@ def post_process(request: DUUIRequest):
             len_results = len_results + processed_sentences["len_results"]
             results = results + processed_sentences["results"]
             factors = factors + processed_sentences["factors"]
+            words = words + processed_sentences["words"]
+            words_prob = words_prob + processed_sentences["words_prob"]
     except Exception as ex:
         logger.exception(ex)
-    return DUUIResponse( begin=begin, end=end, results=results,
+    return DUUIResponse( begin=begin, end=end, results=results, words=words, words_prob=words_prob,
                          len_results=len_results, factors=factors, model_name=config.model_name,
                          model_version=config.model_version, model_source=config.model_source,
                          model_lang=config.model_lang)
