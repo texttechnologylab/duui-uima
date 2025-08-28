@@ -17,7 +17,7 @@ EXPOSE 9714
 
 # copy scripts
 COPY ./src/main/python/config.yaml ./config.yaml
-COPY ./src/main/python/TypeSystemBertTopic.xml ./TypeSystemBertTopic.xml
+COPY ./src/main/python/TypeSystemBertTopic.xml ./TypeSystemUnifiedTopic.xml
 COPY ./src/main/python/duui-transformers-berttopic.py ./duui-transformers-berttopic.py
 COPY ./src/main/python/duui-transformers-berttopic.lua ./duui-transformers-berttopic.lua
 
