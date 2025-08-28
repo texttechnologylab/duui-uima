@@ -4,9 +4,10 @@ from platform import python_version
 from sys import version as sys_version
 from threading import Lock
 from time import time
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 from urllib.parse import urlparse
 
+import benepar
 import spacy
 from cassis import load_typesystem
 from cassis.cas import Utf16CodepointOffsetConverter
@@ -93,64 +94,71 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = {
 }
 TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings.variant])
 
+# benepar models
+# TODO configurable
+BENEPAR_MODELS = {
+    "en": "benepar_en3",
+    "de": "benepar_de2",
+}
+
 # spaCy models
 # Supporting the efficient and accurate variants
 # Note: Not all models might actually be available in the Docker image!
 # TODO test accurate models
 SPACY_MODELS = {
     "efficiency": {
-        "ca": "ca_core_news_sm",    # Catalan
-        "zh": "zh_core_web_sm",     # Chinese
-        "hr": "hr_core_news_sm",    # Croatian
-        "da": "da_core_news_sm",    # Danish
-        "nl": "nl_core_news_sm",    # Dutch
+        # "ca": "ca_core_news_sm",    # Catalan
+        # "zh": "zh_core_web_sm",     # Chinese
+        # "hr": "hr_core_news_sm",    # Croatian
+        # "da": "da_core_news_sm",    # Danish
+        # "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
-        "fi": "fi_core_news_sm",    # Finnish
-        "fr": "fr_core_news_sm",    # French
+        # "fi": "fi_core_news_sm",    # Finnish
+        # "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
-        "el": "el_core_news_sm",    # Greek
-        "it": "it_core_news_sm",    # Italian
-        "ja": "ja_core_news_sm",    # Japanese
-        "ko": "ko_core_news_sm",    # Korean
-        "lt": "lt_core_news_sm",    # Lithuanian
-        "mk": "mk_core_news_sm",    # Macedonian
-        "nb": "nb_core_news_sm",    # Norwegian Bokmal
-        "pl": "pl_core_news_sm",    # Polish
-        "pt": "pt_core_news_sm",    # Portugese
-        "ro": "ro_core_news_sm",    # Romanian
-        "ru": "ru_core_news_sm",    # Russian
-        "sl": "sl_core_news_sm",    # Slovenian
-        "es": "es_core_news_sm",    # Spanish
-        "sv": "sv_core_news_sm",    # Swedish
-        "uk": "uk_core_news_sm",    # Ukrainian
-        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+        # "el": "el_core_news_sm",    # Greek
+        # "it": "it_core_news_sm",    # Italian
+        # "ja": "ja_core_news_sm",    # Japanese
+        # "ko": "ko_core_news_sm",    # Korean
+        # "lt": "lt_core_news_sm",    # Lithuanian
+        # "mk": "mk_core_news_sm",    # Macedonian
+        # "nb": "nb_core_news_sm",    # Norwegian Bokmal
+        # "pl": "pl_core_news_sm",    # Polish
+        # "pt": "pt_core_news_sm",    # Portugese
+        # "ro": "ro_core_news_sm",    # Romanian
+        # "ru": "ru_core_news_sm",    # Russian
+        # "sl": "sl_core_news_sm",    # Slovenian
+        # "es": "es_core_news_sm",    # Spanish
+        # "sv": "sv_core_news_sm",    # Swedish
+        # "uk": "uk_core_news_sm",    # Ukrainian
+        # "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
     "accuracy": {
-        "ca": "ca_core_news_trf",
-        "zh": "zh_core_web_trf",
-        "hr": "hr_core_news_lg",
-        "da": "da_core_news_trf",
-        "nl": "nl_core_news_lg",
+        # "ca": "ca_core_news_trf",
+        # "zh": "zh_core_web_trf",
+        # "hr": "hr_core_news_lg",
+        # "da": "da_core_news_trf",
+        # "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
-        "fi": "fi_core_news_lg",
-        "fr": "fr_dep_news_trf",
+        # "fi": "fi_core_news_lg",
+        # "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
-        "el": "el_core_news_lg",
-        "it": "it_core_news_lg",
-        "ja": "ja_core_news_trf",
-        "ko": "ko_core_news_lg",
-        "lt": "lt_core_news_lg",
-        "mk": "mk_core_news_lg",
-        "nb": "nb_core_news_lg",
-        "pl": "pl_core_news_lg",
-        "pt": "pt_core_news_lg",
-        "ro": "ro_core_news_lg",
-        "ru": "ru_core_news_lg",
-        "sl": "sl_core_news_trf",
-        "es": "es_dep_news_trf",
-        "sv": "sv_core_news_lg",
-        "uk": "uk_core_news_trf",
-        "xx": "xx_ent_wiki_sm",
+        # "el": "el_core_news_lg",
+        # "it": "it_core_news_lg",
+        # "ja": "ja_core_news_trf",
+        # "ko": "ko_core_news_lg",
+        # "lt": "lt_core_news_lg",
+        # "mk": "mk_core_news_lg",
+        # "nb": "nb_core_news_lg",
+        # "pl": "pl_core_news_lg",
+        # "pt": "pt_core_news_lg",
+        # "ro": "ro_core_news_lg",
+        # "ru": "ru_core_news_lg",
+        # "sl": "sl_core_news_trf",
+        # "es": "es_dep_news_trf",
+        # "sv": "sv_core_news_lg",
+        # "uk": "uk_core_news_trf",
+        # "xx": "xx_ent_wiki_sm",
     }
 }
 
@@ -207,6 +215,12 @@ class DocumentModification(BaseModel):
     comment: str
 
 
+# Span
+class Span(BaseModel):
+    begin: int
+    end: int
+
+
 # Token
 class Token(BaseModel):
     begin: int
@@ -225,6 +239,26 @@ class Token(BaseModel):
     write_dep: bool = None
     like_url: bool = None
     url_parts: Union[None, dict] = None
+    has_vector: bool = None
+    vector: List[float] = None
+    like_num: bool = None
+    is_stop: bool = None
+    is_oov: bool = None
+    is_currency: bool = None
+    is_quote: bool = None
+    is_bracket: bool = None
+    is_sent_start: bool = None
+    is_sent_end: bool = None
+    is_left_punct: bool = None
+    is_right_punct: bool = None
+    is_punct: bool = None
+    is_title: bool = None
+    is_upper: bool = None
+    is_lower: bool = None
+    is_digit: bool = None
+    is_ascii: bool = None
+    is_alpha: bool = None
+    benepar_labels: Optional[Tuple[str]] = None
 
 
 # Dependency
@@ -264,6 +298,8 @@ class TextImagerResponse(BaseModel):
     dependencies: List[Dependency]
     # List of entities
     entities: List[Entity]
+    # List of noun phrases
+    noun_chunks: List[Span]
     # Annotation meta, containing model name, version and more
     # Note: Same for each annotation, so only returned once
     meta: Optional[AnnotationMeta] = None
@@ -385,7 +421,7 @@ with open(lua_communication_script_filename, 'rb') as f:
 
 # Load/cache spaCy model
 @lru_cache_with_size
-def load_cache_spacy_model(model_name, model_lang, enabled_tools):
+def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
     # What tools to enable in the pipeline?
     enabled_tools = None
     if settings.variant:
@@ -400,17 +436,25 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools):
     logger.info("Loading spaCy model \"%s\"...", model_name)
     nlp = spacy.load(model_name, enable=enabled_tools)
     logger.info("Finished loading spaCy model \"%s\"", model_name)
+
+    logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
+    if use_benepar:
+        # TODO check for model availability
+        bnepar_model = BENEPAR_MODELS[model_lang]
+        logger.info("benepar model: %s (based on lang %s)", bnepar_model, model_lang)
+        nlp.add_pipe("benepar", config={"model": bnepar_model})
+
     return nlp
 
 
 # Load spaCy model using LRU cached function
-def load_spacy_model(model_name, model_lang, enabled_tools):
+def load_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
     model_load_lock.acquire()
 
     err = None
     try:
         logger.info("Getting spaCy model \"%s\"...", model_name)
-        nlp = load_cache_spacy_model(model_name, model_lang, enabled_tools)
+        nlp = load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar)
     except Exception as ex:
         nlp = None
         err = str(ex)
@@ -589,6 +633,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     tokens = []
     dependencies = []
     entities = []
+    noun_chunks = []
     meta = None
     modification_meta = None
     is_pretokenized = False
@@ -617,7 +662,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         logger.info("Using spaCy model: \"%s\"", model_name)
 
         # Load model, this is cached
-        nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant)
+        use_benepar = request.parameters.get("use_benepar", "false").lower() == "true"
+        nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant, use_benepar)
         if nlp is None:
             raise Exception(f"spaCy model \"{model_name}\" could not be loaded: {nlp_err}")
 
@@ -895,8 +941,35 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                             # URL
                             like_url=token.like_url,
-                            url_parts=parse_url(token.text) if token.like_url else None
+                            url_parts=parse_url(token.text) if token.like_url else None,
+
+                            has_vector=token.has_vector,
+                            vector=token.vector,
+
+                            like_num=token.like_num,
+
+                            is_stop=token.is_stop,
+                            is_oov=token.is_oov,
+                            is_currency=token.is_currency,
+                            is_quote=token.is_quote,
+                            is_bracket=token.is_bracket,
+                            is_sent_start=token.is_sent_start,
+                            is_sent_end=token.is_sent_end,
+                            is_left_punct=token.is_left_punct,
+                            is_right_punct=token.is_right_punct,
+                            is_punct=token.is_punct,
+                            is_title=token.is_title,
+                            is_upper=token.is_upper,
+                            is_lower=token.is_lower,
+                            is_digit=token.is_digit,
+                            is_ascii=token.is_ascii,
+                            is_alpha=token.is_alpha
                         )
+
+                        # benepar
+                        if use_benepar:
+                            current_token.benepar_labels = token._.labels
+
                         tokens.append(current_token)
                         token_ind += 1
 
@@ -956,6 +1029,17 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 except Exception as ex:
                     logger.exception("Error accessing named entities: %s", ex)
 
+                # Noun phrases
+                logger.debug("Writing Noun phrases...")
+                try:
+                    for chunk in doc.noun_chunks:
+                        noun_chunks.append(Span(
+                            begin=utf16_to_ext(doc_begin+chunk.start_char),
+                            end=utf16_to_ext(doc_begin+chunk.end_char)
+                        ))
+                except Exception as ex:
+                    logger.exception("Error accessing noun phrases: %s", ex)
+
                 # Add modification info
                 modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version}), spaCy ({spacy.__version__}), {spacy_meta['lang']} {spacy_meta['name']} ({spacy_meta['version']})"
                 modification_meta = DocumentModification(
@@ -973,6 +1057,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         tokens=tokens,
         dependencies=dependencies,
         entities=entities,
+        noun_chunks=noun_chunks,
         meta=meta,
         modification_meta=modification_meta,
         is_pretokenized=is_pretokenized
