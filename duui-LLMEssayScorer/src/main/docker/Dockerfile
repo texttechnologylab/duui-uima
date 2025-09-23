@@ -32,6 +32,11 @@ COPY ./src/main/python/ASAP_template_vanilla.xlsx ./ASAP_template_vanilla.xlsx
 COPY ./src/main/python/toefel11_template_vanilla.xlsx ./toefel11_template_vanilla.xlsx
 COPY ./src/main/python/AESMTSScorer.py ./AESMTSScorer.py
 COPY ./src/main/python/GradeLikeHuman.py ./GradeLikeHuman.py
+COPY ./src/main/python/essay_meta_data.py ./essay_meta_data.py
+COPY ./src/main/python/EssayEvalScoring.py ./EssayEvalScoring.py
+COPY ./src/main/python/llm_functions.py ./llm_functions.py
+COPY ./src/main/python/prompts.py ./prompts.py
+COPY ./src/main/python/run_text.py ./run_text.py
 
 
 
