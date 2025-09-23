@@ -52,13 +52,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ####--------------------------------------------------------------------
 
-####---------------------------------------------------------------------
-#export MODEL_NAME="cardiffnlp/twitter-roberta-base-emotion"
-#export MODEL_SPECNAME="cardiffnlp-twitter-roberta-base-emotion"
-#export MODEL_VERSION="2848306ad936b7cd47c76c2c4e14d694a41e0f54"
-#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-roberta-base-emotion"
-#export MODEL_LANG="EN"
-####--------------------------------------------------------------------
+###---------------------------------------------------------------------
+export MODEL_NAME="cardiffnlp/twitter-roberta-base-emotion"
+export MODEL_SPECNAME="cardiffnlp-twitter-roberta-base-emotion"
+export MODEL_VERSION="2848306ad936b7cd47c76c2c4e14d694a41e0f54"
+export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-roberta-base-emotion"
+export MODEL_LANG="EN"
+###--------------------------------------------------------------------
 
 ####---------------------------------------------------------------------
 #export MODEL_NAME="finiteautomata/bertweet-base-emotion-analysis"
@@ -369,13 +369,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="TL"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-export MODEL_NAME="UniversalJoy/models-small-monolingual/small-zh.pt"
-export MODEL_SPECNAME="universal-joy-zh-small"
-export MODEL_VERSION="6ab01e98c8106e610247e5e8f0712af08c007b67"
-export MODEL_SOURCE="https://github.com/sotlampr/universal-joy"
-export MODEL_LANG="ZH"
-###--------------------------------------------------------------------
+####---------------------------------------------------------------------
+#export MODEL_NAME="UniversalJoy/models-small-monolingual/small-zh.pt"
+#export MODEL_SPECNAME="universal-joy-zh-small"
+#export MODEL_VERSION="6ab01e98c8106e610247e5e8f0712af08c007b67"
+#export MODEL_SOURCE="https://github.com/sotlampr/universal-joy"
+#export MODEL_LANG="ZH"
+####--------------------------------------------------------------------
 
 
 docker build \
