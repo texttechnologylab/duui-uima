@@ -6,24 +6,19 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
-from spacy.lang.am.examples import sentences
 from starlette.responses import JSONResponse
 from functools import lru_cache
 from minicons import scorer
 from huggingface_hub import HfApi
 from nltk.tokenize import TweetTokenizer
 from transformers import AutoConfig
+from threading import Lock
+import torch
+import logging
 
-# Request sent by DUUI
-# Note, this is transformed by the Lua script
-class DUUIRequest(BaseModel):
-    sentences: List[Sentence]
 
-# Response of this annotator
-# Note, this is transformed by the Lua script
-class DUUIResponse(BaseModel):
-    # List of annotated:
-    sentences: List[Sentence]
+lru_cache_with_size_model = lru_cache(maxsize=3)
+model_load_lock = Lock()
 
 # Documentation response
 class DUUIDocumentation(BaseModel):
@@ -35,22 +30,37 @@ class DUUIDocumentation(BaseModel):
     implementation_lang: str
 
 class Sentence(BaseModel):
-    begin: int
-    end: int
+    iBegin: int
+    iEnd: int
+    sText: str
     sCondition: str
     sTarget: str
-    sSuprise: Optional[float]
+    sSuprise: Optional[float] = None
+
+
+# Request sent by DUUI
+# Note, this is transformed by the Lua script
+class DUUIRequest(BaseModel):
+    selection: List[Sentence]
+    model_name: Optional[str]
+
+# Response of this annotator
+# Note, this is transformed by the Lua script
+class DUUIResponse(BaseModel):
+    # List of annotated:
+    sentences: List[Sentence]
+    model_name: str
 
 class Settings(BaseSettings):
     # Name of the Model
-    model_name: Optional[str] = "base"
+    model_name: Optional[str] = "goldfish-models/spa_latn_1000mb"
 
 
 # settings + cache
 settings = Settings()
 lru_cache_with_size = lru_cache(maxsize=3)
 
-config = {"name": "base"}
+config = {"name": "goldfish-models/spa_latn_1000mb"}
 
 
 # Start fastapi
@@ -126,21 +136,50 @@ def get_documentation() -> DUUIDocumentation:
     )
     return documentation
 
-model = scorer.IncrementalLMScorer(settings.model_name)
 word_tokenizer = TweetTokenizer().tokenize
+
+logger = logging.getLogger(__name__)
+logger.info("TTLab DUUI Suprisal")
+
+@lru_cache_with_size_model
+def load_cache_model(model_name):
+    logger.info("Loading model %s", model_name)
+
+    if torch.cuda.is_available():
+        print('GPU available')
+        m = scorer.IncrementalLMScorer(model_name, 'cuda')
+    else:
+        print('GPU unavailable')
+        m = scorer.IncrementalLMScorer(model_name)
+
+    return m
+
+
+def load_model(model_name):
+    with model_load_lock:
+        return load_cache_model(model_name)
 
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
     global model
+    returnModelName = None
 
-    bBOS = initialize_bos(settings.model_name)
+    if request.model_name:
+        model = load_model(request.model_name)
+        returnModelName = request.model_name
+    else:
+        model = load_model(settings.model_name)
+        returnModelName = settings.model_name
+
+    bBOS = initialize_bos(returnModelName)
 
     get_word_surprisals(bBOS, request.selection)
 
     return DUUIResponse(
-        sentences = request.selection
+        sentences = request.selection,
+        model_name = returnModelName
     )
 
 
@@ -169,13 +208,13 @@ def get_word_surprisals(BOS, sentences:List[Sentence]):
 
 def get_word_surprisal(BOS:bool, sentence:Sentence):
 
-    surprisals = scorer.word_score_tokenized(
-        sentence,
+    surprisals = model.word_score_tokenized(
+        sentence.sText,
         bos_token=BOS,
         tokenize_function=word_tokenizer,
         surprisal=True,
-        bow_correction=True,
+        bow_correction=True
     )
     result = next((val for word, val in surprisals[0] if word == sentence.sTarget), None)
 
-    print(result)
+    sentence.sSuprise = result

@@ -1,7 +1,7 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 util = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
-ScorerSentence = luajava.bindClass("org.texttechnologylab.annotation.neglab.ScorerSentence")
+ConditionSentence = luajava.bindClass("org.texttechnologylab.annotation.neglab.ConditionSentence")
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -12,12 +12,15 @@ function serialize(inputCas, outputStream, params)
 
     local selection_array = {}
 
-    local selectionSet = utils:select(inputCas, ScorerSentence):iterator()
+    local model = params["model"]
+
+    local selectionSet = util:select(inputCas, ConditionSentence):iterator()
 
     while selectionSet:hasNext() do
         local s = selectionSet:next()
+
         local tSelection = {
-            text = s:getCoveredText(),
+            sText = s:getCoveredText(),
             iBegin = s:getBegin(),
             iEnd = s:getEnd(),
             sCondition = s:getCondition(),
@@ -28,7 +31,8 @@ function serialize(inputCas, outputStream, params)
 
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
-        selection = selection_array
+        selection = selection_array,
+        model_name = model
     }))
 end
 
@@ -42,13 +46,24 @@ function deserialize(inputCas, inputStream)
 
     -- Parse JSON data from string into object
     local results = json.decode(inputString)
-
+    local model_name = results["model_name"]
+    print(model_name)
     for i, suprise in ipairs(results["sentences"]) do
 
-        local sentence = utils:selectSingleAt(inputCas, ScorerSentence, suprise["begin"], suprise["end"])
+        local sentence = util:selectSingleAt(inputCas, ConditionSentence, suprise["iBegin"], suprise["iEnd"])
 
-        sentence:setSuprise(suprise["sSuprise"])
-        sentence.addToIndexes()
+        if sentence ~= nil then
+            print(suprise["sSuprise"])
+            sentence:setValue(suprise["sSuprise"])
+            sentence:addToIndexes()
+
+            local comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+            comment:setReference(sentence)
+            comment:setKey("model")
+            comment:setValue(model_name)
+            comment:addToIndexes()
+
+        end
     end
 
 end
