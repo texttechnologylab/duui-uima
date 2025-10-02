@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DUUI_COH_METRIX_ANNOTATOR_NAME=duui-coh-metrix
+export DUUI_COH_METRIX_ANNOTATOR_VERSION=0.0.2
+
+export DUUI_COH_METRIX_LOG_LEVEL=DEBUG
+#export DUUI_COH_METRIX_LOG_LEVEL=INFO
+
+export DOCKER_REGISTRY="docker.texttechnologylab.org/"
+
+docker build \
+  --build-arg DUUI_COH_METRIX_ANNOTATOR_NAME \
+  --build-arg DUUI_COH_METRIX_ANNOTATOR_VERSION \
+  --build-arg DUUI_COH_METRIX_LOG_LEVEL \
+  -t ${DOCKER_REGISTRY}${DUUI_COH_METRIX_ANNOTATOR_NAME}:${DUUI_COH_METRIX_ANNOTATOR_VERSION} \
+  -f "src/main/docker/Dockerfile" \
+  .
+
+docker tag \
+  ${DOCKER_REGISTRY}${DUUI_COH_METRIX_ANNOTATOR_NAME}:${DUUI_COH_METRIX_ANNOTATOR_VERSION} \
+  ${DOCKER_REGISTRY}${DUUI_COH_METRIX_ANNOTATOR_NAME}:latest

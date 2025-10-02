@@ -1,0 +1,47 @@
+FROM nvidia/cuda:12.0.1-runtime-ubuntu22.04 AS builder
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        python3.10 python3-pip python3-setuptools python3-distutils \
+        build-essential software-properties-common && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+#RUN ln -s /usr/bin/python3 /usr/bin/python
+
+WORKDIR /usr/src/app
+
+COPY ./requirements.txt ./requirements.txt
+
+RUN python3 -m pip install --upgrade pip \
+ && pip install --no-cache-dir -r requirements.txt
+
+RUN pip install --no-cache-dir \
+    torch==2.6.0+cu118 \
+    torchvision==0.21.0+cu118 \
+    torchaudio==2.6.0+cu118 \
+    --extra-index-url https://download.pytorch.org/whl/cu118
+
+
+
+FROM nvidia/cuda:12.0.1-runtime-ubuntu22.04 as runtime
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        python3.10 python3-distutils python3-pip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/app
+
+# Nur die installierten Pakete und den App-Code aus builder kopieren
+COPY --from=builder /usr/local/lib/python3.10/dist-packages /usr/local/lib/python3.10/dist-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+
+COPY ./src/main/docker/duui/communication.lua ./communication.lua
+COPY ./src/main/docker/duui/typesystem.xml ./typesystem.xml
+COPY ./src/main/docker/python/duui_suprisal.py ./duui_suprisal.py
+
+EXPOSE 9714
+
+ENTRYPOINT ["uvicorn", "duui_suprisal:app", "--host", "0.0.0.0", "--port" ,"9714"]
+CMD ["--workers", "1"]

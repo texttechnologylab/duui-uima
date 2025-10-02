@@ -1,0 +1,5 @@
+.idea/
+target*/
+venv*/
+*.iml
+src/main/resources/mrc_psycholinguistic_database.csv
