@@ -177,13 +177,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="ES"
 ###--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
-export MODEL_NAME="ChrisLalk/German-Emotions"
-export MODEL_SPECNAME="german-emotions"
-export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
-export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
-export MODEL_LANG="DE"
-##--------------------------------------------------------------------
+###---------------------------------------------------------------------
+#export MODEL_NAME="ChrisLalk/German-Emotions"
+#export MODEL_SPECNAME="german-emotions"
+#export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
+#export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
+#export MODEL_LANG="DE"
+###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="msgfrom96/xlm_emo_multi"
@@ -265,13 +265,13 @@ export MODEL_LANG="DE"
 #export MODEL_LANG="EN"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-#export MODEL_NAME="alex-shvets/roberta-large-emopillars-contextual-emocontext"
-#export MODEL_SPECNAME="emopillars-emocontext"
-#export MODEL_VERSION="94b11cf8e151fc33e114dd78f5a72a5ad7b874cd"
-#export MODEL_SOURCE="https://huggingface.co/alex-shvets/roberta-large-emopillars-contextual-emocontext"
-#export MODEL_LANG="EN"
-###--------------------------------------------------------------------
+##---------------------------------------------------------------------
+export MODEL_NAME="alex-shvets/roberta-large-emopillars-contextual-emocontext"
+export MODEL_SPECNAME="emopillars-emocontext"
+export MODEL_VERSION="94b11cf8e151fc33e114dd78f5a72a5ad7b874cd"
+export MODEL_SOURCE="https://huggingface.co/alex-shvets/roberta-large-emopillars-contextual-emocontext"
+export MODEL_LANG="EN"
+##--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="AdapterHub/bert-base-uncased-pf-emo"
