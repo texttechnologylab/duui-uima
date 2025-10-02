@@ -53,7 +53,6 @@ function deserialize(inputCas, inputStream)
         local sentence = util:selectSingleAt(inputCas, ConditionSentence, suprise["iBegin"], suprise["iEnd"])
 
         if sentence ~= nil then
-            print(suprise["sSuprise"])
             sentence:setValue(suprise["sSuprise"])
             sentence:addToIndexes()
 

@@ -99,9 +99,9 @@ public class Suprisal {
         jCas.setDocumentLanguage("es");
 
         // See all the existing Annotations
-        JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
-            System.out.println(sentence.getCoveredText()+"\t"+sentence.getCondition()+"\t"+sentence.getTarget());
-        });
+//        JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
+//            System.out.println(sentence.getCoveredText()+"\t"+sentence.getCondition()+"\t"+sentence.getTarget());
+//        });
 
         // use the docker-component
 //        pComposer.add(new DUUIDockerDriver.Component("duui-suprisal:latest").build()
@@ -126,9 +126,30 @@ public class Suprisal {
         pComposer.run(jCas);
 
         // select and print all results
+//        JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
+//            System.out.println(sentence.getOrder()+"\t"+sentence.getCoveredText()+"\t"+sentence.getCondition()+"\t"+sentence.getTarget()+"\t"+sentence.getValue());
+//        });
+
+        // Write as CSV
+
+        // specify output path
+        String sOuptutPath = "/tmp/export.csv";
+
+
+        StringBuilder outputBuilder = new StringBuilder();
+        outputBuilder.append("Item,Condition,Sentence,Target");
+
         JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
-            System.out.println(sentence.getOrder()+"\t"+sentence.getCoveredText()+"\t"+sentence.getCondition()+"\t"+sentence.getTarget()+"\t"+sentence.getValue());
+            if(outputBuilder.length()>0) {
+                outputBuilder.append("\n");
+            }
+            outputBuilder.append(sentence.getOrder()+","+sentence.getCoveredText()+","+sentence.getCondition()+","+sentence.getTarget()+","+sentence.getValue());
+
         });
+
+        // write into file
+        FileUtils.writeContent(outputBuilder.toString(), new  File(sOuptutPath));
+
 
     }
 
