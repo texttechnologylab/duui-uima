@@ -8,6 +8,9 @@ RUN python3.12 -m venv venv && ./venv/bin/python -m pip install -U 'spacy[cuda12
 RUN ./venv/bin/python -m spacy download de_core_news_sm && \
     ./venv/bin/python -m spacy download de_core_news_md && \
     ./venv/bin/python -m spacy download de_core_news_lg && \
+    ./venv/bin/python -m spacy download en_core_web_sm && \
+    ./venv/bin/python -m spacy download en_core_web_md && \
+    ./venv/bin/python -m spacy download en_core_web_lg && \
     ./venv/bin/python -m spacy download de_dep_news_trf
 
 COPY src/main/ /app/
