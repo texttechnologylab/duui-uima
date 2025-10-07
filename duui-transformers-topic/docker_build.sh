@@ -102,11 +102,27 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ###--------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="OpenAlex/bert-base-multilingual-cased-finetuned-openalex-topic-classification-title-abstract"
+#export MODEL_SPECNAME="openalex-topic-classification"
+#export MODEL_VERSION="3b352795992e06feed29639581fd34c922bc42f1"
+#export MODEL_SOURCE="https://huggingface.co/OpenAlex/bert-base-multilingual-cased-finetuned-openalex-topic-classification-title-abstract"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="nickmuchi/finbert-tone-finetuned-finance-topic-classification"
+#export MODEL_SPECNAME="finbert-tone-finance-topic-classification"
+#export MODEL_VERSION="ee9b951e726648dba828e6b2b7035ddb4ff41759"
+#export MODEL_SOURCE="https://huggingface.co/nickmuchi/finbert-tone-finetuned-finance-topic-classification"
+#export MODEL_LANG="EN"
+###--------------------------------------------------------------------
+
 ##---------------------------------------------------------------------
-export MODEL_NAME="OpenAlex/bert-base-multilingual-cased-finetuned-openalex-topic-classification-title-abstract"
-export MODEL_SPECNAME="openalex-topic-classification"
-export MODEL_VERSION="3b352795992e06feed29639581fd34c922bc42f1"
-export MODEL_SOURCE="https://huggingface.co/OpenAlex/bert-base-multilingual-cased-finetuned-openalex-topic-classification-title-abstract"
+export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
+export MODEL_SPECNAME="parlacap-topic-classifier"
+export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
+export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
 export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
 

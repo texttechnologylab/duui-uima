@@ -32,7 +32,7 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/bertweet-base-emotion-analysis')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ActivationAI/distilbert-base-uncased-finetuned-emotion')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='SamLowe/roberta-base-go_emotions')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='SamLowe/roberta-base-go_emotions')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='mrm8488/t5-base-finetuned-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline(model='microsoft/mdeberta-v3-base')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='pranaydeeps/EXALT-Baseline')"
@@ -53,10 +53,9 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='esuriddick/distilbert-base-uncased-finetuned-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Panda0116/emotion-classification-model')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='lordtt13/emo-mobilebert')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alex-shvets/roberta-large-emopillars-contextual-emocontext')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alex-shvets/roberta-large-emopillars-contextual-emocontext')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AdapterHub/bert-base-uncased-pf-emo')"
 #RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
-
 
 # copy scripts
 COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml

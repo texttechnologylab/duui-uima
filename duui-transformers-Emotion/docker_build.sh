@@ -76,13 +76,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ####--------------------------------------------------------------------
 
-####---------------------------------------------------------------------
-#export MODEL_NAME="SamLowe/roberta-base-go_emotions"
-#export MODEL_SPECNAME="roberta-base-go-emotions"
-#export MODEL_VERSION="58b6c5b44a7a12093f782442969019c7e2982299"
-#export MODEL_SOURCE="https://huggingface.co/SamLowe/roberta-base-go_emotions"
-#export MODEL_LANG="EN"
-####--------------------------------------------------------------------
+###---------------------------------------------------------------------
+export MODEL_NAME="SamLowe/roberta-base-go_emotions"
+export MODEL_SPECNAME="roberta-base-go-emotions"
+export MODEL_VERSION="58b6c5b44a7a12093f782442969019c7e2982299"
+export MODEL_SOURCE="https://huggingface.co/SamLowe/roberta-base-go_emotions"
+export MODEL_LANG="EN"
+###--------------------------------------------------------------------
 #
 ####---------------------------------------------------------------------
 #export MODEL_NAME="mrm8488/t5-base-finetuned-emotion"
@@ -265,13 +265,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ###--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
-export MODEL_NAME="alex-shvets/roberta-large-emopillars-contextual-emocontext"
-export MODEL_SPECNAME="emopillars-emocontext"
-export MODEL_VERSION="94b11cf8e151fc33e114dd78f5a72a5ad7b874cd"
-export MODEL_SOURCE="https://huggingface.co/alex-shvets/roberta-large-emopillars-contextual-emocontext"
-export MODEL_LANG="EN"
-##--------------------------------------------------------------------
+###---------------------------------------------------------------------
+#export MODEL_NAME="alex-shvets/roberta-large-emopillars-contextual-emocontext"
+#export MODEL_SPECNAME="emopillars-emocontext"
+#export MODEL_VERSION="94b11cf8e151fc33e114dd78f5a72a5ad7b874cd"
+#export MODEL_SOURCE="https://huggingface.co/alex-shvets/roberta-large-emopillars-contextual-emocontext"
+#export MODEL_LANG="EN"
+###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="AdapterHub/bert-base-uncased-pf-emo"
