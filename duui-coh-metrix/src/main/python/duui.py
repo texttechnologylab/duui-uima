@@ -125,7 +125,7 @@ class Index(BaseModel):
     @validator('value')
     def value_must_be_finite(cls, v):
         if v is not None and (math.isinf(v) or math.isnan(v)):
-            print("Validating value:", v, "index", cls.index)
+            print("Validating value:", v)
             return None
         return v
 
