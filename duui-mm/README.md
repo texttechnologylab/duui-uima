@@ -66,10 +66,10 @@ Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechn
 ### Start Docker Container
 
 ```bash
-docker run -p 9714:9714 docker.texttechnologylab.org/duui-mutlimodality:latest
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-mutlimodality-transformer
 ```
 
-Find available image tags: [Docker Registry](https://docker.texttechnologylab.org/v2/duui-multimodal/tags/list)
+Find available image tags: [Docker Registry](https://docker.texttechnologylab.org/v2/duui-mutlimodality-transformer/tags/list)
 
 ---
 
