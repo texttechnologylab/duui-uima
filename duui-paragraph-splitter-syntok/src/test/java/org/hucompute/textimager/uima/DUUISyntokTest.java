@@ -29,7 +29,7 @@ public class DUUISyntokTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String dockerImage = "docker.texttechnologylab.org/duui-syntok:latest";
+    static String dockerImage = "docker.texttechnologylab.org/duui-syntok:0.0.2";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException {
@@ -77,12 +77,9 @@ public class DUUISyntokTest {
 
     @Test
     public void sentencesTest() throws Exception {
-//        composer.add(
-//                new DUUIDockerDriver.Component(dockerImage)
-//                        .withImageFetching()
-//        );
         composer.add(
-                new DUUIRemoteDriver.Component("http://localhost:8000")
+                new DUUIDockerDriver.Component(dockerImage)
+//                new DUUIRemoteDriver.Component("http://localhost:8000")
                         .withParameter("write_sentences", String.valueOf(true))  // default false
                         .withParameter("write_paragraphs", String.valueOf(true)) // default true
         );
