@@ -114,7 +114,7 @@ SPACY_MODELS = {
         # "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
         # "fi": "fi_core_news_sm",    # Finnish
-        # "fr": "fr_core_news_sm",    # French
+        "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
         # "el": "el_core_news_sm",    # Greek
         # "it": "it_core_news_sm",    # Italian
@@ -141,7 +141,7 @@ SPACY_MODELS = {
         # "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
         # "fi": "fi_core_news_lg",
-        # "fr": "fr_dep_news_trf",
+        "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
         # "el": "el_core_news_lg",
         # "it": "it_core_news_lg",
