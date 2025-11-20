@@ -208,13 +208,20 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         utf16_converter = Utf16CodepointOffsetConverter()
         utf16_converter.create_offset_mapping(request.text)
 
+        text_len = len(request.text)
+
         doc = syntok_segmenter.analyze(request.text)
         for paragraph in doc:
             para = list(paragraph)
 
             try:
-                para_begin = para[0][0].offset
-                para_end = para[-1][-1].offset + len(para[-1][-1].spacing) + len(para[-1][-1].value)
+                first = para[0][0]
+                para_begin = first.offset + len(first.spacing)
+
+                last = para[-1][-1]
+                para_end = last.offset + len(last.spacing) + len(last.value)
+                para_end = min(para_end, text_len)
+
                 paragraphs.append(Paragraph(
                     begin=utf16_converter.python_to_external(para_begin),
                     end=utf16_converter.python_to_external(para_end),
@@ -224,14 +231,20 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
             for i, s in enumerate(para):
                 try:
-                    sent_begin = s[0].offset
-                    sent_end = s[-1].offset + len(s[-1].spacing) + len(s[-1].value)
+                    first = s[0]
+                    last = s[-1]
+
+                    sent_begin = first.offset + len(first.spacing)
+
+                    sent_end = last.offset + len(last.spacing) + len(last.value)
+                    sent_end = min(sent_end, text_len)
+
                     sentences.append(Sentence(
                         begin=utf16_converter.python_to_external(sent_begin),
                         end=utf16_converter.python_to_external(sent_end),
                     ))
                 except Exception as ex:
-                    logger.exception("Error processing paragraph: %s", ex)
+                    logger.exception("Error processing sentence: %s", ex)
 
         meta = AnnotationMeta(
             name=settings.annotator_name,
