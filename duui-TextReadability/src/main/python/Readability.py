@@ -45,11 +45,19 @@ class ReadabilityMetricsDiversity:
     def __init__(self):
         pass
 
-    def compute_diversity(self, texts):
+    def compute_diversity(self, texts, params):
         dict_diversity = {}
-        dict_diversity["Compression Ratio"] = compression_ratio(texts)
-        dict_diversity["Homogenization Score Rougel"] = homogenization_score(texts)
-        dict_diversity["N-gram Diversity Score"] = ngram_diversity_score(texts, 4)  # Example with bigrams
+
+        if params.compression == True:
+            dict_diversity["Compression Ratio"] = compression_ratio(texts)
+
+
+        if params.homogenization == True:
+            dict_diversity["Homogenization Score Rougel"] = homogenization_score(texts)
+
+        if params.ngram > 0 :
+            dict_diversity["N-gram Diversity Score"] = ngram_diversity_score(texts, params.ngram)  # Example with bigrams
+
         return dict_diversity
 
 

@@ -3,7 +3,7 @@ Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 DUUIUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
 
-function serialize(inputCas, outputStream)
+function serialize(inputCas, outputStream, params)
 --     print("start")
     local doc_lang = inputCas:getDocumentLanguage()
     local doc_text = inputCas:getDocumentText()
@@ -12,11 +12,30 @@ function serialize(inputCas, outputStream)
 --     print(model_name)
 --     print(select)
 
+    local par = {
+        homogenization = true,
+        compression = true,
+        ngram = 4
+    }
+
+    if params["diversity.homogenization"] ~= nil then
+        par.homogenization = params["diversity.homogenization"]
+    end
+
+    if params["diversity.compression"] ~= nil then
+        par.compression = params["diversity.compression"]
+    end
+
+    if params["diversity.ngram"] ~= nil then
+        par.ngram = params["diversity.ngram"]
+    end
+
     outputStream:write(json.encode({
         lang = doc_lang,
         text = doc_text,
         begin = 0,
         ["end"] = doc_len,
+        params = par
     }))
 end
 
