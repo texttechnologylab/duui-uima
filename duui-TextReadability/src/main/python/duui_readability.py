@@ -8,7 +8,7 @@ from cassis import load_typesystem
 from functools import lru_cache
 from threading import Lock
 from starlette.responses import PlainTextResponse
-from Readability import ReadabilityMetricsTextStat, ReadabilityMetricsDiversity
+from Readability import ReadabilityMetricsTextStat, ReadabilityMetricsDiversity, ReadabilityCompute
 model_lock = Lock()
 
 class Settings(BaseSettings):
@@ -97,27 +97,46 @@ def process_selection(model_name, request):
     end = 0
     results_out = []
     factors = []
-    len_results = 0
+    group_name = []
+    len_results = []
     output = {}
 
     if model_name == "Textstat":
         # Readability metrics with textstat
         readability_metrics = ReadabilityMetricsTextStat()
         results = readability_metrics.compute_readability(request.text)
+        results_out.append([])
+        factors.append([])
+        group_name.append("Readability Scores")
         for key, value in results.items():
-            results_out.append(key)
-            factors.append(value)
+            results_out[0].append(key)
+            factors[0].append(value)
+        len_results.append(len(results_out[0]))
         begin = request.begin
         end = request.end
-        len_results = len(results_out)
     elif model_name == "Diversity":
         # Readability metrics with diversity
         readability_metrics = ReadabilityMetricsDiversity()
         results = readability_metrics.compute_diversity(request.text, request.params)
         for key, value in results.items():
-            results_out.append(key)
-            factors.append(value)
-        len_results = len(results_out)
+            results_out[0].append(key)
+            factors[0].append(value)
+        len_results.append(len(results_out[0]))
+        begin = request.begin
+        end = request.end
+    elif model_name == "Readability":
+        readability_metrics = ReadabilityCompute()
+        results = readability_metrics.get_readability(request.text, request.lang)
+        counter = -1
+        for group, metrics in results.items():
+            counter += 1
+            results_out.append([])
+            factors.append([])
+            group_name.append(group)
+            for key, value in metrics.items():
+                results_out[counter].append(key)
+                factors[counter].append(value)
+            len_results.append(len(metrics))
         begin = request.begin
         end = request.end
     else:
@@ -128,6 +147,7 @@ def process_selection(model_name, request):
     output["results"] = results_out
     output["factors"] = factors
     output["len_results"] = len_results
+    output["group_name"] = group_name
     return output
 
 
@@ -150,7 +170,8 @@ class DUUIResponse(BaseModel):
     end: int
     results: List
     factors: List
-    len_results: int
+    group_name: List
+    len_results: List
     model_name: str
     model_version: str
     model_source: str
@@ -218,6 +239,7 @@ def post_process(request: DUUIRequest):
     len_results = 0
     results = []
     factors = []
+    group_name = []
     try:
         model_source = settings.model_source
         model_lang = settings.model_lang
@@ -242,9 +264,10 @@ def post_process(request: DUUIRequest):
         results = output["results"]
         factors = output["factors"]
         len_results = output["len_results"]
+        group_name = output["group_name"]
     except Exception as ex:
         logger.exception(ex)
     return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, results=results,
                         len_results=len_results, factors=factors, model_name=settings.model_name,
-                        model_version=model_version, model_source=model_source, model_lang=model_lang)
+                        model_version=model_version, model_source=model_source, model_lang=model_lang, group_name=group_name)
 

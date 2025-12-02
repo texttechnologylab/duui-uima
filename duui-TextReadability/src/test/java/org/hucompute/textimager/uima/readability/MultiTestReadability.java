@@ -24,6 +24,7 @@ import java.util.*;
 import org.texttechnologylab.annotation.AnnotationComment;
 import org.texttechnologylab.annotation.OffensiveSpeech;
 import org.texttechnologylab.annotation.Readability;
+import org.texttechnologylab.annotation.ReadabilityAdvance;
 
 import static org.junit.Assert.assertEquals;
 
@@ -99,9 +100,17 @@ public class MultiTestReadability {
 
         composer.run(cas);
 
-        Collection<Readability> all_readability = JCasUtil.select(cas, Readability.class);
-        for (Readability readability : all_readability) {
-            FSArray<AnnotationComment> readability_sentences = readability.getTextReadabilities();
+//        Collection<Readability> all_readability = JCasUtil.select(cas, Readability.class);
+//        for (Readability readability : all_readability) {
+//            FSArray<AnnotationComment> readability_sentences = readability.getTextReadabilities();
+//            for (AnnotationComment comment_i : readability_sentences) {
+//                System.out.println(comment_i.getKey() + ":" + comment_i.getValue());
+//            }
+//        }
+        Collection<ReadabilityAdvance> all_readability_advance = JCasUtil.select(cas, ReadabilityAdvance.class);
+        for (ReadabilityAdvance readabilityAdvance : all_readability_advance) {
+            System.out.println("ReadabilityAdvance:" + readabilityAdvance.getGroupName());
+            FSArray<AnnotationComment> readability_sentences = readabilityAdvance.getTextReadabilities();
             for (AnnotationComment comment_i : readability_sentences) {
                 System.out.println(comment_i.getKey() + ":" + comment_i.getValue());
             }

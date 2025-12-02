@@ -36,7 +36,6 @@ map_political = {
     21: 'Others'
 }
 
-
 class TopicCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device

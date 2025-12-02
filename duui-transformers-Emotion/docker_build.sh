@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export ANNOTATOR_CUDA=
-#export ANNOTATOR_CUDA="-cuda"
+#export ANNOTATOR_CUDA=
+export ANNOTATOR_CUDA="-cuda"
 
 export ANNOTATOR_NAME=duui-transformers-emotion
 export ANNOTATOR_VERSION=0.3.0
@@ -76,14 +76,14 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ####--------------------------------------------------------------------
 
-####---------------------------------------------------------------------
-#export MODEL_NAME="SamLowe/roberta-base-go_emotions"
-#export MODEL_SPECNAME="roberta-base-go-emotions"
-#export MODEL_VERSION="58b6c5b44a7a12093f782442969019c7e2982299"
-#export MODEL_SOURCE="https://huggingface.co/SamLowe/roberta-base-go_emotions"
-#export MODEL_LANG="EN"
-####--------------------------------------------------------------------
-
+###---------------------------------------------------------------------
+export MODEL_NAME="SamLowe/roberta-base-go_emotions"
+export MODEL_SPECNAME="roberta-base-go-emotions"
+export MODEL_VERSION="58b6c5b44a7a12093f782442969019c7e2982299"
+export MODEL_SOURCE="https://huggingface.co/SamLowe/roberta-base-go_emotions"
+export MODEL_LANG="EN"
+###--------------------------------------------------------------------
+#
 ####---------------------------------------------------------------------
 #export MODEL_NAME="mrm8488/t5-base-finetuned-emotion"
 #export MODEL_SPECNAME="t5-base-finetuned-emotion"
@@ -369,13 +369,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="TL"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-export MODEL_NAME="UniversalJoy/models-small-monolingual/small-zh.pt"
-export MODEL_SPECNAME="universal-joy-zh-small"
-export MODEL_VERSION="6ab01e98c8106e610247e5e8f0712af08c007b67"
-export MODEL_SOURCE="https://github.com/sotlampr/universal-joy"
-export MODEL_LANG="ZH"
-###--------------------------------------------------------------------
+####---------------------------------------------------------------------
+#export MODEL_NAME="UniversalJoy/models-small-monolingual/small-zh.pt"
+#export MODEL_SPECNAME="universal-joy-zh-small"
+#export MODEL_VERSION="6ab01e98c8106e610247e5e8f0712af08c007b67"
+#export MODEL_SOURCE="https://github.com/sotlampr/universal-joy"
+#export MODEL_LANG="ZH"
+####--------------------------------------------------------------------
 
 
 docker build \

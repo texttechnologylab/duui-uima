@@ -96,6 +96,26 @@ map_hate = {
         0: "NOT HATE",
         1: "HATE"
     },
+    "l3cube-pune/me-hate-bert": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
+    "HannahRoseKirk/Hatemoji": {
+        0: "NOT HATE",
+        1: "HATE",
+    },
+    "debajyotimaz/codemix_hate": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
+    "MilaNLProc/hate-ita": {
+        0: "NOT HATE",
+        1: "HATE"
+    },
+    "MilaNLProc/hate-ita-xlm-r-base": {
+        0: "NOT HATE",
+        1: "HATE"
+    }
 }
 
 

@@ -1,15 +1,15 @@
 export ANNOTATOR_NAME=duui-textreadability
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.2.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
-#---------------------------------------------------------------------
+##---------------------------------------------------------------------
 #export  MODEL_NAME="Textstat"
 #export MODEL_SPECNAME="textstat"
 #export MODEL_VERSION="d47dc863cdff8db317b0999c8879a3d2ddf00f35"
 #export MODEL_SOURCE="https://github.com/textstat/textstat"
 #export MODEL_LANG="EN"
-#--------------------------------------------------------------------
+##--------------------------------------------------------------------
 
 #---------------------------------------------------------------------
 export MODEL_NAME="Diversity"

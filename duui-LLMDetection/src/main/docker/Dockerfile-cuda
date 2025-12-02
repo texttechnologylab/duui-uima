@@ -1,0 +1,86 @@
+FROM nvidia/cuda:11.0.3-base-ubuntu20.04
+
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.8 python3-pip python3-setuptools python3-distutils && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN python -m pip install --upgrade pip
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+COPY ./reqiurements.txt ./reqiurements.txt
+RUN pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
+RUN pip install -r reqiurements.txt
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Andrazp/multilingual-hate-speech-robacofi')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alexandrainst/da-hatespeech-detection-base')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='l3cube-pune/me-hate-roberta')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='GroNLP/hateBERT')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-hate-latest')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-english')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='deepset/bert-base-german-cased-hatespeech-GermEval18Coarse')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-german')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-spanish')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-polish')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-portugese')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-italian')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-arabic')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-french')"
+
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-indonesian')"
+#RUN python -c "from nubia_score import Nubia; nubia = Nubia()"
+
+# service script
+COPY ./src/main/python/TypeSystemHate.xml ./TypeSystemHate.xml
+COPY ./src/main/python/evaluator.py ./evaluator.py
+COPY ./src/main/python/hatechecker.py ./hatechecker.py
+COPY ./src/main/python/duui_hate.lua ./duui_hate.lua
+COPY ./src/main/python/duui_hate.py ./duui_hate.py
+
+
+# meta data
+ARG ANNOTATOR_NAME="duui-hate:app"
+ENV ANNOTATOR_NAME=$ANNOTATOR_NAME
+ARG ANNOTATOR_VERSION="unset"
+ENV ANNOTATOR_VERSION=$ANNOTATOR_VERSION
+
+# log level
+ARG LOG_LEVEL="DEBUG"
+ENV LOG_LEVEL=$LOG_LEVEL
+
+# config
+ARG MODEL_CACHE_SIZE=1
+ENV MODEL_CACHE_SIZE=$MODEL_CACHE_SIZE
+ARG MODEL_NAME=""
+ENV MODEL_NAME=$MODEL_NAME
+ARG MODEL_VERSION=""
+ENV MODEL_VERSION=$MODEL_VERSION
+ARG MODEL_SOURCE=""
+ENV MODEL_SOURCE=$MODEL_SOURCE
+ARG MODEL_LANG=""
+ENV MODEL_LANG=$MODEL_LANG
+
+
+
+ENTRYPOINT ["uvicorn", "duui_hate:app", "--host", "0.0.0.0", "--port" ,"9714"]
+CMD ["--workers", "1"]
+
