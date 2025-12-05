@@ -29,13 +29,13 @@ DUUI implementation for selected Hugging-Face-based transformer [Emotion tools](
 | bert-emotion                            | https://huggingface.co/boltuix/bert-emotion                                      | 00b4ef11958dd607b2ede29f6ed6d02338782c94  | EN                |
 | beto-es-analysis                        | https://huggingface.co/finiteautomata/beto-emotion-analysis                      | 9b628b0bd91471ad9bd709c10522c379ce09c32a  | ES                |
 | twitter-xlm-roberta                     | https://huggingface.co/daveni/twitter-xlm-roberta-emotion-es                     | ab57a1137b2eb1f6c90fc77b0a4c4ced7dbd4d60  | ES                |
-| german-emotions                         | https://huggingface.co/ChrisLalk/German-Emotions                                 | a60c4707ead45e083f67157edd7ff56621ee39e   | DE                |
+| german-emotions                         | https://huggingface.co/ChrisLalk/German-Emotions                                 | b99c911c3a743d1225e20809ee4af1daf2894a9d   | DE                |
 | xlm-emo-multi                           | https://huggingface.co/msgfrom96/xlm_emo_multi                                   | 56b4b493b8591381fbd309eb4de118cd0771aa4a  | EN,AR             |
 | rubert-cedr-emotion                     | https://huggingface.co/cointegrated/rubert-tiny2-cedr-emotion-detection          | 453ae93ca895c98cda29522c72b6fbc5a08067b9  | RU                |
 | rubert-tiny2-russian                    | https://huggingface.co/Aniemore/rubert-tiny2-russian-emotion-detection           | a7b5618de479a2f77637393ed2931d48b9618208  | RU                |
 | chinese-emotion-small                   | https://huggingface.co/Johnson8187/Chinese-Emotion-Small                         | 2c04ce86de44d232f0fbe31413868eb31d791aea  | ZH                |
 | chinese-emotion                         | https://huggingface.co/Johnson8187/Chinese-Emotion                               | 76f94d57b9fdf2b801b9ff9ef2d2af16d2ddf27e  | ZH                |
-| multi-go-emotions                       | https://huggingface.co/AnasAlokla/multilingual_go_emotions                       | 64610deb3453acfff12bb8289e3e7d0913ae91df  | AR,EN,FR,ES,NL,TR |
+| multi-go-emotions                       | https://huggingface.co/AnasAlokla/multilingual_go_emotions                       | 7fad3b0603953353ccf9e512af244e39f9097286  | AR,EN,FR,ES,NL,TR |
 | zoopa-carer-emotion                     | https://huggingface.co/Zoopa/emotion-classification-model                        | 829c7072f509941b33ccae5e9d3ea3ba33e07bc9  | EN                |
 | distilbert-carer-emotion                | https://huggingface.co/esuriddick/distilbert-base-uncased-finetuned-emotion      | 7c0c353fc08ba81ff219ec9df9fabfd0575c07ef  | EN                |
 | corbett-carer-emotion                   | https://huggingface.co/Panda0116/emotion-classification-model                       | 7db05a776be17ff42971dc07c3156f3aae40d730  | EN                |
@@ -61,7 +61,7 @@ For using duui-transformers-emotion as a DUUI image it is necessary to use the [
 ## Start Docker container
 
 ```
-docker run -p 9714:9714 docker.texttechnologylab.org/duui-transformers-emotion-[modelname]:latest
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-transformers-emotion-[modelname]:latest-cuda
 ```
 
 Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list
@@ -70,7 +70,7 @@ Find all available image tags here: https://docker.texttechnologylab.org/v2/duui
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-emotion-[modelname]:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-transformers-emotion-[modelname]:latest-cuda")
         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 );
 ```
