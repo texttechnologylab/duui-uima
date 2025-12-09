@@ -22,6 +22,8 @@ from collections import defaultdict, Counter
 from nltk.corpus import wordnet as wn
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
+from germanetpy.germanet import Germanet
+from germanetpy.synset import WordCategory
 
 import numpy as np
 
@@ -29,6 +31,7 @@ class Settings(BaseSettings):
     annotator_name: str
     annotator_version: str
     log_level: str
+    germanet_path: Optional[str] = None
 
     class Config:
         env_prefix = 'duui_coh_metrix_'
@@ -171,6 +174,13 @@ with open(lua_communication_script_filename, 'rb') as f:
     lua_communication_script = f.read().decode("utf-8")
     logger.debug("Lua communication script:")
     logger.debug(lua_communication_script_filename)
+
+if settings.germanet_path:
+    logger.info("Loading GermaNet from \"%s\"", settings.germanet_path)
+    germanet = Germanet(settings.germanet_path)
+else:
+    logger.warning("No GermaNet path defined. Metrics based on GermaNet will return -1")
+    germanet = None
 
 app = FastAPI(
     title=settings.annotator_name,
@@ -1602,8 +1612,8 @@ def cm_smcauslsa(sentences: List[Sentence]) -> Optional[float]:
     return np.round(SMCAUSlsa, 3)
 
 def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str):
-    verbs_lemma = []
     if lang=="en":
+        verbs_lemma = []
         syn_overlap_count = 0
         total_pairs = 0
         for i, sent in enumerate(poses):
@@ -1617,6 +1627,23 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
                 synsets_j = wn.synsets(verbs_lemma[j], pos=wn.VERB)
                 total_pairs = total_pairs + 1
                 if synsets_i and synsets_j and set(synsets_i).intersection(synsets_j):
+                    syn_overlap_count += 1
+        SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
+    elif lang=="de":
+        verbs_lemma = []
+        syn_overlap_count = 0
+        total_pairs = 0
+        for i, sent in enumerate(poses):
+            for j, pos in enumerate(sent):
+                if pos == "VERB":
+                    lemma = word_lemma[i][j].lower()
+                    verbs_lemma.append(lemma)
+        for i, lemma in enumerate(verbs_lemma):
+            synsets_i = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(lemma)))
+            for j in range(i + 1, len(verbs_lemma)):
+                synsets_j = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(verbs_lemma[j])))
+                total_pairs = total_pairs + 1
+                if synsets_i and synsets_j and synsets_i.intersection(synsets_j):
                     syn_overlap_count += 1
         SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
     else:
