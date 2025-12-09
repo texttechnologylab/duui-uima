@@ -825,7 +825,7 @@ def _get_morhological_features(poses: List[List[str]], words: List[List[str]], m
             if person == "2":
                 key = "prp2"
             else:
-                key = f"prp{person.lower()}{'s' if number == 'Sing' else 'p'}"
+                key = f"prp{person.lower()}{'s' if number == 'S' else 'p'}"
             pronouns_by_category[key].add(words[i][j].lower())
 
     return pronouns_by_category
