@@ -1623,7 +1623,7 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
         SMCAUSwn = -1.0
     return SMCAUSwn
 
-def cm_smcauswn(sentences: List[Sentence]) -> Optional[float]:
+def cm_smcauswn(sentences: List[Sentence], lang) -> Optional[float]:
     _, _, _, lemmas, poses, vectors = _sm_get_data(sentences)
     SMCAUSwn = get_SMCAUSwn(poses, lemmas, lang)
     return np.round(SMCAUSwn, 3)
@@ -2364,7 +2364,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             lsa_n_components = 100
             token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
-            lsa_indices = _lsa_cohesion_indices(token_vectors, token_words, lsa_n_components, tokens_vector_length)
+            lsa_indices = _lsa_cohesion_indices(token_vectors, token_words, tokens_vector_length, lsa_n_components)
             lsa_error = None
         except Exception as e:
             logger.error("Error calculating LSA: %s", e)
@@ -2873,7 +2873,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSwn
         try:
-            smcauswn = cm_smcauswn(sentences)
+            smcauswn = cm_smcauswn(sentences, request.language)
             smcauswn_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSwn: %s", e)
