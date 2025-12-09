@@ -24,6 +24,7 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
 from germanetpy.germanet import Germanet
 from germanetpy.synset import WordCategory
+from pathlib import Path
 
 import numpy as np
 
@@ -176,8 +177,13 @@ with open(lua_communication_script_filename, 'rb') as f:
     logger.debug(lua_communication_script_filename)
 
 if settings.germanet_path:
-    logger.info("Loading GermaNet from \"%s\"", settings.germanet_path)
-    germanet = Germanet(settings.germanet_path)
+    gnp = Path(settings.germanet_path)
+    if gnp.is_dir() and any(gnp.iterdir()):
+        logger.info("Loading GermaNet from \"%s\"", settings.germanet_path)
+        germanet = Germanet(settings.germanet_path)
+    else:
+        logger.warning("GermaNet path defined as \"%s\", but empty or non-existing. Metrics based on GermaNet will return -1", settings.germanet_path)
+        germanet = None
 else:
     logger.warning("No GermaNet path defined. Metrics based on GermaNet will return -1")
     germanet = None
