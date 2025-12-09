@@ -5,7 +5,7 @@ set -euo pipefail
 export ANNOTATOR_CUDA="-cuda"
 
 export ANNOTATOR_NAME=duui-transformers-emotion
-export ANNOTATOR_VERSION=0.3.0
+export ANNOTATOR_VERSION=0.4.0
 export LOG_LEVEL=DEBUG
 export MODEL_CACHE_SIZE=3
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
@@ -76,13 +76,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ####--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-export MODEL_NAME="SamLowe/roberta-base-go_emotions"
-export MODEL_SPECNAME="roberta-base-go-emotions"
-export MODEL_VERSION="58b6c5b44a7a12093f782442969019c7e2982299"
-export MODEL_SOURCE="https://huggingface.co/SamLowe/roberta-base-go_emotions"
-export MODEL_LANG="EN"
-###--------------------------------------------------------------------
+####---------------------------------------------------------------------
+#export MODEL_NAME="SamLowe/roberta-base-go_emotions"
+#export MODEL_SPECNAME="roberta-base-go-emotions"
+#export MODEL_VERSION="58b6c5b44a7a12093f782442969019c7e2982299"
+#export MODEL_SOURCE="https://huggingface.co/SamLowe/roberta-base-go_emotions"
+#export MODEL_LANG="EN"
+####--------------------------------------------------------------------
 #
 ####---------------------------------------------------------------------
 #export MODEL_NAME="mrm8488/t5-base-finetuned-emotion"
@@ -177,13 +177,13 @@ export MODEL_LANG="EN"
 #export MODEL_LANG="ES"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-#export MODEL_NAME="ChrisLalk/German-Emotions"
-#export MODEL_SPECNAME="german-emotions"
-#export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
-#export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
-#export MODEL_LANG="DE"
-###--------------------------------------------------------------------
+##---------------------------------------------------------------------
+export MODEL_NAME="ChrisLalk/German-Emotions"
+export MODEL_SPECNAME="german-emotions"
+export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
+export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
+export MODEL_LANG="DE"
+##--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="msgfrom96/xlm_emo_multi"
@@ -228,7 +228,7 @@ export MODEL_LANG="EN"
 ###---------------------------------------------------------------------
 #export MODEL_NAME="AnasAlokla/multilingual_go_emotions"
 #export MODEL_SPECNAME="multi-go-emotions"
-#export MODEL_VERSION="64610deb3453acfff12bb8289e3e7d0913ae91df"
+#export MODEL_VERSION="7fad3b0603953353ccf9e512af244e39f9097286"
 #export MODEL_SOURCE="https://huggingface.co/AnasAlokla/multilingual_go_emotions"
 #export MODEL_LANG="AR,EN,FR,ES,NL,TR"
 ###--------------------------------------------------------------------

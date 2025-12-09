@@ -27,13 +27,13 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-export MODEL_NAME="philschmid/distilbert-base-multilingual-cased-sentiment"
-export MODEL_SPECNAME="distilbert-multilingual"
-export MODEL_VERSION="b45a713783e49ac09c94dfda4bff847f4ad771c5"
-export MODEL_SOURCE="https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment/tree/main"
-export MODEL_LANG="Multi"
-###--------------------------------------------------------------------
+####---------------------------------------------------------------------
+#export MODEL_NAME="philschmid/distilbert-base-multilingual-cased-sentiment"
+#export MODEL_SPECNAME="distilbert-multilingual"
+#export MODEL_VERSION="b45a713783e49ac09c94dfda4bff847f4ad771c5"
+#export MODEL_SOURCE="https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment/tree/main"
+#export MODEL_LANG="Multi"
+####--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="cardiffnlp/twitter-roberta-base-sentiment-latest"
@@ -58,6 +58,14 @@ export MODEL_LANG="Multi"
 #export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-de-base"
 #export MODEL_LANG="DE"
 ##--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+export MODEL_NAME="oliverguhr/german-sentiment-bert"
+export MODEL_SPECNAME="german-sentiment-bert"
+export MODEL_VERSION="b1177ff59e305c966836ba2825d3dc2efc53f125"
+export MODEL_SOURCE="https://huggingface.co/oliverguhr/german-sentiment-bert"
+export MODEL_LANG="DE"
+###--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=
