@@ -588,6 +588,14 @@ def _get_tree_nodes(deps, poses, puncts):
             nodes.add((token_deps, token_pos))
     return nodes
 
+def _get_tree_nodes_paragraphs(deps, poses, puncts):
+    nodes = set()
+    for sent_pos, sent_deps, sent_puncts in zip(poses, deps, puncts):
+        for pos, dep, punct in zip(sent_pos, sent_deps, sent_puncts):
+            if not punct:
+                nodes.add((dep, pos))
+    return nodes
+
 def cm_synstruta(sentences: List[Sentence]) -> Optional[float]:
     poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
     deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
@@ -622,8 +630,8 @@ def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
     similarities = []
     for s1, s2 in combinations(range(len(deps_paragraph) - 1), 2):
         sim = _compute_tree_similarity(
-            _get_tree_nodes(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
-            _get_tree_nodes(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
+            _get_tree_nodes_paragraphs(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
+            _get_tree_nodes_paragraphs(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
         )
         similarities.append(sim)
 
