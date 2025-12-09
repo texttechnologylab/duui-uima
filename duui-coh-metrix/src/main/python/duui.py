@@ -1630,22 +1630,26 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
                     syn_overlap_count += 1
         SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
     elif lang=="de":
-        verbs_lemma = []
-        syn_overlap_count = 0
-        total_pairs = 0
-        for i, sent in enumerate(poses):
-            for j, pos in enumerate(sent):
-                if pos == "VERB":
-                    lemma = word_lemma[i][j].lower()
-                    verbs_lemma.append(lemma)
-        for i, lemma in enumerate(verbs_lemma):
-            synsets_i = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(lemma)))
-            for j in range(i + 1, len(verbs_lemma)):
-                synsets_j = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(verbs_lemma[j])))
-                total_pairs = total_pairs + 1
-                if synsets_i and synsets_j and synsets_i.intersection(synsets_j):
-                    syn_overlap_count += 1
-        SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
+        if  germanet is None:
+            logger.warning("GermaNet not available")
+            SMCAUSwn = -1.0
+        else:
+            verbs_lemma = []
+            syn_overlap_count = 0
+            total_pairs = 0
+            for i, sent in enumerate(poses):
+                for j, pos in enumerate(sent):
+                    if pos == "VERB":
+                        lemma = word_lemma[i][j].lower()
+                        verbs_lemma.append(lemma)
+            for i, lemma in enumerate(verbs_lemma):
+                synsets_i = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(lemma)))
+                for j in range(i + 1, len(verbs_lemma)):
+                    synsets_j = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(verbs_lemma[j])))
+                    total_pairs = total_pairs + 1
+                    if synsets_i and synsets_j and synsets_i.intersection(synsets_j):
+                        syn_overlap_count += 1
+            SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
     else:
         SMCAUSwn = -1.0
     return SMCAUSwn
