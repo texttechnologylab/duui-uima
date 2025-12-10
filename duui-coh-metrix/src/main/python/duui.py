@@ -1398,16 +1398,20 @@ def cm_wrdfrqmc(sentences: List[Sentence], lang: str, frequencies_source: str) -
     content_words, _, _ = _get_content_words_per_sentence(sentences)
     sentence_min_frequencies = []
     for sentence in content_words:
-        word_frequencies = [
-            word_frequencies_map.get(word, 0)
-            for word in sentence
-        ]
-        log_word_frequencies = [
-            np.log(freq + 1e-5)  # smoothing to avoid log(0)
-            for freq in word_frequencies
-        ]
-        min_freq = np.min(log_word_frequencies)
-        sentence_min_frequencies.append(min_freq)
+        try:
+            word_frequencies = [
+                word_frequencies_map.get(word, 0)
+                for word in sentence
+            ]
+            log_word_frequencies = [
+                np.log(freq + 1e-5)  # smoothing to avoid log(0)
+                for freq in word_frequencies
+            ]
+            min_freq = np.min(log_word_frequencies)
+            sentence_min_frequencies.append(min_freq)
+        except:
+            # ignore problems when processing sentences
+            pass
     return np.mean(sentence_min_frequencies) if sentence_min_frequencies else 0.0
 
 def cm_rdl2(crfcwo1: float, synstrut: float, wrdfrqmc: float) -> Optional[float]:
