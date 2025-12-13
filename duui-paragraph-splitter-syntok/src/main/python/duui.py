@@ -205,6 +205,19 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_meta = None
 
     try:
+        meta = AnnotationMeta(
+            name=settings.annotator_name,
+            version=settings.annotator_version,
+            modelName="syntok",
+            modelVersion=SYNTOC_VERSION
+        )
+
+        modification_meta = DocumentModification(
+            user=settings.annotator_name,
+            timestamp=modification_timestamp_seconds,
+            comment=f"{settings.annotator_name} ({settings.annotator_version}), syntok ({SYNTOC_VERSION})"
+        )
+
         utf16_converter = Utf16CodepointOffsetConverter()
         utf16_converter.create_offset_mapping(request.text)
 
@@ -245,19 +258,6 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     ))
                 except Exception as ex:
                     logger.exception("Error processing sentence: %s", ex)
-
-        meta = AnnotationMeta(
-            name=settings.annotator_name,
-            version=settings.annotator_version,
-            modelName="syntok",
-            modelVersion=SYNTOC_VERSION
-        )
-
-        modification_meta = DocumentModification(
-            user=settings.annotator_name,
-            timestamp=modification_timestamp_seconds,
-            comment=f"{settings.annotator_name} ({settings.annotator_version}), syntok ({SYNTOC_VERSION})"
-        )
 
     except Exception as ex:
         logger.exception(ex)

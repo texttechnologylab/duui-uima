@@ -17,7 +17,7 @@ RUN #python -c "import nltk; nltk.download('all', download_dir='nltk_data')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/xlm-emo-t')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='j-hartmann/emotion-english-distilroberta-base')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='michellejieli/emotion_text_classifier')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/bertweet-base-emotion-analysis')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ActivationAI/distilbert-base-uncased-finetuned-emotion')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='SamLowe/roberta-base-go_emotions')"
@@ -43,7 +43,7 @@ RUN #python -c "import nltk; nltk.download('all', download_dir='nltk_data')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='lordtt13/emo-mobilebert')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alex-shvets/roberta-large-emopillars-contextual-emocontext')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AdapterHub/bert-base-uncased-pf-emo')"
-RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
+#RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
 
 
 # copy scripts
@@ -65,7 +65,7 @@ COPY ./src/main/python/utils.py ./utils.py
 #COPY ./src/main/python/UniversalJoy/models-small-monolingual/small-es.pt ./UniversalJoy/models-small-monolingual/small-es.pt
 #COPY ./src/main/python/UniversalJoy/models-small-monolingual/small-pt.pt ./UniversalJoy/models-small-monolingual/small-pt.pt
 #COPY ./src/main/python/UniversalJoy/models-small-monolingual/small-tl.pt ./UniversalJoy/models-small-monolingual/small-tl.pt
-COPY ./src/main/python/UniversalJoy/models-small-monolingual/small-zh.pt ./UniversalJoy/models-small-monolingual/small-zh.pt
+#COPY ./src/main/python/UniversalJoy/models-small-monolingual/small-zh.pt ./UniversalJoy/models-small-monolingual/small-zh.pt
 #COPY ./src/main/python/nltk_data/ ./nltk_data/
 #COPY ./src/main/python/pol_emo_mDeBERTa/ ./pol_emo_mDeBERTa/
 

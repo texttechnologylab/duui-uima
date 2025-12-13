@@ -22,6 +22,9 @@ from collections import defaultdict, Counter
 from nltk.corpus import wordnet as wn
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
+from germanetpy.germanet import Germanet
+from germanetpy.synset import WordCategory
+from pathlib import Path
 
 import numpy as np
 
@@ -29,6 +32,7 @@ class Settings(BaseSettings):
     annotator_name: str
     annotator_version: str
     log_level: str
+    germanet_path: Optional[str] = None
 
     class Config:
         env_prefix = 'duui_coh_metrix_'
@@ -171,6 +175,18 @@ with open(lua_communication_script_filename, 'rb') as f:
     lua_communication_script = f.read().decode("utf-8")
     logger.debug("Lua communication script:")
     logger.debug(lua_communication_script_filename)
+
+if settings.germanet_path:
+    gnp = Path(settings.germanet_path)
+    if gnp.is_dir() and any(gnp.iterdir()):
+        logger.info("Loading GermaNet from \"%s\"", settings.germanet_path)
+        germanet = Germanet(settings.germanet_path)
+    else:
+        logger.warning("GermaNet path defined as \"%s\", but empty or non-existing. Metrics based on GermaNet will return -1", settings.germanet_path)
+        germanet = None
+else:
+    logger.warning("No GermaNet path defined. Metrics based on GermaNet will return -1")
+    germanet = None
 
 app = FastAPI(
     title=settings.annotator_name,
@@ -578,6 +594,14 @@ def _get_tree_nodes(deps, poses, puncts):
             nodes.add((token_deps, token_pos))
     return nodes
 
+def _get_tree_nodes_paragraphs(deps, poses, puncts):
+    nodes = set()
+    for sent_pos, sent_deps, sent_puncts in zip(poses, deps, puncts):
+        for pos, dep, punct in zip(sent_pos, sent_deps, sent_puncts):
+            if not punct:
+                nodes.add((dep, pos))
+    return nodes
+
 def cm_synstruta(sentences: List[Sentence]) -> Optional[float]:
     poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
     deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
@@ -612,8 +636,8 @@ def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
     similarities = []
     for s1, s2 in combinations(range(len(deps_paragraph) - 1), 2):
         sim = _compute_tree_similarity(
-            _get_tree_nodes(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
-            _get_tree_nodes(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
+            _get_tree_nodes_paragraphs(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
+            _get_tree_nodes_paragraphs(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
         )
         similarities.append(sim)
 
@@ -807,7 +831,7 @@ def _get_morhological_features(poses: List[List[str]], words: List[List[str]], m
             if person == "2":
                 key = "prp2"
             else:
-                key = f"prp{person.lower()}{'s' if number == 'Sing' else 'p'}"
+                key = f"prp{person.lower()}{'s' if number == 'S' else 'p'}"
             pronouns_by_category[key].add(words[i][j].lower())
 
     return pronouns_by_category
@@ -1374,16 +1398,20 @@ def cm_wrdfrqmc(sentences: List[Sentence], lang: str, frequencies_source: str) -
     content_words, _, _ = _get_content_words_per_sentence(sentences)
     sentence_min_frequencies = []
     for sentence in content_words:
-        word_frequencies = [
-            word_frequencies_map.get(word, 0)
-            for word in sentence
-        ]
-        log_word_frequencies = [
-            np.log(freq + 1e-5)  # smoothing to avoid log(0)
-            for freq in word_frequencies
-        ]
-        min_freq = np.min(log_word_frequencies)
-        sentence_min_frequencies.append(min_freq)
+        try:
+            word_frequencies = [
+                word_frequencies_map.get(word, 0)
+                for word in sentence
+            ]
+            log_word_frequencies = [
+                np.log(freq + 1e-5)  # smoothing to avoid log(0)
+                for freq in word_frequencies
+            ]
+            min_freq = np.min(log_word_frequencies)
+            sentence_min_frequencies.append(min_freq)
+        except:
+            # ignore problems when processing sentences
+            pass
     return np.mean(sentence_min_frequencies) if sentence_min_frequencies else 0.0
 
 def cm_rdl2(crfcwo1: float, synstrut: float, wrdfrqmc: float) -> Optional[float]:
@@ -1602,8 +1630,8 @@ def cm_smcauslsa(sentences: List[Sentence]) -> Optional[float]:
     return np.round(SMCAUSlsa, 3)
 
 def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str):
-    verbs_lemma = []
     if lang=="en":
+        verbs_lemma = []
         syn_overlap_count = 0
         total_pairs = 0
         for i, sent in enumerate(poses):
@@ -1619,11 +1647,32 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
                 if synsets_i and synsets_j and set(synsets_i).intersection(synsets_j):
                     syn_overlap_count += 1
         SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
+    elif lang=="de":
+        if  germanet is None:
+            logger.warning("GermaNet not available")
+            SMCAUSwn = -1.0
+        else:
+            verbs_lemma = []
+            syn_overlap_count = 0
+            total_pairs = 0
+            for i, sent in enumerate(poses):
+                for j, pos in enumerate(sent):
+                    if pos == "VERB":
+                        lemma = word_lemma[i][j].lower()
+                        verbs_lemma.append(lemma)
+            for i, lemma in enumerate(verbs_lemma):
+                synsets_i = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(lemma)))
+                for j in range(i + 1, len(verbs_lemma)):
+                    synsets_j = set(filter(lambda ss: ss.word_category==WordCategory.verben, germanet.get_synsets_by_orthform(verbs_lemma[j])))
+                    total_pairs = total_pairs + 1
+                    if synsets_i and synsets_j and synsets_i.intersection(synsets_j):
+                        syn_overlap_count += 1
+            SMCAUSwn = syn_overlap_count / total_pairs if total_pairs > 0 else 0
     else:
         SMCAUSwn = -1.0
     return SMCAUSwn
 
-def cm_smcauswn(sentences: List[Sentence]) -> Optional[float]:
+def cm_smcauswn(sentences: List[Sentence], lang) -> Optional[float]:
     _, _, _, lemmas, poses, vectors = _sm_get_data(sentences)
     SMCAUSwn = get_SMCAUSwn(poses, lemmas, lang)
     return np.round(SMCAUSwn, 3)
@@ -2364,7 +2413,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             lsa_n_components = 100
             token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
-            lsa_indices = _lsa_cohesion_indices(token_vectors, token_words, lsa_n_components, tokens_vector_length)
+            lsa_indices = _lsa_cohesion_indices(token_vectors, token_words, tokens_vector_length, lsa_n_components)
             lsa_error = None
         except Exception as e:
             logger.error("Error calculating LSA: %s", e)
@@ -2873,7 +2922,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SMCAUSwn
         try:
-            smcauswn = cm_smcauswn(sentences)
+            smcauswn = cm_smcauswn(sentences, request.language)
             smcauswn_error = None
         except Exception as e:
             logger.error("Error calculating SMCAUSwn: %s", e)

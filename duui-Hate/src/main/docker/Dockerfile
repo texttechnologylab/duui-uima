@@ -44,7 +44,21 @@ RUN pip install -r reqiurements.txt
 
 #COPY ./src/main/python/HateBERT_hateval ./HateBERT_hateval
 
-RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('EZiisk/EZ_finetune_Vidgen_model_RHS_Best'); AutoTokenizer.from_pretrained('EZiisk/EZ_finetune_Vidgen_model_RHS_Best_Tokenizer')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('EZiisk/EZ_finetune_Vidgen_model_RHS_Best'); AutoTokenizer.from_pretrained('EZiisk/EZ_finetune_Vidgen_model_RHS_Best_Tokenizer')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('Exqrch/IndoBERTweet-HateSpeech'); AutoTokenizer.from_pretrained('indolem/indobertweet-base-uncased')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/hate-ita-xlm-r-large')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/hate-ita-xlm-r-base')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/hate-ita')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='l3cube-pune/me-hate-bert')"
+
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='HannahRoseKirk/Hatemoji')"
+
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='debajyotimaz/codemix_hate')"
+
 
 # service script
 COPY ./src/main/python/TypeSystemHate.xml ./TypeSystemHate.xml

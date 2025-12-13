@@ -25,6 +25,11 @@ ENV DUUI_COH_METRIX_ANNOTATOR_NAME=$DUUI_COH_METRIX_ANNOTATOR_NAME
 ARG DUUI_COH_METRIX_ANNOTATOR_VERSION="unset"
 ENV DUUI_COH_METRIX_ANNOTATOR_VERSION=$DUUI_COH_METRIX_ANNOTATOR_VERSION
 
+VOLUME ["/usr/src/app/src/main/resources/germanet"]
+
+ARG DUUI_COH_METRIX_GERMANET_PATH="/usr/src/app/src/main/resources/germanet"
+ENV DUUI_COH_METRIX_GERMANET_PATH=$DUUI_COH_METRIX_GERMANET_PATH
+
 COPY ./src/main/resources/TypeSystem.xml ./src/main/resources/TypeSystem.xml
 COPY ./src/main/python/duui.py ./src/main/python/duui.py
 COPY ./src/main/lua/communication.lua ./src/main/lua/communication.lua

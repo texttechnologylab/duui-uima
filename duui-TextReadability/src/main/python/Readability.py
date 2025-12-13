@@ -1,5 +1,7 @@
 import textstat
 from diversity import compression_ratio, homogenization_score, ngram_diversity_score
+import readability
+import syntok.segmenter as segmenter
 
 
 class ReadabilityMetricsTextStat:
@@ -58,6 +60,78 @@ class ReadabilityMetricsDiversity:
 
         return dict_diversity
 
+
+
+class ReadabilityCompute:
+    def __init__(self):
+        self.map_infos = {
+            "readability grades": "Readability Scores",
+            "sentence info": "Sentences Information",
+            "word usage": "Word Usage",
+            "sentence beginnings": "Sentence Beginnings",
+        }
+        self.map_units = {
+            "Kincaid": "Kincaid",
+            "ARI": "Automated Readability Index",
+            "Coleman-Liau": "Coleman-Liau Index",
+            "FleschReadingEase": "Flesch Reading Ease",
+            "GunningFogIndex": "Gunning Fog Index",
+            "LIX": "LIX",
+            "SMOGIndex": "SMOG Index",
+            "RIX": "RIX",
+            "DaleChallIndex": "Dale-Chall Index",
+            "characters_per_word": "Characters per Word",
+            "syll_per_word": "Syllables per Word",
+            "words_per_sentence": "Words per Sentence",
+            "sentences_per_paragraph": "Sentences per Paragraph",
+            "type_token_ratio": "Type-Token Ratio",
+            "directspeech_ratio": "Direct Speech Ratio",
+            "characters": "Characters",
+            "syllables": "Syllables",
+            "words": "Words",
+            "sentences": "Sentences",
+            "paragraphs": "Paragraphs",
+            "long_words": "Long Words",
+            "complex_words": "Complex Words",
+            "complex_words_dc": "Complex Words (Dale-Chall)",
+            "tobeverb": "To Be Verbs",
+            "auxverb": "Auxiliary Verbs",
+            "conjunction": "Conjunctions",
+            "pronoun": "Pronouns",
+            "nominalization": "Nominalizations",
+            "preposition": "Prepositions",
+            "interrogative": "Interrogatives",
+            "article": "Articles",
+            "subordination": "Subordinations",
+            "wordtypes": "Word Types",
+        }
+
+    def segment_text(self, text):
+        """
+        Segment the text into sentences and paragraphs.
+        """
+        return '\n\n'.join(
+            '\n'.join(' '.join(token.value for token in sentence)
+                      for sentence in paragraph)
+            for paragraph in segmenter.analyze(text))
+
+    def get_readability(self, text, lang='en'):
+        """
+        Get readability measures for the given text.
+        """
+        tokenized_text = self.segment_text(text)
+        readability_scores = readability.getmeasures(tokenized_text, lang=lang)
+        dict_output = {
+            "Readability Scores": {},
+            "Sentences Information": {},
+            "Word Usage": {},
+            "Sentence Beginnings": {},
+        }
+        for key, value in readability_scores.items():
+            map_info = self.map_infos[key]
+            for sub_key, sub_value in value.items():
+                dict_output[map_info][self.map_units[sub_key]] = sub_value
+        return dict_output
 
 if __name__ == '__main__':
     readability_metrics = ReadabilityMetricsTextStat()

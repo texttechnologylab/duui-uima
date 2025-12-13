@@ -80,25 +80,33 @@ function deserialize(inputCas, inputStream)
          local res_len = results["len_results"]
          --         print("Len_results")
          local factors = results["factors"]
-         local counter = 0
+         local group_name = results["group_name"]
+         local group_set_name = ""
 
-         local read_i = luajava.newInstance("org.texttechnologylab.annotation.Readability", inputCas)
-         --             print(emotion_i)
-         local fsarray = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, res_len)
 
-         read_i:setTextReadabilities(fsarray)
-         for index_i, res in ipairs(res_out) do
-             local factor_j = factors[index_i]
-             read_in_i = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-             read_in_i:setReference(emotion_i)
-             read_in_i:setKey(res)
-             read_in_i:setValue(factor_j)
-             read_in_i:addToIndexes()
-             read_i:setTextReadabilities(counter, read_in_i)
-             counter = counter + 1
+
+         for index_i, group_i in ipairs(group_name) do
+             local res_len_i = res_len[index_i]
+             local factors_i = factors[index_i]
+             local res_out_i = res_out[index_i]
+             local read_i = luajava.newInstance("org.texttechnologylab.annotation.ReadabilityAdvance", inputCas)
+             local fsarray = luajava.newInstance("org.apache.uima.jcas.cas.FSArray", inputCas, res_len_i)
+             local counter = 0
+             read_i:setTextReadabilities(fsarray)
+             read_i:setGroupName(group_i)
+             for index_j, res_j in ipairs(res_out_i) do
+                 local factor_j = factors_i[index_j]
+                 read_in_i = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+                 read_in_i:setReference(read_i)
+                 read_in_i:setKey(res_j)
+                 read_in_i:setValue(factor_j)
+                 read_in_i:addToIndexes()
+                 read_i:setTextReadabilities(counter, read_in_i)
+                 counter = counter + 1
+             end
+             read_i:setModel(model_meta)
+             read_i:addToIndexes()
          end
-         read_i:setModel(model_meta)
-         read_i:addToIndexes()
      end
  --     print("end")
  end
