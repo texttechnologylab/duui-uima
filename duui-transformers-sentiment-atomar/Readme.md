@@ -17,6 +17,7 @@ DUUI implementation for selected Hugging-Face-based transformer [Sentiment tools
 | cardiffnlp-sentiment-en                                       | https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest | 4ba3d4463bd152c9e4abd892b50844f30c646708 | EN   |
 | roberta-based-en | https://huggingface.co/j-hartmann/sentiment-roberta-large-english-3-classes | 81cdc0fe3eee1bc18d95ffdfb56b2151a39c9007 | EN   |
 | finance-sentiment-de  | https://huggingface.co/bardsai/finance-sentiment-de-base | 51b3d03f716eaa093dc42130f675839675a07b9a  | DE   |
+| phobert-base-vietnamese-sentiment | https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment | 9076a5896971b5d551588fe8a51c722c89731d36 | VI   |
 
 # How To Use
 

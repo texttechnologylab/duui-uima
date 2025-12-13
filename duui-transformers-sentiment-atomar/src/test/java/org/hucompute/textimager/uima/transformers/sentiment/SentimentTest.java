@@ -229,4 +229,31 @@ public class SentimentTest {
             System.out.println("Positive: " + positive);
         }
     }
+    @Test
+    public void VietnamesePhoBertTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+
+        List<String> sentences = Arrays.asList(
+                "Tôi rất yêu thích bộ phim này. Nó tuyệt vời!",
+                "Sản phẩm này không tốt. Tôi rất thất vọng.",
+                "Món hàng này cũng bình thường, không tốt không xấu."
+        );
+
+        createCas("vi", sentences);
+        composer.run(cas);
+
+        Collection<SentimentModel> all_sentiment = JCasUtil.select(cas, SentimentModel.class);
+        for (SentimentModel sentiment_i : all_sentiment) {
+            System.out.println(sentiment_i.getCoveredText());
+            Double negative = sentiment_i.getProbabilityNegative();
+            Double neutral = sentiment_i.getProbabilityNeutral();
+            Double positive = sentiment_i.getProbabilityPositive();
+            System.out.println("Negative: " + negative);
+            System.out.println("Neutral: " + neutral);
+            System.out.println("Positive: " + positive);
+        }
+    }
 }
