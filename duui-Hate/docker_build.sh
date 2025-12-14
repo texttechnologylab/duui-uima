@@ -212,11 +212,11 @@ export MODEL_LANG="EN, HI"
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export  MODEL_NAME="visolex/phobert-hsd"
-export MODEL_SPECNAME="phobert-hsd"
-export MODEL_VERSION="844b4cda62a864907038a33edb346cf8b612054f"
-export MODEL_SOURCE="https://huggingface.co/visolex/phobert-hsd"
-export MODEL_LANG="VI"
+#export  MODEL_NAME="visolex/phobert-hsd"
+#export MODEL_SPECNAME="phobert-hsd"
+#export MODEL_VERSION="844b4cda62a864907038a33edb346cf8b612054f"
+#export MODEL_SOURCE="https://huggingface.co/visolex/phobert-hsd"
+#export MODEL_LANG="VI"
 ##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
