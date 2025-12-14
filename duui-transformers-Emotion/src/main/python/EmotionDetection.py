@@ -34,7 +34,8 @@ models_emotion = {
     "SamLowe": "SamLowe/roberta-base-go_emotions",
     "michellejieli": "michellejieli/emotion_text_classifier",
     "EmoAtlas": "EmoAtlas",
-    "MRM8488": "mrm8488/t5-base-finetuned-emotion"
+    "MRM8488": "mrm8488/t5-base-finetuned-emotion",
+    "PhoBERT": "visolex/phobert-emotion"
 }
 map_emotion = {
     "DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence": {
@@ -393,6 +394,14 @@ map_emotion = {
         1: "happy",
         2: "sad",
         3: "angry"
+    },
+    "visolex/phobert-emotion": {
+        0: "enjoyment",
+        1: "sadness",
+        2: "anger",
+        3: "fear",
+        4: "disgust",
+        5: "surprise"
     }
 
 }
@@ -492,7 +501,10 @@ class EmotionCheck:
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
         self.class_mapping = self.model.config.id2label
-        self.labels = list(map_emotion[model_name].values())
+        if model_name in map_emotion and len(map_emotion[model_name]) == len(self.class_mapping):
+            self.labels = list(map_emotion[model_name].values())
+        else:
+            self.labels = [self.class_mapping[i] for i in sorted(self.class_mapping.keys())]
 
     def emotion_prediction(self, texts: List[str]):
         with torch.no_grad():
