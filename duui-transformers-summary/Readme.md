@@ -13,6 +13,7 @@ DUUI implementation for selected Hugging-Face-based transformer summary tools mo
 | MT5             | https://huggingface.co/csebuetnlp/mT5_multilingual_XLSum | 2437a524effdbadc327ced84595508f1e32025b3  | Multilingual |
 | Google T5       | https://huggingface.co/google/flan-t5-base                | 7bcac572ce56db69c1ea7c8af255c5d7c9672fc2  | Multilingual |
 | MDML            | https://github.com/airKlizz/mdmls                | 60f9eadb55d20eae889332035daa884205971566  | Multilingual |
+| Pegasus Finance | https://huggingface.co/human-centered-summarization/financial-summarization-pegasus | main | English |
 
 # How To Use
 

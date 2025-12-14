@@ -68,6 +68,40 @@ class MT5Summarization:
         return summary
 
 
+class PegasusSummarization:
+    def __init__(self, model_name, device='cuda:0'):
+        self.device = device
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name).to(device)
+
+    def summarize(self, text, sum_len=128):
+        with torch.no_grad():
+            inputs = self.tokenizer(
+                text,
+                max_length=512,
+                truncation=True,
+                padding="max_length",
+                return_tensors='pt'
+            ).to(self.device)
+
+            preds = self.model.generate(
+                input_ids=inputs['input_ids'],
+                attention_mask=inputs['attention_mask'],
+                max_length=min(sum_len, 256),
+                min_length=int(sum_len * 0.3),
+                num_beams=4,
+                early_stopping=True,
+                length_penalty=2.0,
+                no_repeat_ngram_size=3
+            )
+
+            decoded_predictions = self.tokenizer.batch_decode(
+                preds,
+                skip_special_tokens=True
+            )
+            return decoded_predictions[0]
+
+
 if __name__ == '__main__':
     text = """The Apollo program, also known as Project Apollo, was the third United States human spaceflight program carried out by the National Aeronautics and Space Administration (NASA), which accomplished landing the first humans on the Moon from 1969 to 1972."""
     model_i = "csebuetnlp/mT5_multilingual_XLSum"
