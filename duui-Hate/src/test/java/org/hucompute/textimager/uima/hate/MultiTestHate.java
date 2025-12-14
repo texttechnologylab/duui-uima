@@ -164,7 +164,7 @@ public class MultiTestHate {
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
         );
         List<String> sentences = Arrays.asList(
-                "Tôi ghét cay ghét đắng điều đó. Sao bạn có thể làm điều tồi tệ đó với tôi! TẠI SAOOOO",
+                "Tôi ghét cay ghét đắng điều đó. Sao bạn có thể làm điều tồi tệ đó với tôi! TẠI SAOOOO!",
                 "Tôi rất vui khi được ở đây. Tôi yêu nơi này."
         );
 
