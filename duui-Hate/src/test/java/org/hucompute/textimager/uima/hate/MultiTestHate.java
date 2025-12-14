@@ -156,4 +156,36 @@ public class MultiTestHate {
             Assertions.assertEquals(expected_i, out_i);
         }
     }
+
+    @Test
+    public void VietnameseTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+        List<String> sentences = Arrays.asList(
+                "Tôi ghét những kẻ ngu ngốc",
+                "Bạn là một người tuyệt vời"
+        );
+
+        createCas("vi", sentences);
+        composer.run(cas);
+
+        HashMap<String, String> expected = new HashMap<>();
+        expected.put("0_27", "HATE");
+        expected.put("28_55", "NonHate");
+
+        Collection<Hate> all_hate = JCasUtil.select(cas, Hate.class);
+        for (Hate hate : all_hate) {
+            int begin = hate.getBegin();
+            int end = hate.getEnd();
+            double hate_i = hate.getHate();
+            double non_hate = hate.getNonHate();
+            String out_i = hate_i > non_hate ? "HATE" : "NonHate";
+            String expected_i = expected.get(begin + "_" + end);
+            if (expected_i != null) {
+                Assertions.assertEquals(expected_i, out_i);
+            }
+        }
+    }
 }

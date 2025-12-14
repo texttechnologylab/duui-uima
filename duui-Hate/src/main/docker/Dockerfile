@@ -59,6 +59,7 @@ RUN pip install -r reqiurements.txt
 
 RUN python -c "from transformers import pipeline; pipeline('text-classification', model='debajyotimaz/codemix_hate')"
 
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='visolex/phobert-hsd')"
 
 # service script
 COPY ./src/main/python/TypeSystemHate.xml ./TypeSystemHate.xml
