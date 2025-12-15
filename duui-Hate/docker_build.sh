@@ -1,7 +1,7 @@
 export ANNOTATOR_NAME=duui-hate
 export ANNOTATOR_VERSION=0.3.0
 export LOG_LEVEL=INFO
-eport MODEL_CACHE_SIZE=3
+export MODEL_CACHE_SIZE=3
 
 #---------------------------------------------------------------------
 #export  MODEL_NAME="Andrazp/multilingual-hate-speech-robacofi"

@@ -46,7 +46,7 @@ RUN pip install -r reqiurements.txt
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-french')"
 
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-indonesian')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Hate-speech-CNERG/dehatebert-mono-indonesian')"
 #RUN python -c "from nubia_score import Nubia; nubia = Nubia()"
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='visolex/phobert-hsd')"
