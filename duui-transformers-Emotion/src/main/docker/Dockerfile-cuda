@@ -12,7 +12,7 @@ RUN python -m pip install --upgrade pip
 
 WORKDIR /usr/src/app
 
-EXPOSE 9714
+EXPOSE 8000
 
 # dependencies
 RUN pip install setuptools wheel
@@ -56,6 +56,8 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alex-shvets/roberta-large-emopillars-contextual-emocontext')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AdapterHub/bert-base-uncased-pf-emo')"
 #RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', \
+  model='visolex/phobert-emotion')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml
@@ -111,5 +113,5 @@ ENV TRANSFORMERS_OFFLINE=$DUUI_TRANSFORMERS_TRANSFORMERS_OFFLINE
 
 
 
-ENTRYPOINT ["uvicorn", "duui_transformers_emotion:app", "--host", "0.0.0.0", "--port" ,"9714"]
+ENTRYPOINT ["uvicorn", "duui_transformers_emotion:app", "--host", "0.0.0.0", "--port" ,"8000"]
 CMD ["--workers", "1"]
