@@ -35,6 +35,7 @@ DUUI implementation for selected hate classification tools: [Hate](https://huggi
 | mehate-bert | https://huggingface.co/l3cube-pune/me-hate-bert                         | 407f19357c3b2166db6cbc2107807fc07a17b8f5 | MULTI     |
 | hatemoji | https://huggingface.co/HannahRoseKirk/Hatemoji                         | f2f98581ab15fb3ccf8b8a5465d7ca70c2958902 | EN        |
 | codemix-hate   | https://huggingface.co/debajyotimaz/codemix_hate                          | b07d73f1a05dd04c0adbb941b5446064b14feb10 | EN, HI    |
+| phobert-hsd | https://huggingface.co/visolex/phobert-hsd | 844b4cda62a864907038a33edb346cf8b612054f | VI |
 
 # How To Use
 
