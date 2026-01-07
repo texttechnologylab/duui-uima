@@ -2,7 +2,7 @@ FROM python:3.10
 
 WORKDIR /usr/src/app
 
-EXPOSE 8000
+EXPOSE 9714
 
 # dependencies
 RUN pip install setuptools wheel
@@ -101,5 +101,5 @@ ENV TRANSFORMERS_OFFLINE=$DUUI_TRANSFORMERS_TRANSFORMERS_OFFLINE
 
 
 
-ENTRYPOINT ["uvicorn", "duui_transformers_emotion:app", "--host", "0.0.0.0", "--port" ,"8000"]
+ENTRYPOINT ["uvicorn", "duui_transformers_emotion:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
