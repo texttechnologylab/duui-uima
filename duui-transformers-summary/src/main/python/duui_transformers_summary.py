@@ -8,23 +8,26 @@ from cassis import load_typesystem
 import torch
 from threading import Lock
 from functools import lru_cache
-from summarization import Summarization, MDMLSummarization, MT5Summarization
+from summarization import Summarization, MDMLSummarization, MT5Summarization, PegasusSummarization
 import numpy as np
 
 sources = {
     "MT5": "https://huggingface.co/csebuetnlp/mT5_multilingual_XLSum",
     "MDML": "https://github.com/airKlizz/mdmls",
     "Google T5": "https://huggingface.co/google/flan-t5-base",
+    "Pegasus Financial": "https://huggingface.co/human-centered-summarization/financial-summarization-pegasus",
 }
 languages = {
     "MT5": "Multi",
     "MDML": "Multi",
     "Google T5": "Multi",
+    "Pegasus Financial": "English",
 }
 versions = {
     "MT5": "2437a524effdbadc327ced84595508f1e32025b3",
     "MDML": "60f9eadb55d20eae889332035daa884205971566",
     "Google T5": "7bcac572ce56db69c1ea7c8af255c5d7c9672fc2",
+    "Pegasus Financial": "734fe2da8db6e4d7272ad553cb3343ed59a566d7",
 }
 # Settings
 # These are automatically loaded from env variables
@@ -182,6 +185,8 @@ def load_model(model_name):
             model_i = MT5Summarization("csebuetnlp/mT5_multilingual_XLSum", device)
         case "Google T5":
             model_i = Summarization("google/flan-t5-base", device)
+        case "Pegasus Financial":
+            model_i = PegasusSummarization("human-centered-summarization/financial-summarization-pegasus", device)
     return model_i
 
 
