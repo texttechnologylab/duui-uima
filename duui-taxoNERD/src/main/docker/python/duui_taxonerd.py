@@ -35,6 +35,8 @@ class DUUIRequest(BaseModel):
     linking: str
     # Threshold
     threshold: float
+    #
+    exclude: List[str]
 
 
 # Response of this annotator
@@ -76,14 +78,14 @@ def load_taxonerd(settings):
     # Add with_linking="gbif_backbone" or with_linking="taxref" to activate entity linking
     # ner.load(model="en_ner_eco_biobert", linker=request.linking, threshold=request.threshold)
     print(settings)
-    #ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
-    ner.load(model=settings["model"], exclude=[], linker=settings["linker"], threshold=settings["threshold"])
+    ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
+    # ner.load(model=settings["model"], exclude=[], linker=settings["linker"], threshold=settings["threshold"])
     return ner
 
 def analyse(text, ner):
 
     result = ner.find_in_text(text)
-    print(result)
+    # print(result)
 
     taxons = []
 
@@ -105,7 +107,7 @@ def analyse(text, ner):
             comment=entries
         ))
 
-    print(taxons)
+    # print(taxons)
 
     return taxons
 
@@ -176,11 +178,13 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
-    print(request)
+    # print(request)
 
     text = request.text
     model_settings["linker"]=request.linking
     model_settings["threshold"]=request.threshold
+    model_settings["exclude"]=request.exclude
+    print(request.exclude)
     # print(config)
     # print(model)
     ner = load_taxonerd(model_settings)

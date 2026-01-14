@@ -11,13 +11,12 @@ RUN apt-get update && \
 RUN pip install --upgrade pip
 RUN pip install setuptools wheel
 RUN pip install setuptools pip
-COPY ./requirements-cuda.txt ./requirements-cuda.txt
+COPY ./src/main/docker/requirements-cuda.txt ./requirements-cuda.txt
 #RUN pip install --no-deps -r ./requirements.txt
 
 # RUN CUDA_PATH=/opt/nvidia/cuda pip install cupy==13.0.0a1
 
-RUN pip install taxonerd[cuda12x]
-
+RUN pip install "taxonerd[cuda] @ git+https://github.com/abrami/taxonerd"
 RUN pip install --no-binary :all: nmslib
 
 # The possible models
@@ -36,9 +35,9 @@ ENV MODEL=$MODEL
 
 
 # service script
-COPY ./python/types.xml ./types.xml
-COPY ./python/communication.lua ./communication.lua
-COPY ./python/duui_taxonerd.py ./duui_taxonerd.py
+COPY ./src/main/docker/python/types.xml ./types.xml
+COPY ./src/main/docker/python/communication.lua ./communication.lua
+COPY ./src/main/docker/python/duui_taxonerd.py ./duui_taxonerd.py
 
 ENTRYPOINT ["uvicorn", "duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714"]
 CMD ["--workers", "1"]
