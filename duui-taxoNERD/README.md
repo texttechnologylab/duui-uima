@@ -9,18 +9,27 @@ For using taxoNERD as a DUUI image it is necessary to use the [Docker Unified UI
 
 ## Use as Stand-Alone-Image
 ```
-docker run docker.texttechnologylab.org/taxonerd_md:0.1
+docker run docker.texttechnologylab.org/taxonerd:1.0
 ```
 
 ## Run with a specific port
 ```
-docker run -p 1000:9714 docker.texttechnologylab.org/taxonerd_md:0.1
+docker run -p 1000:9714 docker.texttechnologylab.org/taxonerd:1.0
 ```
+
+### Parameters
+
+| Name        | Description                                                                                     | Default                                                                           |
+|-------------|-------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
+| `model`     | TaxoNERD model (en_ner_eco_md, en_ner_eco_biobert, en_ner_eco_md_weak, en_ner_eco_biobert_weak) | en_ner_eco_md                                                                     |
+| `linking`  | Linking-Source. Avialiable sources: 'gbif_backbone', 'taxref', ncbi_taxonomy'     | gbif_backbone                                                                     |
+| `exclude`   | List of excluding pipeline steps                                                                | {'tagger', 'parser', 'taxo_abbrev_detector', 'taxon_linker', 'pysbd_sentencizer'} |
+| `threshold` | Similarity threshold for entity linking                                                         | 0.7                                                                               |
 
 ## Run within DUUI
 ```
 composer.add(new DUUIDockerDriver.
-    Component("docker.texttechnologylab.org/taxonerd_md:0.1")
+    Component("docker.texttechnologylab.org/taxonerd:1.0")
     .withScale(iWorkers)
     .withImageFetching());
 ```

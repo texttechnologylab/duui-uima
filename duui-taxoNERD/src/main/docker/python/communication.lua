@@ -24,11 +24,15 @@ function serialize(inputCas, outputStream, params)
     local linking = "gbif_backbone"
     local threshold = 0.7
     local exclude = {'tagger', 'parser', 'taxo_abbrev_detector', 'taxon_linker', 'pysbd_sentencizer'}
+    local model = "en_ner_eco_md"
     if params["linking"] ~= nil then
         linking = params["linking"]
     end
     if params["threshold"] ~= nil then
         threshold = params["threshold"]
+    end
+    if params["model"] ~= nil then
+        model = params["model"]
     end
     if params["exclude"] ~= nil then
         local parsed = parse_list_string(params["exclude"])
@@ -39,18 +43,14 @@ function serialize(inputCas, outputStream, params)
         end
     end
 
-    print(linking)
-    print(doc_text)
-    print(threshold)
-    print(exclude)
-
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
         text = doc_text,
         linking = linking,
         threshold = threshold,
-        exclude = exclude
+        exclude = exclude,
+        model = model
     }))
 end
 

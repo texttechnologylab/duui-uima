@@ -37,6 +37,8 @@ class DUUIRequest(BaseModel):
     threshold: float
     #
     exclude: List[str]
+    #
+    model: str
 
 
 # Response of this annotator
@@ -46,20 +48,11 @@ class DUUIResponse(BaseModel):
     taxons: List[Taxon]
 
 
-class Settings(BaseSettings):
-    # Name of the Model
-    model: str
 
 # settings + cache
-settings = Settings()
 lru_cache_with_size = lru_cache(maxsize=3)
 
-# config = {"prefer_gpu": True,
-#           "model": settings.model,
-#           "with_linking": "gbif_backbone"}
-
-config = {"prefer_gpu": False}
-model_settings = {'model': settings.model,
+model_settings = {'model': 'en_ner_eco_md',
          'linker': 'gbif_backbone',
          'threshold': 0.7,
           'exclude':[
@@ -75,11 +68,7 @@ ner = TaxoNERD(prefer_gpu=True)
 
 # @lru_cache(maxsize=1)
 def load_taxonerd(settings):
-    # Add with_linking="gbif_backbone" or with_linking="taxref" to activate entity linking
-    # ner.load(model="en_ner_eco_biobert", linker=request.linking, threshold=request.threshold)
-    print(settings)
     ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
-    # ner.load(model=settings["model"], exclude=[], linker=settings["linker"], threshold=settings["threshold"])
     return ner
 
 def analyse(text, ner):
@@ -178,18 +167,15 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
-    # print(request)
-
     text = request.text
     model_settings["linker"]=request.linking
     model_settings["threshold"]=request.threshold
     model_settings["exclude"]=request.exclude
-    print(request.exclude)
-    # print(config)
-    # print(model)
+    model_settings["model"]=request.model
+
     ner = load_taxonerd(model_settings)
 
-    print("Finish Loading")
+    # print("Finish Loading")
     taxons = analyse(text, ner)
 
     # Return data as JSON
