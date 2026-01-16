@@ -10,6 +10,7 @@ from typing import List, Optional
 
 import torch
 import whisperx
+from whisperx.diarize import DiarizationPipeline
 from cassis import *
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
@@ -42,6 +43,7 @@ class AudioToken(BaseModel):
     timeStart: float
     timeEnd: float
     text: str
+    speaker: Optional[str] = None
 
 
 class AnnotationMeta(BaseModel):
@@ -66,6 +68,10 @@ class DUUIRequest(BaseModel):
     model: str = "large-v2"
     batch_size: int = 16
     allow_download: bool = False  # allow model download
+    hf_token: Optional[str] = None  # add HF token to enable diarization
+    diarization_num_speakers: Optional[int] = None
+    diarization_min_speakers: Optional[int] = None
+    diarization_max_speakers: Optional[int] = None
 
 
 # Response of this annotator
@@ -133,8 +139,10 @@ with open(typesystem_filename, 'rb') as f:
 
 lru_cache_with_size_model = lru_cache(maxsize=3)
 lru_cache_with_size_align_model = lru_cache(maxsize=3)
+lru_cache_with_size_diarize_model = lru_cache(maxsize=3)
 model_load_lock = Lock()
 model_align_load_lock = Lock()
+model_diarize_load_lock = Lock()
 
 # TODO detect only once at startup?
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -256,6 +264,20 @@ def load_align_model(language):
         return load_cache_align_model(language)
 
 
+@lru_cache_with_size_diarize_model
+def load_cache_diarize_model(hf_token):
+    logger.info("Loading diarize model on device %s", device)
+    return DiarizationPipeline(
+        use_auth_token=hf_token,
+        device=device
+    )
+
+
+def load_diarize_model(hf_token):
+    with model_diarize_load_lock:
+        return load_cache_diarize_model(hf_token)
+
+
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
@@ -288,11 +310,25 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
         alignment_model, metadata = load_align_model(language)
         aligned_result = whisperx.align(result["segments"], alignment_model, metadata, audio_file.name, device)
 
+        if not request.hf_token:
+            logger.warning("No Hugging Face token provided, not performing diarization")
+        else:
+            diarize_model = load_diarize_model(request.hf_token)
+            # TODO min/max speakers
+            diarize_segments = diarize_model(
+                audio,
+                num_speakers=request.diarization_num_speakers,
+                min_speakers=request.diarization_min_speakers,
+                max_speakers=request.diarization_min_speakers
+            )
+            aligned_result = whisperx.assign_word_speakers(diarize_segments, aligned_result)
+
         current_length = 0
         for word in aligned_result["word_segments"]:
             audio_start = word.get("start")
             audio_end = word.get("end")
             text = word.get("word").strip()
+            speaker = word.get("speaker", None)
 
             if audio_start is None or audio_end is None:  # If segment is not spoken out loud, such as '-'
                 continue
@@ -305,7 +341,8 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 timeEnd=float(audio_end),
                 text=text,
                 begin=current_length,
-                end=current_length + len(text)
+                end=current_length + len(text),
+                speaker=speaker
             ))
 
             if len(text) > 0:
