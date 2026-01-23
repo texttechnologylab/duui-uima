@@ -44,7 +44,8 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alex-shvets/roberta-large-emopillars-contextual-emocontext')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AdapterHub/bert-base-uncased-pf-emo')"
 #RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
-
+RUN python -c "from transformers import pipeline; pipeline('text-classification', \
+  model='visolex/phobert-emotion')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml

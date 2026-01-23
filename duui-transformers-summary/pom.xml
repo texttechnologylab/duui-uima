@@ -101,7 +101,7 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>7cef2433b5</version>
+            <version>1.5.3</version>
         </dependency>
         <!--        <dependency>-->
         <!--            <groupId>com.github.texttechnologylab.textimager-uima</groupId>-->
@@ -109,17 +109,17 @@
         <!--            <version>${ttlab.textimager.typesystem.version}</version>-->
         <!--        </dependency>-->
 
-<!--        <dependency>-->
-<!--            <groupId>com.github.texttechnologylab</groupId>-->
-<!--            <artifactId>UIMATypeSystem</artifactId>-->
-<!--            <version>a8fad895d</version>-->
-<!--        </dependency>-->
-
-        <dependency>
-            <groupId>org.texttechnologylab.annotation</groupId>
-            <artifactId>typesystem</artifactId>
-            <version>3.0.1</version>
+	<dependency>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>02fb1a2f13</version>
         </dependency>
+
+        <!--        <dependency>-->
+        <!--            <groupId>org.texttechnologylab.annotation</groupId>-->
+        <!--            <artifactId>typesystem</artifactId>-->
+        <!--            <version>3.0.1</version>-->
+        <!--        </dependency>-->
 
         <!--        <dependency>-->
         <!--            <groupId>org.texttechnologylab</groupId>-->

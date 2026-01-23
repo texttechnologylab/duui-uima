@@ -9,9 +9,10 @@ RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
-RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='csebuetnlp/mT5_multilingual_XLSum')"
-RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-base')"
-RUN python -c "from mdmls import Summarizer; Summarizer(device=-1)"
+#RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='csebuetnlp/mT5_multilingual_XLSum')"
+#RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-base')"
+#RUN python -c "from mdmls import Summarizer; Summarizer(device=-1)"
+RUN python -c "from transformers import AutoTokenizer, AutoModelForSeq2SeqLM; AutoTokenizer.from_pretrained('human-centered-summarization/financial-summarization-pegasus'); AutoModelForSeq2SeqLM.from_pretrained('human-centered-summarization/financial-summarization-pegasus')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemSummary.xml ./TypeSystemSummary.xml

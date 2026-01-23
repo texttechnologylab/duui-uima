@@ -67,6 +67,14 @@ export MODEL_SOURCE="https://huggingface.co/oliverguhr/german-sentiment-bert"
 export MODEL_LANG="DE"
 ###--------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="wonrax/phobert-base-vietnamese-sentiment"
+#export MODEL_SPECNAME="phobert-vietnamese"
+#export MODEL_VERSION="b9f2ff6ba0e1cdaec8b0e4149ebeae7c46b78d4f"
+#export MODEL_SOURCE="https://huggingface.co/wonrax/phobert-base-vietnamese-sentiment"
+#export MODEL_LANG="VI"
+###---------------------------------------------------------------------
+
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=
 

@@ -15,6 +15,7 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/twitter-roberta-base-sentiment-latest')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='j-hartmann/sentiment-roberta-large-english-3-classes')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='bardsai/finance-sentiment-de-base')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='wonrax/phobert-base-vietnamese-sentiment')"
 RUN python -c "from germansentiment import SentimentModel; model = SentimentModel()"
 
 # copy scripts

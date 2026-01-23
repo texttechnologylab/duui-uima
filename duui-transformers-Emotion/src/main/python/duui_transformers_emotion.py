@@ -30,6 +30,7 @@ sources = {
     "mrm8488/t5-base-finetuned-emotion": "https://huggingface.co/mrm8488/t5-base-finetuned-emotion",
     "EmoAtlas": "https://github.com/alfonsosemeraro/emoatlas",
     "pysentimiento": "https://github.com/pysentimiento/pysentimiento/",
+    "visolex/phobert-emotion": "https://huggingface.co/visolex/phobert-emotion",
 }
 
 languages = {
@@ -46,6 +47,7 @@ languages = {
     "mrm8488/t5-base-finetuned-emotion": "en",
     "SamLowe/roberta-base-go_emotions": "en",
     "ActivationAI/distilbert-base-uncased-finetuned-emotion": "en",
+    "visolex/phobert-emotion": "vi",
 }
 
 versions = {
@@ -62,6 +64,7 @@ versions = {
     "mrm8488/t5-base-finetuned-emotion": "e44a316825f11230724b36412fbf1899c76e82de",
     "EmoAtlas": "adae44a80dd55c1d1c467c4e72bdb2d8cf63bf28",
     "pysentimiento": "60822acfd805ad5d95437c695daa33c18dbda060",
+    "visolex/phobert-emotion": "90460fb946cf640ef9c56ae484cabb49d48ef14e",
 }
 
 

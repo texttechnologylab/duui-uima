@@ -48,6 +48,11 @@ model_mapping = {
         0: "positive",
         1: "neutral",
         2: "negative"
+    },
+    "wonrax/phobert-base-vietnamese-sentiment": {
+        0: "negative",
+        1: "positive",
+        2: "neutral"
     }
 }
 
