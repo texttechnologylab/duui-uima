@@ -81,7 +81,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <dkpro.core.version>2.5.0</dkpro.core.version>
-        <typesystem.version>3.0.12</typesystem.version>
+        <typesystem.version>7e342e64ad</typesystem.version>
+<!--        <typesystem.version>3.0.14</typesystem.version>-->
         <utilities.version>653a6a0850</utilities.version>
         <duui.version>1.5.3</duui.version>
         <uima.version>3.6.0</uima.version>
@@ -144,6 +145,12 @@
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>Utilities</artifactId>
             <version>${utilities.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-xmi-asl</artifactId>
+            <version>2.4.0</version>
         </dependency>
 
     </dependencies>
