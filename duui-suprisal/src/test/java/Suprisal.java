@@ -1,7 +1,9 @@
+import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
+import org.dkpro.core.io.xmi.XmiWriter;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
@@ -10,12 +12,15 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.annotation.neglab.ConditionSentence;
+import org.texttechnologylab.annotation.neglab.TokenSuprisal;
 import org.texttechnologylab.utilities.helper.FileUtils;
 import org.xml.sax.SAXException;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+
+import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
 /**
  * Test case for the execution of DUUI-Suprisal
@@ -114,42 +119,69 @@ public class Suprisal {
         * ''docker run --rm -p 9715:9714 docker.texttechnologylab.org/duui-suprisal:latest''
         */
 //        pComposer.add(new DUUIRemoteDriver.Component("http://localhost:9715")
-//                .withParameter("model", "goldfish-models/spa_latn_1000mb")
+////                .withParameter("model", "goldfish-models/spa_latn_1000mb")
+//                .withParameter("model", "google/gemma-3-4b-pt")
 //        ).withWorkers(1);
+
+//        pComposer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
+//                XmiWriter.PARAM_TARGET_LOCATION, "/tmp/",
+//                XmiWriter.PARAM_OVERWRITE, true,
+//                XmiWriter.PARAM_VERSION, "1.1",
+//                XmiWriter.PARAM_PRETTY_PRINT, true
+//
+//        )).withScale(iWorkers)
+//                .build());
 
         // or using (as far as it is online) the remote-variant
         pComposer.add(new DUUIRemoteDriver.Component("http://suprisal.duui.neglab.de")
                 .withParameter("model", "goldfish-models/spa_latn_1000mb")
+//                .withParameter("token", "myToken") // if nessecary
         ).withWorkers(1);
 
         // execute the pipeline
         pComposer.run(jCas);
 
-        // select and print all results
-//        JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
-//            System.out.println(sentence.getOrder()+"\t"+sentence.getCoveredText()+"\t"+sentence.getCondition()+"\t"+sentence.getTarget()+"\t"+sentence.getValue());
-//        });
-
         // Write as CSV
+        writeSentenceResults(jCas, "/tmp/export_Sentence.csv");
+        writeTokenResults(jCas, "/tmp/export_Token.csv");
 
-        // specify output path
-        String sOuptutPath = "/tmp/export.csv";
+    }
 
+    public void writeSentenceResults(JCas jCas, String sOutPath) throws IOException {
 
         StringBuilder outputBuilder = new StringBuilder();
-        outputBuilder.append("Item,Condition,Sentence,Target");
+        outputBuilder.append("Item,Condition,Sentence,Target,Score,ScoreSum");
 
         JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
             if(outputBuilder.length()>0) {
                 outputBuilder.append("\n");
             }
-            outputBuilder.append(sentence.getOrder()+","+sentence.getCoveredText()+","+sentence.getCondition()+","+sentence.getTarget()+","+sentence.getValue());
+            outputBuilder.append(sentence.getOrder()+","+sentence.getCoveredText()+","+sentence.getCondition()+","+sentence.getTarget()+","+sentence.getValue()+","+sentence.getSequenceScore()+","+sentence.getSequenceScoreSum());
 
         });
 
         // write into file
-        FileUtils.writeContent(outputBuilder.toString(), new  File(sOuptutPath));
+        FileUtils.writeContent(outputBuilder.toString(), new  File(sOutPath));
 
+    }
+
+    public void writeTokenResults(JCas jCas, String sOutPath) throws IOException {
+
+        StringBuilder outputBuilder = new StringBuilder();
+        outputBuilder.append("Token,Begin,End,Value,Sentence");
+
+        JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
+            JCasUtil.selectCovered(TokenSuprisal.class, sentence).stream().forEach(t->{
+                if(outputBuilder.length()>0) {
+                    outputBuilder.append("\n");
+                }
+                outputBuilder.append(t.getCoveredText()+","+t.getBegin()+","+t.getEnd()+","+t.getValue()+","+sentence.getCoveredText());
+            });
+
+        });
+
+        // write into file
+        FileUtils.writeContent(outputBuilder.toString(), new  File(sOutPath));
 
     }
 
