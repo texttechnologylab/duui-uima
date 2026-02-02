@@ -1,15 +1,15 @@
 export ANNOTATOR_NAME=duui-transformers-sentiment-atomar
-export ANNOTATOR_VERSION=0.5.0
+export ANNOTATOR_VERSION=0.5.1
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
-###---------------------------------------------------------------------
-#export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
-#export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
-#export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
-#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
-#export MODEL_LANG="Multi"
-###--------------------------------------------------------------------
+##---------------------------------------------------------------------
+export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
+export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
+export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
+export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
+export MODEL_LANG="Multi"
+##--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
@@ -59,13 +59,13 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="DE"
 ##--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-export MODEL_NAME="oliverguhr/german-sentiment-bert"
-export MODEL_SPECNAME="german-sentiment-bert"
-export MODEL_VERSION="b1177ff59e305c966836ba2825d3dc2efc53f125"
-export MODEL_SOURCE="https://huggingface.co/oliverguhr/german-sentiment-bert"
-export MODEL_LANG="DE"
-###--------------------------------------------------------------------
+####---------------------------------------------------------------------
+#export MODEL_NAME="oliverguhr/german-sentiment-bert"
+#export MODEL_SPECNAME="german-sentiment-bert"
+#export MODEL_VERSION="b1177ff59e305c966836ba2825d3dc2efc53f125"
+#export MODEL_SOURCE="https://huggingface.co/oliverguhr/german-sentiment-bert"
+#export MODEL_LANG="DE"
+####--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=

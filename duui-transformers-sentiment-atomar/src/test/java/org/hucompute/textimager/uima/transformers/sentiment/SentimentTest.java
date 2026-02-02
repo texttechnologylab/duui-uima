@@ -78,46 +78,6 @@ public class SentimentTest {
     }
 
     @Test
-    public void DeTest() throws Exception {
-        HashMap<String, ArrayList<String>> expected1 = new HashMap<>();
-        ArrayList<String> expected2 = new ArrayList<>();
-        expected2.add("Domestic");
-        expected2.add("Technology");
-        expected1.put("test", expected2);
-        composer.add(
-                new DUUIRemoteDriver.Component(url)
-                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
-        );
-
-        List<String> sentences = Arrays.asList(
-                "Ich bin ein Profi-Fußballspieler und spiele bei FC Barcelona in Spanien.",
-                "Das sind die Aktuellen Neuigkeiten aus den USA. Joe Biden hat die Wahl gewonnen."
-        );
-
-        createCas("de", sentences);
-        composer.run(cas);
-
-        Collection<Topic> all_topics = JCasUtil.select(cas, Topic.class);
-        ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-        for (Topic topic: all_topics){
-            System.out.println(topic.getCoveredText());
-            Map<String, Float> topics = new HashMap<String, Float>();
-            FSArray<AnnotationComment> topics_all = topic.getTopics();
-            for (AnnotationComment comment_i: topics_all){
-                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
-                System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
-            }
-            expected.add(topics);
-        }
-
-        for (Map<String, Float> topic: expected){
-            // highest value
-            String key = Collections.max(topic.entrySet(), Map.Entry.comparingByValue()).getKey();
-            Assertions.assertEquals(expected1.get("test").get(expected.indexOf(topic)), key);
-        }
-    }
-
-    @Test
     public void EnCadriffNLPTest() throws Exception {
         HashMap<String, ArrayList<String>> expected1 = new HashMap<>();
         ArrayList<String> expected2 = new ArrayList<>();
@@ -128,6 +88,7 @@ public class SentimentTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+//                        .withParameter("selection", "text")
         );
 
         List<String> sentences = Arrays.asList(
@@ -153,6 +114,7 @@ public class SentimentTest {
             Double negative = sentiment_i.getProbabilityNegative();
             Double neutral = sentiment_i.getProbabilityNeutral();
             Double positive = sentiment_i.getProbabilityPositive();
+            Integer sentiment = sentiment_i.getSentiment();
             Assertions.assertEquals(negative, sentiments.get(counter));
             Assertions.assertEquals(neutral, sentiments.get(counter+1));
             Assertions.assertEquals(positive, sentiments.get(counter+2));
