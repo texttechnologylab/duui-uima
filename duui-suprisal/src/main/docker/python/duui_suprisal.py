@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional,Union
 import uvicorn
 from cassis import *
 from fastapi import FastAPI, Response
@@ -13,6 +13,7 @@ from huggingface_hub import HfApi, login
 from nltk.tokenize import TweetTokenizer
 from transformers import AutoConfig
 from threading import Lock
+import traceback
 import torch
 import logging
 import re
@@ -53,6 +54,11 @@ class DUUIRequest(BaseModel):
     model_name: Optional[str]
     token: Optional[str]
 
+class DUUIError(BaseModel):
+    name: str
+    stacktrace: str
+
+
 # Response of this annotator
 # Note, this is transformed by the Lua script
 class DUUIResponse(BaseModel):
@@ -64,6 +70,8 @@ class DUUIResponse(BaseModel):
 class Settings(BaseSettings):
     # Name of the Model
     model_name: Optional[str] = "goldfish-models/spa_latn_1000mb"
+
+DUUIResult = Union[DUUIResponse, DUUIError]
 
 
 # settings + cache
@@ -175,39 +183,44 @@ def load_model(model_name):
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: DUUIRequest) -> DUUIResponse:
+def post_process(request: DUUIRequest) -> DUUIResult:
 
-    global model
-    returnModelName = None
+    try:
+        global model
+        returnModelName = None
 
-    if request.token:
-        logger.info("Login to huggingface")
-        login(token=request.token)
-    else:
-        logger.info("no token")
+        if request.token:
+            logger.info("Login to huggingface")
+            login(token=request.token)
+        else:
+            logger.info("no token")
 
-    if request.model_name:
-        model = load_model(request.model_name)
-        returnModelName = request.model_name
-    else:
-        model = load_model(settings.model_name)
-        returnModelName = settings.model_name
+        if request.model_name:
+            model = load_model(request.model_name)
+            returnModelName = request.model_name
+        else:
+            model = load_model(settings.model_name)
+            returnModelName = settings.model_name
 
-    bBOS = initialize_bos(returnModelName)
+        bBOS = initialize_bos(returnModelName)
 
-    get_word_surprisals(bBOS, request.selection)
+        get_word_surprisals(bBOS, request.selection)
 
-    tokens = get_token_suprisals(bBOS, request.selection)
+        tokens = get_token_suprisals(bBOS, request.selection)
 
-    return DUUIResponse(
-        sentences = request.selection,
-        tokens = tokens,
-        model_name = returnModelName
-    )
+        return DUUIResponse(
+            sentences = request.selection,
+            tokens = tokens,
+            model_name = returnModelName
+        )
+    except Exception as e:
+        return DUUIError(
+            name = e.code,
+            message = e.message
+        )
 
 
-#if __name__ == "__main__":
-#  uvicorn.run("duui_gte:app", host="0.0.0.0", port=9715, workers=1)
+
 
 ####################################################################
 

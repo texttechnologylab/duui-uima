@@ -1,9 +1,7 @@
-import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
-import org.dkpro.core.io.xmi.XmiWriter;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
@@ -19,8 +17,6 @@ import org.xml.sax.SAXException;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
-
-import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
 /**
  * Test case for the execution of DUUI-Suprisal
@@ -69,7 +65,7 @@ public class Suprisal {
         /**
          * Converting CSV to XMI
          */
-        String sContent = FileUtils.getContentFromFile(new File(getClass().getResource("test.csv").getFile()));
+        String sContent = FileUtils.getContentFromFile(new File(this.getClass().getResource("test.csv").getFile()));
 
         StringBuilder sb = new StringBuilder();
 
@@ -103,15 +99,6 @@ public class Suprisal {
         jCas.setDocumentText(sb.toString());
         jCas.setDocumentLanguage("es");
 
-        // See all the existing Annotations
-//        JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
-//            System.out.println(sentence.getCoveredText()+"\t"+sentence.getCondition()+"\t"+sentence.getTarget());
-//        });
-
-        // use the docker-component
-//        pComposer.add(new DUUIDockerDriver.Component("duui-suprisal:latest").build()
-//                .withWorkers(1));
-
        /**
         * use the remote-component
         *
@@ -134,8 +121,10 @@ public class Suprisal {
 
         // or using (as far as it is online) the remote-variant
         pComposer.add(new DUUIRemoteDriver.Component("http://suprisal.duui.neglab.de")
-                .withParameter("model", "goldfish-models/spa_latn_1000mb")
-//                .withParameter("token", "myToken") // if nessecary
+                .withParameter("model", "google/gemma-3-4b-it")
+//                .withParameter("model", "goldfish-models/spa_latn_1000mb")
+//                .withParameter("token", "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") // if nessecary
+//                .withParameter("token_authentication", "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") // if nessecary
         ).withWorkers(1);
 
         // execute the pipeline
@@ -147,7 +136,7 @@ public class Suprisal {
 
     }
 
-    public void writeSentenceResults(JCas jCas, String sOutPath) throws IOException {
+    private void writeSentenceResults(JCas jCas, String sOutPath) throws IOException {
 
         StringBuilder outputBuilder = new StringBuilder();
         outputBuilder.append("Item,Condition,Sentence,Target,Score,ScoreSum");
@@ -165,7 +154,7 @@ public class Suprisal {
 
     }
 
-    public void writeTokenResults(JCas jCas, String sOutPath) throws IOException {
+    private void writeTokenResults(JCas jCas, String sOutPath) throws IOException {
 
         StringBuilder outputBuilder = new StringBuilder();
         outputBuilder.append("Token,Begin,End,Value,Sentence");

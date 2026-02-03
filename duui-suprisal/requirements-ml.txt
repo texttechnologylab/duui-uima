@@ -1,0 +1,4 @@
+torch==2.1.0+cpu
+transformers==4.40.2
+huggingface_hub
+dkpro_cassis==0.9.1

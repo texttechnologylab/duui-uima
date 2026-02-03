@@ -15,7 +15,7 @@ function serialize(inputCas, outputStream, params)
     local selection_array = {}
 
     local model = params["model"]
-    local token = params["token"]
+    local token = params["token_authentication"]
 
     local selectionSet = util:select(inputCas, ConditionSentence):iterator()
 
