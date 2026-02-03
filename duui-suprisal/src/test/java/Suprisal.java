@@ -120,11 +120,12 @@ public class Suprisal {
 //                .build());
 
         // or using (as far as it is online) the remote-variant
-        pComposer.add(new DUUIRemoteDriver.Component("http://suprisal.duui.neglab.de")
+        pComposer.add(new DUUIRemoteDriver.Component("http://localhost:9715")
+//        pComposer.add(new DUUIRemoteDriver.Component("http://suprisal.duui.neglab.de")
                 .withParameter("model", "google/gemma-3-4b-it")
 //                .withParameter("model", "goldfish-models/spa_latn_1000mb")
-//                .withParameter("token", "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") // if nessecary
-//                .withParameter("token_authentication", "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") // if nessecary
+//                .withParameter("token", "some") // if nessecary
+//                .withParameter("token_authentication", "some") // if nessecary
         ).withWorkers(1);
 
         // execute the pipeline
