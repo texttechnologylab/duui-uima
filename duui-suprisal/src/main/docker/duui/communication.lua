@@ -50,35 +50,74 @@ function deserialize(inputCas, inputStream)
 
     -- Parse JSON data from string into object
     local results = json.decode(inputString)
-    local model_name = results["model_name"]
 
-        local dmd = util:selectSingle(inputCas, DocumentMetaData)
+    if results["error"] then
 
-        local comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-        comment:setReference(dmd)
-        comment:setKey("model")
-        comment:setValue(model_name)
-        comment:addToIndexes()
+            for i, error in ipairs(results["error"]) do
 
-    for i, token in ipairs(results["tokens"]) do
-        local pToken = luajava.newInstance("org.texttechnologylab.annotation.neglab.TokenSuprisal", inputCas)
-        pToken:setBegin(token["iBegin"])
-        pToken:setEnd(token["iEnd"])
-        pToken:setValue(token["sSuprise"])
-        pToken:addToIndexes()
+                if i>0 then
+                    print("===========================================================================")
+                elseif i==0 then
+                    print("\nMessages")
+                end
+
+                print(error["type"] .. ":\t" .. error["error"])
+                if(error[cause]) then print(error["cause"]) end
+
+            end
     end
 
-    for i, suprise in ipairs(results["sentences"]) do
+    if results["result"] then
 
-        local sentence = util:selectSingleAt(inputCas, ConditionSentence, suprise["iBegin"], suprise["iEnd"])
+        local model_name = results["result"]["model_name"]
 
-        if sentence ~= nil then
-            sentence:setValue(suprise["sSuprise"])
-            sentence:setSequenceScore(suprise["mScore"])
-            sentence:setSequenceScoreSum(suprise["mScoreSum"])
-            sentence:addToIndexes()
+            local dmd = util:selectSingle(inputCas, DocumentMetaData)
 
+            local comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
+            comment:setReference(dmd)
+            comment:setKey("model")
+            comment:setValue(model_name)
+            comment:addToIndexes()
+
+        local r = results["result"]
+        for i, token in ipairs(r["tokens"]) do
+            local pToken = luajava.newInstance("org.texttechnologylab.annotation.neglab.TokenSuprisal", inputCas)
+            pToken:setBegin(token["iBegin"])
+            pToken:setEnd(token["iEnd"])
+            pToken:setValue(token["sSuprise"])
+            pToken:addToIndexes()
         end
+
+        for i, suprise in ipairs(r["sentences"]) do
+
+            local sentence = util:selectSingleAt(inputCas, ConditionSentence, suprise["iBegin"], suprise["iEnd"])
+
+            if sentence ~= nil then
+                sentence:setValue(suprise["sSuprise"])
+                sentence:setSequenceScore(suprise["mScore"])
+                sentence:setSequenceScoreSum(suprise["mScoreSum"])
+                sentence:addToIndexes()
+
+            end
+        end
+    else
+print("\n\n")
+print("=============== Results ===============")
+print([[⡴⠒⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠉⠳⡆
+⣇⠰⠉⢙⡄⠀⠀⣴⠖⢦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣆⠁⠙⡆
+⠘⡇⢠⠞⠉⠙⣾⠃⢀⡼⠀⠀⠀⠀⠀⠀⠀⢀⣼⡀⠄⢷⣄⣀⠀⠀⠀⠀⠀⠀⠀⠰⠒⠲⡄⠀⣏⣆⣀⡍
+⠀⢠⡏⠀⡤⠒⠃⠀⡜⠀⠀⠀⠀⠀⢀⣴⠾⠛⡁⠀⠀⢀⣈⡉⠙⠳⣤⡀⠀⠀⠀⠘⣆⠀⣇⡼⢋⠀⠀⢱
+⠀⠘⣇⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⡴⢋⡣⠊⡩⠋⠀⠀⠀⠣⡉⠲⣄⠀⠙⢆⠀⠀⠀⣸⠀⢉⠀⢀⠿⠀⢸
+⠀⠀⠸⡄⠀⠈⢳⣄⡇⠀⠀⢀⡞⠀⠈⠀⢀⣴⣾⣿⣿⣿⣿⣦⡀⠀⠀⠀⠈⢧⠀⠀⢳⣰⠁⠀⠀⠀⣠⠃
+⠀⠀⠀⠘⢄⣀⣸⠃⠀⠀⠀⡸⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆⠀⠀⠀⠈⣇⠀⠀⠙⢄⣀⠤⠚⠁⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠀⠀⢘⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⢰⣿⣿⣿⡿⠛⠁⠀⠉⠛⢿⣿⣿⣿⣧⠀⠀⣼⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡀⣸⣿⣿⠟⠀⠀⠀⠀⠀⠀⠀⢻⣿⣿⣿⡀⢀⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡇⠹⠿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⡿⠁⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣤⣞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢢⣀⣠⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠲⢤⣀⣀⠀⢀⣀⣀⠤⠒⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+]])
     end
 
 end

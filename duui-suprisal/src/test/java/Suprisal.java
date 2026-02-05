@@ -1,7 +1,11 @@
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.uima.UIMAException;
+import org.apache.uima.cas.CASException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
+import org.apache.uima.resource.ResourceInitializationException;
+import org.apache.uima.util.InvalidXMLException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
@@ -17,9 +21,10 @@ import org.xml.sax.SAXException;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 
 /**
- * Test case for the execution of DUUI-Suprisal
+ * This script calculates surprisal values at the sentence and token level. It also calculates the surprisal value of a target word given a context
  * @author Giuseppe Abrami
  */
 public class Suprisal {
@@ -60,12 +65,66 @@ public class Suprisal {
     @Test
     public void example() throws Exception {
 
+        /**
+         * Execute Suprisal,
+         *  executeSuprisal(Path/to/input/file.csv, /path/to/output/without/files"
+         */
+        executeSuprisal(this.getClass().getResource("input.csv").getPath(), "/tmp/suprisal", "goldfish-models/spa_latn_1000mb", "");
+//        executeSuprisal(this.getClass().getResource("input.csv").getPath(), "/tmp/suprisal", "goldfish-models/spa_latn_1000mb", "");
+
+    }
+
+    /**
+     * Execute Suprisal
+     * @param sOutputPath
+     * @param sModel
+     * @param sToken
+     * @throws Exception
+     */
+    private void executeSuprisal(String sOutputPath, String sModel, String sToken) throws Exception {
+        executeSuprisal(new File(this.getClass().getResource("input.csv").getFile()).getPath(), sOutputPath, "http://suprisal.duui.neglab.de", sModel, "");
+    }
+
+    /**
+     * Execute Suprisal
+     * @param sOutputPath
+     * @param sModel
+     * @throws Exception
+     */
+    private void executeSuprisal(String sOutputPath, String sModel) throws Exception {
+        executeSuprisal(sOutputPath, sModel, "");
+    }
+
+
+    /**
+     * Execute Suprisal
+     * @param sInputPath
+     * @param sOutputPath
+     * @param sModel
+     * @param sToken
+     * @throws Exception
+     */
+    private void executeSuprisal(String sInputPath, String sOutputPath, String sModel, String sToken) throws Exception {
+        executeSuprisal(sInputPath, sOutputPath, "http://suprisal.duui.neglab.de", sModel, sToken);
+    }
+
+    /**
+     * Execute Suprisal
+     * @param sInputPath
+     * @param sOutputPath
+     * @param sURL
+     * @param sModel
+     * @param sToken
+     * @throws Exception
+     */
+    private void executeSuprisal(String sInputPath, String sOutputPath, String sURL, String sModel, String sToken) throws Exception {
+
         JCas jCas = JCasFactory.createJCas();
 
         /**
          * Converting CSV to XMI
          */
-        String sContent = FileUtils.getContentFromFile(new File(this.getClass().getResource("test.csv").getFile()));
+        String sContent = FileUtils.getContentFromFile(new File(sInputPath));
 
         StringBuilder sb = new StringBuilder();
 
@@ -99,41 +158,31 @@ public class Suprisal {
         jCas.setDocumentText(sb.toString());
         jCas.setDocumentLanguage("es");
 
-       /**
-        * use the remote-component
-        *
-        * The component was started as a Docker container with port 9715.
-        * ''docker run --rm -p 9715:9714 docker.texttechnologylab.org/duui-suprisal:latest''
-        */
-//        pComposer.add(new DUUIRemoteDriver.Component("http://localhost:9715")
-////                .withParameter("model", "goldfish-models/spa_latn_1000mb")
-//                .withParameter("model", "google/gemma-3-4b-pt")
-//        ).withWorkers(1);
 
-//        pComposer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
-//                XmiWriter.PARAM_TARGET_LOCATION, "/tmp/",
-//                XmiWriter.PARAM_OVERWRITE, true,
-//                XmiWriter.PARAM_VERSION, "1.1",
-//                XmiWriter.PARAM_PRETTY_PRINT, true
-//
-//        )).withScale(iWorkers)
-//                .build());
+        if(sToken.length()>0 && sToken!=null){
+            // or using (as far as it is online) the remote-variant
+            pComposer.add(new DUUIRemoteDriver.Component(sURL)
+                    .withParameter("model", sModel)
+                    .withParameter("token_authentication", sToken)
+            ).withWorkers(1);
 
-        // or using (as far as it is online) the remote-variant
-        pComposer.add(new DUUIRemoteDriver.Component("http://localhost:9715")
-//        pComposer.add(new DUUIRemoteDriver.Component("http://suprisal.duui.neglab.de")
-                .withParameter("model", "google/gemma-3-4b-it")
-//                .withParameter("model", "goldfish-models/spa_latn_1000mb")
-//                .withParameter("token", "some") // if nessecary
-//                .withParameter("token_authentication", "some") // if nessecary
-        ).withWorkers(1);
+        }
+        else{
+            // or using (as far as it is online) the remote-variant
+            pComposer.add(new DUUIRemoteDriver.Component(sURL)
+                    .withParameter("model", sModel)
+            ).withWorkers(1);
+
+        }
 
         // execute the pipeline
         pComposer.run(jCas);
 
-        // Write as CSV
-        writeSentenceResults(jCas, "/tmp/export_Sentence.csv");
-        writeTokenResults(jCas, "/tmp/export_Token.csv");
+        /**
+         * Save results in CSV-files
+         */
+        writeSentenceResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Sentence.csv");
+        writeTokenResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Token.csv");
 
     }
 
@@ -149,6 +198,11 @@ public class Suprisal {
             outputBuilder.append(sentence.getOrder()+","+sentence.getCoveredText()+","+sentence.getCondition()+","+sentence.getTarget()+","+sentence.getValue()+","+sentence.getSequenceScore()+","+sentence.getSequenceScoreSum());
 
         });
+
+        File pFile = new File(sOutPath);
+        if(!pFile.getParentFile().exists()){
+            Files.createDirectories(pFile.getParentFile().toPath());
+        }
 
         // write into file
         FileUtils.writeContent(outputBuilder.toString(), new  File(sOutPath));

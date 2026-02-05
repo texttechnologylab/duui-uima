@@ -55,8 +55,10 @@ class DUUIRequest(BaseModel):
     token: Optional[str]
 
 class DUUIError(BaseModel):
-    name: str
-    stacktrace: str
+    type : str
+    error: str
+    trace: str = ""
+    cause: str = ""
 
 
 # Response of this annotator
@@ -71,7 +73,9 @@ class Settings(BaseSettings):
     # Name of the Model
     model_name: Optional[str] = "goldfish-models/spa_latn_1000mb"
 
-DUUIResult = Union[DUUIResponse, DUUIError]
+class DUUIResult(BaseModel):
+    result: Optional[DUUIResponse]
+    error: Optional[List[DUUIError]]
 
 
 # settings + cache
@@ -161,6 +165,11 @@ word_tokenizer = TweetTokenizer().tokenize
 logger = logging.getLogger(__name__)
 logger.info("TTLab DUUI Suprisal")
 
+errors: list[DUUIError] = []
+
+def addError(e: DUUIError):
+    errors.append(e)
+
 @lru_cache_with_size_model
 def load_cache_model(model_name):
     logger.info("Loading model %s", model_name)
@@ -172,6 +181,8 @@ def load_cache_model(model_name):
     else:
         print('GPU unavailable')
         logger.info("GPU unavailable")
+        addError(DUUIError(type="info", error="GPU unavailable"))
+
         m = scorer.IncrementalLMScorer(model_name)
 
     return m
@@ -185,6 +196,8 @@ def load_model(model_name):
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResult:
 
+    result = None
+    error = None
     try:
         global model
         returnModelName = None
@@ -208,17 +221,18 @@ def post_process(request: DUUIRequest) -> DUUIResult:
 
         tokens = get_token_suprisals(bBOS, request.selection)
 
-        return DUUIResponse(
+        result = DUUIResponse(
             sentences = request.selection,
             tokens = tokens,
             model_name = returnModelName
         )
     except Exception as e:
-        return DUUIError(
-            name = e.code,
-            message = e.message
-        )
+        addError(exception_to_string(e))
 
+    return DUUIResult(
+        result = result,
+        error  = errors
+    )
 
 
 
@@ -310,3 +324,19 @@ def map_tokens_to_surprisal(input_text, output_tokens_wrapped, sentence_start=0)
         i = end
 
     return out
+
+
+def exception_to_string(e: Exception) -> DUUIError:
+
+        return DUUIError(
+            type=type(e).__name__,
+            error=getattr(e, "strerror", None) or str(e),
+            trace="".join(
+                traceback.format_exception(
+                    type(e),
+                    e,
+                    e.__traceback__
+                )
+            ),
+            cause=str(e.__cause__) if e.__cause__ else ""
+        )

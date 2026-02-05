@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --upgrade pip
 
-COPY requirements-new.txt ./
-RUN pip install --prefix=/install -r requirements-new.txt
+COPY requirements.txt ./
+RUN pip install --prefix=/install -r requirements.txt
 
 #COPY requirements-base.txt ./
 #RUN pip install --prefix=/install -r requirements-base.txt
@@ -37,7 +37,6 @@ LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
 
 EXPOSE 9714
-ENV PATH=/usr/local/bin:/install/bin:$PATH
 
 COPY --from=builder /install /usr/local
 
