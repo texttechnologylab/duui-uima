@@ -74,8 +74,10 @@ public class Suprisal {
          * Output-Path's ..
          *  .. using Windows: C:\\directory\\to\\your\\output
          *  .. using Linux / MacOS: /directory/to/your/output
+         *
+         *  It is also possible to store the input-file in the resource path of the project, which can then be accessed with a real path: this.getClass().getResource("name_of_file.csv").getPath()
          */
-        executeSuprisal(this.getClass().getResource("input.csv").getPath(), "en",  "/tmp/suprisal", "goldfish-models/spa_latn_1000mb", "");
+        executeSuprisal(this.getClass().getResource("input.csv").getPath(),"/tmp/suprisal", "en", "goldfish-models/spa_latn_1000mb", "");
 
     }
 
