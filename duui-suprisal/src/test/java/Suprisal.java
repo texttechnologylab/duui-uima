@@ -66,11 +66,16 @@ public class Suprisal {
     public void example() throws Exception {
 
         /**
-         * Execute Suprisal,
-         *  executeSuprisal(Path/to/input/file.csv, /path/to/output/without/files"
+         * Input-Path's ..
+         *  .. using Windows: C:\\directory\\to\\your\\inputdata\\data.csv
+         *  .. using Linux / MacOS: /directory/to/your/inputdata/data.csv
+         * data.csv can also be named differently.
+         *
+         * Output-Path's ..
+         *  .. using Windows: C:\\directory\\to\\your\\output
+         *  .. using Linux / MacOS: /directory/to/your/output
          */
-        executeSuprisal(this.getClass().getResource("input.csv").getPath(), "/tmp/suprisal", "goldfish-models/spa_latn_1000mb", "");
-//        executeSuprisal(this.getClass().getResource("input.csv").getPath(), "/tmp/suprisal", "goldfish-models/spa_latn_1000mb", "");
+        executeSuprisal(this.getClass().getResource("input.csv").getPath(), "en",  "/tmp/suprisal", "goldfish-models/spa_latn_1000mb", "");
 
     }
 
@@ -82,7 +87,7 @@ public class Suprisal {
      * @throws Exception
      */
     private void executeSuprisal(String sOutputPath, String sModel, String sToken) throws Exception {
-        executeSuprisal(new File(this.getClass().getResource("input.csv").getFile()).getPath(), sOutputPath, "http://suprisal.duui.neglab.de", sModel, "");
+        executeSuprisal(new File(this.getClass().getResource("input.csv").getFile()).getPath(), sOutputPath, "en", sModel, sToken);
     }
 
     /**
@@ -100,24 +105,26 @@ public class Suprisal {
      * Execute Suprisal
      * @param sInputPath
      * @param sOutputPath
+     * @param sLanguage
      * @param sModel
      * @param sToken
      * @throws Exception
      */
-    private void executeSuprisal(String sInputPath, String sOutputPath, String sModel, String sToken) throws Exception {
-        executeSuprisal(sInputPath, sOutputPath, "http://suprisal.duui.neglab.de", sModel, sToken);
+    private void executeSuprisal(String sInputPath, String sOutputPath, String sLanguage, String sModel, String sToken) throws Exception {
+        executeSuprisal(sInputPath, sOutputPath, sLanguage, "http://suprisal.duui.neglab.de", sModel, sToken);
     }
 
     /**
      * Execute Suprisal
      * @param sInputPath
      * @param sOutputPath
+     * @param sLanguage
      * @param sURL
      * @param sModel
      * @param sToken
      * @throws Exception
      */
-    private void executeSuprisal(String sInputPath, String sOutputPath, String sURL, String sModel, String sToken) throws Exception {
+    private void executeSuprisal(String sInputPath, String sOutputPath, String sLanguage, String sURL, String sModel, String sToken) throws Exception {
 
         JCas jCas = JCasFactory.createJCas();
 
@@ -156,7 +163,7 @@ public class Suprisal {
 
         // Add the merged text to the cas.
         jCas.setDocumentText(sb.toString());
-        jCas.setDocumentLanguage("es");
+        jCas.setDocumentLanguage(sLanguage);
 
 
         if(sToken.length()>0 && sToken!=null){

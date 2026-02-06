@@ -25,7 +25,7 @@ Find all available image tags here:
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-suprisal:latest")
         .withParam("model", "goldfish-models/spa_latn_1000mb");
-        .withParam("token", "myHuggingfaceToken");
+        .withParam("token_authentication", "myHuggingfaceToken");
         .withScale(iWorkers)
         .withImageFetching()
 );
