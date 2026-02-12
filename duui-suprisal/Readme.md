@@ -13,18 +13,19 @@ For using **duui-suprisal** as a DUUI image it is necessary to use the [Docker U
 ## Start Docker container
 
 ```
-docker run --rm -p 9715:9714 --gpus all docker.texttechnologylab.org/duui-suprisal-cuda:latest
+docker run --rm -p 9715:9714 --gpus all docker.texttechnologylab.org/duui-suprisal:latest
 ```
 
 Find all available image tags here: 
-- https://docker.texttechnologylab.org/v2/duui-suprisal-cuda/tags/list
+- https://docker.texttechnologylab.org/v2/duui-suprisal/tags/list
 
 ## Run within DUUI
 
 ```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-suprisal-cuda:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-suprisal:latest")
         .withParam("model", "goldfish-models/spa_latn_1000mb");
+        .withParam("token_authentication", "myHuggingfaceToken");
         .withScale(iWorkers)
         .withImageFetching()
 );

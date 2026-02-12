@@ -2,6 +2,8 @@
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 util = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 ConditionSentence = luajava.bindClass("org.texttechnologylab.annotation.neglab.ConditionSentence")
+TokenSuprisal = luajava.bindClass("org.texttechnologylab.annotation.neglab.TokenSuprisal")
+DocumentMetaData = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData")
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -13,6 +15,7 @@ function serialize(inputCas, outputStream, params)
     local selection_array = {}
 
     local model = params["model"]
+    local token = params["token_authentication"]
 
     local selectionSet = util:select(inputCas, ConditionSentence):iterator()
 
@@ -32,7 +35,8 @@ function serialize(inputCas, outputStream, params)
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         selection = selection_array,
-        model_name = model
+        model_name = model,
+        token = token or ""
     }))
 end
 
@@ -46,23 +50,74 @@ function deserialize(inputCas, inputStream)
 
     -- Parse JSON data from string into object
     local results = json.decode(inputString)
-    local model_name = results["model_name"]
-    print(model_name)
-    for i, suprise in ipairs(results["sentences"]) do
 
-        local sentence = util:selectSingleAt(inputCas, ConditionSentence, suprise["iBegin"], suprise["iEnd"])
+    if results["error"] then
 
-        if sentence ~= nil then
-            sentence:setValue(suprise["sSuprise"])
-            sentence:addToIndexes()
+            for i, error in ipairs(results["error"]) do
+
+                if i>0 then
+                    print("===========================================================================")
+                elseif i==0 then
+                    print("\nMessages")
+                end
+
+                print(error["type"] .. ":\t" .. error["error"])
+                if(error[cause]) then print(error["cause"]) end
+
+            end
+    end
+
+    if results["result"] then
+
+        local model_name = results["result"]["model_name"]
+
+            local dmd = util:selectSingle(inputCas, DocumentMetaData)
 
             local comment = luajava.newInstance("org.texttechnologylab.annotation.AnnotationComment", inputCas)
-            comment:setReference(sentence)
+            comment:setReference(dmd)
             comment:setKey("model")
             comment:setValue(model_name)
             comment:addToIndexes()
 
+        local r = results["result"]
+        for i, token in ipairs(r["tokens"]) do
+            local pToken = luajava.newInstance("org.texttechnologylab.annotation.neglab.TokenSuprisal", inputCas)
+            pToken:setBegin(token["iBegin"])
+            pToken:setEnd(token["iEnd"])
+            pToken:setValue(token["sSuprise"])
+            pToken:addToIndexes()
         end
+
+        for i, suprise in ipairs(r["sentences"]) do
+
+            local sentence = util:selectSingleAt(inputCas, ConditionSentence, suprise["iBegin"], suprise["iEnd"])
+
+            if sentence ~= nil then
+                sentence:setValue(suprise["sSuprise"])
+                sentence:setSequenceScore(suprise["mScore"])
+                sentence:setSequenceScoreSum(suprise["mScoreSum"])
+                sentence:addToIndexes()
+
+            end
+        end
+    else
+print("\n\n")
+print("=============== Results ===============")
+print([[⡴⠒⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠉⠳⡆
+⣇⠰⠉⢙⡄⠀⠀⣴⠖⢦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⣆⠁⠙⡆
+⠘⡇⢠⠞⠉⠙⣾⠃⢀⡼⠀⠀⠀⠀⠀⠀⠀⢀⣼⡀⠄⢷⣄⣀⠀⠀⠀⠀⠀⠀⠀⠰⠒⠲⡄⠀⣏⣆⣀⡍
+⠀⢠⡏⠀⡤⠒⠃⠀⡜⠀⠀⠀⠀⠀⢀⣴⠾⠛⡁⠀⠀⢀⣈⡉⠙⠳⣤⡀⠀⠀⠀⠘⣆⠀⣇⡼⢋⠀⠀⢱
+⠀⠘⣇⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⡴⢋⡣⠊⡩⠋⠀⠀⠀⠣⡉⠲⣄⠀⠙⢆⠀⠀⠀⣸⠀⢉⠀⢀⠿⠀⢸
+⠀⠀⠸⡄⠀⠈⢳⣄⡇⠀⠀⢀⡞⠀⠈⠀⢀⣴⣾⣿⣿⣿⣿⣦⡀⠀⠀⠀⠈⢧⠀⠀⢳⣰⠁⠀⠀⠀⣠⠃
+⠀⠀⠀⠘⢄⣀⣸⠃⠀⠀⠀⡸⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆⠀⠀⠀⠈⣇⠀⠀⠙⢄⣀⠤⠚⠁⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀⠀⢹⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠀⠀⢘⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⢰⣿⣿⣿⡿⠛⠁⠀⠉⠛⢿⣿⣿⣿⣧⠀⠀⣼⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡀⣸⣿⣿⠟⠀⠀⠀⠀⠀⠀⠀⢻⣿⣿⣿⡀⢀⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡇⠹⠿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⡿⠁⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣤⣞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢢⣀⣠⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠲⢤⣀⣀⠀⢀⣀⣀⠤⠒⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+]])
     end
 
 end

@@ -81,7 +81,8 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <dkpro.core.version>2.5.0</dkpro.core.version>
-        <typesystem.version>3.0.12</typesystem.version>
+        <typesystem.version>a64b9062da</typesystem.version>
+<!--        <typesystem.version>3.0.14</typesystem.version>-->
         <utilities.version>653a6a0850</utilities.version>
         <duui.version>1.5.3</duui.version>
         <uima.version>3.6.0</uima.version>
@@ -131,19 +132,16 @@
             <version>${duui.version}</version>
         </dependency>
 
-
-
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>5.8.1</version>
-            <scope>test</scope>
-        </dependency>
-
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>Utilities</artifactId>
             <version>${utilities.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-xmi-asl</artifactId>
+            <version>2.4.0</version>
         </dependency>
 
     </dependencies>
