@@ -215,12 +215,24 @@ def process_selection(model_name, selection):
             sentence_i = selection.sentences[c]
             begin_i = sentence_i.begin
             end_i = sentence_i.end
-            len_rel = len(res)
+            len_rel = len(res)+1  # +1 for sentiment level
             begin.append(begin_i)
             end.append(end_i)
+            max_i = -1
+            max_label = "negative"
             for i in res:
                 res_i.append(i)
                 factor_i.append(res[i])
+                if res[i] > max_i:
+                    max_i = res[i]
+                    max_label = i
+            if max_label == "positive":
+                factor_i.append(1)
+            elif max_label == "neutral":
+                factor_i.append(0)
+            else:
+                factor_i.append(-1)
+            res_i.append("sentiment")
             len_results.append(len_rel)
             results_out.append(res_i)
             factors.append(factor_i)
