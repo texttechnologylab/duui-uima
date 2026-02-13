@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 from starlette.responses import JSONResponse
 from functools import lru_cache
 from minicons import scorer
-from huggingface_hub import HfApi, login
+from huggingface_hub import HfApi, login, logout
 from nltk.tokenize import TweetTokenizer
 from transformers import AutoConfig
 from threading import Lock
@@ -172,8 +172,8 @@ def addError(e: DUUIError):
 
 @lru_cache_with_size_model
 def load_cache_model(model_name):
-    logger.info("Loading model %s", model_name)
-
+    logger.info("Loading mode %s", model_name)
+    print('Load Mode ' + model_name)
     if torch.cuda.is_available():
         print('GPU available')
         logger.info("GPU available")
@@ -199,14 +199,16 @@ def post_process(request: DUUIRequest) -> DUUIResult:
     result = None
     error = None
     try:
-        global model
         returnModelName = None
 
         if request.token:
             logger.info("Login to huggingface")
+            print("Login to huggingface")
             login(token=request.token)
         else:
-            logger.info("no token")
+            logger.info("no token, so logout!")
+            print("no token, so logout!")
+            logout()
 
         if request.model_name:
             model = load_model(request.model_name)
@@ -217,9 +219,9 @@ def post_process(request: DUUIRequest) -> DUUIResult:
 
         bBOS = initialize_bos(returnModelName)
 
-        get_word_surprisals(bBOS, request.selection)
+        get_word_surprisals(model, bBOS, request.selection)
 
-        tokens = get_token_suprisals(bBOS, request.selection)
+        tokens = get_token_suprisals(model, bBOS, request.selection)
 
         result = DUUIResponse(
             sentences = request.selection,
@@ -252,12 +254,12 @@ def initialize_bos(model_name: str) -> bool:
         return True
     return False
 
-def get_word_surprisals(BOS:bool, sentences:List[Sentence]):
+def get_word_surprisals(model, BOS:bool, sentences:List[Sentence]):
 
     for s in sentences:
-        get_word_surprisal(BOS, s)
+        get_word_surprisal(model, BOS, s)
 
-def get_word_surprisal(BOS:bool, sentence:Sentence):
+def get_word_surprisal(model, BOS:bool, sentence:Sentence):
 
     surprisals = model.word_score_tokenized(
         sentence.sText,
@@ -276,14 +278,14 @@ def get_word_surprisal(BOS:bool, sentence:Sentence):
     sentence.mSumScore = sumscore[0]
 
 
-def get_token_suprisals(BOS:bool, sentences:List[Sentence])->List[Token]:
+def get_token_suprisals(model, BOS:bool, sentences:List[Sentence])->List[Token]:
     token_map = []
     for s in sentences:
-        token_map+=get_token_suprisal(BOS, s)
+        token_map+=get_token_suprisal(model, BOS, s)
 
     return token_map
 
-def get_token_suprisal(BOS:bool, sentence:Sentence)->List[Token]:
+def get_token_suprisal(model, BOS:bool, sentence:Sentence)->List[Token]:
 
     output = model.token_score(
         sentence.sText,
