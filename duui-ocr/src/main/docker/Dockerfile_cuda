@@ -1,0 +1,88 @@
+# BORROWED. Almost entirely lifted from the base Dockerfile, with
+# the only real difference being the base image (NVIDIA CUDA runtime
+# instead of plain Python) and a couple of CUDA-specific env vars.
+#
+# See the base Dockerfile for detailed commentary on each section.
+# I'm not repeating all of that here.
+#
+# Last meaningful edit: Feb 2026
+
+# COPILOT. I asked "what's the right NVIDIA base image for running
+# HuggingFace models with CUDA" and Copilot suggested this one.
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
+
+# BORROWED. Stops Python from buffering stdout/stderr, so logs
+# show up immediately in docker logs. Copied from the other
+# Dockerfile for another DUUI GPU component.
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+# -- Python installation --
+# The NVIDIA base image doesn't come with Python, unlike the python:3.10
+# image we use in the base Dockerfile. So we install it manually.
+# COPILOT helped with the apt-get lines. The DEBIAN_FRONTEND=noninteractive
+# suppresses interactive prompts during install that would hang the build.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3.10-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# -- Dependencies --
+# Same as base Dockerfile.
+RUN pip install --upgrade pip
+RUN pip install setuptools wheel
+COPY ./requirements.txt ./requirements.txt
+RUN pip install -r requirements.txt
+
+# -- Model pre-download --
+# Same as base Dockerfile.
+#
+# v2 ABANDONED: TrOCR download
+# RUN python3 -c "\
+# from transformers import TrOCRProcessor, VisionEncoderDecoderModel; \
+# VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-base-printed'); \
+# TrOCRProcessor.from_pretrained('microsoft/trocr-base-printed')"
+
+RUN python3 -c "\
+from transformers import AutoProcessor, AutoModelForImageTextToText; \
+AutoModelForImageTextToText.from_pretrained('PaddlePaddle/PaddleOCR-VL-1.5'); \
+AutoProcessor.from_pretrained('PaddlePaddle/PaddleOCR-VL-1.5'); \
+AutoModelForImageTextToText.from_pretrained('zai-org/GLM-OCR'); \
+AutoProcessor.from_pretrained('zai-org/GLM-OCR')"
+
+# -- Source files --
+COPY ./src/main/python/TypeSystemOCR.xml ./TypeSystemOCR.xml
+COPY ./src/main/python/duui_ocr.py ./duui_ocr.py
+COPY ./src/main/python/duui_ocr.lua ./duui_ocr.lua
+
+# -- Configuration --
+# Same ARG/ENV pairs as base Dockerfile.
+ARG DUUI_OCR_LOG_LEVEL="DEBUG"
+ENV DUUI_OCR_LOG_LEVEL=$DUUI_OCR_LOG_LEVEL
+
+ARG DUUI_OCR_MODEL_CACHE_SIZE=1
+ENV DUUI_OCR_MODEL_CACHE_SIZE=$DUUI_OCR_MODEL_CACHE_SIZE
+
+ARG DUUI_OCR_ANNOTATOR_NAME="duui-ocr"
+ENV DUUI_OCR_ANNOTATOR_NAME=$DUUI_OCR_ANNOTATOR_NAME
+ARG DUUI_OCR_ANNOTATOR_VERSION="unset"
+ENV DUUI_OCR_ANNOTATOR_VERSION=$DUUI_OCR_ANNOTATOR_VERSION
+
+# -- CUDA-specific --
+# COPILOT. Asked "what NVIDIA env vars does a container need to
+# use the host GPU." These tell the NVIDIA container runtime which
+# GPU capabilities to expose. "compute,utility" covers inference
+# (compute) and nvidia-smi (utility). There's also "graphics" and
+# "video" but we don't need those.
+# Source: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# -- Startup --
+ENTRYPOINT ["python3", "-m", "uvicorn", "duui_ocr:app", "--host", "0.0.0.0", "--port", "9714"]
+CMD ["--workers", "1"]
