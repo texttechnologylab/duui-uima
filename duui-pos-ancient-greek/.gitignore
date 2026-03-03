@@ -1,0 +1,47 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Model artifacts (large files)
+model/
+*.bin
+*.safetensors
+checkpoint*/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+.vscode/
+*.swp
+*.swo
+
+# Java build
+target/
+*.class
+
+# Data (cloned separately)
+data/
+UD_Ancient_Greek-*/
+
+# Docker
+*.tar
+*.tar.gz
+
+# Test outputs
+evaluation_report.txt
+test_output.json
+
+# Cache
+.cache/
+.pytest_cache/
+
+# Logs
+*.log

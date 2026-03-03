@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+    <name>TypeSystemPOS</name>
+    <description>
+        Type system for the Ancient Greek POS tagger DUUI component.
+        Defines POS annotation type. DocumentModification and AnnotationComment
+        are provided by the UIMATypeSystem dependency.
+    </description>
+    <version>0.1.0</version>
+    <vendor>TTLab / Goethe University Frankfurt</vendor>
+
+    <types>
+
+        <!-- POS annotation (DKPro standard) -->
+        <typeDescription>
+            <name>de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS</name>
+            <description>Part-of-speech tag annotation</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>PosValue</name>
+                    <description>Fine-grained POS tag value</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>coarseValue</name>
+                    <description>Coarse-grained POS tag value (UPOS)</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+
+        <!-- Sentence annotation (DKPro standard, used as optional input) -->
+        <typeDescription>
+            <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence</name>
+            <description>Sentence annotation</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+
+    </types>
+</typeSystemDescription>

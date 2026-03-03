@@ -1,0 +1,9 @@
+transformers>=4.40.0
+torch==2.6.0
+fastapi==0.115.0
+uvicorn[standard]==0.27.1
+pydantic-settings==2.0.2
+numpy>=1.26.0
+sentencepiece>=0.2.0
+protobuf>=5.0.0
+accelerate>=0.30.0
