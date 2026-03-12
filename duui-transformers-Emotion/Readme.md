@@ -53,6 +53,8 @@ DUUI implementation for selected Hugging-Face-based transformer [Emotion tools](
 | universal-joy-pt-small                  | https://github.com/sotlampr/universal-joy                      | 6ab01e98c8106e610247e5e8f0712af08c007b67  | PT                |
 | universal-joy-tl-small                  | https://github.com/sotlampr/universal-joy                      | 6ab01e98c8106e610247e5e8f0712af08c007b67  | TL                |
 | universal-joy-zh-small                  | https://github.com/sotlampr/universal-joy                      | 6ab01e98c8106e610247e5e8f0712af08c007b67  | ZH                |
+| phobert-emotion                  | https://huggingface.co/visolex/phobert-emotion                      | 6099c5a6f91fc6c8175818e37f96fecad0c96b63 | VI                |
+|seara/rubert-tiny2-russian-emotion-detection-cedr|https://huggingface.co/seara/rubert-tiny2-russian-emotion-detection-cedr | 927ce911c4343c6113859325ab76c6c3c473ff0f | RU |
 
 # How To Use
 

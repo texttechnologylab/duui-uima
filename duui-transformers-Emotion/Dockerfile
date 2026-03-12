@@ -57,7 +57,7 @@ COPY ./src/main/python/script.py ./script.py
 COPY ./src/main/python/utils.py ./utils.py
 
 #Für das russische Modell, was zuvor über das Python Skript runtergeladen werden muss
-COPY ./src/main/python/offline_models/rubert_tiny2_russian /usr/src/app/offline_models/rubert_tiny2_russian
+COPY ./src/main/python/offline_models/rubert_tiny2_russian ./offline_models/rubert_tiny2_russian
 
 
 #COPY ./src/main/python/UniversalJoy/models-multilingual/small-all.pt ./UniversalJoy/models-multilingual/small-all.pt

@@ -1,0 +1,22 @@
+# Docker-Test für das Modell https://huggingface.co/seara/rubert-tiny2-russian-emotion-detection-cedr
+
+## Ziel
+Überprüfung, od das Modell 'rubert_tiny2_russian' korrekt im Docker-Container offline läuft.
+Offline, da im Online-Modus beim Bauen des Docker Images es immer zu Fehlern beim Download kam.
+
+## Testaufbau
+- Modell: seara/rubert-tiny2-russian-emotion-detectio
+- Docker-Endpunkt: http://localhost:9714/v1/process
+- 8 Texte, die jeweils verschiedene Emontionen haben, auch Emotionen, die nicht im Modell enthalten sind
+- Skript: test_docker.sh
+- Testausgabe: predicted label + score + erwartetes Label
+
+## Durchführung
+1. Modell durch das Pythonskript rubert_tiny2_russian_emotion_datection_cedr.py in den Ordner laden
+2. Docker Image bauen : docker build -t emotionslos:latest .
+2.1 Man muss sich im Ordner duui-transformers-Emotion befinden.
+2.2 Das Dockerfile muss direkt in dem Ordner sein und nicht im Unterordner docker, sonst werden die Pfade nicht gefunden.
+3. Docker Image starten: docker run -p 9714:9714 \
+                         -e MODEL_NAME=seara/rubert-tiny2-russian-emotion-detection-cedr \
+                         emotionslos:latest
+4. Testskript ausführen

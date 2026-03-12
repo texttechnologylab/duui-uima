@@ -377,6 +377,13 @@ export MODEL_LANG="DE"
 #export MODEL_LANG="ZH"
 ####--------------------------------------------------------------------
 
+####---------------------------------------------------------------------
+export MODEL_NAME="visolex/phobert-emotion"
+export MODEL_SPECNAME="phobert-emotion"
+export MODEL_VERSION="90460fb946cf640ef9c56ae484cabb49d48ef14e"
+export MODEL_SOURCE="https://huggingface.co/visolex/phobert-emotion"
+export MODEL_LANG="VI"
+####--------------------------------------------------------------------
 
 docker build \
   --build-arg ANNOTATOR_NAME \
