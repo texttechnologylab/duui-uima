@@ -1,0 +1,24 @@
+# Docker-Test für das Modell https://huggingface.co/Babelscape/rebel-large
+
+## Ziel
+Überprüfung, od das Modell 'rebel-large' korrekt im Docker-Container offline läuft.
+Offline, da im Online-Modus beim Bauen des Docker Images es immer zu Fehlern beim Download kam.
+
+## Testaufbau
+- Modell: Babelscape/rebel-large
+- Docker-Endpunkt: http://localhost:8000/v1/process
+- 6 Sätze, die auf ihre Relation im Satz untersucht werden.
+- Skript: test_docker.sh
+- Testausgabe: predicted sentence + Triplets
+
+## Durchführung
+1. Modell durch das Pythonskript rebel_large.py in den Ordner laden
+2. Docker Image bauen : docker build -t relation:latest .
+2.1 Man muss sich im Ordner duui-trelation-extraction befinden.
+2.2 Das Dockerfile muss direkt in dem Ordner sein und nicht im Unterordner docker, sonst werden die Pfade nicht gefunden.
+3. Docker Image starten: docker run -p 8000:8000 \
+                         -e MODEL_NAME=Babelscape/rebel-large \
+                         relation:latest
+4. Testskript ausführen
+
+Das Modell ibm-research/knowgl-large kann auf die gleiche Weise getestet werden.
