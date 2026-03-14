@@ -48,6 +48,11 @@ model_mapping = {
         0: "positive",
         1: "neutral",
         2: "negative"
+    },
+    "blanchefort/rubert-base-cased-sentiment":{
+        1: "positive",
+        0: "neutral",
+        2: "negative"
     }
 }
 

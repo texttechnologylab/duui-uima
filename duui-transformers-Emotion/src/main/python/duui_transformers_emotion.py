@@ -30,6 +30,7 @@ sources = {
     "mrm8488/t5-base-finetuned-emotion": "https://huggingface.co/mrm8488/t5-base-finetuned-emotion",
     "EmoAtlas": "https://github.com/alfonsosemeraro/emoatlas",
     "pysentimiento": "https://github.com/pysentimiento/pysentimiento/",
+    "rubert-tiny2-russian-emotion-detection-cedr": "https://huggingface.co/seara/rubert-tiny2-russian-emotion-detection-cedr",
 }
 
 languages = {
@@ -46,6 +47,7 @@ languages = {
     "mrm8488/t5-base-finetuned-emotion": "en",
     "SamLowe/roberta-base-go_emotions": "en",
     "ActivationAI/distilbert-base-uncased-finetuned-emotion": "en",
+    "rubert-tiny2-russian-emotion-detection-cedr": "ru",
 }
 
 versions = {
@@ -62,6 +64,7 @@ versions = {
     "mrm8488/t5-base-finetuned-emotion": "e44a316825f11230724b36412fbf1899c76e82de",
     "EmoAtlas": "adae44a80dd55c1d1c467c4e72bdb2d8cf63bf28",
     "pysentimiento": "60822acfd805ad5d95437c695daa33c18dbda060",
+    "rubert-tiny2-russian-emotion-detection-cedr": "927ce911c4343c6113859325ab76c6c3c473ff0f",
 }
 
 

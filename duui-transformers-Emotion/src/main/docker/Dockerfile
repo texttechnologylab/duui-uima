@@ -44,7 +44,10 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='alex-shvets/roberta-large-emopillars-contextual-emocontext')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AdapterHub/bert-base-uncased-pf-emo')"
 #RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
-
+RUN python -c "from transformers import pipeline; pipeline('text-classification', \
+  model='visolex/phobert-emotion')" \
+RUN python -c "from transformers import pipeline; pipeline('text-classification', \
+     model='seara/rubert-tiny2-russian-emotion-detection-cedr')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml
@@ -54,6 +57,11 @@ COPY ./src/main/python/duui_transformers_emotion.py ./duui_transformers_emotion.
 COPY ./src/main/python/duui_emotion.lua ./duui_emotion.lua
 COPY ./src/main/python/script.py ./script.py
 COPY ./src/main/python/utils.py ./utils.py
+
+#Für das russische Modell, was zuvor über das Python Skript runtergeladen werden muss
+COPY ./src/main/python/offline_models/rubert_tiny2_russian /usr/src/app/offline_models/rubert_tiny2_russian
+
+
 #COPY ./src/main/python/UniversalJoy/models-multilingual/small-all.pt ./UniversalJoy/models-multilingual/small-all.pt
 #COPY ./src/main/python/UniversalJoy/models-multilingual/large-all.pt ./UniversalJoy/models-multilingual/large-all.pt
 #COPY ./src/main/python/UniversalJoy/models-multilingual/combi-all.pt ./UniversalJoy/models-multilingual/combi-all.pt
