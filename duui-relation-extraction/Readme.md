@@ -11,6 +11,4 @@ DUUI implementation for selected Hugging-Face-based transformer [relation-extrac
 
 ## Execution
 
-1. Im Ordner 'models' das gewünschte Modell runterladen, da der Container nicht mit dem Internet verbunden ist.
-2. Docker bauen: docker build -t [IMAGE_NAME] .
-3. Docker starten: docker run -p 8000:8000 -e MODEL_NAME=[MODEL_NAME] [IMAGE_NAME]
+Docker starten: docker run -p 8000:8000 -e MODEL_NAME=[MODEL_NAME] [IMAGE_NAME]

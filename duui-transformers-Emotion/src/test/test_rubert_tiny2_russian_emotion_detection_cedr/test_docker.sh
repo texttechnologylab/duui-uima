@@ -6,6 +6,8 @@ URL="http://localhost:9714/v1/process"
 # Datei mit Testtexten
 TEST_FILE="test_text.json"
 
+echo "Starte Tests"
+
 # Schleife über alle Testtexte
 jq -c '.[]' $TEST_FILE | while read t; do
   text=$(echo $t | jq -r '.text')
