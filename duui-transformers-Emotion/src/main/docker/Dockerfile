@@ -45,7 +45,9 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='AdapterHub/bert-base-uncased-pf-emo')"
 #RUN python -c "from pytorch_transformers import (BertTokenizer, BertModel, BertConfig,); BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case=False); BertModel.from_pretrained('bert-base-multilingual-cased')"
 RUN python -c "from transformers import pipeline; pipeline('text-classification', \
-  model='visolex/phobert-emotion')"
+  model='visolex/phobert-emotion')" \
+RUN python -c "from transformers import pipeline; pipeline('text-classification', \
+     model='seara/rubert-tiny2-russian-emotion-detection-cedr')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemEmotion.xml ./TypeSystemEmotion.xml
