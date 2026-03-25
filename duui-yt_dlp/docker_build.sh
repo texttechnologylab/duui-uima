@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export ANNOTATOR_NAME=duui-youtube-downloader
-export ANNOTATOR_VERSION=0.1
+export ANNOTATOR_VERSION=1.1
 export LOG_LEVEL=DEBUG
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 
@@ -15,7 +15,7 @@ docker build \
   .
  #--no-cache
 
-docker tag \
-  ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:${ANNOTATOR_VERSION} \
-  ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:latest
+#docker tag \
+#  ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:${ANNOTATOR_VERSION} \
+#  ${DOCKER_REGISTRY}${ANNOTATOR_NAME}:latest
 
