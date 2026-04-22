@@ -253,6 +253,11 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
 def download_youtube(link: str, download_trans: bool, transcription_lang: str, cookies: str):
 
+#     format = "bv*[height<=1080]+ba/b[height<=1080]/best"
+    format = "best"
+#     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 com.google.android.youtube/17.31.35 (Linux; U; Android 11)"
+    user_agent = "com.google.android.youtube/17.31.35 (Linux; U; Android 11)"
+
     if download_trans:
         if transcription_lang == "":
             ydl_opts = {
@@ -261,12 +266,21 @@ def download_youtube(link: str, download_trans: bool, transcription_lang: str, c
                 "noplaylist": True,
                 "quiet": False,
                 "no_warnings": True,
-                "ratelimit": 500000,
-                "user_agent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                "ratelimit": 5000000,
+                "http_headers": {
+                    "User-Agent": user_agent
+                },
                 "retries": 10,
                 "fragment_retries": 10,
+                "subtitlesformat": "srt",
                 #"subtitleslangs": ["de"],
-                "format_sort": ['res:1080', 'ext:mp4:m4a']
+                "format": format,
+                "extractor_args":{
+                                "youtube": {
+                                    "player_client": ["android"],
+                                    "player_skip": ["webpage"]
+                                }
+                            }
             }
         else:
             ydl_opts = {
@@ -275,46 +289,64 @@ def download_youtube(link: str, download_trans: bool, transcription_lang: str, c
                 "noplaylist": True,
                 "quiet": False,
                 "no_warnings": True,
-                "ratelimit": 500000,
+                "ratelimit": 5000000,
+                "http_headers": {
+                    "User-Agent": user_agent
+                },
                 "retries": 10,
                 "fragment_retries": 10,
-                "user_agent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                "subtitlesformat": "srt",
+                #"subtitleslangs": ["de"],
                 "subtitleslangs": [transcription_lang],
-                "format_sort": ['res:1080', 'ext:mp4:m4a']
-            }
-
+                "format": format,
+                "extractor_args":{
+                                "youtube": {
+                                    "player_client": ["android"],
+                                    "player_skip": ["webpage"]
+                                }
+                            }
+                }
     else:
         ydl_opts = {
-            'format_sort': ['res:1080', 'ext:mp4:m4a'],
+            "format": format,
             "noplaylist": True,
             "quiet": False,
             "no_warnings": True,
-            "ratelimit": 500000,
+            "ratelimit": 5000000,
             "retries": 10,
-            "user_agent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            "http_headers": {
+                "User-Agent": user_agent
+            },
             "fragment_retries": 10,
+            "extractor_args":{
+                "youtube": {
+                    "player_client": ["android"],
+                    "player_skip": ["webpage"]
+                }
+            }
+
         }
 
     if cookies is not None and len(cookies) > 0:
-        with open("cookies.txt", "w", encoding="utf-8") as file:
+        with open("./cookies.txt", "w", encoding="utf-8") as file:
             file.write(cookies)
 
-        if os.path.exists("cookies.txt"):
+        if os.path.exists("./cookies.txt"):
             print("Cookies found")
-            ydl_opts["cookiefile"] = "cookies.txt"
+            ydl_opts["cookiefile"] = "./cookies.txt"
 
     print(ydl_opts)
     with YoutubeDL(ydl_opts) as ydl:
-        ydl.download(link)
+        info = ydl.extract_info(link, download=True)
 
-    transcription = None
-    video = None
+        video = ydl.prepare_filename(info)
+        transcription = None
+        subs = info.get("requested_subtitles")
 
-    for file in os.listdir():
-        if file.endswith(".vtt"):
-            transcription = file
-        if file.endswith(".mp4"):
-            video = file
+        if subs:
+            for _, sub in subs.items():
+                transcription = sub.get("filepath")
+
 
     return (video, transcription)
 

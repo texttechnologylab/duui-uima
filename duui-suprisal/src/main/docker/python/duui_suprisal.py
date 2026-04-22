@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional,Union
 import uvicorn
 from cassis import *
 from fastapi import FastAPI, Response
@@ -9,12 +9,14 @@ from pydantic_settings import BaseSettings
 from starlette.responses import JSONResponse
 from functools import lru_cache
 from minicons import scorer
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, login, logout
 from nltk.tokenize import TweetTokenizer
 from transformers import AutoConfig
 from threading import Lock
+import traceback
 import torch
 import logging
+import re
 
 
 lru_cache_with_size_model = lru_cache(maxsize=3)
@@ -35,6 +37,13 @@ class Sentence(BaseModel):
     sText: str
     sCondition: str
     sTarget: str
+    sSuprise: Optional[float] = None,
+    mScore: Optional[float] = None,
+    mSumScore: Optional[float] = None
+
+class Token(BaseModel):
+    iBegin: int
+    iEnd: int
     sSuprise: Optional[float] = None
 
 
@@ -43,17 +52,30 @@ class Sentence(BaseModel):
 class DUUIRequest(BaseModel):
     selection: List[Sentence]
     model_name: Optional[str]
+    token: Optional[str]
+
+class DUUIError(BaseModel):
+    type : str
+    error: str
+    trace: str = ""
+    cause: str = ""
+
 
 # Response of this annotator
 # Note, this is transformed by the Lua script
 class DUUIResponse(BaseModel):
     # List of annotated:
     sentences: List[Sentence]
+    tokens: List[Token]
     model_name: str
 
 class Settings(BaseSettings):
     # Name of the Model
     model_name: Optional[str] = "goldfish-models/spa_latn_1000mb"
+
+class DUUIResult(BaseModel):
+    result: Optional[DUUIResponse]
+    error: Optional[List[DUUIError]]
 
 
 # settings + cache
@@ -67,8 +89,8 @@ config = {"name": "goldfish-models/spa_latn_1000mb"}
 app = FastAPI(
     docs_url="/api",
     redoc_url=None,
-    title="Suprising-Detection",
-    description="Suprising-Detection for DUUI",
+    title="Suprisal-Detection",
+    description="Suprisal-Detection for DUUI",
     version="0.1",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
@@ -99,7 +121,7 @@ with open(typesystem_filename, 'rb') as f:
 def get_input_output() -> JSONResponse:
     json_item = {
         "inputs": ["org.texttechnologylab.annotation.neglab.ScorerSentence"],
-        "outputs": ["org.texttechnologylab.annotation.neglab.ScorerSentence"]
+        "outputs": ["org.texttechnologylab.annotation.neglab.ScorerSentence","org.texttechnologylab.annotation.neglab.TokenSuprisal","org.texttechnologylab.annotation.AnnotationComment"]
     }
 
     json_compatible_item_data = jsonable_encoder(json_item)
@@ -136,20 +158,31 @@ def get_documentation() -> DUUIDocumentation:
     )
     return documentation
 
+########################################################
+
 word_tokenizer = TweetTokenizer().tokenize
 
 logger = logging.getLogger(__name__)
 logger.info("TTLab DUUI Suprisal")
 
+errors: list[DUUIError] = []
+
+def addError(e: DUUIError):
+    errors.append(e)
+
 @lru_cache_with_size_model
 def load_cache_model(model_name):
-    logger.info("Loading model %s", model_name)
-
+    logger.info("Loading mode %s", model_name)
+    print('Load Mode ' + model_name)
     if torch.cuda.is_available():
         print('GPU available')
+        logger.info("GPU available")
         m = scorer.IncrementalLMScorer(model_name, 'cuda')
     else:
         print('GPU unavailable')
+        logger.info("GPU unavailable")
+        addError(DUUIError(type="info", error="GPU unavailable"))
+
         m = scorer.IncrementalLMScorer(model_name)
 
     return m
@@ -161,31 +194,51 @@ def load_model(model_name):
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: DUUIRequest) -> DUUIResponse:
+def post_process(request: DUUIRequest) -> DUUIResult:
 
-    global model
-    returnModelName = None
+    result = None
+    error = None
+    try:
+        returnModelName = None
 
-    if request.model_name:
-        model = load_model(request.model_name)
-        returnModelName = request.model_name
-    else:
-        model = load_model(settings.model_name)
-        returnModelName = settings.model_name
+        if request.token:
+            logger.info("Login to huggingface")
+            print("Login to huggingface")
+            login(token=request.token)
+        else:
+            logger.info("no token, so logout!")
+            print("no token, so logout!")
+            logout()
 
-    bBOS = initialize_bos(returnModelName)
+        if request.model_name:
+            model = load_model(request.model_name)
+            returnModelName = request.model_name
+        else:
+            model = load_model(settings.model_name)
+            returnModelName = settings.model_name
 
-    get_word_surprisals(bBOS, request.selection)
+        bBOS = initialize_bos(returnModelName)
 
-    return DUUIResponse(
-        sentences = request.selection,
-        model_name = returnModelName
+        get_word_surprisals(model, bBOS, request.selection)
+
+        tokens = get_token_suprisals(model, bBOS, request.selection)
+
+        result = DUUIResponse(
+            sentences = request.selection,
+            tokens = tokens,
+            model_name = returnModelName
+        )
+    except Exception as e:
+        addError(exception_to_string(e))
+
+    return DUUIResult(
+        result = result,
+        error  = errors
     )
 
 
-#if __name__ == "__main__":
-#  uvicorn.run("duui_gte:app", host="0.0.0.0", port=9715, workers=1)
 
+####################################################################
 
 def initialize_bos(model_name: str) -> bool:
     """
@@ -201,12 +254,12 @@ def initialize_bos(model_name: str) -> bool:
         return True
     return False
 
-def get_word_surprisals(BOS, sentences:List[Sentence]):
+def get_word_surprisals(model, BOS:bool, sentences:List[Sentence]):
 
     for s in sentences:
-        get_word_surprisal(BOS, s)
+        get_word_surprisal(model, BOS, s)
 
-def get_word_surprisal(BOS:bool, sentence:Sentence):
+def get_word_surprisal(model, BOS:bool, sentence:Sentence):
 
     surprisals = model.word_score_tokenized(
         sentence.sText,
@@ -216,5 +269,76 @@ def get_word_surprisal(BOS:bool, sentence:Sentence):
         bow_correction=True
     )
     result = next((val for word, val in surprisals[0] if word == sentence.sTarget), None)
-
     sentence.sSuprise = result
+
+    score = model.sequence_score(sentence.sText, bos_token=BOS, bow_correction=True)
+    sentence.mScore = score[0]
+
+    sumscore = model.sequence_score(sentence.sText, bos_token=BOS, bow_correction=True,reduction=lambda x: x.sum().item())
+    sentence.mSumScore = sumscore[0]
+
+
+def get_token_suprisals(model, BOS:bool, sentences:List[Sentence])->List[Token]:
+    token_map = []
+    for s in sentences:
+        token_map+=get_token_suprisal(model, BOS, s)
+
+    return token_map
+
+def get_token_suprisal(model, BOS:bool, sentence:Sentence)->List[Token]:
+
+    output = model.token_score(
+        sentence.sText,
+        bos_token=BOS,
+        prob=False,
+        surprisal=True,
+        bow_correction=True
+    )
+
+    return map_tokens_to_surprisal(sentence.sText, output, sentence.iBegin)
+
+
+def map_tokens_to_surprisal(input_text, output_tokens_wrapped, sentence_start=0)->List[Token]:
+    out = []
+    i = 0  # Pointer im Text
+
+    output_tokens = output_tokens_wrapped[0]
+
+    for tok, surprisal in output_tokens:
+        if tok in ("[CLS]", "[SEP]", "<s>", "</s>"):
+            continue
+
+        # SentencePiece Wortanfang
+        if tok.startswith("▁"):
+            tok = tok[1:]
+            while i < len(input_text) and input_text[i].isspace():
+                i += 1
+
+        start = i
+        end = i + len(tok)
+
+        out.append(Token(
+            iBegin=start + sentence_start,
+            iEnd=end + sentence_start,
+            sSuprise=surprisal
+        ))
+
+        i = end
+
+    return out
+
+
+def exception_to_string(e: Exception) -> DUUIError:
+
+        return DUUIError(
+            type=type(e).__name__,
+            error=getattr(e, "strerror", None) or str(e),
+            trace="".join(
+                traceback.format_exception(
+                    type(e),
+                    e,
+                    e.__traceback__
+                )
+            ),
+            cause=str(e.__cause__) if e.__cause__ else ""
+        )

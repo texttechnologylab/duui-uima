@@ -1,42 +1,38 @@
-[![Version](https://img.shields.io/static/v1?label=taxonerd&message=0.1&color=blue)]()
-[![Version](https://img.shields.io/pypi/v/taxonerd)]()
+# Jina Embeddings V4
+A DUUI pipeline for the use of [Jina Embedings v4](https://huggingface.co/jinaai/jina-embeddings-v4).
 
-# taxoNERD
-A DUUI pipeline for the use of [taxoNERD](https://github.com/nleguillarme/taxonerd).
+[![Version](https://img.shields.io/static/v1?label=ttlabdocker_version&message=latest&color=blue)]()
 
-# HowToUse
-For using taxoNERD as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+# HoToUse
+For using Jina as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
 
 ## Use as Stand-Alone-Image
-```
-docker run docker.texttechnologylab.org/taxonerd:1.0
+```bash
+docker run docker.texttechnologylab.org/duui-jina-embeddings-v4:latest
 ```
 
 ## Run with a specific port
+```bash
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-jina-embeddings-v4:latest
 ```
-docker run -p 1000:9714 docker.texttechnologylab.org/taxonerd:1.0
-```
-
-### Parameters
-
-| Name        | Description                                                                                     | Default                                                                           |
-|-------------|-------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
-| `model`     | TaxoNERD model (en_ner_eco_md, en_ner_eco_biobert, en_ner_eco_md_weak, en_ner_eco_biobert_weak) | en_ner_eco_md                                                                     |
-| `linking`  | Linking-Source. Avialiable sources: 'gbif_backbone', 'taxref', ncbi_taxonomy'     | gbif_backbone                                                                     |
-| `exclude`   | List of excluding pipeline steps                                                                | {'tagger', 'parser', 'taxo_abbrev_detector', 'taxon_linker', 'pysbd_sentencizer'} |
-| `threshold` | Similarity threshold for entity linking                                                         | 0.7                                                                               |
 
 ## Run within DUUI
-```
+```java
 composer.add(new DUUIDockerDriver.
-    Component("docker.texttechnologylab.org/taxonerd:1.0")
+    Component("docker.texttechnologylab.org/duui-jina-embeddings-v4:latest")
     .withScale(iWorkers)
     .withImageFetching());
 ```
+## Input/Output:
+
+input: de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence
+
+Output: org.texttechnologylab.uima.type.Embedding
 
 
 # Cite
 If you want to use the DUUI image please quote this as follows:
+
 
 Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (2023). "Unlocking the Heterogeneous Landscape of Big Data NLP with DUUI." Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399. [[LINK](https://aclanthology.org/2023.findings-emnlp.29)] [[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)] 
 
@@ -69,12 +65,11 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Abrami:2022,
-  author         = {Abrami, Giuseppe},
-  title          = {taxoNerd as DUUI-Komponent},
-  year           = {2022},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-taxoNERD}
+@misc{Bundan:2025,
+  author         = {Bundan, Daniel}
+  title          = {Jina Embeddings V4 as DUUI-Komponent},
+  year           = {2005},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Jina-Embeddings-V4}
 }
 
 ```
-

@@ -98,7 +98,7 @@ function deserialize(inputCas, inputStream)
             sentiment_i:setEnd(ends[index_i])
             local factor_i = factors[index_i]
             for index_j, sentiment_j in ipairs(res) do
---                print(sentiment_j)
+--                 print(sentiment_j)
                 local factor_j = factor_i[index_j]
                 if sentiment_j == "negative" then
                     sentiment_i:setProbabilityNegative(factor_j)
@@ -106,6 +106,8 @@ function deserialize(inputCas, inputStream)
                     sentiment_i:setProbabilityPositive(factor_j)
                 elseif sentiment_j == "neutral" then
                     sentiment_i:setProbabilityNeutral(factor_j)
+                elseif sentiment_j == "sentiment" then
+                    sentiment_i:setSentiment(factor_j)
                 end
             end
             sentiment_i:setModel(model_meta)

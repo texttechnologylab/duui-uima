@@ -7,3 +7,4 @@ torch==2.4.1
 protobuf==4.24.2
 sentencepiece==0.1.99
 tokenizers==0.13.3
+accelerate>=0.30.0

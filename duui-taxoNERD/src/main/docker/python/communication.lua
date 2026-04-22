@@ -1,6 +1,18 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 
+local function parse_list_string(str)
+    if str == nil or str == "[]" then
+        return {}
+    end
+    local t = {}
+    str = str:gsub("^%[", ""):gsub("%]$", "")
+    for item in str:gmatch("'(.-)'") do
+        table.insert(t, item)
+    end
+    return t
+end
+
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
 --  - inputCas: The actual CAS object to serialize
@@ -11,23 +23,34 @@ function serialize(inputCas, outputStream, params)
     local doc_text = inputCas:getDocumentText()
     local linking = "gbif_backbone"
     local threshold = 0.7
+    local exclude = {'tagger', 'parser', 'taxo_abbrev_detector', 'taxon_linker', 'pysbd_sentencizer'}
+    local model = "en_ner_eco_md"
     if params["linking"] ~= nil then
         linking = params["linking"]
     end
     if params["threshold"] ~= nil then
         threshold = params["threshold"]
     end
-
-    print(linking)
-    print(doc_text)
-    print(threshold)
+    if params["model"] ~= nil then
+        model = params["model"]
+    end
+    if params["exclude"] ~= nil then
+        local parsed = parse_list_string(params["exclude"])
+        if #parsed > 0 then
+            exclude = parsed
+        else
+            exclude = {}
+        end
+    end
 
     -- Encode data as JSON object and write to stream
     -- TODO Note: The JSON library is automatically included and available in all Lua scripts
     outputStream:write(json.encode({
         text = doc_text,
         linking = linking,
-        threshold = threshold
+        threshold = threshold,
+        exclude = exclude,
+        model = model
     }))
 end
 
