@@ -1,0 +1,11 @@
+### IDEs ###
+.idea
+*.iml
+.vscode
+
+### Build files ###
+target
+
+### Development environment ###
+venv
+.venv
