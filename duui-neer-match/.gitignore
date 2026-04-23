@@ -5,6 +5,7 @@
 
 ### Build files ###
 target
+__pycache__
 
 ### Development environment ###
 venv
