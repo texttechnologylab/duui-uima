@@ -1,0 +1,11 @@
+dkpro-cassis==0.10.1
+fastapi==0.136.0
+neer-match==0.8.4
+neer-match-utilities==1.1.6b0
+numpy==2.4.4
+pandas==3.0.2
+pydantic==2.13.3
+pydantic-settings==2.14.0
+python-dotenv==1.2.2
+urllib3==2.6.3
+uvicorn==0.46.0
