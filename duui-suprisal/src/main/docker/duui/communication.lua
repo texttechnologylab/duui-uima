@@ -95,7 +95,7 @@ function deserialize(inputCas, inputStream)
             if sentence ~= nil then
                 sentence:setValue(suprise["sSuprise"])
                 sentence:setSequenceScore(suprise["mScore"])
-                sentence:setSequenceScoreSum(suprise["mScoreSum"])
+                sentence:setSequenceScoreSum(suprise["mSumScore"])
                 sentence:addToIndexes()
 
             end
