@@ -16,10 +16,10 @@ RUN python3 -m pip install --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt
 
 RUN pip install --no-cache-dir \
-    torch==2.6.0+cu118 \
-    torchvision==0.21.0+cu118 \
-    torchaudio==2.6.0+cu118 \
-    --extra-index-url https://download.pytorch.org/whl/cu118
+    torch==2.6.0+cu124 \
+    torchvision==0.21.0+cu124 \
+    torchaudio==2.6.0+cu124 \
+    --extra-index-url https://download.pytorch.org/whl/cu124
 
 
 

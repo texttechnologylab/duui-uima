@@ -272,9 +272,11 @@ def get_word_surprisal(model, BOS:bool, sentence:Sentence):
     sentence.sSuprise = result
 
     score = model.sequence_score(sentence.sText, bos_token=BOS, bow_correction=True)
+#     print(score)
     sentence.mScore = score[0]
 
     sumscore = model.sequence_score(sentence.sText, bos_token=BOS, bow_correction=True,reduction=lambda x: x.sum().item())
+#     print(sumscore)
     sentence.mSumScore = sumscore[0]
 
 
