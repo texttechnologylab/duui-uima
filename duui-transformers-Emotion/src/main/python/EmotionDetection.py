@@ -34,7 +34,8 @@ models_emotion = {
     "SamLowe": "SamLowe/roberta-base-go_emotions",
     "michellejieli": "michellejieli/emotion_text_classifier",
     "EmoAtlas": "EmoAtlas",
-    "MRM8488": "mrm8488/t5-base-finetuned-emotion"
+    "MRM8488": "mrm8488/t5-base-finetuned-emotion",
+    "rubert": "rubert-tiny2-russian-emotion-detection-cedr",
 }
 map_emotion = {
     "DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence": {
@@ -393,6 +394,14 @@ map_emotion = {
         1: "happy",
         2: "sad",
         3: "angry"
+    },
+    "seara/rubert-tiny2-russian-emotion-detection-cedr":{
+        0: "no_emotion",
+        1: "joy",
+        2: "sadness",
+        3: "surprise",
+        4: "fear",
+        5: "anger",
     }
 
 }

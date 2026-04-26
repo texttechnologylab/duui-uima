@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TypeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+    <types>
+        <typeDescription>
+            <name>Relation</name>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <description>Relation extracted by REBEL</description>
+            <features>
+                <featureDescription>
+                    <name>subject</name>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>predicate</name>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>object</name>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>confidence</name>
+                    <rangeTypeName>uima.cas.Float</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+    </types>
+</TypeSystemDescription>
