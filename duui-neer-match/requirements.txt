@@ -1,11 +1,19 @@
+annotated-types==0.7.0
+anyio==3.7.1
+attrs==25.4.0
 dkpro-cassis==0.10.1
-fastapi==0.136.0
+fastapi==0.104.1
 neer-match==0.8.4
 neer-match-utilities==1.1.6b0
 numpy==2.4.4
 pandas==3.0.2
-pydantic==2.13.3
-pydantic-settings==2.14.0
+pydantic==2.4.2
+pydantic-settings==2.0.3
+pydantic_core==2.10.1
 python-dotenv==1.2.2
+requests==2.33.1
 urllib3==2.6.3
 uvicorn==0.46.0
+
+# development deps
+matplotlib==3.10.8

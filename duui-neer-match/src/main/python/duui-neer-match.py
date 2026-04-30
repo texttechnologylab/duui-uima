@@ -1,3 +1,4 @@
+import json
 import logging
 from functools import lru_cache
 from platform import python_version
@@ -9,7 +10,7 @@ from urllib.parse import urlparse
 
 from cassis import load_typesystem
 from cassis.cas import Utf16CodepointOffsetConverter
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
@@ -45,10 +46,11 @@ logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
 class DuuiRequest(BaseModel):
-    pass
+    text: str
+    lang: str
 
 class DuuiResponse(BaseModel):
-    pass
+    text: str
 
 # load Lua communication script
 lua_communication_script: str
@@ -88,7 +90,16 @@ def get_typesystem() -> Response:
     return Response(content=typesystem, media_type="application/xml")
 
 # process duui request
-@app.post("/v1/process", response_model=DuuiResponse)
-def process(request: DuuiRequest) -> DuuiResponse:
-    # TODO: implement
-    return DuuiResponse()
+@app.post("/v1/process")
+def post_process(request: DuuiRequest) -> DuuiResponse:
+    logger.info("Received request with text of length %d and language '%s'", len(request.text), request.lang)
+    response_text = request.text.upper()  # TODO: replace with actual processing logic
+    return DuuiResponse(text=response_text)
+
+"""@app.post("/v1/process")
+async def post_process(request: Request) -> Response:
+    
+    logger.info("Received request: %s", await request.body())
+    request_json = await request.json()
+    response_text = request_json["text"].upper()  # TODO: replace with actual processing logic
+    return Response(content=json.dumps({"text": response_text}), media_type="application/json")"""
