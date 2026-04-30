@@ -1,12 +1,13 @@
 import logging
 import os.path
-from typing import List, Optional, Literal, Annotated, Tuple
+from typing import List, Literal, Annotated, Tuple, Union
 import pandas as pd
 import tensorflow as tf
-import pydantic
+import random
 from neer_match.matching_model import DLMatchingModel, NSMatchingModel
 from neer_match.similarity_map import SimilarityMap
 from pydantic import BaseModel, Field
+
 
 class ExportModelConfig(BaseModel):
     # the name of the model
@@ -18,6 +19,7 @@ class ExportModelConfig(BaseModel):
     # the path to the model file
     model_file: str = "model.ckpt"
 
+
 class TrainingSettings(BaseModel):
     learning_rate: float
     optimizer: Literal["adam", "sgd", "rmsprop"] = "adam"
@@ -25,6 +27,7 @@ class TrainingSettings(BaseModel):
     batch_size: int
     epochs: int
     verbose: bool = False
+
 
 class ProvidedSplitTrainingDataConfig(BaseModel):
     type: Literal["provided_split"]
@@ -35,7 +38,26 @@ class ProvidedSplitTrainingDataConfig(BaseModel):
     # the path to the matches file (.csv with columns "entity", "target")
     matches_file: str
 
-type TrainingDataConfig = Annotated[ProvidedSplitTrainingDataConfig, Field(discriminator="type")]
+
+class WordlistTrainingDataConfig(BaseModel):
+    type: Literal["wordlist"]
+    # the path to the wordlist file (.txt with one value per line)
+    file: str
+
+    # min noise to introduce (between 0 and 1)
+    min_noise: float = 0.01
+    # max noise to introduce (between 0 and 1)
+    max_noise: float = 0.2
+    # the number of modified samples to generate per original sample
+    samples_per_original: int = 5
+
+
+type TrainingDataConfig = Annotated[
+    Union[ProvidedSplitTrainingDataConfig,
+    WordlistTrainingDataConfig],
+    Field(discriminator="type")
+]
+
 
 class ModelConfig(ExportModelConfig):
     # the path to store the model file
@@ -47,7 +69,8 @@ class ModelConfig(ExportModelConfig):
 
 
 # noinspection PyUnhashable
-def load_training_data(config: ProvidedSplitTrainingDataConfig)-> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig) \
+        -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # load entity list
     if config.entity_list_file.endswith(".txt"):
         entities = pd.read_csv(config.entity_list_file, header=None, names=["value"])
@@ -83,6 +106,55 @@ def load_training_data(config: ProvidedSplitTrainingDataConfig)-> Tuple[pd.DataF
     matches = matches.rename(columns={"entity": "left", "target": "right"})
     return entities, targets, matches
 
+def introduce_noise(word: str, modifications: int) -> str:
+    if modifications == 0:
+        return word
+    word_list = list(word)
+    for _ in range(modifications):
+        operation = random.choice(["insert", "delete", "substitute"])
+        index = random.randint(0, len(word_list) - 1)
+        if operation == "insert":
+            char = random.choice("abcdefghijklmnopqrstuvwxyz")
+            word_list.insert(index, char)
+        elif operation == "delete" and len(word_list) > 1:
+            word_list.pop(index)
+        elif operation == "substitute":
+            char = random.choice("abcdefghijklmnopqrstuvwxyz")
+            word_list[index] = char
+    return "".join(word_list)
+
+def load_training_data_wordlist(config: WordlistTrainingDataConfig) \
+        -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    words: List[str] = []
+    with open(config.file, "r") as f:
+        for line in f:
+            word = line.strip()
+            if word:
+                words.append(word)
+    samples = []
+    matches = []
+    for index, word in enumerate(words):
+        samples.append(word)
+        matches.append((index, len(samples) - 1))
+        for _ in range(config.samples_per_original):
+            noise_level = random.uniform(config.min_noise, config.max_noise)
+            modifications = int(len(word) * noise_level)
+            modified_word = introduce_noise(word, modifications)
+            samples.append(modified_word)
+            matches.append((index, len(samples) - 1))
+    entities_df = pd.DataFrame({"value": words})
+    targets_df = pd.DataFrame({"value": samples})
+    matches_df = pd.DataFrame(matches, columns=["left", "right"])
+    return entities_df, targets_df, matches_df
+
+def load_training_data(config: TrainingDataConfig) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if isinstance(config, ProvidedSplitTrainingDataConfig):
+        return load_training_data_provided_split(config)
+    elif isinstance(config, WordlistTrainingDataConfig):
+        return load_training_data_wordlist(config)
+    else:
+        raise ValueError(f"Unsupported training data type: {config.type}")
+
 def create_model(config: ModelConfig) -> DLMatchingModel:
     similarity_map = SimilarityMap({"value": config.similarity_matchers})
     model = DLMatchingModel(similarity_map=similarity_map)
@@ -97,6 +169,7 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
     model.compile(optimizer=optimizer, loss=config.training_settings.loss_function)
     return model
 
+
 def train_model(config: ModelConfig) -> DLMatchingModel:
     left, right, matches = load_training_data(config.training_data)
     model = create_model(config)
@@ -107,6 +180,7 @@ def train_model(config: ModelConfig) -> DLMatchingModel:
         batch_size=config.training_settings.batch_size,
     )
     return model
+
 
 def export_model(model: DLMatchingModel, config: ModelConfig):
     export_path = config.export_path
@@ -126,6 +200,7 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
     with open(config_file_path, "w") as f:
         f.write(export_config.model_dump_json(indent=4))
 
+
 def main():
     # load model config
     config_path = "model_config.json"
@@ -137,6 +212,7 @@ def main():
     model = train_model(config)
     # export model
     export_model(model, config)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
