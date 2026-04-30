@@ -14,6 +14,8 @@ function serialize(inputCas, outputStream, parameters)
 end
 
 function deserialize(inputCas, inputStream)
-    local data = json.decode(inputStream:readAll())
+    local inputBytes = inputStream:readAll()
+    local inputString = luajava.newInstance("java.lang.String", inputBytes, StandardCharsets.UTF_8)
+    local data = json.decode(inputString)
     inputCas:setDocumentText(data.text)
 end
