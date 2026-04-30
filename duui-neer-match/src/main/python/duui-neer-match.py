@@ -95,11 +95,3 @@ def post_process(request: DuuiRequest) -> DuuiResponse:
     logger.info("Received request with text of length %d and language '%s'", len(request.text), request.lang)
     response_text = request.text.upper()  # TODO: replace with actual processing logic
     return DuuiResponse(text=response_text)
-
-"""@app.post("/v1/process")
-async def post_process(request: Request) -> Response:
-    
-    logger.info("Received request: %s", await request.body())
-    request_json = await request.json()
-    response_text = request_json["text"].upper()  # TODO: replace with actual processing logic
-    return Response(content=json.dumps({"text": response_text}), media_type="application/json")"""
