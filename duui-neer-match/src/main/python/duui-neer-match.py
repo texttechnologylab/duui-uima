@@ -1,27 +1,21 @@
-import json
 import logging
+import os.path
 from functools import lru_cache
-from platform import python_version
-from sys import version as sys_version
-from threading import Lock
-from time import time
-from typing import List, Optional, Union, Tuple, Dict
-from urllib.parse import urlparse
+from typing import List, Optional, Literal
 
-from cassis import load_typesystem
-from cassis.cas import Utf16CodepointOffsetConverter
-from neer_match.matching_model import DLMatchingModel
-from neer_match.similarity_map import SimilarityMap
-import tensorflow as tf
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import PlainTextResponse
 import pandas as pd
+from fastapi import FastAPI, Response
+from fastapi.responses import PlainTextResponse
+from neer_match.matching_model import DLMatchingModel, NSMatchingModel
+from neer_match.similarity_map import SimilarityMap
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 # TODO: adjust paths for deployment as docker image
 lua_communication_script_path = "../lua/communication_layer.lua"
 typesystem_path = "../resources/typesystem.xml"
+models_path = "../resources/models"
+
 
 # Settings
 # These are automatically loaded from env variables
@@ -36,6 +30,7 @@ class Settings(BaseSettings):
     class Config:
         env_prefix = "DUUI_NEER_MATCH_"
 
+
 # Load settings
 settings = Settings()
 
@@ -49,6 +44,18 @@ logger.info("TTLab Neer Match Annotator")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
+
+class ModelConfig(BaseModel):
+    # the name of the model (must match folder name in models_path)
+    name: str
+    # the type of the model, either "DL"
+    type: Literal["DL"]
+    # value similarity matchers
+    similarity_matchers: List[str]
+    # the path to the model file (relative to models_path)
+    model_file: str = "model.ckpt"
+
+
 class NeerMatchProperties(BaseModel):
     # the threshold for the matching process, between 0 and 1
     threshold: Optional[float] = None
@@ -59,6 +66,7 @@ class NeerMatchProperties(BaseModel):
     # the model to use for matching
     model: str = "example1"
 
+
 class DuuiRequest(BaseModel):
     # The entities to be matched, as list of strings
     entities: List[str]
@@ -67,12 +75,14 @@ class DuuiRequest(BaseModel):
     # Optional properties for the matching process
     properties: NeerMatchProperties
 
+
 class MatchSuggestion(BaseModel):
     # the matched target (value & index)
     target: str
     target_index: int
     # the similarity score between 0 and 1
     score: float
+
 
 class MatchResult(BaseModel):
     # the matched entity (value & index)
@@ -81,9 +91,11 @@ class MatchResult(BaseModel):
     # the list of suggestions for this entity
     suggestions: List[MatchSuggestion]
 
+
 class DuuiResponse(BaseModel):
     # the list of match results
     results: List[MatchResult]
+
 
 # load Lua communication script
 lua_communication_script: str
@@ -111,19 +123,49 @@ app = FastAPI(
     },
 )
 
+
 # Return Lua communication script
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
 def get_communication_layer() -> str:
     return lua_communication_script
+
 
 # Return typesystem
 @app.get("/v1/typesystem")
 def get_typesystem() -> Response:
     return Response(content=typesystem, media_type="application/xml")
 
-def get_model(model_name: str) -> DLMatchingModel:
-    # TODO: implement model loading based on model_name (and possibly caching)
-    return DLMatchingModel()
+
+@lru_cache(maxsize=3)
+def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
+    folder_path = f"{models_path}/{model_name}"
+    if not os.path.exists(folder_path):
+        raise ValueError(f"Model '{model_name}' not found.")
+    # load model config
+    config_path = f"{folder_path}/config.json"
+    if not os.path.exists(config_path):
+        raise ValueError(f"Model '{model_name}' invalid: missing config.json")
+    model_config: ModelConfig
+    with open(config_path, "r") as f:
+        model_config = ModelConfig.model_validate_json(f.read())
+    # load model
+    model_file_path = f"{folder_path}/{model_config.model_file}"
+    if not os.path.exists(model_file_path):
+        raise ValueError(f"Model '{model_name}' invalid: missing model file '{model_config.model_file}'")
+    if len(model_config.similarity_matchers) == 0:
+        raise ValueError(f"Model '{model_name}' invalid: no similarity matchers specified")
+    similarity_map: SimilarityMap = SimilarityMap({
+        "value": model_config.similarity_matchers
+    })
+    model: DLMatchingModel
+    if model_config.type == "DL":
+        model = DLMatchingModel(similarity_map)
+    elif model_config.type == "NS":
+        raise ValueError(f"Model '{model_name}' invalid: model type 'NS' not supported yet")
+    else:
+        raise ValueError(f"Model '{model_name}' invalid: unknown model type '{model_config.type}'")
+    model.load_weights(model_file_path)
+    return model
 
 # process duui request
 @app.post("/v1/process")
