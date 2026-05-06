@@ -54,6 +54,9 @@ class WordlistTrainingDataConfig(BaseModel):
     # the number of words to use from the wordlist
     sample_size: Optional[int] = None
 
+class TestDataConfig(BaseModel):
+    # the sample size for testing the model (number of entities and targets to use)
+    sample_size: int = 100
 
 class ModelConfig(ExportModelConfig):
     # the path to store the model file
@@ -62,11 +65,15 @@ class ModelConfig(ExportModelConfig):
     training_settings: TrainingSettings
     # the training data configuration
     training_data: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig] = Field(discriminator="type")
+    # the test data configuration
+    test_data: Optional[TestDataConfig] = None
+
+type Dataset = Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
 
 
 # noinspection PyUnhashable
-def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig) \
-        -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
+        -> Tuple[Dataset, Optional[Dataset]]:
     # load entity list
     if config.entity_list_file.endswith(".txt"):
         entities = pd.read_csv(config.entity_list_file, header=None, names=["value"])
@@ -98,9 +105,17 @@ def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig) \
         entities = entities.drop(columns=["id"])
     if "id" in targets.columns:
         targets = targets.drop(columns=["id"])
+    if (not isinstance(entities, pd.DataFrame)) or (not isinstance(targets, pd.DataFrame)) or (not isinstance(matches, pd.DataFrame)):
+        raise ValueError("Entities, targets, and matches must be pandas DataFrames")
     # rename matches columns to "left" and "right"
     matches = matches.rename(columns={"entity": "left", "target": "right"})
-    return entities, targets, matches
+    if (test_config is not None) and (test_config.sample_size is not None):
+        # sample test data
+        test_matches = matches.sample(n=test_config.sample_size)
+        test_entities = entities.iloc[test_matches["left"]].reset_index(drop=True)
+        test_targets = targets.iloc[test_matches["right"]].reset_index(drop=True)
+        return (entities, targets, matches), (test_entities, test_targets, test_matches)
+    return (entities, targets, matches), None
 
 def introduce_noise(word: str, modifications: int) -> str:
     if modifications == 0:
@@ -119,23 +134,14 @@ def introduce_noise(word: str, modifications: int) -> str:
             word_list[index] = char
     return "".join(word_list)
 
-def load_training_data_wordlist(config: WordlistTrainingDataConfig) \
-        -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    words: List[str] = []
-    with open(config.file, "r") as f:
-        for line in f:
-            word = line.strip()
-            if word:
-                words.append(word)
-    if config.sample_size is not None:
-        words = random.sample(words, min(len(words), config.sample_size))
+def build_dataset_from_words(words: List[str], samples_per_original: int, min_noise: float, max_noise: float) -> Dataset:
     samples = []
     matches = []
     for index, word in enumerate(words):
         samples.append(word)
         matches.append((index, len(samples) - 1))
-        for _ in range(config.samples_per_original):
-            noise_level = random.uniform(config.min_noise, config.max_noise)
+        for _ in range(samples_per_original):
+            noise_level = random.uniform(min_noise, max_noise)
             modifications = int(len(word) * noise_level)
             modified_word = introduce_noise(word, modifications)
             samples.append(modified_word)
@@ -145,7 +151,31 @@ def load_training_data_wordlist(config: WordlistTrainingDataConfig) \
     matches_df = pd.DataFrame(matches, columns=["left", "right"])
     return entities_df, targets_df, matches_df
 
-def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_training_data_wordlist(config: WordlistTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
+        -> Tuple[Dataset, Optional[Dataset]]:
+    all_words: List[str] = []
+    with open(config.file, "r") as f:
+        for line in f:
+            word = line.strip()
+            if word:
+                all_words.append(word)
+    if config.sample_size is not None:
+        words = random.sample(all_words, min(len(all_words), config.sample_size))
+    else:
+        words = all_words
+    (entities_df, targets_df, matches_df) = build_dataset_from_words(
+        words, config.samples_per_original, config.min_noise, config.max_noise
+    )
+    if test_config is not None:
+        test_words = random.sample(all_words, min(len(all_words), test_config.sample_size))
+        test_entities_df, test_targets_df, test_matches_df = build_dataset_from_words(
+            test_words, config.samples_per_original, config.min_noise, config.max_noise
+        )
+        return (entities_df, targets_df, matches_df), (test_entities_df, test_targets_df, test_matches_df)
+    return (entities_df, targets_df, matches_df), None
+
+def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig], test_config: Optional[TestDataConfig] = None) \
+        -> Tuple[Dataset, Optional[Dataset]]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
         return load_training_data_provided_split(config)
     elif isinstance(config, WordlistTrainingDataConfig):
@@ -168,8 +198,8 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
     return model
 
 
-def train_model(config: ModelConfig) -> DLMatchingModel:
-    left, right, matches = load_training_data(config.training_data)
+def train_model(config: ModelConfig, dataset: Dataset) -> DLMatchingModel:
+    left, right, matches = dataset
     model = create_model(config)
     model.fit(
         left, right, matches,
@@ -199,6 +229,9 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
         f.write(export_config.model_dump_json(indent=4))
 
 
+def test_model(model: DLMatchingModel, test_data: Dataset):
+    model.evaluate(test_data[0], test_data[1], test_data[2])
+
 def main():
     # load model config
     config_path = "model_config.json"
@@ -206,8 +239,12 @@ def main():
         raise ValueError(f"Model config file '{config_path}' not found")
     with open(config_path, "r") as f:
         config = ModelConfig.model_validate_json(f.read())
+    (training_data, test_data) = load_training_data(config.training_data, config.test_data)
     # train model
-    model = train_model(config)
+    model = train_model(config, training_data)
+    # test model if test data is provided
+    if test_data is not None:
+        test_model(model, test_data)
     # export model
     export_model(model, config)
 
