@@ -17,7 +17,7 @@ class ExportModelConfig(BaseModel):
     # value similarity matchers
     similarity_matchers: List[str]
     # the path to the model file
-    nn_model_file: str = Field(default="model.ckpt", alias="model_file")
+    nn_model_file: str = Field(default="model.weights.h5", alias="model_file")
 
 
 class TrainingSettings(BaseModel):
