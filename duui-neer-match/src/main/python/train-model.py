@@ -1,6 +1,6 @@
 import logging
 import os.path
-from typing import List, Literal, Annotated, Tuple, Union
+from typing import List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
 import random
@@ -50,6 +50,9 @@ class WordlistTrainingDataConfig(BaseModel):
     max_noise: float = 0.2
     # the number of modified samples to generate per original sample
     samples_per_original: int = 5
+
+    # the number of words to use from the wordlist
+    sample_size: Optional[int] = None
 
 
 class ModelConfig(ExportModelConfig):
@@ -124,6 +127,8 @@ def load_training_data_wordlist(config: WordlistTrainingDataConfig) \
             word = line.strip()
             if word:
                 words.append(word)
+    if config.sample_size is not None:
+        words = random.sample(words, min(len(words), config.sample_size))
     samples = []
     matches = []
     for index, word in enumerate(words):
