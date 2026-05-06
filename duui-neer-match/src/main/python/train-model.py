@@ -1,5 +1,6 @@
 import logging
 import os.path
+import sys
 from typing import List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
@@ -54,9 +55,11 @@ class WordlistTrainingDataConfig(BaseModel):
     # the number of words to use from the wordlist
     sample_size: Optional[int] = None
 
+
 class TestDataConfig(BaseModel):
     # the sample size for testing the model (number of entities and targets to use)
     sample_size: int = 100
+
 
 class ModelConfig(ExportModelConfig):
     # the path to store the model file
@@ -68,11 +71,13 @@ class ModelConfig(ExportModelConfig):
     # the test data configuration
     test_data: Optional[TestDataConfig] = None
 
+
 type Dataset = Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
 
 
 # noinspection PyUnhashable
-def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
+def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig,
+                                      test_config: Optional[TestDataConfig] = None) \
         -> Tuple[Dataset, Optional[Dataset]]:
     # load entity list
     if config.entity_list_file.endswith(".txt"):
@@ -105,7 +110,8 @@ def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig, t
         entities = entities.drop(columns=["id"])
     if "id" in targets.columns:
         targets = targets.drop(columns=["id"])
-    if (not isinstance(entities, pd.DataFrame)) or (not isinstance(targets, pd.DataFrame)) or (not isinstance(matches, pd.DataFrame)):
+    if (not isinstance(entities, pd.DataFrame)) or (not isinstance(targets, pd.DataFrame)) or (
+            not isinstance(matches, pd.DataFrame)):
         raise ValueError("Entities, targets, and matches must be pandas DataFrames")
     # rename matches columns to "left" and "right"
     matches = matches.rename(columns={"entity": "left", "target": "right"})
@@ -116,6 +122,7 @@ def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig, t
         test_targets = targets.iloc[test_matches["right"]].reset_index(drop=True)
         return (entities, targets, matches), (test_entities, test_targets, test_matches)
     return (entities, targets, matches), None
+
 
 def introduce_noise(word: str, modifications: int) -> str:
     if modifications == 0:
@@ -134,7 +141,9 @@ def introduce_noise(word: str, modifications: int) -> str:
             word_list[index] = char
     return "".join(word_list)
 
-def build_dataset_from_words(words: List[str], samples_per_original: int, min_noise: float, max_noise: float) -> Dataset:
+
+def build_dataset_from_words(words: List[str], samples_per_original: int, min_noise: float,
+                             max_noise: float) -> Dataset:
     samples = []
     matches = []
     for index, word in enumerate(words):
@@ -150,6 +159,7 @@ def build_dataset_from_words(words: List[str], samples_per_original: int, min_no
     targets_df = pd.DataFrame({"value": samples})
     matches_df = pd.DataFrame(matches, columns=["left", "right"])
     return entities_df, targets_df, matches_df
+
 
 def load_training_data_wordlist(config: WordlistTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
         -> Tuple[Dataset, Optional[Dataset]]:
@@ -174,7 +184,9 @@ def load_training_data_wordlist(config: WordlistTrainingDataConfig, test_config:
         return (entities_df, targets_df, matches_df), (test_entities_df, test_targets_df, test_matches_df)
     return (entities_df, targets_df, matches_df), None
 
-def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig], test_config: Optional[TestDataConfig] = None) \
+
+def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig],
+                       test_config: Optional[TestDataConfig] = None) \
         -> Tuple[Dataset, Optional[Dataset]]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
         return load_training_data_provided_split(config)
@@ -182,6 +194,7 @@ def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTr
         return load_training_data_wordlist(config)
     else:
         raise ValueError(f"Unsupported training data type: {config.type}")
+
 
 def create_model(config: ModelConfig) -> DLMatchingModel:
     similarity_map = SimilarityMap({"value": config.similarity_matchers})
@@ -232,13 +245,40 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
 def test_model(model: DLMatchingModel, test_data: Dataset):
     model.evaluate(test_data[0], test_data[1], test_data[2])
 
+
 def main():
     # load model config
     config_path = "model_config.json"
     if not os.path.exists(config_path):
+        print(f"Error: Model config file '{config_path}' not found\n", file=sys.stderr)
         raise ValueError(f"Model config file '{config_path}' not found")
     with open(config_path, "r") as f:
         config = ModelConfig.model_validate_json(f.read())
+    if len(config.similarity_matchers) == 0:
+        print("Error: No similarity matchers specified in model config\nAborting.", file=sys.stderr)
+        raise ValueError("No similarity matchers specified in model config")
+    if len(config.similarity_matchers) == 1:
+        print("Warning: Only one similarity matcher specified. This will render the deep learning useless, as the best solution would be an identity function.")
+        print("Do you want to continue? (y/n)")
+        while True:
+            response = input().strip().lower()
+            if response == "y" or response == "yes":
+                break
+            if response == "n" or response == "no":
+                print("Aborting")
+                return
+    if os.path.exists(f"{config.export_path}/config.json"):
+        print(f"Model '{config.name}' already exists at '{config.export_path}'. Overwrite? (y/n)")
+        while True:
+            response = input().strip().lower()
+            if response == "y" or response == "yes":
+                break
+            if response == "j" or response == "ja":
+                print("Note to self: User seems to be unable to understand english")  # Small joke
+                break
+            if response == "n" or response == "no":
+                print("Aborting")
+                return
     (training_data, test_data) = load_training_data(config.training_data, config.test_data)
     # train model
     model = train_model(config, training_data)
