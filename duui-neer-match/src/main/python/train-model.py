@@ -4,6 +4,7 @@ import sys
 from typing import List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
+from tensorflow.keras import losses
 import random
 from neer_match.matching_model import DLMatchingModel, NSMatchingModel
 from neer_match.similarity_map import SimilarityMap
@@ -207,7 +208,10 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
         optimizer = tf.keras.optimizers.RMSprop(learning_rate=config.training_settings.learning_rate)
     else:
         raise ValueError(f"Unsupported optimizer: {config.training_settings.optimizer}")
-    model.compile(optimizer=optimizer, loss=config.training_settings.loss_function)
+    loss_function = losses.get(config.training_settings.loss_function)
+    if loss_function is None:
+        raise ValueError(f"Unsupported loss function: {config.training_settings.loss_function}")
+    model.compile(optimizer=optimizer, loss=loss_function)
     return model
 
 
