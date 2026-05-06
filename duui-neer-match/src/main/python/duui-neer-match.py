@@ -8,7 +8,7 @@ from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from neer_match.matching_model import DLMatchingModel, NSMatchingModel
 from neer_match.similarity_map import SimilarityMap
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 # TODO: adjust paths for deployment as docker image
