@@ -164,6 +164,8 @@ def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
         raise ValueError(f"Model '{model_name}' invalid: model type 'NS' not supported yet")
     else:
         raise ValueError(f"Model '{model_name}' invalid: unknown model type '{model_config.type}'")
+    # Initialize model with dummy data to build the model architecture, then load weights
+    model.predict(pd.DataFrame({"value": ["example"]}), pd.DataFrame({"value": ["example"]}))
     model.load_weights(model_file_path)
     return model
 
