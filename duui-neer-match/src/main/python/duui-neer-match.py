@@ -53,7 +53,7 @@ class ModelConfig(BaseModel):
     # value similarity matchers
     similarity_matchers: List[str]
     # the path to the model file (relative to models_path)
-    model_file: str = "model.ckpt"
+    nn_model_file: str = Field(default="model.ckpt", alias="model_file")
 
 
 class NeerMatchProperties(BaseModel):
@@ -149,9 +149,9 @@ def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
     with open(config_path, "r") as f:
         model_config = ModelConfig.model_validate_json(f.read())
     # load model
-    model_file_path = f"{folder_path}/{model_config.model_file}"
+    model_file_path = f"{folder_path}/{model_config.nn_model_file}"
     if not os.path.exists(model_file_path):
-        raise ValueError(f"Model '{model_name}' invalid: missing model file '{model_config.model_file}'")
+        raise ValueError(f"Model '{model_name}' invalid: missing model file '{model_config.nn_model_file}'")
     if len(model_config.similarity_matchers) == 0:
         raise ValueError(f"Model '{model_name}' invalid: no similarity matchers specified")
     similarity_map: SimilarityMap = SimilarityMap({

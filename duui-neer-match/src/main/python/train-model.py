@@ -17,7 +17,7 @@ class ExportModelConfig(BaseModel):
     # value similarity matchers
     similarity_matchers: List[str]
     # the path to the model file
-    model_file: str = "model.ckpt"
+    nn_model_file: str = Field(default="model.ckpt", alias="model_file")
 
 
 class TrainingSettings(BaseModel):
@@ -52,20 +52,13 @@ class WordlistTrainingDataConfig(BaseModel):
     samples_per_original: int = 5
 
 
-type TrainingDataConfig = Annotated[
-    Union[ProvidedSplitTrainingDataConfig,
-    WordlistTrainingDataConfig],
-    Field(discriminator="type")
-]
-
-
 class ModelConfig(ExportModelConfig):
     # the path to store the model file
     export_path: str
     # the training settings
     training_settings: TrainingSettings
     # the training data configuration
-    training_data: TrainingDataConfig
+    training_data: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig] = Field(discriminator="type")
 
 
 # noinspection PyUnhashable
@@ -147,7 +140,7 @@ def load_training_data_wordlist(config: WordlistTrainingDataConfig) \
     matches_df = pd.DataFrame(matches, columns=["left", "right"])
     return entities_df, targets_df, matches_df
 
-def load_training_data(config: TrainingDataConfig) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
         return load_training_data_provided_split(config)
     elif isinstance(config, WordlistTrainingDataConfig):
@@ -187,14 +180,14 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
     if not os.path.exists(export_path):
         os.makedirs(export_path)
     # save model weights
-    model_file_path = f"{export_path}/{config.model_file}"
+    model_file_path = f"{export_path}/{config.nn_model_file}"
     model.save_weights(model_file_path)
     # save model config
     export_config = ExportModelConfig(
         name=config.name,
         type=config.type,
         similarity_matchers=config.similarity_matchers,
-        model_file=config.model_file
+        nn_model_file=config.nn_model_file
     )
     config_file_path = f"{export_path}/config.json"
     with open(config_file_path, "w") as f:
