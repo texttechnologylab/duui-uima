@@ -10,3 +10,6 @@ __pycache__
 ### Development environment ###
 venv
 .venv
+
+### Build artifacts ###
+src/main/resources/models/*
