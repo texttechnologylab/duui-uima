@@ -45,6 +45,9 @@ class WordlistTrainingDataConfig(BaseModel):
     # the path to the wordlist file (.txt with one value per line)
     file: str
 
+    # the minimum length of words to include in the training data
+    min_length: Optional[int] = None
+
     # min noise to introduce (between 0 and 1)
     min_noise: float = 0.01
     # max noise to introduce (between 0 and 1)
@@ -169,6 +172,8 @@ def load_training_data_wordlist(config: WordlistTrainingDataConfig, test_config:
             word = line.strip()
             if word:
                 all_words.append(word)
+    if config.min_length is not None:
+        all_words = [word for word in all_words if len(word) >= config.min_length]
     if config.sample_size is not None:
         words = random.sample(all_words, min(len(all_words), config.sample_size))
     else:
