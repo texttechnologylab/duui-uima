@@ -4,7 +4,6 @@ import sys
 from typing import List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
-from tensorflow.keras import losses
 import random
 from neer_match.matching_model import DLMatchingModel, NSMatchingModel
 from neer_match.similarity_map import SimilarityMap
@@ -190,9 +189,9 @@ def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTr
                        test_config: Optional[TestDataConfig] = None) \
         -> Tuple[Dataset, Optional[Dataset]]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
-        return load_training_data_provided_split(config)
+        return load_training_data_provided_split(config, test_config)
     elif isinstance(config, WordlistTrainingDataConfig):
-        return load_training_data_wordlist(config)
+        return load_training_data_wordlist(config, test_config)
     else:
         raise ValueError(f"Unsupported training data type: {config.type}")
 
@@ -208,8 +207,11 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
         optimizer = tf.keras.optimizers.RMSprop(learning_rate=config.training_settings.learning_rate)
     else:
         raise ValueError(f"Unsupported optimizer: {config.training_settings.optimizer}")
-    loss_function = losses.get(config.training_settings.loss_function)
-    if loss_function is None:
+    if config.training_settings.loss_function == "binary_crossentropy":
+        loss_function = tf.keras.losses.BinaryCrossentropy()
+    elif config.training_settings.loss_function == "mean_squared_error":
+        loss_function = tf.keras.losses.MeanSquaredError()
+    else:
         raise ValueError(f"Unsupported loss function: {config.training_settings.loss_function}")
     model.compile(optimizer=optimizer, loss=loss_function)
     return model
@@ -246,8 +248,10 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
         f.write(export_config.model_dump_json(indent=4))
 
 
-def test_model(model: DLMatchingModel, test_data: Dataset):
-    model.evaluate(test_data[0], test_data[1], test_data[2])
+def test_model(model: DLMatchingModel, test_data: Dataset, batch_size: int):
+    left, right, matches = test_data
+    evaluation = model.evaluate(left, right, matches, verbose=1, batch_size=batch_size)
+    print(f"Test evaluation: {evaluation}")
 
 
 def main():
@@ -288,7 +292,7 @@ def main():
     model = train_model(config, training_data)
     # test model if test data is provided
     if test_data is not None:
-        test_model(model, test_data)
+        test_model(model, test_data, config.training_settings.batch_size)
     # export model
     export_model(model, config)
 
