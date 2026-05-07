@@ -222,6 +222,12 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
     return model
 
 
+def print_dataset(dataset: Dataset):
+    left, right, matches = dataset
+    joined = matches.merge(left.rename(columns={"value": "left_value"}), left_on="left", right_index=True) \
+        .merge(right.rename(columns={"value": "right_value"}), left_on="right", right_index=True)
+    print(joined[["left_value", "right_value"]])
+
 def train_model(config: ModelConfig, dataset: Dataset) -> DLMatchingModel:
     left, right, matches = dataset
     model = create_model(config)
