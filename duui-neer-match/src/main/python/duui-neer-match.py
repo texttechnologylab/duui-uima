@@ -1,7 +1,7 @@
 import logging
 import os.path
 from functools import lru_cache
-from typing import Any, List, Optional, Literal, Union
+from typing import Annotated, Any, List, Optional, Literal, Union
 
 import pandas as pd
 from fastapi import FastAPI, Response
@@ -60,49 +60,63 @@ class NeerMatchProperties(BaseModel):
     # the threshold for the matching process, between 0 and 1
     threshold: Optional[float] = None
     # the maximum number of matches to return per entity
-    limit: int = 10
+    # limit: Optional[int] = None
     # the batch size for processing (if supported by the model)
     batch_size: int = 16
     # the model to use for matching
     model: str = "example1"
 
-class RequestEntity(BaseModel):
+
+class DocumentEntity(BaseModel):
     # the text of the entity
     text: str
-    # custom user-defined properties for the entity
-    user_data: Optional[Any] = None
+    # enity id
+    entity_id: Union[str, int]
 
-class DuuiRequest(BaseModel):
+
+class DuuiStoreRequest(BaseModel):
+    action: Literal["store"]
+    pipeline_id: str
     # The entities to be matched, as list of strings
-    entities: List[Union[str, RequestEntity]]
-    # The target texts to match against, as list of strings
-    targets: List[Union[str, RequestEntity]]
-    # Optional properties for the matching process
+    entities: List[DocumentEntity]
+
+
+class DuuiProcessRequest(BaseModel):
+    action: Literal["process"]
+    pipeline_id: str
+    clear_storage: bool = True
+    # Matching properties
     properties: NeerMatchProperties
 
 
-class MatchSuggestion(BaseModel):
-    # the matched target (value & index)
-    target: str
-    target_user_data: Optional[Any] = None
-    target_index: int
+class MatchPrediction(BaseModel):
+    document_1_entity: DocumentEntity
+    document_2_entity: DocumentEntity
     # the similarity score between 0 and 1
     score: float
 
 
 class MatchResult(BaseModel):
-    # the matched entity (value & index)
-    entity: str
-    entity_user_data: Optional[Any] = None
-    entity_index: int
-    # the list of suggestions for this entity
-    suggestions: List[MatchSuggestion]
+    document_1_index: int
+    document_2_index: int
+    predictions: List[MatchPrediction]
 
 
-class DuuiResponse(BaseModel):
-    # the list of match results
+class DuuiStoreResponse(BaseModel):
+    action: Literal["store"]
+    pipeline_id: str
+    stored_index: int
+    stored_count: int
+
+
+class DuuiProcessResponse(BaseModel):
+    action: Literal["process"]
+    pipeline_id: str
     results: List[MatchResult]
 
+
+type DuuiRequest = Annotated[Union[DuuiStoreRequest, DuuiProcessRequest], Field(discriminator="action")]
+type DuuiResponse = Annotated[Union[DuuiStoreResponse, DuuiProcessResponse], Field(discriminator="action")]
 
 # load Lua communication script
 lua_communication_script: str
@@ -176,46 +190,99 @@ def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
     model.load_weights(model_file_path)
     return model
 
-def to_text(value: Union[str, RequestEntity]) -> str:
-    if isinstance(value, str):
-        return value
-    elif isinstance(value, RequestEntity):
-        return value.text
-    else:
-        raise ValueError(f"Invalid value type: {type(value)}")
+
+class PipelineDocument(BaseModel):
+    entities: List[DocumentEntity]
+
+
+class PipelineEntity(BaseModel):
+    pipeline_id: str
+    documents: List[PipelineDocument]
+
+
+class PipelineStorage:
+    pipelines: dict[str, PipelineEntity]
+
+    def __init__(self):
+        self.pipelines = {}
+
+    def store(self, pipeline_id: str, entities: List[DocumentEntity]) -> int:
+        if pipeline_id not in self.pipelines:
+            self.pipelines[pipeline_id] = PipelineEntity(pipeline_id=pipeline_id, documents=[])
+        stored_index = len(self.pipelines[pipeline_id].documents)
+        self.pipelines[pipeline_id].documents.append(PipelineDocument(entities=entities))
+        return stored_index
+
+    def get(self, pipeline_id: str) -> PipelineEntity:
+        if pipeline_id not in self.pipelines:
+            raise ValueError(f"Pipeline '{pipeline_id}' not found.")
+        return self.pipelines[pipeline_id]
+
+    def clear(self, pipeline_id: str):
+        if pipeline_id in self.pipelines:
+            del self.pipelines[pipeline_id]
+
+
+pipeline_storage = PipelineStorage()
+
+
+def handle_store(request: DuuiStoreRequest) -> DuuiStoreResponse:
+    stored_index = pipeline_storage.store(request.pipeline_id, request.entities)
+    return DuuiStoreResponse(
+        action="store",
+        pipeline_id=request.pipeline_id,
+        stored_index=stored_index,
+        stored_count=len(request.entities)
+    )
+
+
+def handle_process(request: DuuiProcessRequest) -> DuuiProcessResponse:
+    pipeline_entity = pipeline_storage.get(request.pipeline_id)
+    model = get_model(request.properties.model)
+    results: List[MatchResult] = []
+    for i, doc1 in enumerate(pipeline_entity.documents):
+        for j, doc2 in enumerate(pipeline_entity.documents):
+            if i >= j:
+                continue
+            predictions_df = model.predict(
+                pd.DataFrame({"value": [e.text for e in doc1.entities]}),
+                pd.DataFrame({"value": [e.text for e in doc2.entities]}),
+                batch_size=request.properties.batch_size,
+                verbose=1
+            )
+            predictions: List[MatchPrediction] = []
+            for idx, row in predictions_df.iterrows():
+                score = row["prediction"]
+                if request.properties.threshold is not None and score < request.properties.threshold:
+                    continue
+                left_idx = row["left"]
+                right_idx = row["right"]
+                left_entity = doc1.entities[left_idx]
+                right_entity = doc2.entities[right_idx]
+                predictions.append(MatchPrediction(
+                    document_1_entity=left_entity,
+                    document_2_entity=right_entity,
+                    score=score
+                ))
+            results.append(MatchResult(
+                document_1_index=i,
+                document_2_index=j,
+                predictions=predictions
+            ))
+    if request.clear_storage:
+        pipeline_storage.clear(request.pipeline_id)
+    return DuuiProcessResponse(
+        action="process",
+        pipeline_id=request.pipeline_id,
+        results=results
+    )
 
 # process duui request
 @app.post("/v1/process")
 def post_process(request: DuuiRequest) -> DuuiResponse:
-    model = get_model(request.properties.model)
-    left_data = pd.DataFrame({"value": [to_text(entity) for entity in request.entities]})
-    right_data = pd.DataFrame({"value": [to_text(target) for target in request.targets]})
-
-    # suggest using model
-    suggestions = model.suggest(
-        left_data, right_data,
-        count=request.properties.limit,
-        batch_size=request.properties.batch_size
-    )
-    suggestions.sort_values(by=["left", "prediction"], ascending=[True, False], inplace=True)
-
-    results: List[MatchResult] = [MatchResult(
-        entity=to_text(request.entities[i]),
-        entity_index=i,
-        suggestions=[],
-        entity_user_data=request.entities[i].user_data if isinstance(request.entities[i], RequestEntity) else None
-    ) for i in range(len(request.entities))]
-    # extract suggestions and group by entity index
-    for _, row in suggestions.iterrows():
-        entity_index = int(row["left"])
-        target_index = int(row["right"])
-        score = float(row["prediction"])
-        if request.properties.threshold is not None and score < request.properties.threshold:
-            continue
-        results[entity_index].suggestions.append(MatchSuggestion(
-            target=to_text(request.targets[target_index]),
-            target_index=target_index,
-            score=score,
-            target_user_data=request.targets[target_index].user_data if isinstance(request.targets[target_index], RequestEntity) else None
-        ))
-    return DuuiResponse(results=results)
+    if isinstance(request, DuuiStoreRequest):
+        return handle_store(request)
+    elif isinstance(request, DuuiProcessRequest):
+        return handle_process(request)
+    else:
+        raise ValueError("Invalid request")
