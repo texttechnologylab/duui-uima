@@ -1,5 +1,9 @@
 package org.texttechnologylab.duui.neermatch;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.uima.UIMAException;
 import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.fit.factory.JCasFactory;
@@ -10,30 +14,31 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIPodmanDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
-import org.texttechnologylab.annotation.NeerMatchPrediction;
 import org.xml.sax.SAXException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 
 public class NeerMatchTest {
 
+	static final String NEER_MATCH_URL = "http://localhost:12345";
+
 	DUUIComposer composer;
 	JCas cas1;
 	JCas cas2;
-	JCas resultCas;
+	String pipelineId;
+	String model = "test3";
+	double threshold = 0.1;
 
 	@BeforeEach
 	public void setup() throws IOException, URISyntaxException, UIMAException, SAXException {
-		try {
-			ClassLoader.getSystemClassLoader().loadClass("org.texttechnologylab.annotation.NeerMatchPrediction");
-		} catch (ClassNotFoundException e) {
-			throw new RuntimeException(e);
-		}
 		composer = new DUUIComposer()
 			.withSkipVerification(true)
 			.withLuaContext(new DUUILuaContext().withJsonLibrary());
@@ -48,9 +53,7 @@ public class NeerMatchTest {
 		cas2.setDocumentLanguage("de");
 		cas2.setDocumentText("Dies ist der zweite Test!");
 
-		resultCas = JCasFactory.createJCas();
-		resultCas.setDocumentLanguage("de");
-		resultCas.setDocumentText("");
+		pipelineId = UUID.randomUUID().toString();
 	}
 
 	@Test
@@ -59,29 +62,41 @@ public class NeerMatchTest {
 		composer.add(
 			new DUUIPodmanDriver.Component("docker.texttechnologylab.org/textimager-duui-spacy:0.4.0").withImageFetching()
 				.build());
-		composer.add(new DUUIRemoteDriver.Component("http://localhost:12345")
+		composer.add(new DUUIRemoteDriver.Component(NEER_MATCH_URL)
 			.withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
-			.withParameter("model", "test3")
-			.withParameter("pipeline_id", UUID.randomUUID().toString())
-			.withParameter("threshold", "0.1")
+			.withParameter("pipeline_id", pipelineId)
 			.build()
 		);
 		composer.run(cas1);
 		composer.run(cas2);
-		composer.run(resultCas);
 
-		saveXmi(cas1, "cas1.xmi");
-		saveXmi(cas2, "cas2.xmi");
-		saveXmi(resultCas, "resultCas.xmi");
+		JsonObject result = finalizeNeerMatch();
+		Gson gson = new GsonBuilder()
+			.setPrettyPrinting()
+			.create();
+		System.out.println(gson.toJson(result));
 	}
 
-	void saveXmi(JCas cas, String filename) throws IOException, SAXException {
-		String xmi;
-		try (var baos = new ByteArrayOutputStream()) {
-			XmiCasSerializer.serialize(cas.getCas(), baos);
-			xmi = baos.toString();
+	JsonObject finalizeNeerMatch() throws IOException, InterruptedException {
+		String response;
+		try (HttpClient client = HttpClient.newHttpClient()) {
+			JsonObject requestBody = new JsonObject();
+			requestBody.addProperty("pipeline_id", pipelineId);
+			JsonObject requestProperties = new JsonObject();
+			requestProperties.addProperty("model", model);
+			requestProperties.addProperty("threshold", threshold);
+			requestBody.add("properties", requestProperties);
+
+			response = client.send(
+				HttpRequest.newBuilder()
+					.uri(java.net.URI.create(NEER_MATCH_URL + "/v1/finalize"))
+					.header("Content-Type", "application/json")
+					.POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
+					.build(),
+				HttpResponse.BodyHandlers.ofString()
+			).body();
 		}
-		Files.createDirectories(Path.of("results"));
-		Files.writeString(Path.of("results", filename), xmi);
+
+		return JsonParser.parseString(response).getAsJsonObject();
 	}
 }
