@@ -4,7 +4,8 @@ from functools import lru_cache
 from typing import Annotated, Any, List, Optional, Literal, Union
 
 import pandas as pd
-from fastapi import FastAPI, Response
+import numpy as np
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse
 from neer_match.matching_model import DLMatchingModel, NSMatchingModel
 from neer_match.similarity_map import SimilarityMap
@@ -76,14 +77,12 @@ class DocumentEntity(BaseModel):
 
 class DuuiStoreRequest(BaseModel):
     action: Literal["store"]
-    pipeline_id: str
     # The entities to be matched, as list of strings
     entities: List[DocumentEntity]
 
 
 class DuuiProcessRequest(BaseModel):
     action: Literal["process"]
-    pipeline_id: str
     clear_storage: bool = True
     # Matching properties
     properties: NeerMatchProperties
@@ -104,19 +103,22 @@ class MatchResult(BaseModel):
 
 class DuuiStoreResponse(BaseModel):
     action: Literal["store"]
-    pipeline_id: str
     stored_index: int
     stored_count: int
 
 
 class DuuiProcessResponse(BaseModel):
     action: Literal["process"]
-    pipeline_id: str
     results: List[MatchResult]
 
 
-type DuuiRequest = Annotated[Union[DuuiStoreRequest, DuuiProcessRequest], Field(discriminator="action")]
-type DuuiResponse = Annotated[Union[DuuiStoreResponse, DuuiProcessResponse], Field(discriminator="action")]
+class DuuiRequest(BaseModel):
+    pipeline_id: str
+    data: Union[DuuiStoreRequest, DuuiProcessRequest] = Field(discriminator="action")
+
+class DuuiResponse(BaseModel):
+    pipeline_id: str
+    data: Union[DuuiStoreResponse, DuuiProcessResponse] = Field(discriminator="action")
 
 # load Lua communication script
 lua_communication_script: str
@@ -226,37 +228,36 @@ class PipelineStorage:
 pipeline_storage = PipelineStorage()
 
 
-def handle_store(request: DuuiStoreRequest) -> DuuiStoreResponse:
-    stored_index = pipeline_storage.store(request.pipeline_id, request.entities)
+def handle_store(pipeline_id: str, request: DuuiStoreRequest) -> DuuiStoreResponse:
+    stored_index = pipeline_storage.store(pipeline_id, request.entities)
     return DuuiStoreResponse(
         action="store",
-        pipeline_id=request.pipeline_id,
         stored_index=stored_index,
         stored_count=len(request.entities)
     )
 
 
-def handle_process(request: DuuiProcessRequest) -> DuuiProcessResponse:
-    pipeline_entity = pipeline_storage.get(request.pipeline_id)
+def handle_process(pipeline_id: str, request: DuuiProcessRequest) -> DuuiProcessResponse:
+    pipeline_entity = pipeline_storage.get(pipeline_id)
     model = get_model(request.properties.model)
     results: List[MatchResult] = []
     for i, doc1 in enumerate(pipeline_entity.documents):
         for j, doc2 in enumerate(pipeline_entity.documents):
             if i >= j:
                 continue
-            predictions_df = model.predict(
+            predictions_np: np.ndarray = model.predict(
                 pd.DataFrame({"value": [e.text for e in doc1.entities]}),
                 pd.DataFrame({"value": [e.text for e in doc2.entities]}),
                 batch_size=request.properties.batch_size,
                 verbose=1
             )
             predictions: List[MatchPrediction] = []
-            for idx, row in predictions_df.iterrows():
-                score = row["prediction"]
+            for idx, row in enumerate(predictions_np):
+                score = row[0]
                 if request.properties.threshold is not None and score < request.properties.threshold:
                     continue
-                left_idx = row["left"]
-                right_idx = row["right"]
+                left_idx = idx // len(doc2.entities)
+                right_idx = idx % len(doc2.entities)
                 left_entity = doc1.entities[left_idx]
                 right_entity = doc2.entities[right_idx]
                 predictions.append(MatchPrediction(
@@ -270,19 +271,22 @@ def handle_process(request: DuuiProcessRequest) -> DuuiProcessResponse:
                 predictions=predictions
             ))
     if request.clear_storage:
-        pipeline_storage.clear(request.pipeline_id)
+        pipeline_storage.clear(pipeline_id)
     return DuuiProcessResponse(
         action="process",
-        pipeline_id=request.pipeline_id,
         results=results
     )
 
 # process duui request
 @app.post("/v1/process")
-def post_process(request: DuuiRequest) -> DuuiResponse:
-    if isinstance(request, DuuiStoreRequest):
-        return handle_store(request)
-    elif isinstance(request, DuuiProcessRequest):
-        return handle_process(request)
+async def post_process(request: DuuiRequest) -> DuuiResponse:
+    if isinstance(request.data, DuuiStoreRequest):
+        response_data = handle_store(request.pipeline_id, request.data)
+    elif isinstance(request.data, DuuiProcessRequest):
+        response_data = handle_process(request.pipeline_id, request.data)
     else:
-        raise ValueError("Invalid request")
+        raise ValueError(f"Unknown request action '{request.data.action}'")
+    return DuuiResponse(
+        pipeline_id=request.pipeline_id,
+        data=response_data
+    )
