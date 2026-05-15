@@ -1,7 +1,7 @@
 import logging
 import os.path
 from functools import lru_cache
-from typing import List, Optional, Literal
+from typing import Any, List, Optional, Literal, Union
 
 import pandas as pd
 from fastapi import FastAPI, Response
@@ -66,12 +66,17 @@ class NeerMatchProperties(BaseModel):
     # the model to use for matching
     model: str = "example1"
 
+class RequestEntity(BaseModel):
+    # the text of the entity
+    text: str
+    # custom user-defined properties for the entity
+    user_data: Optional[Any] = None
 
 class DuuiRequest(BaseModel):
     # The entities to be matched, as list of strings
-    entities: List[str]
+    entities: List[Union[str, RequestEntity]]
     # The target texts to match against, as list of strings
-    targets: List[str]
+    targets: List[Union[str, RequestEntity]]
     # Optional properties for the matching process
     properties: NeerMatchProperties
 
@@ -79,6 +84,7 @@ class DuuiRequest(BaseModel):
 class MatchSuggestion(BaseModel):
     # the matched target (value & index)
     target: str
+    target_user_data: Optional[Any] = None
     target_index: int
     # the similarity score between 0 and 1
     score: float
@@ -87,6 +93,7 @@ class MatchSuggestion(BaseModel):
 class MatchResult(BaseModel):
     # the matched entity (value & index)
     entity: str
+    entity_user_data: Optional[Any] = None
     entity_index: int
     # the list of suggestions for this entity
     suggestions: List[MatchSuggestion]
@@ -169,12 +176,20 @@ def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
     model.load_weights(model_file_path)
     return model
 
+def to_text(value: Union[str, RequestEntity]) -> str:
+    if isinstance(value, str):
+        return value
+    elif isinstance(value, RequestEntity):
+        return value.text
+    else:
+        raise ValueError(f"Invalid value type: {type(value)}")
+
 # process duui request
 @app.post("/v1/process")
 def post_process(request: DuuiRequest) -> DuuiResponse:
     model = get_model(request.properties.model)
-    left_data = pd.DataFrame({"value": request.entities})
-    right_data = pd.DataFrame({"value": request.targets})
+    left_data = pd.DataFrame({"value": [to_text(entity) for entity in request.entities]})
+    right_data = pd.DataFrame({"value": [to_text(target) for target in request.targets]})
 
     # suggest using model
     suggestions = model.suggest(
@@ -185,9 +200,10 @@ def post_process(request: DuuiRequest) -> DuuiResponse:
     suggestions.sort_values(by=["left", "prediction"], ascending=[True, False], inplace=True)
 
     results: List[MatchResult] = [MatchResult(
-        entity=request.entities[i],
+        entity=to_text(request.entities[i]),
         entity_index=i,
-        suggestions=[]
+        suggestions=[],
+        entity_user_data=request.entities[i].user_data if isinstance(request.entities[i], RequestEntity) else None
     ) for i in range(len(request.entities))]
     # extract suggestions and group by entity index
     for _, row in suggestions.iterrows():
@@ -197,8 +213,9 @@ def post_process(request: DuuiRequest) -> DuuiResponse:
         if request.properties.threshold is not None and score < request.properties.threshold:
             continue
         results[entity_index].suggestions.append(MatchSuggestion(
-            target=request.targets[target_index],
+            target=to_text(request.targets[target_index]),
             target_index=target_index,
-            score=score
+            score=score,
+            target_user_data=request.targets[target_index].user_data if isinstance(request.targets[target_index], RequestEntity) else None
         ))
     return DuuiResponse(results=results)
