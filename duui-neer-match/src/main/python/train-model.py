@@ -1,7 +1,7 @@
 import logging
 import os.path
 import sys
-from typing import List, Literal, Annotated, Tuple, Union, Optional
+from typing import Dict, List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
 import random
@@ -10,13 +10,20 @@ from neer_match.similarity_map import SimilarityMap
 from pydantic import BaseModel, Field
 
 
+class EntityPropertyConfig(BaseModel):
+    # the type of the property
+    property_type: Literal["text", "numeric"]
+    # the similarity matchers to use for this property
+    similarity_matchers: List[str]
+
+
 class ExportModelConfig(BaseModel):
     # the name of the model
     name: str
     # the type of the model, either "DL"
     type: Literal["DL"]
-    # value similarity matchers
-    similarity_matchers: List[str]
+    # the properties of the entities
+    entity_properties: Dict[str, EntityPropertyConfig]
     # the path to the model file
     nn_model_file: str = Field(default="model.weights.h5", alias="model_file")
 
@@ -40,18 +47,32 @@ class ProvidedSplitTrainingDataConfig(BaseModel):
     matches_file: str
 
 
-class WordlistTrainingDataConfig(BaseModel):
-    type: Literal["wordlist"]
-    # the path to the wordlist file (.txt with one value per line)
+class UnchangedPropertyMutationConfig(BaseModel):
+    type: Literal["unchanged"]
+
+class TextPropertyMutationConfig(BaseModel):
+    type: Literal["text"]
+    # the minimum noise to introduce (between 0 and 1)
+    min_noise: float = 0.01
+    # the maximum noise to introduce (between 0 and 1)
+    max_noise: float = 0.2
+
+class NumericPropertyMutationConfig(BaseModel):
+    type: Literal["numeric"]
+    # the maximum absolute noise to introduce (at most +/- this value)
+    max_noise: float = 0.2
+
+class SingleDatasetTrainingDataConfig(BaseModel):
+    type: Literal["single_dataset"]
+    # the path to the wordlist or dataset file (.txt with one value per line)
     file: str
 
     # the minimum length of words to include in the training data
     min_length: Optional[int] = None
 
-    # min noise to introduce (between 0 and 1)
-    min_noise: float = 0.01
-    # max noise to introduce (between 0 and 1)
-    max_noise: float = 0.2
+    # the mutation configs for each property (key is the property name, e.g. "text")
+    property_mutations: Dict[str, Annotated[Union[UnchangedPropertyMutationConfig, TextPropertyMutationConfig, NumericPropertyMutationConfig], Field(discriminator="type")]] = Field(default_factory=dict)
+
     # the number of modified samples to generate per original sample
     samples_per_original: int = 5
 
@@ -70,7 +91,7 @@ class ModelConfig(ExportModelConfig):
     # the training settings
     training_settings: TrainingSettings
     # the training data configuration
-    training_data: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig] = Field(discriminator="type")
+    training_data: Union[ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig] = Field(discriminator="type")
     # the test data configuration
     test_data: Optional[TestDataConfig] = None
 
@@ -84,18 +105,18 @@ def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig,
         -> Tuple[Dataset, Optional[Dataset]]:
     # load entity list
     if config.entity_list_file.endswith(".txt"):
-        entities = pd.read_csv(config.entity_list_file, header=None, names=["value"])
+        entities = pd.read_csv(config.entity_list_file, header=None, names=["text"])
     else:
         entities = pd.read_csv(config.entity_list_file)
-        if "value" not in entities.columns:
-            raise ValueError("Entity list file must contain a 'value' column")
+        if "text" not in entities.columns:
+            raise ValueError("Entity list file must contain a 'text' column")
     # load target list
     if config.target_list_file.endswith(".txt"):
-        targets = pd.read_csv(config.target_list_file, header=None, names=["value"])
+        targets = pd.read_csv(config.target_list_file, header=None, names=["text"])
     else:
         targets = pd.read_csv(config.target_list_file)
-        if "value" not in targets.columns:
-            raise ValueError("Target list file must contain a 'value' column")
+        if "text" not in targets.columns:
+            raise ValueError("Target list file must contain a 'text' column")
     # load matches
     matches = pd.read_csv(config.matches_file)
     if not all(col in matches.columns for col in ["entity", "target"]):
@@ -127,82 +148,100 @@ def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig,
     return (entities, targets, matches), None
 
 
-def introduce_noise(word: str, modifications: int) -> str:
+def text_introduce_noise(text: str, modifications: int) -> str:
     if modifications == 0:
-        return word
-    word_list = list(word)
+        return text
+    text_list = list(text)
     for _ in range(modifications):
         operation = random.choice(["insert", "delete", "substitute"])
-        index = random.randint(0, len(word_list) - 1)
+        index = random.randint(0, len(text_list) - 1)
         if operation == "insert":
             char = random.choice("abcdefghijklmnopqrstuvwxyz")
-            word_list.insert(index, char)
-        elif operation == "delete" and len(word_list) > 1:
-            word_list.pop(index)
+            text_list.insert(index, char)
+        elif operation == "delete" and len(text_list) > 1:
+            text_list.pop(index)
         elif operation == "substitute":
             char = random.choice("abcdefghijklmnopqrstuvwxyz")
-            word_list[index] = char
-    return "".join(word_list)
+            text_list[index] = char
+    return "".join(text_list)
+
+def numeric_introduce_noise(value: float, max_noise: float) -> float:
+    noise = random.uniform(-max_noise, max_noise)
+    return value + noise
 
 
-def build_dataset_from_words(words: List[str], samples_per_original: int, min_noise: float,
-                             max_noise: float) -> Dataset:
+def build_dataset_from_words(words: List[Dict[str, Union[str, float]]], samples_per_original: int, mutation_configs: Dict[str, Union[UnchangedPropertyMutationConfig, TextPropertyMutationConfig, NumericPropertyMutationConfig]]) -> Dataset:
     samples = []
     matches = []
     for index, word in enumerate(words):
         samples.append(word)
         matches.append((index, len(samples) - 1))
         for _ in range(samples_per_original):
-            noise_level = random.uniform(min_noise, max_noise)
-            modifications = int(len(word) * noise_level)
-            modified_word = introduce_noise(word, modifications)
-            samples.append(modified_word)
+            modified_entry = {}
+            for property_name, mutation_config in mutation_configs.items():
+                if mutation_config.type == "unchanged":
+                    modified_entry[property_name] = word[property_name]
+                elif mutation_config.type == "text":
+                    modified_entry[property_name] = text_introduce_noise(
+                        word[property_name], int(len(word[property_name]) * mutation_config.max_noise)
+                    )
+                elif mutation_config.type == "numeric":
+                    modified_entry[property_name] = numeric_introduce_noise(
+                        word[property_name], mutation_config.max_noise
+                    )
+                else:
+                    raise ValueError(f"Unsupported mutation type: {mutation_config.type}")
+            samples.append(modified_entry)
             matches.append((index, len(samples) - 1))
-    entities_df = pd.DataFrame({"value": words})
-    targets_df = pd.DataFrame({"value": samples})
+    entities_df = pd.DataFrame({k: [entry[k] for entry in words] for k in mutation_configs.keys()})
+    targets_df = pd.DataFrame({k: [entry[k] for entry in samples] for k in mutation_configs.keys()})
     matches_df = pd.DataFrame(matches, columns=["left", "right"])
     return entities_df, targets_df, matches_df
 
 
-def load_training_data_wordlist(config: WordlistTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
+def load_training_data_single_dataset(config: SingleDatasetTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
         -> Tuple[Dataset, Optional[Dataset]]:
-    all_words: List[str] = []
-    with open(config.file, "r") as f:
-        for line in f:
-            word = line.strip()
-            if word:
-                all_words.append(word)
+    all_words: List[Dict[str, Union[str, float]]]
+    if config.file.endswith(".txt"):
+        all_words = pd.read_csv(config.file, header=None, names=["text"]).to_dict(orient="records")
+    elif config.file.endswith(".csv"):
+        df = pd.read_csv(config.file)
+        if "text" not in df.columns:
+            raise ValueError("Dataset file must contain a 'text' column")
+        all_words = df.to_dict(orient="records")
+    else:
+        raise ValueError("Unsupported file format for dataset. Only .txt and .csv are supported")
     if config.min_length is not None:
-        all_words = [word for word in all_words if len(word) >= config.min_length]
+        all_words = [entry for entry in all_words if len(entry["text"]) >= config.min_length]
     if config.sample_size is not None:
         words = random.sample(all_words, min(len(all_words), config.sample_size))
     else:
         words = all_words
     (entities_df, targets_df, matches_df) = build_dataset_from_words(
-        words, config.samples_per_original, config.min_noise, config.max_noise
+        words, config.samples_per_original, config.property_mutations
     )
     if test_config is not None:
         test_words = random.sample(all_words, min(len(all_words), test_config.sample_size))
         test_entities_df, test_targets_df, test_matches_df = build_dataset_from_words(
-            test_words, config.samples_per_original, config.min_noise, config.max_noise
+            test_words, config.samples_per_original, config.property_mutations
         )
         return (entities_df, targets_df, matches_df), (test_entities_df, test_targets_df, test_matches_df)
     return (entities_df, targets_df, matches_df), None
 
 
-def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, WordlistTrainingDataConfig],
+def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig],
                        test_config: Optional[TestDataConfig] = None) \
         -> Tuple[Dataset, Optional[Dataset]]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
         return load_training_data_provided_split(config, test_config)
-    elif isinstance(config, WordlistTrainingDataConfig):
-        return load_training_data_wordlist(config, test_config)
+    elif isinstance(config, SingleDatasetTrainingDataConfig):
+        return load_training_data_single_dataset(config, test_config)
     else:
         raise ValueError(f"Unsupported training data type: {config.type}")
 
 
 def create_model(config: ModelConfig) -> DLMatchingModel:
-    similarity_map = SimilarityMap({"value": config.similarity_matchers})
+    similarity_map = SimilarityMap({k: v.similarity_matchers for k, v in config.entity_properties.items()})
     model = DLMatchingModel(similarity_map=similarity_map)
     if config.training_settings.optimizer == "adam":
         optimizer = tf.keras.optimizers.Adam(learning_rate=config.training_settings.learning_rate)
@@ -220,13 +259,6 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
         raise ValueError(f"Unsupported loss function: {config.training_settings.loss_function}")
     model.compile(optimizer=optimizer, loss=loss_function)
     return model
-
-
-def print_dataset(dataset: Dataset):
-    left, right, matches = dataset
-    joined = matches.merge(left.rename(columns={"value": "left_value"}), left_on="left", right_index=True) \
-        .merge(right.rename(columns={"value": "right_value"}), left_on="right", right_index=True)
-    print(joined[["left_value", "right_value"]])
 
 def train_model(config: ModelConfig, dataset: Dataset) -> DLMatchingModel:
     left, right, matches = dataset
@@ -251,7 +283,7 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
     export_config = ExportModelConfig(
         name=config.name,
         type=config.type,
-        similarity_matchers=config.similarity_matchers,
+        entity_properties=config.entity_properties,
         nn_model_file=config.nn_model_file
     )
     config_file_path = f"{export_path}/config.json"
