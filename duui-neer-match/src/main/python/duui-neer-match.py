@@ -1,7 +1,7 @@
 import logging
 import os.path
 from functools import lru_cache
-from typing import Annotated, Any, List, Optional, Literal, Union
+from typing import Annotated, Any, Dict, List, Optional, Literal, Tuple, Union
 
 import pandas as pd
 import numpy as np
@@ -45,14 +45,19 @@ logger.info("TTLab Neer Match Annotator")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
+class ModelEntityPropertyConfig(BaseModel):
+    # the type of the property
+    property_type: Literal["text", "numeric"]
+    # the similarity matchers to use for this property
+    similarity_matchers: List[str]
 
 class ModelConfig(BaseModel):
     # the name of the model (must match folder name in models_path)
     name: str
     # the type of the model, either "DL"
     type: Literal["DL"]
-    # value similarity matchers
-    similarity_matchers: List[str]
+    # the properties of the entities
+    entity_properties: Dict[str, ModelEntityPropertyConfig]
     # the path to the model file (relative to models_path)
     nn_model_file: str = Field(default="model.weights.h5", alias="model_file")
 
@@ -73,10 +78,14 @@ class DocumentEntity(BaseModel):
     text: str
     # enity id
     entity_id: Union[str, int]
+    # optional properties of the entity
+    properties: Optional[Dict[str, Union[str, int, float]]] = None
 
 
 class DuuiRequest(BaseModel):
     pipeline_id: str
+    # the selected annotation classes
+    selection: str
     # The entities to be matched, as list of strings
     entities: List[DocumentEntity]
 
@@ -150,7 +159,7 @@ def get_typesystem() -> Response:
 
 
 @lru_cache(maxsize=3)
-def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
+def get_model(model_name: str) -> Tuple[Union[DLMatchingModel, NSMatchingModel], ModelConfig]:
     folder_path = f"{models_path}/{model_name}"
     if not os.path.exists(folder_path):
         raise ValueError(f"Model '{model_name}' not found.")
@@ -165,10 +174,10 @@ def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
     model_file_path = f"{folder_path}/{model_config.nn_model_file}"
     if not os.path.exists(model_file_path):
         raise ValueError(f"Model '{model_name}' invalid: missing model file '{model_config.nn_model_file}'")
-    if len(model_config.similarity_matchers) == 0:
-        raise ValueError(f"Model '{model_name}' invalid: no similarity matchers specified")
+    if "text" not in model_config.entity_properties or model_config.entity_properties["text"].property_type != "text" or len(model_config.entity_properties["text"].similarity_matchers) == 0:
+        raise ValueError(f"Model '{model_name}' invalid: missing required 'text' property with at least one similarity matcher")
     similarity_map: SimilarityMap = SimilarityMap({
-        "value": model_config.similarity_matchers
+        prop_name: prop_config.similarity_matchers for prop_name, prop_config in model_config.entity_properties.items()
     })
     model: DLMatchingModel
     if model_config.type == "DL":
@@ -178,9 +187,17 @@ def get_model(model_name: str) -> DLMatchingModel | NSMatchingModel:
     else:
         raise ValueError(f"Model '{model_name}' invalid: unknown model type '{model_config.type}'")
     # Initialize model with dummy data to build the model architecture, then load weights
-    model.predict(pd.DataFrame({"value": ["example"]}), pd.DataFrame({"value": ["example"]}))
+    initialization_data: Dict[str, Any] = {}
+    for prop_name, prop_config in model_config.entity_properties.items():
+        if prop_config.property_type == "text":
+            initialization_data[prop_name] = ["dummy"]
+        elif prop_config.property_type == "numeric":
+            initialization_data[prop_name] = [0]
+        else:
+            raise ValueError(f"Model '{model_name}' invalid: unknown property type '{prop_config.property_type}' for property '{prop_name}'")
+    model.predict(pd.DataFrame(initialization_data), pd.DataFrame(initialization_data))
     model.load_weights(model_file_path)
-    return model
+    return model, model_config
 
 
 class PipelineDocument(BaseModel):
@@ -189,6 +206,7 @@ class PipelineDocument(BaseModel):
 
 class PipelineEntity(BaseModel):
     pipeline_id: str
+    selection: str
     documents: List[PipelineDocument]
 
 
@@ -198,11 +216,14 @@ class PipelineStorage:
     def __init__(self):
         self.pipelines = {}
 
-    def store(self, pipeline_id: str, entities: List[DocumentEntity]) -> int:
+    def store(self, pipeline_id: str, entities: List[DocumentEntity], selection: str) -> int:
         if pipeline_id not in self.pipelines:
-            self.pipelines[pipeline_id] = PipelineEntity(pipeline_id=pipeline_id, documents=[])
-        stored_index = len(self.pipelines[pipeline_id].documents)
-        self.pipelines[pipeline_id].documents.append(PipelineDocument(entities=entities))
+            self.pipelines[pipeline_id] = PipelineEntity(pipeline_id=pipeline_id, selection=selection, documents=[])
+        pipeline_entity = self.pipelines[pipeline_id]
+        if pipeline_entity.selection != selection:
+            raise ValueError(f"Pipeline '{pipeline_id}' selection mismatch: expected '{pipeline_entity.selection}', got '{selection}'")
+        stored_index = len(pipeline_entity.documents)
+        pipeline_entity.documents.append(PipelineDocument(entities=entities))
         return stored_index
 
     def get(self, pipeline_id: str) -> PipelineEntity:
@@ -220,25 +241,40 @@ pipeline_storage = PipelineStorage()
 # process duui request
 @app.post("/v1/process")
 def post_process(request: DuuiRequest) -> DuuiResponse:
-    stored_index = pipeline_storage.store(request.pipeline_id, request.entities)
+    stored_index = pipeline_storage.store(request.pipeline_id, request.entities, request.selection)
     return DuuiResponse(
         pipeline_id=request.pipeline_id,
         stored_index=stored_index,
         stored_count=len(request.entities)
     )
 
+def build_dataframe(entities: List[DocumentEntity], selection: str, supported_properties: List[str]) -> pd.DataFrame:
+    columns: dict[str, List[Union[str, int, float]]] = {
+        "text": [e.text for e in entities]
+    }
+    def select_property(prop_name: str, default: Union[str, int, float]) -> List[Union[str, int, float]]:
+        return [e.properties[prop_name] if e.properties and prop_name in e.properties else default for e in entities]
+    if selection == "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity":
+        if "value" in supported_properties:
+            columns["value"] = select_property("value", "")
+        if "identifier" in supported_properties:
+            columns["identifier"] = select_property("identifier", "")
+    return pd.DataFrame(columns)
+
 @app.post("/v1/finalize")
 def post_finalize(request: DuuiFinalizeRequest) -> DuuiFinalizeResponse:
     pipeline_entity = pipeline_storage.get(request.pipeline_id)
-    model = get_model(request.properties.model)
+    model, model_config = get_model(request.properties.model)
     results: List[MatchResult] = []
+    supported_properties = [key for key in model_config.entity_properties.keys() if key != "text"]
+    dataframes = [build_dataframe(doc.entities, pipeline_entity.selection, supported_properties) for doc in pipeline_entity.documents]
     for i, doc1 in enumerate(pipeline_entity.documents):
         for j, doc2 in enumerate(pipeline_entity.documents):
             if i >= j:
                 continue
             predictions_np: np.ndarray = model.predict(
-                pd.DataFrame({"value": [e.text for e in doc1.entities]}),
-                pd.DataFrame({"value": [e.text for e in doc2.entities]}),
+                dataframes[i],
+                dataframes[j],
                 batch_size=request.properties.batch_size,
                 verbose=1
             )

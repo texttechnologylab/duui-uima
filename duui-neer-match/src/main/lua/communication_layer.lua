@@ -5,26 +5,47 @@ Class = luajava.bindClass("java.lang.Class")
 Float = luajava.bindClass("java.lang.Float")
 NeerMatchPrediction = luajava.bindClass("org.texttechnologylab.annotation.NeerMatchPrediction")
 
+function extractNeProperties(inputCas, entity)
+    local properties = {}
+    local identifier = entity:getIdentifier()
+    if identifier then
+        properties.identifier = identifier
+    end
+    local value = entity:getValue()
+    if value then
+        properties.value = value
+    end
+    return properties
+end
+
 function serialize(inputCas, outputStream, parameters)
     local pipeline_id = parameters["pipeline_id"]
     local entities = {}
-    local selection_class = Class:forName(parameters["selection"])
+    local selection_name = parameters["selection"]
+    local selection_class = Class:forName(selection_name)
     local selection_iterator = JCasUtil:select(inputCas, selection_class):iterator()
     local entity_count = 0
+    local is_named_entity = selection_name == "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity"
     while selection_iterator:hasNext() do
         local entity = selection_iterator:next()
         local entity_text = entity:getCoveredText()
         local entity_id = entity_count
         entity_count = entity_count + 1
-        table.insert(entities, {
-            text = entity_text,
-            entity_id = entity_id
-        })
+        local result_entity = {
+            entity_id = entity_id,
+            text = entity_text
+        }
+        if is_named_entity then
+            local properties = extractNeProperties(inputCas, entity)
+            result_entity.properties = properties
+        end
+        table.insert(entities, result_entity)
     end
 
     outputStream:write(json.encode({
         pipeline_id = pipeline_id,
-        entities = entities
+        entities = entities,
+        selection = selection_name
     }))
 end
 
