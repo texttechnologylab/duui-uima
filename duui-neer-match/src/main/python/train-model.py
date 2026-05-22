@@ -50,6 +50,7 @@ class ProvidedSplitTrainingDataConfig(BaseModel):
 class UnchangedPropertyMutationConfig(BaseModel):
     type: Literal["unchanged"]
 
+
 class TextPropertyMutationConfig(BaseModel):
     type: Literal["text"]
     # the minimum noise to introduce (between 0 and 1)
@@ -57,10 +58,12 @@ class TextPropertyMutationConfig(BaseModel):
     # the maximum noise to introduce (between 0 and 1)
     max_noise: float = 0.2
 
+
 class NumericPropertyMutationConfig(BaseModel):
     type: Literal["numeric"]
     # the maximum absolute noise to introduce (at most +/- this value)
     max_noise: float = 0.2
+
 
 class SingleDatasetTrainingDataConfig(BaseModel):
     type: Literal["single_dataset"]
@@ -71,7 +74,17 @@ class SingleDatasetTrainingDataConfig(BaseModel):
     min_length: Optional[int] = None
 
     # the mutation configs for each property (key is the property name, e.g. "text")
-    property_mutations: Dict[str, Annotated[Union[UnchangedPropertyMutationConfig, TextPropertyMutationConfig, NumericPropertyMutationConfig], Field(discriminator="type")]] = Field(default_factory=dict)
+    property_mutations: Dict[
+        str,
+        Annotated[
+            Union[
+                UnchangedPropertyMutationConfig,
+                TextPropertyMutationConfig,
+                NumericPropertyMutationConfig,
+            ],
+            Field(discriminator="type"),
+        ],
+    ] = Field(default_factory=dict)
 
     # the number of modified samples to generate per original sample
     samples_per_original: int = 5
@@ -91,7 +104,9 @@ class ModelConfig(ExportModelConfig):
     # the training settings
     training_settings: TrainingSettings
     # the training data configuration
-    training_data: Union[ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig] = Field(discriminator="type")
+    training_data: Union[
+        ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig
+    ] = Field(discriminator="type")
     # the test data configuration
     test_data: Optional[TestDataConfig] = None
 
@@ -100,9 +115,10 @@ type Dataset = Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
 
 
 # noinspection PyUnhashable
-def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig,
-                                      test_config: Optional[TestDataConfig] = None) \
-        -> Tuple[Dataset, Optional[Dataset]]:
+def load_training_data_provided_split(
+    config: ProvidedSplitTrainingDataConfig,
+    test_config: Optional[TestDataConfig] = None,
+) -> Tuple[Dataset, Optional[Dataset]]:
     # load entity list
     if config.entity_list_file.endswith(".txt"):
         entities = pd.read_csv(config.entity_list_file, header=None, names=["text"])
@@ -134,8 +150,11 @@ def load_training_data_provided_split(config: ProvidedSplitTrainingDataConfig,
         entities = entities.drop(columns=["id"])
     if "id" in targets.columns:
         targets = targets.drop(columns=["id"])
-    if (not isinstance(entities, pd.DataFrame)) or (not isinstance(targets, pd.DataFrame)) or (
-            not isinstance(matches, pd.DataFrame)):
+    if (
+        (not isinstance(entities, pd.DataFrame))
+        or (not isinstance(targets, pd.DataFrame))
+        or (not isinstance(matches, pd.DataFrame))
+    ):
         raise ValueError("Entities, targets, and matches must be pandas DataFrames")
     # rename matches columns to "left" and "right"
     matches = matches.rename(columns={"entity": "left", "target": "right"})
@@ -165,12 +184,24 @@ def text_introduce_noise(text: str, modifications: int) -> str:
             text_list[index] = char
     return "".join(text_list)
 
+
 def numeric_introduce_noise(value: float, max_noise: float) -> float:
     noise = random.uniform(-max_noise, max_noise)
     return value + noise
 
 
-def build_dataset_from_words(words: List[Dict[str, Union[str, float]]], samples_per_original: int, mutation_configs: Dict[str, Union[UnchangedPropertyMutationConfig, TextPropertyMutationConfig, NumericPropertyMutationConfig]]) -> Dataset:
+def build_dataset_from_words(
+    words: List[Dict[str, Union[str, float]]],
+    samples_per_original: int,
+    mutation_configs: Dict[
+        str,
+        Union[
+            UnchangedPropertyMutationConfig,
+            TextPropertyMutationConfig,
+            NumericPropertyMutationConfig,
+        ],
+    ],
+) -> Dataset:
     samples = []
     matches = []
     for index, word in enumerate(words):
@@ -183,55 +214,77 @@ def build_dataset_from_words(words: List[Dict[str, Union[str, float]]], samples_
                     modified_entry[property_name] = word[property_name]
                 elif mutation_config.type == "text":
                     modified_entry[property_name] = text_introduce_noise(
-                        word[property_name], int(len(word[property_name]) * mutation_config.max_noise)
+                        word[property_name],
+                        int(len(word[property_name]) * mutation_config.max_noise),
                     )
                 elif mutation_config.type == "numeric":
                     modified_entry[property_name] = numeric_introduce_noise(
                         word[property_name], mutation_config.max_noise
                     )
                 else:
-                    raise ValueError(f"Unsupported mutation type: {mutation_config.type}")
+                    raise ValueError(
+                        f"Unsupported mutation type: {mutation_config.type}"
+                    )
             samples.append(modified_entry)
             matches.append((index, len(samples) - 1))
-    entities_df = pd.DataFrame({k: [entry[k] for entry in words] for k in mutation_configs.keys()})
-    targets_df = pd.DataFrame({k: [entry[k] for entry in samples] for k in mutation_configs.keys()})
+    entities_df = pd.DataFrame(
+        {k: [entry[k] for entry in words] for k in mutation_configs.keys()}
+    )
+    targets_df = pd.DataFrame(
+        {k: [entry[k] for entry in samples] for k in mutation_configs.keys()}
+    )
     matches_df = pd.DataFrame(matches, columns=["left", "right"])
     return entities_df, targets_df, matches_df
 
 
-def load_training_data_single_dataset(config: SingleDatasetTrainingDataConfig, test_config: Optional[TestDataConfig] = None) \
-        -> Tuple[Dataset, Optional[Dataset]]:
+def load_training_data_single_dataset(
+    config: SingleDatasetTrainingDataConfig,
+    test_config: Optional[TestDataConfig] = None,
+) -> Tuple[Dataset, Optional[Dataset]]:
     all_words: List[Dict[str, Union[str, float]]]
     if config.file.endswith(".txt"):
-        all_words = pd.read_csv(config.file, header=None, names=["text"]).to_dict(orient="records")
+        all_words = pd.read_csv(config.file, header=None, names=["text"]).to_dict(
+            orient="records"
+        )
     elif config.file.endswith(".csv"):
         df = pd.read_csv(config.file)
         if "text" not in df.columns:
             raise ValueError("Dataset file must contain a 'text' column")
         all_words = df.to_dict(orient="records")
     else:
-        raise ValueError("Unsupported file format for dataset. Only .txt and .csv are supported")
+        raise ValueError(
+            "Unsupported file format for dataset. Only .txt and .csv are supported"
+        )
     if config.min_length is not None:
-        all_words = [entry for entry in all_words if len(entry["text"]) >= config.min_length]
+        all_words = [
+            entry for entry in all_words if len(entry["text"]) >= config.min_length
+        ]
     if config.sample_size is not None:
         words = random.sample(all_words, min(len(all_words), config.sample_size))
     else:
         words = all_words
-    (entities_df, targets_df, matches_df) = build_dataset_from_words(
+    entities_df, targets_df, matches_df = build_dataset_from_words(
         words, config.samples_per_original, config.property_mutations
     )
     if test_config is not None:
-        test_words = random.sample(all_words, min(len(all_words), test_config.sample_size))
+        test_words = random.sample(
+            all_words, min(len(all_words), test_config.sample_size)
+        )
         test_entities_df, test_targets_df, test_matches_df = build_dataset_from_words(
             test_words, config.samples_per_original, config.property_mutations
         )
-        return (entities_df, targets_df, matches_df), (test_entities_df, test_targets_df, test_matches_df)
+        return (entities_df, targets_df, matches_df), (
+            test_entities_df,
+            test_targets_df,
+            test_matches_df,
+        )
     return (entities_df, targets_df, matches_df), None
 
 
-def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig],
-                       test_config: Optional[TestDataConfig] = None) \
-        -> Tuple[Dataset, Optional[Dataset]]:
+def load_training_data(
+    config: Union[ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig],
+    test_config: Optional[TestDataConfig] = None,
+) -> Tuple[Dataset, Optional[Dataset]]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
         return load_training_data_provided_split(config, test_config)
     elif isinstance(config, SingleDatasetTrainingDataConfig):
@@ -241,14 +294,22 @@ def load_training_data(config: Union[ProvidedSplitTrainingDataConfig, SingleData
 
 
 def create_model(config: ModelConfig) -> DLMatchingModel:
-    similarity_map = SimilarityMap({k: v.similarity_matchers for k, v in config.entity_properties.items()})
+    similarity_map = SimilarityMap(
+        {k: v.similarity_matchers for k, v in config.entity_properties.items()}
+    )
     model = DLMatchingModel(similarity_map=similarity_map)
     if config.training_settings.optimizer == "adam":
-        optimizer = tf.keras.optimizers.Adam(learning_rate=config.training_settings.learning_rate)
+        optimizer = tf.keras.optimizers.Adam(
+            learning_rate=config.training_settings.learning_rate
+        )
     elif config.training_settings.optimizer == "sgd":
-        optimizer = tf.keras.optimizers.SGD(learning_rate=config.training_settings.learning_rate)
+        optimizer = tf.keras.optimizers.SGD(
+            learning_rate=config.training_settings.learning_rate
+        )
     elif config.training_settings.optimizer == "rmsprop":
-        optimizer = tf.keras.optimizers.RMSprop(learning_rate=config.training_settings.learning_rate)
+        optimizer = tf.keras.optimizers.RMSprop(
+            learning_rate=config.training_settings.learning_rate
+        )
     else:
         raise ValueError(f"Unsupported optimizer: {config.training_settings.optimizer}")
     if config.training_settings.loss_function == "binary_crossentropy":
@@ -256,15 +317,20 @@ def create_model(config: ModelConfig) -> DLMatchingModel:
     elif config.training_settings.loss_function == "mean_squared_error":
         loss_function = tf.keras.losses.MeanSquaredError()
     else:
-        raise ValueError(f"Unsupported loss function: {config.training_settings.loss_function}")
+        raise ValueError(
+            f"Unsupported loss function: {config.training_settings.loss_function}"
+        )
     model.compile(optimizer=optimizer, loss=loss_function)
     return model
+
 
 def train_model(config: ModelConfig, dataset: Dataset) -> DLMatchingModel:
     left, right, matches = dataset
     model = create_model(config)
     model.fit(
-        left, right, matches,
+        left,
+        right,
+        matches,
         epochs=config.training_settings.epochs,
         verbose=config.training_settings.verbose,
         batch_size=config.training_settings.batch_size,
@@ -284,7 +350,7 @@ def export_model(model: DLMatchingModel, config: ModelConfig):
         name=config.name,
         type=config.type,
         entity_properties=config.entity_properties,
-        nn_model_file=config.nn_model_file
+        nn_model_file=config.nn_model_file,
     )
     config_file_path = f"{export_path}/config.json"
     with open(config_file_path, "w") as f:
@@ -306,10 +372,15 @@ def main():
     with open(config_path, "r") as f:
         config = ModelConfig.model_validate_json(f.read())
     if len(config.similarity_matchers) == 0:
-        print("Error: No similarity matchers specified in model config\nAborting.", file=sys.stderr)
+        print(
+            "Error: No similarity matchers specified in model config\nAborting.",
+            file=sys.stderr,
+        )
         raise ValueError("No similarity matchers specified in model config")
     if len(config.similarity_matchers) == 1:
-        print("Warning: Only one similarity matcher specified. This will render the deep learning useless, as the best solution would be an identity function.")
+        print(
+            "Warning: Only one similarity matcher specified. This will render the deep learning useless, as the best solution would be an identity function."
+        )
         print("Do you want to continue? (y/n)")
         while True:
             response = input().strip().lower()
@@ -319,18 +390,24 @@ def main():
                 print("Aborting")
                 return
     if os.path.exists(f"{config.export_path}/config.json"):
-        print(f"Model '{config.name}' already exists at '{config.export_path}'. Overwrite? (y/n)")
+        print(
+            f"Model '{config.name}' already exists at '{config.export_path}'. Overwrite? (y/n)"
+        )
         while True:
             response = input().strip().lower()
             if response == "y" or response == "yes":
                 break
             if response == "j" or response == "ja":
-                print("Note to self: User seems to be unable to understand english")  # Small joke
+                print(
+                    "Note to self: User seems to be unable to understand english"
+                )  # Small joke
                 break
             if response == "n" or response == "no":
                 print("Aborting")
                 return
-    (training_data, test_data) = load_training_data(config.training_data, config.test_data)
+    training_data, test_data = load_training_data(
+        config.training_data, config.test_data
+    )
     # train model
     model = train_model(config, training_data)
     # test model if test data is provided
