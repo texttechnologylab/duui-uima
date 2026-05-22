@@ -306,6 +306,20 @@ def build_dataframe(
             columns["value"] = select_property("value", "")
         if "identifier" in supported_properties:
             columns["identifier"] = select_property("identifier", "")
+    elif selection == "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token":
+        if "lemma" in supported_properties:
+            columns["lemma"] = select_property("lemma", "")
+        if "pos" in supported_properties:
+            columns["pos"] = select_property("pos", "")
+        if "form" in supported_properties:
+            columns["form"] = select_property("form", "")
+        if "stem" in supported_properties:
+            columns["stem"] = select_property("stem", "")
+
+    if any(prop not in columns for prop in supported_properties):
+        raise ValueError(
+            f"Some properties required by the model are not supported for selection '{selection}'. Missing properties: {[prop for prop in supported_properties if prop not in columns]}"
+        )
     return pd.DataFrame(columns)
 
 

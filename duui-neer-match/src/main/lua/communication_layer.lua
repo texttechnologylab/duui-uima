@@ -18,6 +18,27 @@ function extractNeProperties(inputCas, entity)
     return properties
 end
 
+function extractTokenProperties(inputCas, token)
+    local properties = {}
+    local pos = token:getPosValue()
+    if pos then
+        properties.pos = pos
+    end
+    local stem = token:getStemValue()
+    if stem then
+        properties.stem = stem
+    end
+    local lemma = token:getLemmaValue()
+    if lemma then
+        properties.lemma = lemma
+    end
+    local form = token:getFormValue()
+    if form then
+        properties.form = form
+    end
+    return properties
+end
+
 function serialize(inputCas, outputStream, parameters)
     local pipeline_id = parameters["pipeline_id"]
     local entities = {}
@@ -25,6 +46,7 @@ function serialize(inputCas, outputStream, parameters)
     local selection_class = Class:forName(selection_name)
     local selection_iterator = JCasUtil:select(inputCas, selection_class):iterator()
     local is_named_entity = selection_name == "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity"
+    local is_token = selection_name == "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
     while selection_iterator:hasNext() do
         local entity = selection_iterator:next()
         local entity_text = entity:getCoveredText()
@@ -35,6 +57,9 @@ function serialize(inputCas, outputStream, parameters)
         }
         if is_named_entity then
             local properties = extractNeProperties(inputCas, entity)
+            result_entity.properties = properties
+        elseif is_token then
+            local properties = extractTokenProperties(inputCas, entity)
             result_entity.properties = properties
         end
         table.insert(entities, result_entity)
