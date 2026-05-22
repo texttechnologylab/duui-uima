@@ -1,37 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
     <types>
-        <typeDescription>
-            <name>org.texttechnologylab.annotation.NeerMatchPrediction</name>
-            <supertypeName>uima.cas.AnnotationBase</supertypeName>
-            <description>A type representing a prediction of the NEER match model.</description>
-            <features>
-                <featureDescription>
-                    <name>document1EntityId</name>
-                    <description>The ID of the entity in the first document.</description>
-                    <rangeTypeName>uima.cas.String</rangeTypeName>
-                </featureDescription>
-                <featureDescription>
-                    <name>document1EntityText</name>
-                    <description>The text of the entity in the first document.</description>
-                    <rangeTypeName>uima.cas.String</rangeTypeName>
-                </featureDescription>
-                <featureDescription>
-                    <name>document2EntityText</name>
-                    <description>The text of the entity in the second document.</description>
-                    <rangeTypeName>uima.cas.String</rangeTypeName>
-                </featureDescription>
-                <featureDescription>
-                    <name>document2EntityId</name>
-                    <description>The ID of the entity in the second document.</description>
-                    <rangeTypeName>uima.cas.String</rangeTypeName>
-                </featureDescription>
-                <featureDescription>
-                    <name>score</name>
-                    <description>The confidence score of the prediction.</description>
-                    <rangeTypeName>uima.cas.Double</rangeTypeName>
-                </featureDescription>
-            </features>
-        </typeDescription>
+        <!-- Component does not define any types -->
     </types>
 </typeSystemDescription>
