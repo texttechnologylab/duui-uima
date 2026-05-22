@@ -46,14 +46,14 @@ logger.info("TTLab Neer Match Annotator")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
-
+# configuration for a single property of an entity in the model config
 class ModelEntityPropertyConfig(BaseModel):
     # the type of the property
     property_type: Literal["text", "numeric"]
     # the similarity matchers to use for this property
     similarity_matchers: List[str]
 
-
+# the configuration for a model, which is loaded from the config.json file in the model folder
 class ModelConfig(BaseModel):
     # the name of the model (must match folder name in models_path)
     name: str
@@ -65,6 +65,9 @@ class ModelConfig(BaseModel):
     nn_model_file: str = Field(default="model.weights.h5", alias="model_file")
 
 
+# Pydantic models for request and response bodies
+
+# the properties for the matching process, which can be specified in the finalize request
 class NeerMatchProperties(BaseModel):
     # the threshold for the matching process, between 0 and 1
     threshold: Optional[float] = None
@@ -75,7 +78,7 @@ class NeerMatchProperties(BaseModel):
     # the model to use for matching
     model: str = "example1"
 
-
+# represents an entity of a document
 class DocumentEntity(BaseModel):
     # the text of the entity
     text: str
@@ -84,7 +87,7 @@ class DocumentEntity(BaseModel):
     # optional properties of the entity
     properties: Optional[Dict[str, Union[str, int, float]]] = None
 
-
+# the request body for the /process endpoint, which contains the pipeline_id, selection and the entities to be matched
 class DuuiRequest(BaseModel):
     pipeline_id: str
     # the selected annotation classes
@@ -92,33 +95,33 @@ class DuuiRequest(BaseModel):
     # The entities to be matched, as list of strings
     entities: List[DocumentEntity]
 
-
+# the request body for the /finalize endpoint, which contains the pipeline_id and the matching properties
 class DuuiFinalizeRequest(BaseModel):
     pipeline_id: str
     clear_storage: bool = True
     # Matching properties
     properties: NeerMatchProperties
 
-
+# represents a single match prediction between two entities, including the similarity score
 class MatchPrediction(BaseModel):
     document_1_entity: DocumentEntity
     document_2_entity: DocumentEntity
     # the similarity score between 0 and 1
     score: float
 
-
+# represents the matching results for a pair of documents, including the indices of the documents and the list of match predictions for this document pair
 class MatchResult(BaseModel):
     document_1_index: int
     document_2_index: int
     predictions: List[MatchPrediction]
 
-
+# the response body for the /process endpoint, which contains the pipeline_id, the index at which the entities are stored in the pipeline storage and the count of stored entities for this pipeline_id and selection
 class DuuiResponse(BaseModel):
     pipeline_id: str
     stored_index: int
     stored_count: int
 
-
+# the response body for the /finalize endpoint, which contains the pipeline_id and the matching results for all document pairs in this pipeline
 class DuuiFinalizeResponse(BaseModel):
     pipeline_id: str
     results: List[MatchResult]
@@ -167,6 +170,7 @@ def get_typesystem() -> Response:
 def get_model(
     model_name: str,
 ) -> Tuple[Union[DLMatchingModel, NSMatchingModel], ModelConfig]:
+    # check if model folder exists
     folder_path = f"{models_path}/{model_name}"
     if not os.path.exists(folder_path):
         raise ValueError(f"Model '{model_name}' not found.")
@@ -224,10 +228,12 @@ def get_model(
     return model, model_config
 
 
+# represents a document stored in the pipeline, which holds the entities (with their properties) for this document
 class PipelineDocument(BaseModel):
     entities: List[DocumentEntity]
 
 
+# represents a pipeline entity, which is created for each unique pipeline_id and selection and holds the documents (entities) stored for this pipeline
 class PipelineEntity(BaseModel):
     pipeline_id: str
     selection: str
@@ -243,35 +249,45 @@ class PipelineStorage:
     def store(
         self, pipeline_id: str, entities: List[DocumentEntity], selection: str
     ) -> int:
+        # create pipeline entity if it does not exist
         if pipeline_id not in self.pipelines:
             self.pipelines[pipeline_id] = PipelineEntity(
                 pipeline_id=pipeline_id, selection=selection, documents=[]
             )
+        # retrieve pipeline entity
         pipeline_entity = self.pipelines[pipeline_id]
+        # check if selection matches the one of the pipeline entity
         if pipeline_entity.selection != selection:
             raise ValueError(
                 f"Pipeline '{pipeline_id}' selection mismatch: expected '{pipeline_entity.selection}', got '{selection}'"
             )
+        # store entities in pipeline entity and return index for retrieval during finalize
         stored_index = len(pipeline_entity.documents)
         pipeline_entity.documents.append(PipelineDocument(entities=entities))
         return stored_index
 
     def get(self, pipeline_id: str) -> PipelineEntity:
+        # check if pipeline entity exists
         if pipeline_id not in self.pipelines:
             raise ValueError(f"Pipeline '{pipeline_id}' not found.")
+        # return pipeline entity
         return self.pipelines[pipeline_id]
 
     def clear(self, pipeline_id: str):
+        # check if pipeline entity exists
         if pipeline_id in self.pipelines:
+            # remove pipeline entity from storage
             del self.pipelines[pipeline_id]
 
 
+# global pipeline storage
 pipeline_storage = PipelineStorage()
 
 
 # process duui request
 @app.post("/v1/process")
 def post_process(request: DuuiRequest) -> DuuiResponse:
+    # store entities in pipeline storage and return index for retrieval during finalize
     stored_index = pipeline_storage.store(
         request.pipeline_id, request.entities, request.selection
     )
@@ -285,6 +301,7 @@ def post_process(request: DuuiRequest) -> DuuiResponse:
 def build_dataframe(
     entities: List[DocumentEntity], selection: str, supported_properties: List[str]
 ) -> pd.DataFrame:
+    # start with the required "text" property, which is required for all models and selections
     columns: dict[str, List[Union[str, int, float]]] = {
         "text": [e.text for e in entities]
     }
@@ -301,6 +318,7 @@ def build_dataframe(
             for e in entities
         ]
 
+    # select additional properties based on selection and supported properties of the model
     if selection == "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity":
         if "value" in supported_properties:
             columns["value"] = select_property("value", "")
@@ -318,6 +336,7 @@ def build_dataframe(
         if "stem" in supported_properties:
             columns["stem"] = select_property("stem", "")
 
+    # check if all required properties for the model are present
     if any(prop not in columns for prop in supported_properties):
         raise ValueError(
             f"Some properties required by the model are not supported for selection '{selection}'. Missing properties: {[prop for prop in supported_properties if prop not in columns]}"
@@ -327,8 +346,11 @@ def build_dataframe(
 
 @app.post("/v1/finalize")
 def post_finalize(request: DuuiFinalizeRequest) -> DuuiFinalizeResponse:
+    # retrieve pipeline entity from storage
     pipeline_entity = pipeline_storage.get(request.pipeline_id)
+    # load model and respective config for the requested model
     model, model_config = get_model(request.properties.model)
+    # build dataframes for all documents in the pipeline entity
     results: List[MatchResult] = []
     supported_properties = [
         key for key in model_config.entity_properties.keys() if key != "text"
@@ -337,16 +359,20 @@ def post_finalize(request: DuuiFinalizeRequest) -> DuuiFinalizeResponse:
         build_dataframe(doc.entities, pipeline_entity.selection, supported_properties)
         for doc in pipeline_entity.documents
     ]
+    # compute matches for all document pairs
     for i, doc1 in enumerate(pipeline_entity.documents):
         for j, doc2 in enumerate(pipeline_entity.documents):
+            # ensure that each pair is only processed once and that documents are not matched with themselves
             if i >= j:
                 continue
+            # compute predictions for the document pair using the model
             predictions_np: np.ndarray = model.predict(
                 dataframes[i],
                 dataframes[j],
                 batch_size=request.properties.batch_size,
                 verbose=1,
             )
+            # convert predictions to list of MatchPrediction, applying threshold if specified
             predictions: List[MatchPrediction] = []
             for idx, row in enumerate(predictions_np):
                 score = row[0]
@@ -366,11 +392,14 @@ def post_finalize(request: DuuiFinalizeRequest) -> DuuiFinalizeResponse:
                         score=score,
                     )
                 )
+            # store results for this document pair
             results.append(
                 MatchResult(
                     document_1_index=i, document_2_index=j, predictions=predictions
                 )
             )
+    # clear pipeline storage if requested
     if request.clear_storage:
         pipeline_storage.clear(request.pipeline_id)
+    # return results
     return DuuiFinalizeResponse(pipeline_id=request.pipeline_id, results=results)
