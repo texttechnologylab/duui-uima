@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.uima.UIMAException;
-import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,14 +15,11 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.xml.sax.SAXException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.UUID;
 
 public class NeerMatchTest {
@@ -34,8 +30,6 @@ public class NeerMatchTest {
 	JCas cas1;
 	JCas cas2;
 	String pipelineId;
-	String model = "test3";
-	double threshold = 0.1;
 
 	@BeforeEach
 	public void setup() throws IOException, URISyntaxException, UIMAException, SAXException {
@@ -47,17 +41,17 @@ public class NeerMatchTest {
 
 		cas1 = JCasFactory.createJCas();
 		cas1.setDocumentLanguage("de");
-		cas1.setDocumentText("Das ist ein Test.");
+		cas1.setDocumentText("Das ist ein Test. Die CDU ist Teil der Union und die stärkste Kraft des deutschen Bundestags.");
 
 		cas2 = JCasFactory.createJCas();
 		cas2.setDocumentLanguage("de");
-		cas2.setDocumentText("Dies ist der zweite Test!");
+		cas2.setDocumentText("Dies ist der zweite Test! Der deutsche Bundestag wird im Moment von einer Koalition aus SPD und Union geführt. Angela Merkel war lange Zeit Bundeskanzlerin unter der CDU.");
 
 		pipelineId = UUID.randomUUID().toString();
 	}
 
 	@Test
-	public void test() throws Exception {
+	public void testTokens() throws Exception {
 
 		composer.add(
 			new DUUIPodmanDriver.Component("docker.texttechnologylab.org/textimager-duui-spacy:0.4.0").withImageFetching()
@@ -70,14 +64,35 @@ public class NeerMatchTest {
 		composer.run(cas1);
 		composer.run(cas2);
 
-		JsonObject result = finalizeNeerMatch();
+		JsonObject result = finalizeNeerMatch("token_test1", 0.01);
 		Gson gson = new GsonBuilder()
 			.setPrettyPrinting()
 			.create();
 		System.out.println(gson.toJson(result));
 	}
 
-	JsonObject finalizeNeerMatch() throws IOException, InterruptedException {
+	@Test
+	public void testNamedEntities() throws Exception {
+
+		composer.add(
+			new DUUIPodmanDriver.Component("docker.texttechnologylab.org/textimager-duui-spacy:0.4.0").withImageFetching()
+				.build());
+		composer.add(new DUUIRemoteDriver.Component(NEER_MATCH_URL)
+			.withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity")
+			.withParameter("pipeline_id", pipelineId)
+			.build()
+		);
+		composer.run(cas1);
+		composer.run(cas2);
+
+		JsonObject result = finalizeNeerMatch("ne_test1", 0);
+		Gson gson = new GsonBuilder()
+			.setPrettyPrinting()
+			.create();
+		System.out.println(gson.toJson(result));
+	}
+
+	JsonObject finalizeNeerMatch(String model, double threshold) throws IOException, InterruptedException {
 		String response;
 		try (HttpClient client = HttpClient.newHttpClient()) {
 			JsonObject requestBody = new JsonObject();
