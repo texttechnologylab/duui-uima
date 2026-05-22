@@ -238,9 +238,18 @@ def build_dataset_from_words(
 
 
 def load_training_data_single_dataset(
+    properties: Dict[str, EntityPropertyConfig],
     config: SingleDatasetTrainingDataConfig,
     test_config: Optional[TestDataConfig] = None,
 ) -> Tuple[Dataset, Optional[Dataset]]:
+    if any(prop not in properties for prop in config.property_mutations.keys()) or len(
+        config.property_mutations
+    ) != len(properties):
+        raise ValueError(
+            "Mutation configs must be provided for all properties defined in the model config"
+        )
+    if "text" not in properties:
+        raise ValueError("The 'text' property must be defined in the model config")
     all_words: List[Dict[str, Union[str, float]]]
     if config.file.endswith(".txt"):
         all_words = pd.read_csv(config.file, header=None, names=["text"]).to_dict(
@@ -255,6 +264,26 @@ def load_training_data_single_dataset(
         raise ValueError(
             "Unsupported file format for dataset. Only .txt and .csv are supported"
         )
+
+    def convert_entity(
+        entry: Dict[str, Union[str, float]],
+    ) -> Dict[str, Union[str, float]]:
+        converted_entry = {}
+        for property_name, property_config in properties.items():
+            if property_name not in entry:
+                raise ValueError(f"Missing property '{property_name}' in dataset entry")
+            value = entry[property_name]
+            if property_config.property_type == "text":
+                converted_entry[property_name] = str(value)
+            elif property_config.property_type == "numeric":
+                converted_entry[property_name] = float(value)
+            else:
+                raise ValueError(
+                    f"Unsupported property type: {property_config.property_type}"
+                )
+        return converted_entry
+
+    all_words = [convert_entity(entry) for entry in all_words]
     if config.min_length is not None:
         all_words = [
             entry for entry in all_words if len(entry["text"]) >= config.min_length
@@ -282,13 +311,14 @@ def load_training_data_single_dataset(
 
 
 def load_training_data(
+    properties: Dict[str, EntityPropertyConfig],
     config: Union[ProvidedSplitTrainingDataConfig, SingleDatasetTrainingDataConfig],
     test_config: Optional[TestDataConfig] = None,
 ) -> Tuple[Dataset, Optional[Dataset]]:
     if isinstance(config, ProvidedSplitTrainingDataConfig):
         return load_training_data_provided_split(config, test_config)
     elif isinstance(config, SingleDatasetTrainingDataConfig):
-        return load_training_data_single_dataset(config, test_config)
+        return load_training_data_single_dataset(properties, config, test_config)
     else:
         raise ValueError(f"Unsupported training data type: {config.type}")
 
@@ -371,24 +401,17 @@ def main():
         raise ValueError(f"Model config file '{config_path}' not found")
     with open(config_path, "r") as f:
         config = ModelConfig.model_validate_json(f.read())
-    if len(config.similarity_matchers) == 0:
+    if (
+        "text" not in config.entity_properties
+        or len(config.entity_properties["text"].similarity_matchers) == 0
+    ):
         print(
-            "Error: No similarity matchers specified in model config\nAborting.",
+            "Error: Missing similarity matchers for 'text' property in model config\n",
             file=sys.stderr,
         )
-        raise ValueError("No similarity matchers specified in model config")
-    if len(config.similarity_matchers) == 1:
-        print(
-            "Warning: Only one similarity matcher specified. This will render the deep learning useless, as the best solution would be an identity function."
+        raise ValueError(
+            "Model config must specify similarity matchers for 'text' property"
         )
-        print("Do you want to continue? (y/n)")
-        while True:
-            response = input().strip().lower()
-            if response == "y" or response == "yes":
-                break
-            if response == "n" or response == "no":
-                print("Aborting")
-                return
     if os.path.exists(f"{config.export_path}/config.json"):
         print(
             f"Model '{config.name}' already exists at '{config.export_path}'. Overwrite? (y/n)"
@@ -406,7 +429,7 @@ def main():
                 print("Aborting")
                 return
     training_data, test_data = load_training_data(
-        config.training_data, config.test_data
+        config.entity_properties, config.training_data, config.test_data
     )
     # train model
     model = train_model(config, training_data)
