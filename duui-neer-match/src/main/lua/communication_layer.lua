@@ -20,9 +20,16 @@ end
 
 function extractTokenProperties(inputCas, token)
     local properties = {}
-    local pos = token:getPosValue()
+    local pos = token:getPos()
     if pos then
-        properties.pos = pos
+        local posValue = pos:getPosValue()
+        if posValue then
+            properties.pos = posValue
+        end
+        local coarseValue = pos:getCoarseValue()
+        if coarseValue then
+            properties.coarse = coarseValue
+        end
     end
     local stem = token:getStemValue()
     if stem then

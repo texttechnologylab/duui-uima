@@ -311,6 +311,8 @@ def build_dataframe(
             columns["lemma"] = select_property("lemma", "")
         if "pos" in supported_properties:
             columns["pos"] = select_property("pos", "")
+        if "coarse" in supported_properties:
+            columns["coarse"] = select_property("coarse", "")
         if "form" in supported_properties:
             columns["form"] = select_property("form", "")
         if "stem" in supported_properties:
