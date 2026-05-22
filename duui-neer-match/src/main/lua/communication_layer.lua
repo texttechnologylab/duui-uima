@@ -24,13 +24,11 @@ function serialize(inputCas, outputStream, parameters)
     local selection_name = parameters["selection"]
     local selection_class = Class:forName(selection_name)
     local selection_iterator = JCasUtil:select(inputCas, selection_class):iterator()
-    local entity_count = 0
     local is_named_entity = selection_name == "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity"
     while selection_iterator:hasNext() do
         local entity = selection_iterator:next()
         local entity_text = entity:getCoveredText()
-        local entity_id = entity_count
-        entity_count = entity_count + 1
+        local entity_id = entity:getAddress()
         local result_entity = {
             entity_id = entity_id,
             text = entity_text
