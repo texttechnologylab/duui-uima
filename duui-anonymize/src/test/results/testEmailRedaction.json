@@ -1,8 +1,22 @@
 {
   "test": "testEmailRedaction",
   "input": "Please contact support at alice@example.com for further assistance.",
-  "redacted": "Please contact support at alice@example.com for further assistance.",
-  "anomaly_count": 0,
+  "redacted": "Please contact support at[private_email][private_email] for further assistance.",
+  "anomaly_count": 2,
   "anomalies": [
+    {
+      "begin": 25,
+      "end": 39,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": " alice@example"
+    },
+    {
+      "begin": 39,
+      "end": 43,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": ".com"
+    }
   ]
 }

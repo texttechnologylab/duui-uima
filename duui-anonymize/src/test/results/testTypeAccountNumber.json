@@ -1,0 +1,22 @@
+{
+  "test": "testTypeAccountNumber",
+  "input": "Please transfer funds to account number 4532-0151-1283-0366 at Deutsche Bank.",
+  "output": "Please transfer funds to account number [account_number][account_number] at Deutsche Bank.",
+  "anomaly_count": 2,
+  "anomalies": [
+    {
+      "begin": 40,
+      "end": 58,
+      "category": "account_number",
+      "description": "[account_number]",
+      "text": "4532-0151-1283-036"
+    },
+    {
+      "begin": 58,
+      "end": 59,
+      "category": "account_number",
+      "description": "[account_number]",
+      "text": "6"
+    }
+  ]
+}

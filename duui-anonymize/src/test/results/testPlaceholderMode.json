@@ -1,7 +1,7 @@
 {
-  "test": "testCustomPlaceholder",
+  "test": "testPlaceholderMode",
   "input": "Send the report to max.mustermann@uni-frankfurt.de by Friday.",
-  "redacted": "Send the report to[private_email][private_email] by Friday.",
+  "output": "Send the report to[private_email][private_email] by Friday.",
   "anomaly_count": 2,
   "anomalies": [
     {

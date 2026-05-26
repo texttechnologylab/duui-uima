@@ -1,22 +1,36 @@
 {
   "test": "testSelectionWindow",
   "input": "Call Dr. John Adams at 555-0100 today.",
-  "redacted": "Call Dr. <REDACTED> at <REDACTED>0 today.",
-  "anomaly_count": 2,
+  "output": "Call[private_person][private_person] at [private_phone][private_phone].",
+  "anomaly_count": 4,
   "anomalies": [
     {
-      "begin": 9,
+      "begin": 4,
+      "end": 13,
+      "category": "private_person",
+      "description": "[private_person]",
+      "text": " Dr. John"
+    },
+    {
+      "begin": 13,
       "end": 19,
       "category": "private_person",
-      "description": "<PRIVATE_PERSON>",
-      "text": "John Adams"
+      "description": "[private_person]",
+      "text": " Adams"
     },
     {
       "begin": 23,
-      "end": 30,
+      "end": 31,
       "category": "private_phone",
-      "description": "<PRIVATE_PHONE>",
-      "text": "555-010"
+      "description": "[private_phone]",
+      "text": "555-0100"
+    },
+    {
+      "begin": 31,
+      "end": 37,
+      "category": "private_phone",
+      "description": "[private_phone]",
+      "text": " today"
     }
   ]
 }

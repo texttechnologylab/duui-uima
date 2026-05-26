@@ -1,0 +1,36 @@
+{
+  "test": "testSimplePerson",
+  "input": "My name is Harry Potter and my email is harry.potter@hogwarts.edu.",
+  "output": "My name is[private_person][private_person] and my email is[private_email][private_email].",
+  "anomaly_count": 4,
+  "anomalies": [
+    {
+      "begin": 10,
+      "end": 16,
+      "category": "private_person",
+      "description": "[private_person]",
+      "text": " Harry"
+    },
+    {
+      "begin": 16,
+      "end": 23,
+      "category": "private_person",
+      "description": "[private_person]",
+      "text": " Potter"
+    },
+    {
+      "begin": 39,
+      "end": 61,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": " harry.potter@hogwarts"
+    },
+    {
+      "begin": 61,
+      "end": 65,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": ".edu"
+    }
+  ]
+}

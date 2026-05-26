@@ -109,21 +109,12 @@ public class AnonymizeTests {
     }
 
     /**
-     * Collect all {@link Anomaly} annotations across every CAS view.
-     * The anonymizer writes results to an "opf_redacted" SOFA view, but also
-     * to the default view depending on the service configuration.
+     * Collect all {@link Anomaly} annotations from the default CAS view.
+     * Anomalies are always indexed against the original document text so that
+     * their character offsets are valid. The "opf_redacted" view only carries
+     * the redacted sofa string and no annotations.
      */
     private static Collection<Anomaly> collectAnomalies() {
-        // prefer the dedicated redaction view when available
-        try {
-            JCas redactedView = cas.getView("opf_redacted");
-            Collection<Anomaly> spans = JCasUtil.select(redactedView, Anomaly.class);
-            if (!spans.isEmpty()) {
-                return spans;
-            }
-        } catch (Exception ignored) {
-            // view does not exist — fall through to default view
-        }
         return JCasUtil.select(cas, Anomaly.class);
     }
 
@@ -149,7 +140,7 @@ public class AnonymizeTests {
         sb.append("{\n");
         sb.append("  \"test\": ").append(jsonStr(testName)).append(",\n");
         sb.append("  \"input\": ").append(jsonStr(inputText)).append(",\n");
-        sb.append("  \"redacted\": ").append(jsonStr(redactedText)).append(",\n");
+        sb.append("  \"output\": ").append(jsonStr(redactedText)).append(",\n");
         sb.append("  \"anomaly_count\": ").append(anomalies.size()).append(",\n");
         sb.append("  \"anomalies\": [\n");
         int idx = 0;
@@ -187,84 +178,258 @@ public class AnonymizeTests {
     }
 
     // -------------------------------------------------------------------
-    // Tests
+    // Mode tests
     // -------------------------------------------------------------------
 
-    /**
-     * Smoke test: plain English sentence with a person name.
-     * Expects at least one Anomaly annotation to be produced.
-     */
+    /** Placeholder mode (default): PII replaced with [category] tag in redacted_text and Anomaly description. */
     @Test
-    @DisplayName("Simple person-name redaction")
-    void testSimplePersonName() throws Exception {
+    @DisplayName("Placeholder mode: PII replaced with [category] tag")
+    void testPlaceholderMode() throws Exception {
+        String text = "Send the report to max.mustermann@uni-frankfurt.de by Friday.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] category=%s description=%s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        assertFalse(anomalies.isEmpty(), "Expected at least one Anomaly for the email address");
+        assertTrue(anomalies.stream().anyMatch(a -> {
+            String d = a.getDescription();
+            return d != null && d.startsWith("[") && d.endsWith("]");
+        }), "Anomaly description should be a bracketed [category] tag in placeholder mode");
+
+        String redacted = extractRedactedText();
+        assertFalse(redacted.contains("max.mustermann@uni-frankfurt.de"),
+                "Redacted text should not contain the original email");
+        assertTrue(redacted.contains("[private_email]") || redacted.contains("[private_person]"),
+                "Redacted text should contain a [category] replacement tag");
+    }
+
+    /** Remove mode: PII spans are deleted from redacted_text; Anomaly description is the original word. */
+    @Test
+    @DisplayName("Remove mode: PII deleted from redacted text")
+    void testRemoveMode() throws Exception {
+        String text = "Call John Smith at john.smith@company.com or +1-800-555-0199 for help.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "remove"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] category=%s text=%s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(), "Expected anomalies in remove mode");
+
+        String redacted = extractRedactedText();
+        System.out.printf("  original (%d): %s%n", text.length(), text);
+        System.out.printf("  redacted (%d): %s%n", redacted.length(), redacted);
+        assertTrue(redacted.length() < text.length(),
+                "Redacted text should be shorter after PII removal");
+        // original PII tokens must be absent from the redacted string
+        for (Anomaly a : anomalies) {
+            String pii = text.substring(a.getBegin(), a.getEnd());
+            assertFalse(redacted.contains(pii),
+                    "Removed PII token '" + pii + "' should not appear in redacted text");
+        }
+    }
+
+    /** Pseudo mode: not yet supported - service returns input unchanged with no annotations. */
+    @Test
+    @DisplayName("Pseudo mode: not yet supported, returns input unchanged")
+    void testPseudoMode() throws Exception {
+        String text = "Alice and Bob met at the Frankfurt main station.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "pseudo"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("Anomaly count (pseudo mode): " + anomalies.size());
+        assertTrue(anomalies.isEmpty(),
+                "Pseudo mode (unsupported stub) should produce no Anomaly annotations");
+    }
+
+    // -------------------------------------------------------------------
+    // PII type tests  (mode=placeholder so description = [category])
+    // -------------------------------------------------------------------
+
+    /** private_person: full name in a simple sentence. */
+    @Test
+    @DisplayName("Type: private_person")
+    void testTypePerson() throws Exception {
         String text = "John Smith called the bank to report a fraud.";
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
-        System.out.println("Anomaly count: " + anomalies.size());
-        for (Anomaly a : anomalies) {
-            System.out.printf("  [%d-%d] category=%s description=%s%n",
-                    a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription());
-        }
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
 
-        assertFalse(anomalies.isEmpty(),
-                "Expected at least one Anomaly annotation for 'John Smith'");
+        assertFalse(anomalies.isEmpty(), "Expected at least one annotation");
+        assertTrue(anomalies.stream().anyMatch(a -> "private_person".equals(a.getCategory())),
+                "Expected category 'private_person' for 'John Smith'");
     }
 
-    /**
-     * Email address redaction.
-     */
+    /** private_email: plain email address. */
     @Test
-    @DisplayName("Email address redaction")
-    void testEmailRedaction() throws Exception {
-        String text = "Please contact support at alice@example.com for further assistance.";
+    @DisplayName("Type: private_email")
+    void testTypeEmail() throws Exception {
+        String text = "Please contact alice@example.com for further assistance.";
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
-        System.out.println("Anomaly count: " + anomalies.size());
-        assertFalse(anomalies.isEmpty(),
-                "Expected at least one Anomaly for the email address");
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        assertTrue(anomalies.stream().anyMatch(a -> "private_email".equals(a.getCategory())),
+                "Expected category 'private_email' for 'alice@example.com'");
     }
 
-    /**
-     * Phone number redaction.
-     */
+    /** private_phone: international phone number. */
     @Test
-    @DisplayName("Phone number redaction")
-    void testPhoneNumberRedaction() throws Exception {
+    @DisplayName("Type: private_phone")
+    void testTypePhone() throws Exception {
         String text = "You can reach Dr. Miller at +49 69 1234 5678 during office hours.";
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
-        System.out.println("Anomaly count: " + anomalies.size());
-        assertFalse(anomalies.isEmpty(),
-                "Expected at least one Anomaly for the phone number or person name");
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        assertFalse(anomalies.isEmpty(), "Expected phone or person annotation");
+        long phoneCount = anomalies.stream().filter(a -> "private_phone".equals(a.getCategory())).count();
+        System.out.println("private_phone spans: " + phoneCount);
+        assertTrue(phoneCount > 0, "Expected category 'private_phone' for '+49 69 1234 5678'");
     }
 
-    /**
-     * Multiple PII entities in a single document.
-     * Asserts that distinct spans covering the name, email, and phone are returned.
-     */
+    /** private_address: street address with postcode. */
     @Test
-    @DisplayName("Multiple PII entities in one document")
+    @DisplayName("Type: private_address")
+    void testTypeAddress() throws Exception {
+        String text = "She lives at 742 Evergreen Terrace, Springfield, IL 62704.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        long addrCount = anomalies.stream().filter(a -> "private_address".equals(a.getCategory())).count();
+        System.out.println("private_address spans: " + addrCount);
+        assertTrue(addrCount > 0, "Expected category 'private_address' for the street address");
+    }
+
+    /** private_url: personal homepage URL. */
+    @Test
+    @DisplayName("Type: private_url")
+    void testTypeUrl() throws Exception {
+        String text = "My personal page is at https://janedoe.personal-site.com/about and I post there.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        long urlCount = anomalies.stream().filter(a -> "private_url".equals(a.getCategory())).count();
+        System.out.println("private_url spans: " + urlCount);
+        assertTrue(urlCount > 0, "Expected category 'private_url' for the personal URL");
+    }
+
+    /** private_date: personally identifying date (e.g. birth date). */
+    @Test
+    @DisplayName("Type: private_date")
+    void testTypeDate() throws Exception {
+        String text = "Jane Doe was born on March 15, 1990 in Chicago.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        assertFalse(anomalies.isEmpty(), "Expected at least one annotation (person or date)");
+        long dateCount = anomalies.stream().filter(a -> "private_date".equals(a.getCategory())).count();
+        System.out.println("private_date spans: " + dateCount);
+        assertTrue(dateCount > 0, "Expected category 'private_date' for 'March 15, 1990'");
+    }
+
+    /** account_number: credit-card style number string. */
+    @Test
+    @DisplayName("Type: account_number")
+    void testTypeAccountNumber() throws Exception {
+        String text = "Please transfer funds to account number 4532-0151-1283-0366 at Deutsche Bank.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        long acctCount = anomalies.stream().filter(a -> "account_number".equals(a.getCategory())).count();
+        System.out.println("account_number spans: " + acctCount);
+        assertTrue(acctCount > 0, "Expected category 'account_number' for the card number");
+    }
+
+    /** secret: API key / credential in text. */
+    @Test
+    @DisplayName("Type: secret")
+    void testTypeSecret() throws Exception {
+        String text = "The API key is sk-proj-abc123XYZ987 and the password is H@nt3r2secure!.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        long secretCount = anomalies.stream().filter(a -> "secret".equals(a.getCategory())).count();
+        System.out.println("secret spans: " + secretCount);
+        assertTrue(secretCount > 0, "Expected category 'secret' for API key / password");
+    }
+
+    // -------------------------------------------------------------------
+    // Feature / combination tests
+    // -------------------------------------------------------------------
+
+    /** Multiple PII types in one document; verifies distinct categories are detected. */
+    @Test
+    @DisplayName("Multiple PII types in one document")
     void testMultiplePiiEntities() throws Exception {
         String text =
                 "Patient: Jane Doe, DOB: 1985-03-22. " +
@@ -272,161 +437,126 @@ public class AnonymizeTests {
                 "Address: 60325 Frankfurt am Main, Goethe-Platz 1.";
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
         System.out.println("Anomaly count: " + anomalies.size());
-        for (Anomaly a : anomalies) {
-            System.out.printf("  [%d-%d] category=%s text=%s%n",
-                    a.getBegin(), a.getEnd(), a.getCategory(),
-                    text.substring(a.getBegin(), a.getEnd()));
-        }
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), text.substring(a.getBegin(), a.getEnd())));
 
         assertTrue(anomalies.size() >= 2,
-                "Expected at least 2 Anomaly annotations for a document with multiple PII entities");
+                "Expected at least 2 distinct PII annotations");
+
+        long distinctCategories = anomalies.stream().map(Anomaly::getCategory).distinct().count();
+        System.out.println("Distinct categories: " + distinctCategories);
+        assertTrue(distinctCategories >= 2,
+                "Expected annotations from at least 2 different PII categories");
     }
 
-    /**
-     * Pseudo-mode: the service should return the text unchanged (stub behavior).
-     * Asserts no Anomaly annotations are created.
-     */
+    /** Smoke test with two PII types in one sentence. */
     @Test
-    @DisplayName("Pseudo mode returns unchanged text")
-    void testPseudoMode() throws Exception {
-        String text = "Alice and Bob met at the Frankfurt main station.";
+    @DisplayName("Smoke test: person + email in one sentence")
+    void testSimplePerson() throws Exception {
+        String text = "My name is Harry Potter and my email is harry.potter@hogwarts.edu.";
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-                        .withParameter("mode", "pseudo")
-        );
-
-        composer.run(cas);
-
-        Collection<Anomaly> anomalies = collectAnomalies();
-        System.out.println("Anomaly count (pseudo mode): " + anomalies.size());
-        assertTrue(anomalies.isEmpty(),
-                "Pseudo mode should produce no Anomaly annotations (stub returns input unchanged)");
-    }
-
-    /**
-     * Custom placeholder: verifies the {@link Anomaly#getDescription()} contains the
-     * user-supplied placeholder string instead of the default {@code <REDACTED>}.
-     */
-    @Test
-    @DisplayName("Custom placeholder is reflected in Anomaly description")
-    void testCustomPlaceholder() throws Exception {
-        String text = "Send the report to max.mustermann@uni-frankfurt.de by Friday.";
-        String placeholder = "***PRIVATE***";
-        createCas("en", text);
-
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-                        .withParameter("placeholder", placeholder)
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
         System.out.println("Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
 
-        boolean foundCustomPlaceholder = anomalies.stream()
-                .anyMatch(a -> placeholder.equals(a.getDescription()));
-        assertTrue(foundCustomPlaceholder,
-                "At least one Anomaly should carry the custom placeholder '" + placeholder + "'");
+        assertFalse(anomalies.isEmpty(),
+                "Expected at least one Anomaly annotation");
     }
 
-    /**
-     * Selection window: only the text between offsets [8, 36] should be analysed.
-     * Entities outside that window must not be annotated.
-     */
+    /** Ambiguous context where person identity is inferred from surrounding detail. */
+    @Test
+    @DisplayName("Complex context: identity inferred from description")
+    void testComplexContext() throws Exception {
+        String text = "His name is Harry, he works at the TTLAB in Frankfurt, " +
+                      "he's the only Chinese guy in the office.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "remove")); // or remove/placeholder mode, should still detect the same spans 
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        assertFalse(anomalies.isEmpty(), "Expected at least one annotation in complex context");
+    }
+
+    /** Selection window: only span offsets within [selBegin, selEnd] must be annotated. */
     @Test
     @DisplayName("Selection window constrains annotation range")
     void testSelectionWindow() throws Exception {
-        // offsets:  0123456789012345678901234567890123456789
-        //           Call Dr. John Adams at 555-0100 today.
-        // window [8, 28] covers "John Adams at 555-0100"
+        // window [9, 30] covers "John Adams at 555-0100"
         String text = "Call Dr. John Adams at 555-0100 today.";
         int selBegin = 9;
         int selEnd   = 30;
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-                        .withParameter("selection_begin", String.valueOf(selBegin))
-                        .withParameter("selection_end",   String.valueOf(selEnd))
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder")
+                .withParameter("selection_begin", String.valueOf(selBegin))
+                .withParameter("selection_end",   String.valueOf(selEnd)));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
         System.out.println("Anomaly count (selection window): " + anomalies.size());
         for (Anomaly a : anomalies) {
             assertTrue(a.getBegin() >= selBegin && a.getEnd() <= selEnd,
-                    String.format("Anomaly [%d-%d] falls outside the selection window [%d-%d]",
+                    String.format("Anomaly [%d-%d] outside window [%d-%d]",
                             a.getBegin(), a.getEnd(), selBegin, selEnd));
         }
     }
 
-    /**
-     * Empty document: the annotator must not throw and must return no anomalies.
-     */
+    /** Empty document must not throw and must return zero annotations. */
     @Test
     @DisplayName("Empty document produces no anomalies")
     void testEmptyDocument() throws Exception {
         createCas("en", "");
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
-
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
         composer.run(cas);
 
-        Collection<Anomaly> anomalies = collectAnomalies();
-        assertTrue(anomalies.isEmpty(),
+        assertTrue(collectAnomalies().isEmpty(),
                 "An empty document should produce zero Anomaly annotations");
     }
 
-    /**
-     * German text: verifies the annotator handles non-English input without crashing.
-     * The model may or may not detect German PII depending on the loaded checkpoint;
-     * we only assert no exception is thrown.
-     */
+    /** German text must not throw; detection quality may vary. */
     @Test
     @DisplayName("German text does not cause an exception")
     void testGermanText() throws Exception {
         String text = "Herr Klaus Muller wohnt in der Goethestrasse 12, 60313 Frankfurt am Main.";
         createCas("de", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
 
-        // Should complete without throwing
         assertDoesNotThrow(() -> composer.run(cas));
-
-        Collection<Anomaly> anomalies = collectAnomalies();
-        System.out.println("German Anomaly count: " + anomalies.size());
+        System.out.println("German Anomaly count: " + collectAnomalies().size());
     }
 
-    /**
-     * XMI serialisation round-trip: runs the annotator and writes the CAS to an XMI
-     * file so the result can be inspected with the UIMA CAS Editor.
-     */
+    /** XMI round-trip: annotate and write to src/test/results/ for manual inspection. */
     @Test
     @DisplayName("XMI output is written to src/test/results/")
     void testXmiOutput() throws Exception {
-        String text =
-                "Maria Schmidt (m.schmidt@example.de) lives at Berliner Str. 5, 10115 Berlin.";
+        String text = "Maria Schmidt (m.schmidt@example.de) lives at Berliner Str. 5, 10115 Berlin.";
         createCas("en", text);
 
-        composer.add(
-                new DUUIRemoteDriver.Component(SERVICE_URL)
-        );
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "placeholder"));
 
         composer.add(new DUUIUIMADriver.Component(
                 createEngineDescription(XmiWriter.class,

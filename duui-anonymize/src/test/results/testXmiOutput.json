@@ -1,15 +1,50 @@
 {
   "test": "testXmiOutput",
   "input": "Maria Schmidt (m.schmidt@example.de) lives at Berliner Str. 5, 10115 Berlin.",
-  "redacted": "Maria Schmidt (<REDACTED>le.de) lives at Berliner Str. 5, 10115 Berlin.",
-  "anomaly_count": 1,
+  "output": "[private_person][private_person] ([private_email][private_email]) lives at[private_address][private_address]",
+  "anomaly_count": 6,
   "anomalies": [
     {
+      "begin": 0,
+      "end": 5,
+      "category": "private_person",
+      "description": "[private_person]",
+      "text": "Maria"
+    },
+    {
+      "begin": 5,
+      "end": 13,
+      "category": "private_person",
+      "description": "[private_person]",
+      "text": " Schmidt"
+    },
+    {
       "begin": 15,
-      "end": 30,
+      "end": 32,
       "category": "private_email",
-      "description": "<PRIVATE_EMAIL>",
-      "text": "m.schmidt@examp"
+      "description": "[private_email]",
+      "text": "m.schmidt@example"
+    },
+    {
+      "begin": 32,
+      "end": 35,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": ".de"
+    },
+    {
+      "begin": 45,
+      "end": 75,
+      "category": "private_address",
+      "description": "[private_address]",
+      "text": " Berliner Str. 5, 10115 Berlin"
+    },
+    {
+      "begin": 75,
+      "end": 76,
+      "category": "private_address",
+      "description": "[private_address]",
+      "text": "."
     }
   ]
 }

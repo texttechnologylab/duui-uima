@@ -9,5 +9,6 @@ uvicorn
 torch
 torchvision
 torchaudio
+transformers
+accelerate
 setuptools
-opf @ git+https://github.com/openai/privacy-filter.git

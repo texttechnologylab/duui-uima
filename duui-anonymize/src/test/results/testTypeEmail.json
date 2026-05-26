@@ -1,0 +1,22 @@
+{
+  "test": "testTypeEmail",
+  "input": "Please contact alice@example.com for further assistance.",
+  "output": "Please contact[private_email][private_email] for further assistance.",
+  "anomaly_count": 2,
+  "anomalies": [
+    {
+      "begin": 14,
+      "end": 28,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": " alice@example"
+    },
+    {
+      "begin": 28,
+      "end": 32,
+      "category": "private_email",
+      "description": "[private_email]",
+      "text": ".com"
+    }
+  ]
+}

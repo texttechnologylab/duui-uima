@@ -1,7 +1,7 @@
 {
-  "test": "testSimplePersonName",
+  "test": "testTypePerson",
   "input": "John Smith called the bank to report a fraud.",
-  "redacted": "[private_person][private_person] called the bank to report a fraud.",
+  "output": "[private_person][private_person] called the bank to report a fraud.",
   "anomaly_count": 2,
   "anomalies": [
     {

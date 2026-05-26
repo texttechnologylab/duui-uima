@@ -1,0 +1,22 @@
+{
+  "test": "testTypeAddress",
+  "input": "She lives at 742 Evergreen Terrace, Springfield, IL 62704.",
+  "output": "She lives at [private_address][private_address].",
+  "anomaly_count": 2,
+  "anomalies": [
+    {
+      "begin": 13,
+      "end": 55,
+      "category": "private_address",
+      "description": "[private_address]",
+      "text": "742 Evergreen Terrace, Springfield, IL 627"
+    },
+    {
+      "begin": 55,
+      "end": 57,
+      "category": "private_address",
+      "description": "[private_address]",
+      "text": "04"
+    }
+  ]
+}
