@@ -10,12 +10,12 @@ RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
-#RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-base')"
-RUN #python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-small')"
+RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-base')"
+#RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-small')"
 #RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-large')"
 #RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-xl')"
 #RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='google/flan-t5-xxl')"
-RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='soumyasanyal/entailment-verifier-xxl')"
+#RUN python -c "from transformers import pipeline; pipeline('text2text-generation', model='soumyasanyal/entailment-verifier-xxl')"
 #RUN python -c "from transformers import pipeline; pipeline('zero-shot-classification', model='mlburnham/deberta-v3-base-polistance-affect-v1.0')"
 
 # copy scripts

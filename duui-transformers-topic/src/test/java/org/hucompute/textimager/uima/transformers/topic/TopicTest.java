@@ -32,7 +32,8 @@ public class TopicTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:9714";
+    static String url = "http://127.0.0.1:8000";
+//    static String url = "http://tweentopic.service.component.duui.texttechnologylab.org";
 //    static String model = "chkla/parlbert-topic-german";
 
     @BeforeAll
@@ -162,6 +163,10 @@ public class TopicTest {
         expected2.add("other_hobbies");
         expected2.add("news_&_social_concern");
         expected1.put("cardiffnlp/tweet-topic-large-multilingual", expected2);
+        expected2 = new ArrayList<>();
+        expected2.add("Travel");
+        expected2.add("Crime & Law");
+        expected1.put("WebOrganizer/TopicClassifier", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")

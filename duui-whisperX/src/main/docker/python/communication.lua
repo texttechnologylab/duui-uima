@@ -1,6 +1,5 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
-util = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -8,10 +7,17 @@ util = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 function serialize(inputCas, outputStream, params)
     -- Get data from CAS
-
     local audioBase64 = inputCas:getSofaDataString() --inputCas:getView(audioView):getSofaDataString()
-    local language = params["language"]
 
+    local model = params["model"]
+    local batch_size = params["batch_size"]
+    local allow_download = params["allow_download"]
+    local hf_token = params["hf_token"]
+    local diarization_num_speakers = params["diarization_num_speakers"]
+    local diarization_min_speakers = params["diarization_min_speakers"]
+    local diarization_max_speakers = params["diarization_max_speakers"]
+
+    local language = params["language"]
     if language == nil then
         language = inputCas:getDocumentLanguage()
 
@@ -23,7 +29,14 @@ function serialize(inputCas, outputStream, params)
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         audio = audioBase64,
-        language = language
+        language = language,
+        model = model,
+        batch_size = batch_size,
+        allow_download = allow_download,
+        hf_token = hf_token,
+        diarization_num_speakers = diarization_num_speakers,
+        diarization_min_speakers = diarization_min_speakers,
+        diarization_max_speakers = diarization_max_speakers
     }))
 end
 
@@ -38,34 +51,49 @@ function deserialize(inputCas, inputStream)
     -- Parse JSON data from string into object
     local results = json.decode(inputString)
 
-
     -- Add tokens to jcas
-    if results["audio_token"] ~= nil then
+    if results["modification_meta"] ~= nil and results["meta"] ~= nil and results["audio_token"] ~= nil then
+        local modification_meta = results["modification_meta"]
+        local modification_anno = luajava.newInstance("org.texttechnologylab.annotation.DocumentModification", inputCas)
+        modification_anno:setUser(modification_meta["user"])
+        modification_anno:setTimestamp(modification_meta["timestamp"])
+        modification_anno:setComment(modification_meta["comment"])
+        modification_anno:addToIndexes()
 
         local entireText = ""
-
         for i, sent in ipairs(results["audio_token"]) do
-
             if entireText == "" then
                 entireText = entireText .. sent["text"]
             else
                 entireText = entireText .. " " .. sent["text"]
             end
 
-            local audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.AudioToken", inputCas)
+            local audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.DiarizedAudioToken", inputCas)
             audioToken:setBegin(sent["begin"])
             audioToken:setEnd(sent["end"])
             audioToken:setTimeStart(sent["timeStart"])
             audioToken:setTimeEnd(sent["timeEnd"])
             audioToken:setValue(sent["text"])
+            if sent["speaker"] ~= nil then
+                audioToken:setSpeakerId(sent["speaker"])
+            end
             audioToken:addToIndexes()
 
+            local meta = results["meta"]
+            local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)
+            meta_anno:setReference(audioToken)
+            meta_anno:setName(meta["name"])
+            meta_anno:setVersion(meta["version"])
+            meta_anno:setModelName(meta["modelName"])
+            meta_anno:setModelVersion(meta["modelVersion"])
+            meta_anno:addToIndexes()
         end
 
         inputCas:setSofaDataString(entireText, "text/plain")
     end
 
     if results["language"] ~= nil then
+        -- set document language, especially needed as the result is most probably stored in a new, empty view
         if inputCas:getDocumentLanguage() == nil or inputCas:getDocumentLanguage() == "x-unspecified" then
             inputCas:setDocumentLanguage(results["language"])
         end

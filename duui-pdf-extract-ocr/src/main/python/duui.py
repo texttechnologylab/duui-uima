@@ -36,6 +36,8 @@ logger.info("TTLab TextImager DUUI PDF Extract/OCR")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
+# TODO tesseract might support more, automatically handle language code conversion
+# pytesseract.get_languages(config='')
 SUPPORTED_LANGS = {
     "en": "eng",
     "de": "deu",
@@ -43,7 +45,8 @@ SUPPORTED_LANGS = {
 
 
 class TextImagerRequest(BaseModel):
-    lang: str
+    lang: str  # "UIMA" language, 2-letter code, this will be mapped to tesseract language code, fails if not supported
+    tesseract_lang: Optional[str] = None  # directly specified tesseract language code, this will be used as provided, e.g. "deu+eng"
     data: str
     min_chars: int = 100
     ocr_dpi: int = 200
@@ -179,11 +182,17 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     model_name = None
     model_version = None
 
-    if request.lang not in SUPPORTED_LANGS:
-        raise Exception(f"Unsupported language: {request.lang}, supported languages are {', '.join(SUPPORTED_LANGS)}")
+    # use specified tesseract language if provided first
+    if request.tesseract_lang:
+        lang = request.tesseract_lang
+        logger.info("Using tesseract language: \"%s\"", lang)
     else:
-        # convert language to tesseract format
-        lang = SUPPORTED_LANGS[request.lang]
+        if request.lang not in SUPPORTED_LANGS:
+            raise Exception(f"Unsupported language: {request.lang}, supported languages are {', '.join(SUPPORTED_LANGS)}")
+        else:
+            # convert language to tesseract format
+            lang = SUPPORTED_LANGS[request.lang]
+            logger.info("Using language: \"%s\" (mapped from \"%s\")", lang, request.lang)
 
     with NamedTemporaryFile(suffix=".pdf") as pdf_temp_file:
         # the pdf is base64 encoded as we can not send bytes directly
@@ -219,7 +228,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     temp_text = ""
                     for image in images:
                         # see https://github.com/texttechnologylab/GerParCor/blob/main/python_Text_extraction/pdf_to_text/scanned_pdf_to_text.py#L53
-                        if lang == "frk" or request.ocr_preprocess:
+                        if "frk" in lang or request.ocr_preprocess:
                             preprocess_bad_quality_text(image.filename)
                             image = Image.open(image.filename)
 

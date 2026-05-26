@@ -7,7 +7,7 @@ from fastapi import FastAPI, Response
 from cassis import load_typesystem
 import torch
 from functools import lru_cache
-from factchecker import UniEvalFactCheck, NubiaFactCheck
+from factchecker import UniEvalFactCheck, NubiaFactCheck, TransformerFactCheck, FactMiniCheck
 from threading import Lock
 # from sp_correction import SentenceBestPrediction
 
@@ -16,35 +16,29 @@ from threading import Lock
 from starlette.responses import PlainTextResponse
 model_lock = Lock()
 
-sources = {
-    "nubia": "https://github.com/wl-research/nubia",
-    "unieval": "https://github.com/maszhongming/UniEval"
-}
-
-languages = {
-    "nubia": "en",
-    "unieval": "en"
-}
-
 class Settings(BaseSettings):
     # Name of this annotator
-    fact_annotator_name: str
+    annotator_name: str
     # Version of this annotator
-    fact_annotator_version: str
+    annotator_version: str
     # Log level
-    fact_log_level: str
+    log_level: str
     # model_name
-    fact_model_name: str
+    model_name: str
     # Name of this annotator
-    fact_model_version: str
+    model_version: str
     #cach_size
-    fact_model_cache_size: int
+    model_cache_size: int
+    # url of the model
+    model_source: str
+    # language of the model
+    model_lang: str
 
 
 # Load settings from env vars
 settings = Settings()
-lru_cache_with_size = lru_cache(maxsize=settings.fact_model_cache_size)
-logging.basicConfig(level=settings.fact_log_level)
+lru_cache_with_size = lru_cache(maxsize=settings.model_cache_size)
+logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 device = 0 if torch.cuda.is_available() else "cpu"
@@ -64,7 +58,7 @@ logger.debug("Loading Lua communication script from \"%s\"", lua_communication_s
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
-class TextImagerRequest(BaseModel):
+class DUUIRequest(BaseModel):
     # The text to process
     text: str
     # The texts language
@@ -95,7 +89,7 @@ class AnnotationMeta(BaseModel):
 
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
-class TextImagerResponse(BaseModel):
+class DUUIResponse(BaseModel):
     # Symspelloutput
     # List of Sentence with every token
     # Every token is a dictionary with following Infos:
@@ -123,9 +117,9 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
-    title=settings.fact_annotator_name,
+    title=settings.annotator_name,
     description="Factuality annotator",
-    version=settings.fact_model_version,
+    version=settings.model_version,
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "TTLab Team",
@@ -171,7 +165,7 @@ def get_documentation():
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: TextImagerRequest):
+def post_process(request: DUUIRequest):
     # Return data
     meta = None
     symspell_out = []
@@ -184,26 +178,26 @@ def post_process(request: TextImagerRequest):
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
     try:
-        model_source = sources[settings.fact_model_name]
-        model_lang = languages[settings.fact_model_name]
+        model_source = settings.model_source
+        model_lang = settings.model_lang
         # set meta Informations
         meta = AnnotationMeta(
-            name=settings.fact_annotator_name,
-            version=settings.fact_annotator_version,
-            modelName=settings.fact_model_name,
-            modelVersion=settings.fact_model_version,
+            name=settings.annotator_name,
+            version=settings.annotator_version,
+            modelName=settings.model_name,
+            modelVersion=settings.model_version,
         )
         # Add modification info
-        modification_meta_comment = f"{settings.fact_annotator_name} ({settings.fact_annotator_version}))"
+        modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version}))"
         modification_meta = DocumentModification(
-            user=settings.fact_annotator_name,
+            user=settings.annotator_name,
             timestamp=modification_timestamp_seconds,
             comment=modification_meta_comment
         )
         claims = request.claims_all
         facts = request.facts_all
         with model_lock:
-            model_run = load_model(settings.fact_model_name)
+            model_run = load_model(settings.model_name)
             claim_list = []
             fact_list = []
             counters = []
@@ -256,13 +250,17 @@ def post_process(request: TextImagerRequest):
                 end_facts.append(fact_i["end"])
     except Exception as ex:
         logger.exception(ex)
-    return TextImagerResponse(meta=meta, modification_meta=modification_meta, consistency=consistency, begin_claims=begin_claims, end_claims=end_claims, begin_facts=begin_facts, end_facts=end_facts, model_name=settings.fact_model_name, model_version=settings.fact_model_version, model_source=model_source, model_lang=model_lang)
+    return DUUIResponse(meta=meta, modification_meta=modification_meta, consistency=consistency, begin_claims=begin_claims, end_claims=end_claims, begin_facts=begin_facts, end_facts=end_facts, model_name=settings.model_name, model_version=settings.model_version, model_source=model_source, model_lang=model_lang)
 
 @lru_cache_with_size
 def load_model(model_name):
 
     if model_name == "nubia":
         model_i = NubiaFactCheck()
+    elif model_name == "manueldeprada/FactCC":
+        model_i = TransformerFactCheck(model_name=model_name, device=device)
+    elif model_name == "MiniCheck":
+        model_i = FactMiniCheck(device=device)
     else:
         model_i = UniEvalFactCheck(device=device)
     return model_i

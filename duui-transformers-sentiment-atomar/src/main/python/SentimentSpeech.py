@@ -23,6 +23,31 @@ model_mapping = {
         0: "negative",
         1: "neutral",
         2: "positive"
+    },
+    "lxyuan/distilbert-base-multilingual-cased-sentiments-student": {
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+    "philschmid/distilbert-base-multilingual-cased-sentiment": {
+        0: "negative",
+        1: "neutral",
+        2: "positive"
+    },
+    "cardiffnlp/twitter-roberta-base-sentiment-latest": {
+        0: "negative",
+        1: "neutral",
+        2: "positive"
+    },
+    "j-hartmann/sentiment-roberta-large-english-3-classes": {
+        0: "negative",
+        1: "neutral",
+        2: "positive"
+    },
+    "bardsai/finance-sentiment-de-base":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
     }
 }
 
@@ -64,7 +89,7 @@ class SentimentCheckSetFit:
             3: "None"
         }
 
-    def sentiment_prediction(self, texts: List[str]):
+    def prediction(self, texts: List[str]):
         out_list = self.model(texts).tolist()
         out_list_all = []
         for i in out_list:
@@ -77,7 +102,7 @@ class SentimentCheckGerman:
         self.device = device
         self.model = SentimentModel()
 
-    def sentiment_prediction(self, texts: List[str]):
+    def prediction(self, texts: List[str]):
         out_list = self.model.predict_sentiment(texts, output_probabilities=True)
         out_list_all = []
         for i in out_list[1]:
@@ -92,7 +117,7 @@ class PySentimientoCheck:
     def __init__(self, lang="en"):
         self.analyzer = create_analyzer(task="sentiment", lang=lang)
 
-    def sentiment_prediction(self, texts: List[str]):
+    def prediction(self, texts: List[str]):
         output = []
         for text in texts:
             prediction_i = self.analyzer.predict(text)

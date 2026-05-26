@@ -1,0 +1,28 @@
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu20.04
+
+RUN apt update && DEBIAN_FRONTEND=noninteractive \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.12 python3-pip python3-setuptools python3-distutils && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+RUN ln -s /usr/bin/python3 /usr/bin/python
+RUN python -m pip install --upgrade pip
+
+WORKDIR /usr/src/app
+
+EXPOSE 9714
+
+COPY src/main/python/requirements.txt src/main/python/requirements.txt
+RUN pip install -r ./src/main/python/requirements.txt
+
+COPY src/main/python/download_parlbert_topic_german.py src/main/python/download_modell.py
+RUN python3 src/main/python/download_modell.py
+
+COPY src/main/python/dkpro-core-types.xml ./dkpro-core-types.xml
+COPY src/main/python/communication.lua ./communication.lua
+COPY src/main/python/parlbert_topic_german.py ./parlbert_topic_german.py
+
+EXPOSE 9714
+
+ENTRYPOINT ["uvicorn", "parlbert_topic_german:app", "--host", "0.0.0.0", "--port", "9714"]
+CMD ["--workers", "1"]

@@ -6,6 +6,7 @@ PDF_MIME_TYPE = "application/pdf"
 
 function serialize(inputCas, outputStream, parameters)
     local doc_lang = inputCas:getDocumentLanguage()
+    local tesseract_lang = parameters["tesseract_lang"]
 
     local min_chars = parameters["min_chars"]
     local ocr_dpi = parameters["ocr_dpi"]
@@ -22,6 +23,7 @@ function serialize(inputCas, outputStream, parameters)
 
     outputStream:write(json.encode({
         lang = doc_lang,
+        tesseract_lang = tesseract_lang,
         data = data,
         min_chars = min_chars,
         ocr_dpi = ocr_dpi,

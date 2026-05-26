@@ -27,8 +27,9 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-english-cap-v3', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-party-cap-v3', trust_remote_code=True); AutoTokenizer.from_pretrained('xlm-roberta-large')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-large-multilingual')"
-
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-large-multilingual')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('WebOrganizer/TopicClassifier', trust_remote_code=True, use_memory_efficient_attention=False); AutoTokenizer.from_pretrained('WebOrganizer/TopicClassifier')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='nickmuchi/finbert-tone-finetuned-finance-topic-classification')"
 # log level
 ARG LOG_LEVEL="DEBUG"
 ENV LOG_LEVEL=$LOG_LEVEL
@@ -54,8 +55,8 @@ ARG MODEL_LANG=""
 ENV MODEL_LANG=$MODEL_LANG
 
 # offline mode for huggingface
-#ARG TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1
-#ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE
+ARG TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE
 
 
 

@@ -8,7 +8,6 @@ function serialize(inputCas, outputStream, parameters)
     local doc_text = inputCas:getDocumentText()
     local doc_len = ToxicUtils:getDocumentTextLength(inputCas)
 
-    local model_name = parameters["model_name"]
     local selection_types = parameters["selection"]
 
     local selections = {}
@@ -50,7 +49,6 @@ function serialize(inputCas, outputStream, parameters)
         selections = selections,
         lang = doc_lang,
         doc_len = doc_len,
-        model_name = model_name
     }))
 end
 
@@ -82,7 +80,7 @@ function deserialize(inputCas, inputStream)
         model_meta:setLang(model_lang)
 --         print(model_lang)
         model_meta:addToIndexes()
-        print(model_meta)
+--         print(model_meta)
 
         local meta = results["meta"]
 --        print("meta")
