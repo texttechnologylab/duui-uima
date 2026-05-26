@@ -2,6 +2,8 @@ import torch
 import whisperx
 
 
+# NOTE: the diarization model can not be preloaded, as it requires a Hugging Face token
+
 MODEL_DIR = "/tmp/whisperx"
 
 SUPPORTED_MODELS = [
@@ -12,7 +14,7 @@ SUPPORTED_MODELS = [
 SUPPORTED_LANGUAGES = [
     "en",
     "de",
-    "ru",
+    # "ru",
 ]
 
 # TODO only cpu detected on docker build
