@@ -193,14 +193,14 @@ public class Suprisal {
          * Save results in CSV-files
          */
         writeSentenceResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Sentence.csv");
-        writeTokenResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Token.csv");
+        writeTokenResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Word.csv");
 
     }
 
     private void writeSentenceResults(JCas jCas, String sOutPath) throws IOException {
 
         StringBuilder outputBuilder = new StringBuilder();
-        outputBuilder.append("Item,Condition,Sentence,Target,Score,ScoreSum");
+        outputBuilder.append("Item,Sentence,Condition,Target,Score,SequenceScore,SequenceScoreSum");
 
         JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
             if(outputBuilder.length()>0) {

@@ -9,10 +9,10 @@
     <version>0.0.1</version>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <ttlab.duui.version>1.4.1</ttlab.duui.version>
-        <ttlab.typesystem.version>c67430363d4ee088f181e3ee2541b29ad95171a6</ttlab.typesystem.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <ttlab.duui.version>1.5.3</ttlab.duui.version>
+        <ttlab.typesystem.version>6d3c940044383742a3c47a78a9dc30e4b246f43d</ttlab.typesystem.version>
     </properties>
 
     <build>
@@ -51,7 +51,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.github.Myyyvothrr</groupId>
+            <groupId>com.github.myyyvothrr</groupId>
             <artifactId>UIMATypeSystem</artifactId>
             <version>${ttlab.typesystem.version}</version>
         </dependency>

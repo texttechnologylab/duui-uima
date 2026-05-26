@@ -249,33 +249,58 @@ def get_input_output() -> TextImagerInputOutput:
         outputs=TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES
     )
 
+# ============================================================================
+# DESCRIPTIVE (DES*) — "How big is the text?"
+# Basic counts: paragraphs, sentences, words, syllables, letters, plus means
+# and standard deviations. These are the most reliable Coh-Metrix outputs;
+# they are just counts over spaCy tokens.
+# ============================================================================
+
+# LAY: How many paragraphs are in the text?
+# Reliable.
 def cm_despc(paragraphs: List[Paragraph]) -> Optional[float]:
     # Paragraph count, number of paragraphs
     return len(paragraphs)
 
+# LAY: How many sentences are in the text?
+# Reliable.
 def cm_dessc(paragraphs: List[Paragraph]) -> Optional[float]:
     # Sentence count, number of sentences
     return sum([len(p.sentences) for p in paragraphs])
 
+# LAY: How many words (excluding punctuation) are in the text?
+# Reliable.
 def cm_deswc(paragraphs: List[Paragraph]) -> Optional[float]:
-    # Word count, number of words
-    return sum([sum([len(s.tokens) for s in p.sentences]) for p in paragraphs])
+    # Word count, number of words.
+    # M6 fix: exclude punctuation to match _count_metrics["total_tokens"] and
+    # spec ("words taken from leaves of the sentence parse trees").
+    return sum(1 for p in paragraphs for s in p.sentences for t in s.tokens if not t.is_punct)
 
+# LAY: On average, how many sentences are in one paragraph?
+# ↑ Higher = longer paragraphs. Reliable.
 def cm_despl(paragraphs: List[Paragraph]) -> Optional[float]:
     # Paragraph length, number of sentences, mean
     return np.mean([len(p.sentences) for p in paragraphs])
 
+# LAY: How uneven are paragraph lengths? (spread around the mean)
+# ↑ Higher = more variable paragraph sizes. Reliable.
 def cm_despld(paragraphs: List[Paragraph]) -> Optional[float]:
     # Paragraph length, number of sentences, standard deviation
     return np.std([len(p.sentences) for p in paragraphs])
 
+# LAY: On average, how many words are in one sentence?
+# ↑ Higher = longer sentences (often harder to read). Reliable.
 def cm_dessl(paragraphs: List[Paragraph]) -> Optional[float]:
-    # Sentence length, number of words, mean
-    return np.mean([len(s.tokens) for p in paragraphs for s in p.sentences])
+    # Sentence length, number of words, mean. M6 fix: exclude punctuation.
+    return np.mean([sum(1 for t in s.tokens if not t.is_punct)
+                    for p in paragraphs for s in p.sentences])
 
+# LAY: How uneven are sentence lengths?
+# ↑ Higher = more variable sentence sizes. Reliable.
 def cm_dessld(paragraphs: List[Paragraph]) -> Optional[float]:
-    # Sentence length, number of words, standard deviation
-    return np.std([len(s.tokens) for p in paragraphs for s in p.sentences])
+    # Sentence length, number of words, standard deviation. M6 fix: exclude punctuation.
+    return np.std([sum(1 for t in s.tokens if not t.is_punct)
+                   for p in paragraphs for s in p.sentences])
 
 pyphens = {
     "en": pyphen.Pyphen(lang='en'),
@@ -289,14 +314,20 @@ def _syllables_count(tokens: List[Token], lang: str) -> List[int]:
     ]
     return syllables_counts
 
+# LAY: On average, how many syllables per word?
+# ↑ Higher = longer, more complex words. Reliable.
 def cm_deswlsy(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, mean
     return np.mean(_syllables_count(tokens, lang))
 
+# LAY: How uneven is the syllable count across words?
+# ↑ Higher = mix of short and long words. Reliable.
 def cm_deswlsyd(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, standard deviation
     return np.std(_syllables_count(tokens, lang))
 
+# LAY: On average, how many letters per word?
+# ↑ Higher = longer words. Reliable.
 def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
     # Word length, number of letters, mean
     text_letters = []
@@ -306,6 +337,8 @@ def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
                 text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
     return np.mean(text_letters)
 
+# LAY: How uneven is the letter count across words?
+# ↑ Higher = mix of short and long words. Reliable.
 def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
     # Word length, number of letters, standard deviation
     text_letters = []
@@ -316,7 +349,11 @@ def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
     return np.std(text_letters)
 
 ud_noun_pos = {"NOUN", "PROPN"}
-ud_pronouns_pos = {"PRON", "DET"}
+# H6 fix: DET was previously in this set which caused pronoun-overlap (and thus
+# argument-overlap) to approach 1.0 for any normal text because determiners
+# like "the"/"der"/"die"/"das" appear in nearly every sentence. Spec (Ch. 4,
+# §Referential cohesion) specifies pronouns ("he/he"), not determiners.
+ud_pronouns_pos = {"PRON"}
 ud_content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
 
 def _noun_overlap(sentence_a: Sentence, sentence_b: Sentence) -> int:
@@ -341,16 +378,26 @@ def _stem_overlap(sentence_nouns: Sentence, sentence_contents: Sentence) -> int:
     return len(nouns_a.intersection(nouns_b))
 
 def _word_overlap(sentence_a: Sentence, sentence_b: Sentence) -> float:
+    # H5 fix: denominator must be the union of CONTENT-word lemmas only, not all
+    # tokens (function words, determiners, punctuation were previously included,
+    # which deflated overlap ratios). Spec: Ch. 4 §Referential cohesion -
+    # "proportion of explicit content words that overlap between pairs of sentences".
     nouns_a = set([t.lemma for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
     nouns_b = set([t.lemma for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
     overlap = len(nouns_a.intersection(nouns_b))
 
-    # TODO check
-    all_words = set([t.lemma for t in sentence_a.tokens])
-    all_words.update(set([t.lemma for t in sentence_b.tokens]))
+    all_words = nouns_a | nouns_b
 
     return overlap / len(all_words) if len(all_words) > 0 else 0.0
 
+# ============================================================================
+# REFERENTIAL COHESION (CRF*) — "Do sentences keep talking about the same things?"
+# Measures how often nouns, pronouns, stems, or any content words reappear
+# across sentences. Higher = tighter textual cohesion. Reliable.
+# ============================================================================
+
+# LAY: Do adjacent sentences share at least one noun?
+# ↑ Higher = nouns recur across neighbours. Reliable.
 def cm_crfno1(sentences: List[Sentence]) -> Optional[float]:
     # Noun overlap, adjacent sentences, binary, mean
     noun_overlap_per_sentence = []
@@ -363,6 +410,8 @@ def cm_crfno1(sentences: List[Sentence]) -> Optional[float]:
         noun_overlap_per_sentence.append(noun_overlap)
     return np.mean(noun_overlap_per_sentence)
 
+# LAY: Do any two sentences in the text share at least one noun?
+# ↑ Higher = noun recurrence across the whole text. Reliable.
 def cm_crfnoa(sentences: List[Sentence]) -> Optional[float]:
     # Noun overlap, all sentences, binary, mean
     noun_overlap_per_sentence = []
@@ -376,6 +425,8 @@ def cm_crfnoa(sentences: List[Sentence]) -> Optional[float]:
             noun_overlap_per_sentence.append(noun_overlap)
     return np.mean(noun_overlap_per_sentence)
 
+# LAY: Do adjacent sentences share a noun or pronoun (an "argument")?
+# ↑ Higher = same entities referred to across neighbours. Reliable.
 def cm_crfao1(sentences: List[Sentence]) -> Optional[float]:
     # Argument overlap, adjacent sentences, binary, mean
     argument_overlap_per_sentence = []
@@ -388,6 +439,8 @@ def cm_crfao1(sentences: List[Sentence]) -> Optional[float]:
         argument_overlap_per_sentence.append(argument_overlap)
     return np.mean(argument_overlap_per_sentence)
 
+# LAY: Do any two sentences share a noun or pronoun?
+# ↑ Higher = entity recurrence throughout text. Reliable.
 def cm_crfaoa(sentences: List[Sentence]) -> Optional[float]:
     # Argument overlap, all sentences, binary, mean
     argument_overlap_per_sentence = []
@@ -401,6 +454,8 @@ def cm_crfaoa(sentences: List[Sentence]) -> Optional[float]:
             argument_overlap_per_sentence.append(argument_overlap)
     return np.mean(argument_overlap_per_sentence)
 
+# LAY: Do adjacent sentences share a word stem (e.g. "running"/"runs")?
+# ↑ Higher = same word families recur. Reliable.
 def cm_crfso1(sentences: List[Sentence]) -> Optional[float]:
     # Stem overlap, adjacent sentences, binary, mean
     stem_overlap_per_sentence = []
@@ -413,6 +468,8 @@ def cm_crfso1(sentences: List[Sentence]) -> Optional[float]:
         stem_overlap_per_sentence.append(stem_overlap)
     return np.mean(stem_overlap_per_sentence)
 
+# LAY: Do any two sentences share a word stem?
+# ↑ Higher = word-family recurrence throughout text. Reliable.
 def cm_crfsoa(sentences: List[Sentence]) -> Optional[float]:
     # Stem overlap, all sentences, binary, mean
     stem_overlap_per_sentence = []
@@ -426,6 +483,8 @@ def cm_crfsoa(sentences: List[Sentence]) -> Optional[float]:
             stem_overlap_per_sentence.append(stem_overlap)
     return np.mean(stem_overlap_per_sentence)
 
+# LAY: What share of content words is shared between adjacent sentences? (mean)
+# ↑ Higher = tighter local cohesion. Reliable.
 def cm_crfcwo1(sentences: List[Sentence]) -> Optional[float]:
     # Content word overlap, adjacent sentences, proportional, mean
     word_overlap_per_sentence = []
@@ -438,6 +497,8 @@ def cm_crfcwo1(sentences: List[Sentence]) -> Optional[float]:
         word_overlap_per_sentence.append(word_overlap)
     return np.mean(word_overlap_per_sentence)
 
+# LAY: How uneven is the content-word overlap between adjacent sentences?
+# ↑ Higher = some pairs repeat heavily, others not at all. Reliable.
 def cm_crfcwo1d(sentences: List[Sentence]) -> Optional[float]:
     # Content word overlap, adjacent sentences, proportional, standard deviation
     word_overlap_per_sentence = []
@@ -450,6 +511,8 @@ def cm_crfcwo1d(sentences: List[Sentence]) -> Optional[float]:
         word_overlap_per_sentence.append(word_overlap)
     return np.std(word_overlap_per_sentence)
 
+# LAY: What share of content words is shared across all sentence pairs? (mean)
+# ↑ Higher = global cohesion. Reliable.
 def cm_crfcwoa(sentences: List[Sentence]) -> Optional[float]:
     # Content word overlap, all sentences, proportional, mean
     word_overlap_per_sentence = []
@@ -463,6 +526,8 @@ def cm_crfcwoa(sentences: List[Sentence]) -> Optional[float]:
             word_overlap_per_sentence.append(word_overlap)
     return np.mean(word_overlap_per_sentence)
 
+# LAY: How uneven is the global content-word overlap across sentence pairs?
+# ↑ Higher = mix of tight and loose cohesion. Reliable.
 def cm_crfcwoad(sentences: List[Sentence]) -> Optional[float]:
     # Content word overlap, all sentences, proportional, mean
     word_overlap_per_sentence = []
@@ -476,35 +541,74 @@ def cm_crfcwoad(sentences: List[Sentence]) -> Optional[float]:
             word_overlap_per_sentence.append(word_overlap)
     return np.std(word_overlap_per_sentence)
 
-def _lexical_diversity_tokens(tokens: List[Token]) -> Tuple[List[str], List[str]]:
+def _lexical_diversity_tokens(tokens: List[Token]) -> Tuple[List[str], List[str], List[str]]:
+    # M4 fix: Appendix A #46 specifies LDTTRc uses "content word LEMMAS", not
+    # surface forms. Return an extra lemma list for LDTTRc; keep surface-form
+    # lists for LDTTRa/LDMTLDa/LDVOCDa ("all words", spec is surface).
     tokens_alpha = [token.text.lower() for token in tokens if token.is_alpha]
     tokens_content = [token.text.lower() for token in tokens if token.pos_coarse in ud_content_pos and token.is_alpha]
-    return tokens_alpha, tokens_content
+    tokens_content_lemma = [
+        (token.lemma.lower() if token.lemma else token.text.lower())
+        for token in tokens
+        if token.pos_coarse in ud_content_pos and token.is_alpha
+    ]
+    return tokens_alpha, tokens_content, tokens_content_lemma
 
+# ============================================================================
+# LEXICAL DIVERSITY (LD*) — "How varied is the vocabulary?"
+# Ratios of unique words to total words. High values mean the author uses many
+# different words; low values mean the same words recur often. Reliable.
+# ============================================================================
+
+# LAY: Ratio of unique content-word lemmas to total content words.
+# ↑ Higher = richer content vocabulary. Reliable.
 def cm_ldttrc(tokens: List[Token]) -> Optional[float]:
-    _, tokens_content = _lexical_diversity_tokens(tokens)
-    return ld.ttr(tokens_content)
+    # M4: use content-word LEMMAS (Appendix A #46).
+    _, _, tokens_content_lemma = _lexical_diversity_tokens(tokens)
+    return ld.ttr(tokens_content_lemma)
 
+# LAY: Ratio of unique words to total words (all alphabetic words).
+# ↑ Higher = more varied vocabulary overall. Reliable.
 def cm_ldttra(tokens: List[Token]) -> Optional[float]:
-    tokens_alpha, _ = _lexical_diversity_tokens(tokens)
+    tokens_alpha, _, _ = _lexical_diversity_tokens(tokens)
     return ld.ttr(tokens_alpha)
 
+# LAY: MTLD — vocabulary diversity, robust to text length.
+# ↑ Higher = more varied vocabulary (not inflated by length). Reliable.
 def cm_ldmtlda(tokens: List[Token]) -> Optional[float]:
-    tokens_alpha, _ = _lexical_diversity_tokens(tokens)
+    tokens_alpha, _, _ = _lexical_diversity_tokens(tokens)
     return ld.mtld(tokens_alpha)
 
+# LAY: VOCD — vocabulary diversity via random-sample curve fitting.
+# ↑ Higher = more varied vocabulary. Reliable.
 def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
-    tokens_alpha, _ = _lexical_diversity_tokens(tokens)
+    tokens_alpha, _, _ = _lexical_diversity_tokens(tokens)
     lex = LexicalRichness(tokens_alpha, preprocessor=None, tokenizer=None)
     return lex.vocd()
 
+# ============================================================================
+# SYNTACTIC COMPLEXITY (SYN*) — "How complex and consistent is sentence structure?"
+# Left-embeddedness, noun-phrase size, sentence-pair edit distance, and
+# structural similarity. SYNSTRUT* is an approximation (we use dependency
+# rather than constituency parses); the others are reliable.
+# ============================================================================
+
+# LAY: Average number of words before the main verb of a sentence.
+# ↑ Higher = more left-embedded clauses, harder to read. Reliable.
 def cm_synle(sentences: List[Sentence]) -> Optional[float]:
     deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
 
     word_counts = []
     counter_start = 0
+    # M1 fix (partial): accept multiple ROOT conventions. DKPro/Stanford interop
+    # emits "--", spaCy/UD emits "ROOT"/"root". Previously only "--" was matched,
+    # which made SYNLE silently return 0 under UD-style pipelines.
+    # TODO(M1): verify which marker the current DUUI spaCy component emits; this
+    # wider match is safe because none of these strings collide with any real
+    # non-root dep label.
+    _ROOT_MARKERS = ("--", "ROOT", "root")
     for sent in deps:
-        root = [c for c, token in enumerate(sent) if token == "--"]  # ROOT in spaCy
+        root = [c for c, token in enumerate(sent) if token in _ROOT_MARKERS]
         if root:
             root_index = (counter_start+root[0]) - counter_start
             word_counts.append(root_index)
@@ -520,67 +624,76 @@ ud_tiger_dep_mapping_de = {
     }
 }
 
+# LAY: Average number of modifiers (adjectives, compounds, PPs) per noun phrase.
+# ↑ Higher = denser noun phrases, more complex syntax. Reliable.
 def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str) -> Optional[float]:
-    deps = []
-    for noun_chunk in noun_chunks:
-        for sentence in sentences:
-            if sentence.begin == noun_chunk.begin and sentence.end == noun_chunk.end:
-                deps.append([token.dep_type for token in sentence.tokens])
-                break
+    # H2 fix: previously compared noun_chunk.begin/end to sentence.begin/end for
+    # equality, which never matched (chunks are sub-sentence spans), so this
+    # index always returned 0. Now use containment and count modifier-type deps
+    # for tokens that fall inside the chunk span.
+    dep_map_en = ["AMOD", "COMPOUND", "PREP"]
+    if lang == "de":
+        dep_map = []
+        for dep_en in dep_map_en:
+            dep_map.extend(ud_tiger_dep_mapping_de["de"][dep_en])
+    else:
+        dep_map = dep_map_en
 
     modifier_counts = []
-    for sent in deps:
-        dep_map_en = ["AMOD", "COMPOUND", "PREP"]
-        if lang == "de":
-            dep_map_de = []
-            for dep_en in dep_map_en:
-                dep_map_de.extend(ud_tiger_dep_mapping_de[lang][dep_en])
-            modifiers = [tok for tok in sent if tok in dep_map_de]
-        else:
-            modifiers = [tok for tok in sent if tok in dep_map_en]
-        modifier_counts.append(len(modifiers))
+    for noun_chunk in noun_chunks:
+        for sentence in sentences:
+            if sentence.begin <= noun_chunk.begin and noun_chunk.end <= sentence.end:
+                chunk_tokens = [tok for tok in sentence.tokens
+                                if tok.begin >= noun_chunk.begin and tok.end <= noun_chunk.end]
+                modifiers = [tok for tok in chunk_tokens if tok.dep_type in dep_map]
+                modifier_counts.append(len(modifiers))
+                break
 
     return np.mean(modifier_counts) if modifier_counts else 0
 
-def cm_synmedpos(tokens: List[Token]) -> Optional[float]:
-    poses = [token.pos_coarse for token in tokens]
-
+# LAY: How different are adjacent sentences in their POS-tag sequences?
+# ↑ Higher = consecutive sentences have very different grammatical shapes. Reliable.
+def cm_synmedpos(sentences: List[Sentence]) -> Optional[float]:
+    # H1 fix: compute mean normalized edit distance between CONSECUTIVE SENTENCES'
+    # POS-tag sequences (spec: Ch. 4, "distance ... between consecutive sentences"),
+    # not between adjacent individual tokens as done previously.
+    # Approximation: character-level Levenshtein on space-joined POS strings.
+    sent_pos_strs = [" ".join(token.pos_coarse for token in sent.tokens) for sent in sentences]
     normalized_levenshtein = NormalizedLevenshtein()
-
     pos_dists = []
-    for i in range(len(poses)-1):
-        pos_i = poses[i]
-        pos_j = poses[i+1]
-        pos_dists.append(normalized_levenshtein.distance(pos_i, pos_j))
+    for i in range(len(sent_pos_strs) - 1):
+        pos_dists.append(normalized_levenshtein.distance(sent_pos_strs[i], sent_pos_strs[i + 1]))
+    return np.mean(pos_dists) if pos_dists else 0
 
-    return np.mean(pos_dists)
-
-def cm_synmedwrd(tokens: List[Token]) -> Optional[float]:
-    tokens = [token.text for token in tokens]
-
+# LAY: How different are adjacent sentences word-for-word?
+# ↑ Higher = neighbours share fewer surface words. Reliable.
+def cm_synmedwrd(sentences: List[Sentence]) -> Optional[float]:
+    # H1 fix: see cm_synmedpos. Edit distance over consecutive sentence texts.
+    sent_word_strs = [" ".join(token.text for token in sent.tokens) for sent in sentences]
     normalized_levenshtein = NormalizedLevenshtein()
-
     word_dists = []
-    for i in range(len(tokens)-1):
-        tokens_i = tokens[i]
-        tokens_j = tokens[i+1]
-        word_dists.append(normalized_levenshtein.distance(tokens_i, tokens_j))
+    for i in range(len(sent_word_strs) - 1):
+        word_dists.append(normalized_levenshtein.distance(sent_word_strs[i], sent_word_strs[i + 1]))
+    return np.mean(word_dists) if word_dists else 0
 
-    return np.mean(word_dists)
-
-def cm_synmedlem(tokens: List[Token]) -> Optional[float]:
-    lemmas = [token.lemma for token in tokens]
-
+# LAY: How different are adjacent sentences at the lemma level?
+# ↑ Higher = neighbours share fewer word stems. Reliable.
+def cm_synmedlem(sentences: List[Sentence]) -> Optional[float]:
+    # H1 fix: see cm_synmedpos. Edit distance over consecutive sentence lemmas.
+    sent_lemma_strs = [" ".join(token.lemma for token in sent.tokens) for sent in sentences]
     normalized_levenshtein = NormalizedLevenshtein()
-
     lemma_dists = []
-    for i in range(len(lemmas)-1):
-        lemmas_i = lemmas[i]
-        lemmas_j = lemmas[i+1]
-        lemma_dists.append(normalized_levenshtein.distance(lemmas_i, lemmas_j))
+    for i in range(len(sent_lemma_strs) - 1):
+        lemma_dists.append(normalized_levenshtein.distance(sent_lemma_strs[i], sent_lemma_strs[i + 1]))
+    return np.mean(lemma_dists) if lemma_dists else 0
 
-    return np.mean(lemma_dists)
-
+# NOTE(M9): SYNSTRUT is a documented approximation of Coh-Metrix's constituency-
+# based tree similarity. The spec (Ch. 4, Fig. 4.1) computes the maximum common
+# subtree over constituency parses (NP, VP, S, DT, NN, VBD, PRP, …). Here we
+# operate on (dep_label, pos_tag) node sets because the DUUI pipeline emits
+# dependency parses, not constituency trees. Jaccard over these tuple-nodes
+# preserves the intended signal (structural similarity) but values are not
+# numerically comparable to the original Coh-Metrix output.
 def _compute_tree_similarity(nodes1, nodes2):
     common = nodes1 & nodes2
     total = len(nodes1) + len(nodes2) - len(common)
@@ -602,6 +715,9 @@ def _get_tree_nodes_paragraphs(deps, poses, puncts):
                 nodes.add((dep, pos))
     return nodes
 
+# LAY: How similar are adjacent sentences in grammatical structure?
+# ↑ Higher = neighbours share grammatical patterns. Approximate (uses
+#   dependency parse; original uses constituency parse — see NOTE(M9)).
 def cm_synstruta(sentences: List[Sentence]) -> Optional[float]:
     poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
     deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
@@ -617,6 +733,8 @@ def cm_synstruta(sentences: List[Sentence]) -> Optional[float]:
 
     return np.mean(similarities) if similarities else 0.0
 
+# LAY: How similar are any two paragraphs in grammatical structure?
+# ↑ Higher = consistent syntactic style across paragraphs. Approximate (see NOTE(M9)).
 def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
     poses_paragraph = []
     deps_paragraph = []
@@ -634,7 +752,9 @@ def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
         puncts_paragraph.append(puncts_sent)
 
     similarities = []
-    for s1, s2 in combinations(range(len(deps_paragraph) - 1), 2):
+    # M8 fix: was range(len - 1), which dropped the last paragraph from all
+    # pair combinations. Spec (SYNSTRUTt) wants all paragraph pairs.
+    for s1, s2 in combinations(range(len(deps_paragraph)), 2):
         sim = _compute_tree_similarity(
             _get_tree_nodes_paragraphs(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
             _get_tree_nodes_paragraphs(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
@@ -643,11 +763,12 @@ def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
 
     return np.mean(similarities) if similarities else 0.0
 
-def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Dict[str, int]:
+def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str) -> Dict[str, int]:
     token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
     words = [[token.text for token in sent.tokens] for sent in sentences]
     tags = [[token.pos_value for token in sent.tokens] for sent in sentences]
     deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
+    lemmas = [[token.lemma for token in sent.tokens] for sent in sentences]
     puncts = [[token.is_punct for token in sent.tokens] for sent in sentences]
 
     count_metrics_dict = {
@@ -665,8 +786,15 @@ def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> D
 
     count_metrics_dict["noun_phrase_count"] = len(noun_chunks)
 
+    # H3: passive detection must be language-specific.
+    #  - English (spec Ch. 4, \u00a7Syntactic complexity): sentence has an auxpass
+    #    or nsubjpass dependency.
+    #  - German: \"Vorgangspassiv\" = form of werden + past participle (VVPP);
+    #    \"Zustandspassiv\" = form of sein + past participle.
+    de_passive_aux_lemmas = {"werden", "sein"}
+
     for c, tokens in enumerate(token_pos):
-        aux = False
+        is_passive = False
         for j, token_pos_i in enumerate(tokens):
             match token_pos_i:
                 case "VERB":
@@ -678,13 +806,23 @@ def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> D
             word_i = words[c][j]
             tag_i = tags[c][j]
             dep_i = deps[c][j]
-            # AUXPASS EN, MO DE
-            if dep_i == "AUXPASS" or dep_i in ["MO", "AUX", "VP"]:
-                aux = True
+            lemma_i = lemmas[c][j]
+            if lang == "de":
+                # German passive: auxiliary werden/sein co-occurring with a
+                # past participle (VVPP) in the same sentence.
+                if lemma_i.lower() in de_passive_aux_lemmas and "VVPP" in tags[c]:
+                    is_passive = True
+            else:
+                # English passive: look for auxpass / nsubjpass deps.
+                if dep_i in ("AUXPASS", "NSUBJPASS", "auxpass", "nsubjpass"):
+                    is_passive = True
             if dep_i == "NEG" or dep_i == "NG":
                 count_metrics_dict["neg_count"] += 1
-            # VBG = EN, VVPP = DE
-            if tag_i == "VBG" or tag_i in ["VVPP", "ADJD"]:
+            # H11: VBG is the English gerund (\"-ing\"). German has no gerund
+            # equivalent, so leave count at 0 for DE (previously VVPP/ADJD were
+            # counted, but VVPP is past participle and ADJD is adverbial
+            # adjective \u2013 not gerunds).
+            if lang != "de" and tag_i == "VBG":
                 count_metrics_dict["gerund_count"] += 1
             if 0 < j < len(tokens) - 1:
                 # DE = VVINF
@@ -701,7 +839,7 @@ def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> D
                             if tags[c][next_idx] == "VVINF" and token_pos[c][next_idx] == "VERB":
                                 count_metrics_dict["infinitive_count"] += 1
                                 break
-        if aux:
+        if is_passive:
             count_metrics_dict["passive_sentences"] += 1
 
     # iterate over puncts count falses
@@ -710,48 +848,87 @@ def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> D
 
     return count_metrics_dict
 
-def cm_drnp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["noun_phrase_count"] / total_tokens if total_tokens else 0
+# ============================================================================
+# SYNTACTIC PATTERN DENSITY (DR*) — "Which grammatical constructions appear,
+# and how often?" All values are incidences (per 1,000 words). Reliable
+# counts, modulo one language caveat: DRGERUND returns 0 for German (no direct
+# gerund equivalent — see NOTE(H11)). DRPVAL is a per-sentence proportion.
+# ============================================================================
 
-def cm_drvp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["verb_count"] / total_tokens if total_tokens else 0
+# LAY: How many noun phrases per 1,000 words?
+# ↑ Higher = more noun-heavy text. Reliable.
+def cm_drnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRNP is an INCIDENCE (per 1000 words), not a raw ratio.
+    # L2: accept precomputed dict to avoid recomputing 8 times per request.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["noun_phrase_count"], metrics["total_tokens"])
 
-def cm_drap(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["adverb_count"] / total_tokens if total_tokens else 0
+# LAY: How many verbs per 1,000 words?
+# ↑ Higher = more action/verb-driven text. Reliable.
+def cm_drvp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRVP incidence per 1000 words.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["verb_count"], metrics["total_tokens"])
 
-def cm_drpp(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["prep_count"] / total_tokens if total_tokens else 0
+# LAY: How many adverbs per 1,000 words?
+# ↑ Higher = more descriptive modifiers. Reliable.
+def cm_drap(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRAP incidence per 1000 words.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["adverb_count"], metrics["total_tokens"])
 
-def cm_drpval(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_sentences = metrics_dict["total_sentences"]
-    return metrics_dict["passive_sentences"] / total_sentences if total_sentences else 0
+# LAY: How many prepositions per 1,000 words?
+# ↑ Higher = more phrase-rich syntax. Reliable.
+def cm_drpp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRPP incidence per 1000 words.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["prep_count"], metrics["total_tokens"])
 
-def cm_drneg(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["neg_count"] / total_tokens if total_tokens else 0
+# LAY: Proportion of sentences in passive voice (spec: per-sentence, not per 1000 words).
+# ↑ Higher = more passive/impersonal style. Reliable.
+def cm_drpval(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # DRPVAL: passive voice density. Spec (Ch.4) defines as incidence of
+    # passive sentences per 1000 words (Appendix A index 77).
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["passive_sentences"], metrics["total_tokens"])
 
-def cm_drgerund(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["gerund_count"] / total_tokens if total_tokens else 0
+# LAY: How many negations (not/nicht/kein/...) per 1,000 words?
+# ↑ Higher = more negation. Reliable.
+def cm_drneg(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRNEG incidence per 1000 words.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["neg_count"], metrics["total_tokens"])
 
-def cm_drinf(sentences: List[Sentence], noun_chunks: List[NounChunk]) -> Optional[float]:
-    metrics_dict = _count_metrics(sentences, noun_chunks)
-    total_tokens = metrics_dict["total_tokens"]
-    return metrics_dict["infinitive_count"] / total_tokens if total_tokens else 0
+# LAY: How many English gerunds ("-ing" verb forms) per 1,000 words?
+# Language-limited: DE=0 (German has no gerund equivalent — NOTE(H11)).
+def cm_drgerund(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRGERUND incidence per 1000 words.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["gerund_count"], metrics["total_tokens"])
+
+# LAY: How many infinitive verb forms (to/zu + VERB) per 1,000 words?
+# ↑ Higher = more infinitive constructions. Reliable.
+def cm_drinf(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # H12: DRINF incidence per 1000 words.
+    if metrics is None:
+        metrics = _count_metrics(sentences, noun_chunks, lang)
+    return _incidence(metrics["infinitive_count"], metrics["total_tokens"])
 
 def _incidence(count, total_words):
-    # Calculate incidence per 1000 words
+    # Coh-Metrix convention (Ch. 4 §Word information): "relative frequency of
+    # each word category by counting the number of instances of the category
+    # per 1,000 words of text, called incidence scores." Used for all DR*, WRD*
+    # (noun/verb/adj/adv/pronoun), and Situation Model verb incidences
+    # (SMCAUSv, SMCAUSvp, SMINTEp — see H15). Returns 0 when total_words is 0
+    # to avoid ZeroDivisionError on empty documents; callers typically guard
+    # this by checking for empty input upstream.
     return (count / total_words) * 1000 if total_words > 0 else 0
 
 def _count_words(poses: List[List[str]], words: List[List[str]], pronouns_category) -> Dict[str, int]:
@@ -836,104 +1013,97 @@ def _get_morhological_features(poses: List[List[str]], words: List[List[str]], m
 
     return pronouns_by_category
 
-def cm_wrdnoun(sentences: List[Sentence]) -> Optional[float]:
+def _wrd_precompute(sentences: List[Sentence]) -> Dict[str, int]:
+    # L11 helper: compute the shared WRD* per-1000 counter dict once so the
+    # 10 cm_wrd* wrappers don't re-iterate tokens and morphology features.
     token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
     words = [[token.text for token in sent.tokens] for sent in sentences]
     morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
     morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
     pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+    return _count_words(token_pos, words, pronouns_by_category)
+
+# ============================================================================
+# WORD INFORMATION (WRD*) — "What kind of words are used?"
+# Three sub-groups:
+#   (a) POS & pronoun incidences — counts per 1,000 words. Reliable.
+#   (b) MRC psycholinguistic ratings (AoA, familiarity, concreteness,
+#       imageability, meaningfulness). English-only — DE returns None. NOTE(H8).
+#   (c) Polysemy & hypernymy via WordNet (en) / GermaNet (de). Values are
+#       not directly comparable across languages. NOTE(H9).
+#   (d) CELEX word-frequency indices are stubbed None; Wikipedia-sample
+#       alternatives WRDFRQ*_wiki10000 are emitted. NOTE(L9).
+# ============================================================================
+
+# LAY: How many nouns per 1,000 words?
+# ↑ Higher = noun-dense informational style. Reliable.
+def cm_wrdnoun(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    # L11: accept precomputed dict to avoid recomputing 10 times per request.
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["noun"]
 
-def cm_wrdverb(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: How many verbs per 1,000 words?
+# ↑ Higher = action-heavy style. Reliable.
+def cm_wrdverb(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["verb"]
 
-def cm_wrdadj(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: How many adjectives per 1,000 words?
+# ↑ Higher = more descriptive/modifier-heavy style. Reliable.
+def cm_wrdadj(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["adj"]
 
-def cm_wrdadv(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: How many adverbs per 1,000 words?
+# ↑ Higher = more manner/degree modifiers. Reliable.
+def cm_wrdadv(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["adv"]
 
-def cm_wrdpro(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: How many pronouns per 1,000 words?
+# ↑ Higher = more reference/less explicit naming. Reliable.
+def cm_wrdpro(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["pronoun_total"]
 
-def cm_wrdprp1s(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: First-person singular pronouns (I/me/my — ich/mir/mein) per 1,000 words.
+# ↑ Higher = personal/narrative voice. Reliable.
+def cm_wrdprp1s(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["prp1s"]
 
-def cm_wrdprp1p(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: First-person plural pronouns (we/us — wir/uns) per 1,000 words.
+# ↑ Higher = group/collective voice. Reliable.
+def cm_wrdprp1p(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["prp1p"]
 
-def cm_wrdprp2(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: Second-person pronouns (you — du/ihr/Sie) per 1,000 words.
+# ↑ Higher = direct address to the reader. Reliable.
+def cm_wrdprp2(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["prp2"]
 
-def cm_wrdprp3s(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: Third-person singular pronouns (he/she/it — er/sie/es) per 1,000 words.
+# ↑ Higher = more narration about a single entity. Reliable.
+def cm_wrdprp3s(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["prp3s"]
 
-def cm_wrdprp3p(sentences: List[Sentence]) -> Optional[float]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    counts = _count_words(token_pos, words, pronouns_by_category)
+# LAY: Third-person plural pronouns (they — sie/ihnen) per 1,000 words.
+# ↑ Higher = more narration about groups. Reliable.
+def cm_wrdprp3p(sentences: List[Sentence], counts: Optional[Dict[str, int]] = None) -> Optional[float]:
+    if counts is None:
+        counts = _wrd_precompute(sentences)
     return counts["prp3p"]
 
 def _load_mrc_database():
@@ -1007,59 +1177,117 @@ def _average_rating(words, mrc_dict, key):
         return None
     return sum(ratings) / len(ratings)
 
-def cm_wrdaoac(sentences: List[Sentence]) -> Optional[float]:
+# LAY: Average age at which content words are typically learned (MRC norms).
+# ↑ Higher = later-acquired, harder words. English-only (DE=None — NOTE(H8)).
+def cm_wrdaoac(sentences: List[Sentence], lang: str) -> Optional[float]:
+    # H8: MRC Psycholinguistic Database is English-only.
+    if lang != "en":
+        return None
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
     return _average_rating(content_words, mrc_dict, 'AoA')
 
-def cm_wrdfamc(sentences: List[Sentence]) -> Optional[float]:
+# LAY: Average subjective familiarity rating of content words (MRC norms).
+# ↑ Higher = more familiar, easier words. English-only (DE=None — NOTE(H8)).
+def cm_wrdfamc(sentences: List[Sentence], lang: str) -> Optional[float]:
+    if lang != "en":
+        return None
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
     return _average_rating(content_words, mrc_dict, 'Familiarity')
 
-def cm_wrdcncc(sentences: List[Sentence]) -> Optional[float]:
+# LAY: Average concreteness of content words (MRC norms).
+# ↑ Higher = more concrete, sensory words. English-only (DE=None — NOTE(H8)).
+def cm_wrdcncc(sentences: List[Sentence], lang: str) -> Optional[float]:
+    if lang != "en":
+        return None
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
     return _average_rating(content_words, mrc_dict, 'Concreteness')
 
-def cm_wrdimgc(sentences: List[Sentence]) -> Optional[float]:
+# LAY: Average imageability of content words (MRC norms).
+# ↑ Higher = easier to form a mental picture. English-only (DE=None — NOTE(H8)).
+def cm_wrdimgc(sentences: List[Sentence], lang: str) -> Optional[float]:
+    if lang != "en":
+        return None
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
     return _average_rating(content_words, mrc_dict, 'Imageability')
 
-def cm_wrdmeac(sentences: List[Sentence]) -> Optional[float]:
+# LAY: Average subjective meaningfulness of content words (MRC/Colorado norms).
+# ↑ Higher = stronger semantic associations. English-only (DE=None — NOTE(H8)).
+def cm_wrdmeac(sentences: List[Sentence], lang: str) -> Optional[float]:
+    if lang != "en":
+        return None
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
     return _average_rating(content_words, mrc_dict, 'Meaningfulness')
 
-def _get_polysemy(word):
-    synsets = wn.synsets(word)
-    return len(synsets)
+def _get_polysemy(word, lang: str = "en"):
+    # H9: dispatch by language. WordNet for English; GermaNet for German when
+    # configured. For unsupported languages (or missing GermaNet) return None
+    # so callers treat the word as not-covered instead of silently using the
+    # English WordNet for German/etc.
+    if lang == "en":
+        synsets = wn.synsets(word)
+        return len(synsets)
+    if lang == "de":
+        if germanet is None:
+            return None
+        try:
+            return len(germanet.get_synsets_by_orthform(word))
+        except Exception:
+            return None
+    return None
 
-def _get_max_hypernym_depth(word, pos=None):
-    synsets = wn.synsets(word, pos=pos) if pos else wn.synsets(word)
-    if not synsets:
-        return None
-    depths = [synset.max_depth() for synset in synsets]
-    return max(depths)
+def _get_max_hypernym_depth(word, pos=None, lang: str = "en"):
+    # H9: dispatch by language (see _get_polysemy).
+    if lang == "en":
+        synsets = wn.synsets(word, pos=pos) if pos else wn.synsets(word)
+        if not synsets:
+            return None
+        depths = [synset.max_depth() for synset in synsets]
+        return max(depths)
+    if lang == "de":
+        if germanet is None:
+            return None
+        try:
+            word_cat = None
+            if pos == "NOUN":
+                word_cat = WordCategory.nomen
+            elif pos == "VERB":
+                word_cat = WordCategory.verben
+            synsets = germanet.get_synsets_by_orthform(word)
+            if word_cat is not None:
+                synsets = [s for s in synsets if s.word_category == word_cat]
+            if not synsets:
+                return None
+            depths = [s.min_depth() if hasattr(s, "min_depth") else 0 for s in synsets]
+            return max(depths) if depths else None
+        except Exception:
+            return None
+    return None
 
-def cm_wrdpolc(sentences: List[Sentence]) -> Optional[float]:
+# LAY: Average polysemy: how many senses each content word has.
+# ↑ Higher = more ambiguous vocabulary. Approximate for DE (GermaNet) — NOTE(H9).
+def cm_wrdpolc(sentences: List[Sentence], lang: str) -> Optional[float]:
     polysemies = []
 
     content_word, _, _ = _get_content_words(sentences)
     for word in content_word:
-        poly = _get_polysemy(word)
-        if poly > 0:
-            polysemies.append(poly)
+        poly = _get_polysemy(word, lang=lang)
+        if poly is None or poly <= 0:
+            continue
+        polysemies.append(poly)
 
     return np.mean(polysemies) if polysemies else None
 
-def _calc_wrdhyp(sentences: List[Sentence]) -> Dict[str, Optional[float]]:
+def _calc_wrdhyp(sentences: List[Sentence], lang: str) -> Dict[str, Optional[float]]:
     hypernym_nouns = []
     hypernym_verbs = []
 
@@ -1069,12 +1297,13 @@ def _calc_wrdhyp(sentences: List[Sentence]) -> Dict[str, Optional[float]]:
         for j, word in enumerate(sent):
             pos = poses[i][j]
             if word.lower() in set_content_word and (pos=="NOUN" or pos=="VERB"):
-                pos_in = None
-                if pos == "NOUN":
-                    pos_in = wn.NOUN
-                elif pos == "VERB":
-                    pos_in = wn.VERB
-                hyp = _get_max_hypernym_depth(word.lower(), pos=pos_in)
+                # For EN pass WordNet POS; for DE pass coarse POS string so
+                # dispatch can map to a GermaNet WordCategory.
+                if lang == "en":
+                    pos_in = wn.NOUN if pos == "NOUN" else wn.VERB
+                else:
+                    pos_in = pos
+                hyp = _get_max_hypernym_depth(word.lower(), pos=pos_in, lang=lang)
                 if hyp is not None:
                     if pos == "NOUN":
                         hypernym_nouns.append(hyp)
@@ -1094,14 +1323,20 @@ def _calc_wrdhyp(sentences: List[Sentence]) -> Dict[str, Optional[float]]:
         "WRDHYPnv": hypnv_avg
     }
 
-def cm_wrdhypn(sentences: List[Sentence]) -> Optional[float]:
-    return _calc_wrdhyp(sentences)["WRDHYPn"]
+# LAY: Average hypernymy depth of nouns (how specific/abstract).
+# ↑ Higher = more specific nouns (deeper in the WordNet tree). Approximate for DE — NOTE(H9).
+def cm_wrdhypn(sentences: List[Sentence], lang: str) -> Optional[float]:
+    return _calc_wrdhyp(sentences, lang)["WRDHYPn"]
 
-def cm_wrdhypv(sentences: List[Sentence]) -> Optional[float]:
-    return _calc_wrdhyp(sentences)["WRDHYPv"]
+# LAY: Average hypernymy depth of verbs.
+# ↑ Higher = more specific verbs. Approximate for DE (GermaNet) — NOTE(H9).
+def cm_wrdhypv(sentences: List[Sentence], lang: str) -> Optional[float]:
+    return _calc_wrdhyp(sentences, lang)["WRDHYPv"]
 
-def cm_wrdhypnv(sentences: List[Sentence]) -> Optional[float]:
-    return _calc_wrdhyp(sentences)["WRDHYPnv"]
+# LAY: Average hypernymy depth of nouns and verbs combined.
+# ↑ Higher = more specific content words overall. Approximate for DE — NOTE(H9).
+def cm_wrdhypnv(sentences: List[Sentence], lang: str) -> Optional[float]:
+    return _calc_wrdhyp(sentences, lang)["WRDHYPnv"]
 
 # List has been generated by ChatGPT 4o based on the Coh-Metrix index definitions
 connectives_list = {
@@ -1147,11 +1382,36 @@ for category, connectives in connectives_list.items():
     for lang, words in connectives.items():
         all_connectives_list[lang].update(words)
 
+# H4 fix: previous impl used `text.count(conn)` which produced massive
+# false-positive matches (e.g., counted \"since\" inside \"princess\", or
+# German \"und\" inside \"Bund/Stunde\"). Now we tokenize on whitespace and do
+# case-insensitive whole-word/phrase matching on a stripped-punct token stream.
+# H10 (partial): the Additive/Positive lists overlap heavily with Logical/etc.
+# by design of Coh-Metrix (CNCAll sums unique occurrences), so we dedupe
+# occurrences for CNCAll by matching each token position at most once.
+import re as _re_conn
+
+def _normalize_tokens_for_connectives(text: str) -> List[str]:
+    # Lowercase, split on whitespace, strip surrounding punctuation from each token.
+    return [_re_conn.sub(r"^[^\w]+|[^\w]+$", "", t.lower()) for t in text.split()]
+
+def _count_phrase_occurrences(tokens: List[str], phrase: str) -> int:
+    phrase_tokens = phrase.lower().split()
+    if not phrase_tokens:
+        return 0
+    n = len(phrase_tokens)
+    count = 0
+    for i in range(len(tokens) - n + 1):
+        if tokens[i:i + n] == phrase_tokens:
+            count += 1
+    return count
+
 def _count_connectives_in_doc(text: str, connectives_set) -> int:
-    # Count occurrences of any connective in the text (single or multiword)
+    # H4 fix: proper whole-word/phrase counting via tokenization.
+    tokens = _normalize_tokens_for_connectives(text)
     count = 0
     for conn in connectives_set:
-        count += text.count(conn)
+        count += _count_phrase_occurrences(tokens, conn)
     return count
 
 def _count_connectives(text: str, lang: str, total_words: int) -> Dict[str, float]:
@@ -1169,32 +1429,75 @@ def _count_connectives(text: str, lang: str, total_words: int) -> Dict[str, floa
     count_list_per_1000_words = {k: (v / total_words * 1000) if total_words > 0 else 0 for k, v in count_list.items()}
     return count_list_per_1000_words
 
-def cm_cncall(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCAll"]
+# ============================================================================
+# CONNECTIVES (CNC*) — "How often are connecting words (and, because, however)
+# used?" All are incidences per 1,000 words. Approximate: the word lists were
+# LLM-generated and contain some double-counting across categories (NOTE(H10)).
+# ============================================================================
 
-def cm_cnccaus(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCCaus"]
+# LAY: All connectives combined, per 1,000 words.
+# ↑ Higher = more explicitly connected prose. Approximate (NOTE(H10)).
+def cm_cncall(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    # L1: accept precomputed dict to avoid recomputing 9 times per request.
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCAll"]
 
-def cm_cnclogic(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCLogic"]
+# LAY: Causal connectives (because, since, therefore…) per 1,000 words.
+# ↑ Higher = more cause-effect signalling. Approximate (NOTE(H10)).
+def cm_cnccaus(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCCaus"]
 
-def cm_cncadc(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCADC"]
+# LAY: Logical connectives (and, or, either…) per 1,000 words.
+# ↑ Higher = more logical coordination. Approximate (NOTE(H10)).
+def cm_cnclogic(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCLogic"]
 
-def cm_cnctemp(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCTemp"]
+# LAY: Adversative/contrastive connectives (but, however, although…) per 1,000 words.
+# ↑ Higher = more contrastive discourse. Approximate (NOTE(H10)).
+def cm_cncadc(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCADC"]
 
-def cm_cnctempx(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCTempX"]
+# LAY: Temporal connectives (when, before, after…) per 1,000 words.
+# ↑ Higher = more time-sequence signalling. Approximate (NOTE(H10)).
+def cm_cnctemp(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCTemp"]
 
-def cm_cncadd(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCAdd"]
+# LAY: Expanded temporal connectives (at first, finally, meanwhile…) per 1,000 words.
+# ↑ Higher = richer narrative time markers. Approximate (NOTE(H10)).
+def cm_cnctempx(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCTempX"]
 
-def cm_cncpos(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCPos"]
+# LAY: Additive connectives (and, also, moreover, furthermore…) per 1,000 words.
+# ↑ Higher = more information stacking. Approximate (NOTE(H10)).
+def cm_cncadd(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCAdd"]
 
-def cm_cncneg(text: str, lang: str, tokens_count: int) -> Optional[float]:
-    return _count_connectives(text, lang, tokens_count)["CNCNeg"]
+# LAY: Positive connectives (also, likewise, similarly…) per 1,000 words.
+# ↑ Higher = more reinforcement/agreement signalling. Approximate (NOTE(H10)).
+def cm_cncpos(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCPos"]
+
+# LAY: Negative connectives (however, but, yet, on the contrary…) per 1,000 words.
+# ↑ Higher = more contrast/opposition signalling. Approximate (NOTE(H10)).
+def cm_cncneg(text: str, lang: str, tokens_count: int, connectives: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if connectives is None:
+        connectives = _count_connectives(text, lang, tokens_count)
+    return connectives["CNCNeg"]
 
 def _get_paragraph_token_vectors(paragraphs: List[Paragraph]) -> Tuple[List[List[List[List[float]]]], List[List[List[str]]]]:
     token_vectors = []
@@ -1223,13 +1526,42 @@ def _sentence_vector(token_has_vector, words, tokens_vector_length: int):
     else:
         return np.zeros(tokens_vector_length)
 
+# NOTE(M5): LSA approximation. The original Coh-Metrix LSA indices are built on
+# a ~300-dim LSA space trained on the TASA corpus (Landauer et al., 2007). This
+# implementation uses the pipeline's spaCy word vectors, averages per sentence/
+# paragraph, and applies sklearn TruncatedSVD to 100 dimensions (see also L3).
+# Absolute values differ from the original; rank-ordering is expected to be
+# similar on the same text. No TASA-trained weights are shipped with this
+# container.
 def _reduce_dimensionality(vectors, n_components=100):
+    # L12 fix: TruncatedSVD requires n_components < min(n_samples, n_features).
+    # Previous code only capped at n_features-1, which caused ValueError on
+    # short texts (e.g. 2 sentences × 300 features requesting 100 components).
+    # The outer try/except swallowed the error and nulled all 8 LSA indices.
     if vectors.shape[0] == 0:
         return vectors
-    svd = TruncatedSVD(n_components=min(n_components, vectors.shape[1]-1))
+    n_samples = vectors.shape[0]
+    n_features = vectors.shape[1]
+    effective = min(n_components, n_samples - 1, n_features - 1)
+    if effective < 1:
+        # Not enough samples/features to reduce meaningfully; return as-is.
+        return vectors
+    svd = TruncatedSVD(n_components=effective)
     reduced = svd.fit_transform(vectors)
     return reduced
 
+# NOTE(LSA-GivenNew): LSAGN / LSAGNd (Appendix A indices 44–45) measure how
+# much of each sentence's meaning is already "given" by preceding sentences.
+# Hempelmann et al. (2005) / Landauer et al. (2007) define it geometrically:
+# project the current sentence vector v_i onto the linear subspace spanned by
+# previous sentence vectors {v_0..v_{i-1}}; the projection's length is the
+# "given" component G, the orthogonal residual's length is the "new" component
+# N, and the index returned is G / (G + N) ∈ [0, 1]. The first sentence has no
+# prior context, so G = 0 and the ratio is 0. QR decomposition of the basis
+# matrix gives an orthonormal Q; Q @ (Q.T @ v) is the orthogonal projection.
+# Caveat: the implementation uses spaCy word vectors (see NOTE(M5)), not TASA-
+# trained LSA, so absolute values differ from the reference Coh-Metrix output.
+# @see docs/review-report-v3.html (M5, L3) for the LSA approximation context.
 def _project_onto_hyperplane(v, basis):
     if basis.shape[0] == 0:
         return np.zeros_like(v), v
@@ -1318,27 +1650,75 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
         'LSAGNd': np.std(given_new_ratios) if given_new_ratios.size > 0 else np.nan,
     }
 
+# ============================================================================
+# LSA (LSA*) — "Are ideas in nearby sentences similar in meaning?"
+# Latent Semantic Analysis overlap scores. 0 = unrelated, 1 = identical.
+# Approximate: uses spaCy word vectors + TruncatedSVD(100) instead of the
+# original TASA-trained 300-dim space (NOTE(M5)). Rank-order should track,
+# absolute values are not comparable to published Coh-Metrix output.
+# ============================================================================
+
+# LAY: Average meaning-similarity between adjacent sentences.
+# ↑ Higher = smoother topic flow. Approximate (NOTE(M5)).
+# ============================================================================
+# LSA (LSA*) — "Are ideas in nearby sentences similar in meaning?"
+# Latent Semantic Analysis overlap scores. 0 = unrelated, 1 = identical.
+# Approximate: uses spaCy word vectors + TruncatedSVD(100) instead of the
+# original TASA-trained 300-dim space (NOTE(M5)). Rank-order should track,
+# absolute values are not comparable to published Coh-Metrix output.
+# ============================================================================
+
+# LAY: Average meaning-similarity between adjacent sentences.
+# ↑ Higher = smoother topic flow. Approximate (NOTE(M5)).
 def cm_lsass1(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSASS1"]
 
+# LAY: How uneven is the meaning-similarity of adjacent sentences?
+# ↑ Higher = bumpy topic transitions. Approximate (NOTE(M5)).
+# LAY: How uneven is the meaning-similarity of adjacent sentences?
+# ↑ Higher = bumpy topic transitions. Approximate (NOTE(M5)).
 def cm_lsass1d(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSASS1d"]
 
+# LAY: Average meaning-similarity among all sentences within each paragraph.
+# ↑ Higher = internally coherent paragraphs. Approximate (NOTE(M5)).
+# LAY: Average meaning-similarity among all sentences within each paragraph.
+# ↑ Higher = internally coherent paragraphs. Approximate (NOTE(M5)).
 def cm_lsassp(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSASSp"]
 
+# LAY: How uneven is the within-paragraph meaning-similarity?
+# ↑ Higher = mix of tight and loose paragraphs. Approximate (NOTE(M5)).
+# LAY: How uneven is the within-paragraph meaning-similarity?
+# ↑ Higher = mix of tight and loose paragraphs. Approximate (NOTE(M5)).
 def cm_lsasspd(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSASSpd"]
 
+# LAY: Average meaning-similarity between adjacent paragraphs.
+# ↑ Higher = smooth flow across paragraphs. Approximate (NOTE(M5)).
+# LAY: Average meaning-similarity between adjacent paragraphs.
+# ↑ Higher = smooth flow across paragraphs. Approximate (NOTE(M5)).
 def cm_lsapp1(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAPP1"]
 
+# LAY: How uneven is the meaning-similarity of adjacent paragraphs?
+# ↑ Higher = abrupt topic shifts between paragraphs. Approximate (NOTE(M5)).
+# LAY: How uneven is the meaning-similarity of adjacent paragraphs?
+# ↑ Higher = abrupt topic shifts between paragraphs. Approximate (NOTE(M5)).
 def cm_lsapp1d(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAPP1d"]
 
+# LAY: How much NEW information each sentence adds, on average ("given/new" ratio).
+# ↑ Higher = each sentence introduces more novel content. Approximate (NOTE(M5), NOTE(LSA-GivenNew)).
+# LAY: How much NEW information each sentence adds, on average ("given/new" ratio).
+# ↑ Higher = each sentence introduces more novel content. Approximate (NOTE(M5), NOTE(LSA-GivenNew)).
 def cm_lsagn(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAGN"]
 
+# LAY: How uneven is the given/new ratio across sentences?
+# ↑ Higher = mix of reinforcing and information-dense sentences. Approximate.
+# LAY: How uneven is the given/new ratio across sentences?
+# ↑ Higher = mix of reinforcing and information-dense sentences. Approximate.
 def cm_lsagnd(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAGNd"]
 
@@ -1370,6 +1750,38 @@ all_word_frequencies_map = {
     }
 }
 
+# NOTE(L9): Word-frequency resource used here is
+# wiki-20220301-sample10000 (~10k Wikipedia articles) rather than the
+# original CELEX reference corpus (17.9M words, paywalled). Absolute
+# frequency values and their logs differ from the reference Coh-Metrix
+# output; rank-ordering among content words is expected to be broadly
+# similar. The standard V3 WRDFRQc/a/mc outputs are stubbed (None) on
+# purpose (see L6); the Wikipedia-backed alternatives are exposed with a
+# `label_ttlab` suffix.
+# ============================================================================
+# WORD FREQUENCY (WRDFRQ*) & L2 READABILITY (RDL2)
+# Approximate: the original Coh-Metrix uses the CELEX lexical database, which
+# is paywalled. This implementation uses a 10,000-article Wikipedia sample
+# (NOTE(L9)). Standard outputs WRDFRQc/a/mc remain None; the _wiki10000
+# suffix variants are emitted instead. RDL2 is the "L2 Readability" composite
+# formula (Crossley et al. 2008) and is emitted twice — using SYNSTRUTa and
+# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)).
+# ============================================================================
+
+# LAY: Average frequency of content words in everyday text.
+# ↑ Higher = uses common words. Approximate (Wikipedia sample — NOTE(L9)).
+# ============================================================================
+# WORD FREQUENCY (WRDFRQ*) & L2 READABILITY (RDL2)
+# Approximate: the original Coh-Metrix uses the CELEX lexical database, which
+# is paywalled. This implementation uses a 10,000-article Wikipedia sample
+# (NOTE(L9)). Standard outputs WRDFRQc/a/mc remain None; the _wiki10000
+# suffix variants are emitted instead. RDL2 is the "L2 Readability" composite
+# formula (Crossley et al. 2008) and is emitted twice — using SYNSTRUTa and
+# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)).
+# ============================================================================
+
+# LAY: Average frequency of content words in everyday text.
+# ↑ Higher = uses common words. Approximate (Wikipedia sample — NOTE(L9)).
 def cm_wrdfrqc(sentences: List[Sentence], lang: str, frequencies_source: str) -> Optional[float]:
     word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
     content_words, _, _ = _get_content_words(sentences)
@@ -1379,6 +1791,10 @@ def cm_wrdfrqc(sentences: List[Sentence], lang: str, frequencies_source: str) ->
     ]
     return np.mean(word_frequencies) if word_frequencies else 0.0
 
+# LAY: Average log-frequency of ALL words in everyday text.
+# ↑ Higher = text leans on common vocabulary. Approximate (NOTE(L9)).
+# LAY: Average log-frequency of ALL words in everyday text.
+# ↑ Higher = text leans on common vocabulary. Approximate (NOTE(L9)).
 def cm_wrdfrqa(tokens: List[Token], lang: str, frequencies_source: str) -> Optional[float]:
     word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
     word_frequencies = [
@@ -1391,6 +1807,10 @@ def cm_wrdfrqa(tokens: List[Token], lang: str, frequencies_source: str) -> Optio
     ]
     return np.mean(log_word_frequencies) if log_word_frequencies else 0.0
 
+# LAY: Average MINIMUM log-frequency among content words (rarest word per sentence).
+# ↑ Higher = even the rarest content words are reasonably common. Approximate (NOTE(L9)).
+# LAY: Average MINIMUM log-frequency among content words (rarest word per sentence).
+# ↑ Higher = even the rarest content words are reasonably common. Approximate (NOTE(L9)).
 def cm_wrdfrqmc(sentences: List[Sentence], lang: str, frequencies_source: str) -> Optional[float]:
     # CELEX Log minimum frequency for content words, mean
     # -> across sentences
@@ -1414,7 +1834,22 @@ def cm_wrdfrqmc(sentences: List[Sentence], lang: str, frequencies_source: str) -
             pass
     return np.mean(sentence_min_frequencies) if sentence_min_frequencies else 0.0
 
+# LAY: Second-language readability composite score (Crossley et al. 2008).
+# ↑ Higher = easier for L2 learners. Approximate (NOTE(L7) — emitted twice).
+# LAY: Second-language readability composite score (Crossley et al. 2008).
+# ↑ Higher = easier for L2 learners. Approximate (NOTE(L7) — emitted twice).
 def cm_rdl2(crfcwo1: float, synstrut: float, wrdfrqmc: float) -> Optional[float]:
+    # RDL2: Coh-Metrix L2 Readability (Appendix A index 106).
+    # Formula + constants from Crossley, Greenfield & McNamara (2008), as cited
+    # in the Coh-Metrix 3.0 spec (Ch. 5 §Readability / L2 readability formula):
+    #   RDL2 = -45.032 + 52.230·CRFCWO1 + 61.306·SYNSTRUT + 22.205·WRDFRQmc
+    # Note the spec writes "SYNSTRUT" without disambiguation; this service
+    # computes two variants (RDL2_synstruta using SYNSTRUTa, RDL2_synstrutt
+    # using SYNSTRUTt) — see NOTE(L7).
+    # L8 fix: make the None-path explicit instead of relying on the caller's
+    # try/except to swallow a TypeError from None * float.
+    if crfcwo1 is None or synstrut is None or wrdfrqmc is None:
+        return None
     l2 = -45.032 + (52.230 * crfcwo1) + (61.306 * synstrut) + (22.205 * wrdfrqmc)
     return l2
 
@@ -1498,6 +1933,86 @@ def _get_verb_lemmas_for_synset(synset):
         verbs |= set(hypo.lemma_names())
     return {v.replace('_', ' ') for v in verbs}
 
+def _germanet_all_hyponyms(synset) -> set:
+    """Recursively collect all GermaNet hyponyms of a synset.
+    The germanetpy API exposes direct hyponyms either as a property
+    (`direct_hyponyms`) or via `causes`/`entailments` \u2014 we probe both.
+    """
+    hypos = set()
+    # germanetpy Synset: `direct_hyponyms` is a set attribute.
+    direct = getattr(synset, "direct_hyponyms", None)
+    if direct is None:
+        return hypos
+    try:
+        direct_iter = list(direct)
+    except TypeError:
+        return hypos
+    for hypo in direct_iter:
+        if hypo in hypos:
+            continue
+        hypos.add(hypo)
+        hypos |= _germanet_all_hyponyms(hypo)
+    return hypos
+
+def _germanet_expand_verb_lemmas(orthforms) -> set:
+    """Given one or more German verb lemmas, return the transitive closure of
+    hyponym lemmas across all matching verb synsets in GermaNet. Returns an
+    empty set on any failure (caller should use a seed fallback)."""
+    if germanet is None:
+        return set()
+    lemmas: set = set()
+    try:
+        for ortho in orthforms:
+            synsets = germanet.get_synsets_by_orthform(ortho)
+            for syn in synsets:
+                if getattr(syn, "word_category", None) is not None and \
+                        syn.word_category != WordCategory.verben:
+                    continue
+                # include lemmas of this synset
+                for lex in getattr(syn, "lexunits", []) or []:
+                    of = getattr(lex, "orthform", None)
+                    if of:
+                        lemmas.add(of.lower())
+                # recurse over hyponyms
+                for hypo in _germanet_all_hyponyms(syn):
+                    for lex in getattr(hypo, "lexunits", []) or []:
+                        of = getattr(lex, "orthform", None)
+                        if of:
+                            lemmas.add(of.lower())
+    except Exception as ex:
+        logger.warning("GermaNet expansion failed: %s", ex)
+        return set()
+    return lemmas
+
+# M11: precompute German causal/intentional verb sets from GermaNet at module
+# load, mirroring the English WordNet expansion. Falls back to the previous
+# hardcoded seeds if GermaNet is not available or the expansion fails.
+# Dropped "folgen" from the causal seed \u2014 it means "to follow" and is not
+# semantically causal.
+_DE_CAUSAL_SEED = {"verursachen", "bewirken", "ausl\u00f6sen", "hervorrufen", "brechen",
+                   "frieren", "schlagen", "bewegen", "treffen", "ausbrechen", "entdecken"}
+_DE_INTENTIONAL_SEED = {"beabsichtigen", "planen", "wollen", "vorhaben", "kontaktieren",
+                        "fallenlassen", "gehen", "sprechen", "kaufen", "erz\u00e4hlen",
+                        "fahren", "entscheiden"}
+
+_de_causal_verbs_expanded = _germanet_expand_verb_lemmas({"verursachen", "bewirken", "ausl\u00f6sen"})
+_de_intentional_verbs_expanded = _germanet_expand_verb_lemmas({"beabsichtigen", "planen"})
+if not _de_causal_verbs_expanded:
+    _de_causal_verbs_expanded = set(_DE_CAUSAL_SEED)
+    logger.info("DE causal verbs: using %d hardcoded seeds (GermaNet expansion unavailable)",
+                len(_de_causal_verbs_expanded))
+else:
+    # always keep the seed terms as part of the set
+    _de_causal_verbs_expanded |= _DE_CAUSAL_SEED
+    logger.info("DE causal verbs: %d entries (GermaNet expansion)", len(_de_causal_verbs_expanded))
+if not _de_intentional_verbs_expanded:
+    _de_intentional_verbs_expanded = set(_DE_INTENTIONAL_SEED)
+    logger.info("DE intentional verbs: using %d hardcoded seeds (GermaNet expansion unavailable)",
+                len(_de_intentional_verbs_expanded))
+else:
+    _de_intentional_verbs_expanded |= _DE_INTENTIONAL_SEED
+    logger.info("DE intentional verbs: %d entries (GermaNet expansion)", len(_de_intentional_verbs_expanded))
+
 def _causal_practical_verbs_intentional(lang: str):
     cause_synset = wn.synset('cause.v.01')
     causal_verbs_en = _get_verb_lemmas_for_synset(cause_synset)
@@ -1511,10 +2026,10 @@ def _causal_practical_verbs_intentional(lang: str):
     causal_particles_de_seed = ["weil", "deshalb", "daher", "darum", "folglich", "infolgedessen", "aus diesem Grund"]
     intentional_particles_de_seed = ["wollen", "planen", "beabsichtigen", "versuchen", "vorhaben"]
 
-    causal_verbs_de = {"brechen", "frieren", "schlagen", "bewegen", "treffen", "ausbrechen", "entdecken", "verursachen",
-                       "folgen"}
-    intentional_verbs_de = {"kontaktieren", "fallenlassen", "gehen", "sprechen", "kaufen", "erzählen", "fahren", "planen",
-                            "wollen", "entscheiden"}
+    # M11 fix: precomputed GermaNet-expanded sets (with seed fallback) replace
+    # the previous 10-word hardcoded lists.
+    causal_verbs_de = _de_causal_verbs_expanded
+    intentional_verbs_de = _de_intentional_verbs_expanded
 
     if lang == "en":
         return {
@@ -1530,77 +2045,88 @@ def _causal_practical_verbs_intentional(lang: str):
             "causal_particles": causal_particles_de_seed,
             "intentional_particles": intentional_particles_de_seed
         }
+    else:
+        # TODO: no causal/intentional verb resources available for other languages
+        return None
 
+# ============================================================================
+# SITUATION MODEL (SM*) — "Do verbs show causal / intentional relationships?"
+# Counts and ratios for causal and intentional verbs + particles, verb overlap
+# in meaning, and tense/aspect cohesion. Approximate:
+#   • Verb lists are curated seeds (en) + GermaNet hyponym expansion (de) — NOTE(M11).
+#   • SMCAUSlsa uses approximate LSA vectors — NOTE(M5).
+#   • SMCAUSwn is reliable for en, partial for de (GermaNet) — NOTE(H9).
+#   • SMTEMP interpretation is spec-ambiguous — NOTE(M2).
+# ============================================================================
+
+# LAY: Causal verbs (cause, break, move, …) per 1,000 words.
+# ↑ Higher = more cause-describing verbs. Approximate (NOTE(M11)).
 def cm_smcausv(sentences: List[Sentence], lang: str) -> Optional[float]:
+    # SMCAUSv: Causal verb incidence (per 1000 words)
+    # Spec: Coh-Metrix 3.0 Appendix A, index 59; Chapter 4 §Situation model
+    causal_set = _causal_practical_verbs_intentional(lang)
+    if causal_set is None:
+        return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(
-        poses,
-        words,
-        lemmas,
-        tags,
-        morph_tense,
-        lang,
-        _causal_practical_verbs_intentional(lang)
-    )
+    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
+    total_words = sum(len(s) for s in poses)
     count_causal_verb = count_tenses["counter"]["causal_verbs"]
-    return count_causal_verb
+    return _incidence(count_causal_verb, total_words)
 
+# LAY: Causal verbs + causal connectives (because, in order to…) per 1,000 words.
+# ↑ Higher = more explicit causal structure. Approximate (NOTE(M11), NOTE(H10)).
 def cm_smcausvp(sentences: List[Sentence], lang: str) -> Optional[float]:
+    # SMCAUSvp: Causal verbs and causal particles incidence (per 1000 words)
+    # Spec: Coh-Metrix 3.0 Appendix A, index 60; Chapter 4: "causal verbs plus
+    # causal particles (SMCAUSvp: e.g., both causal verbs and connectives such
+    # as because, in order to)". Earlier impl summed intentional_verbs by mistake.
+    causal_set = _causal_practical_verbs_intentional(lang)
+    if causal_set is None:
+        return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(
-        poses,
-        words,
-        lemmas,
-        tags,
-        morph_tense,
-        lang,
-        _causal_practical_verbs_intentional(lang)
-    )
+    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
+    total_words = sum(len(s) for s in poses)
     count_causal_verb = count_tenses["counter"]["causal_verbs"]
-    count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
-    return count_causal_verb + count_intentional_verb
+    count_causal_particle = count_tenses["counter"]["causal_particles"]
+    return _incidence(count_causal_verb + count_causal_particle, total_words)
 
+# LAY: Intentional verbs (contact, drop, plan, want…) per 1,000 words.
+# ↑ Higher = more goal/intention language. Approximate (NOTE(M11)).
 def cm_smintep(sentences: List[Sentence], lang: str) -> Optional[float]:
+    # SMINTEp: Intentional verbs incidence (per 1000 words)
+    # Spec: Coh-Metrix 3.0 Appendix A, index 61; Chapter 4: "intentional verbs
+    # (SMINTEp: e.g., contact, drop, walk, talk)". Earlier impl returned
+    # intentional_particles raw count by mistake.
+    causal_set = _causal_practical_verbs_intentional(lang)
+    if causal_set is None:
+        return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(
-        poses,
-        words,
-        lemmas,
-        tags,
-        morph_tense,
-        lang,
-        _causal_practical_verbs_intentional(lang)
-    )
-    count_intentional_particle = count_tenses["counter"]["intentional_particles"]
-    return count_intentional_particle
+    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
+    total_words = sum(len(s) for s in poses)
+    count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
+    return _incidence(count_intentional_verb, total_words)
 
+# LAY: Ratio of causal particles (connectives) to causal verbs.
+# ↑ Higher = causality signalled more by connectives than verbs. Approximate.
 def cm_smcausr(sentences: List[Sentence], lang: str) -> Optional[float]:
+    causal_set = _causal_practical_verbs_intentional(lang)
+    if causal_set is None:
+        return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(
-        poses,
-        words,
-        lemmas,
-        tags,
-        morph_tense,
-        lang,
-        _causal_practical_verbs_intentional(lang)
-    )
+    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
     count_causal_verb = count_tenses["counter"]["causal_verbs"]
     count_causal_particle = count_tenses["counter"]["causal_particles"]
     SMCAUSr = count_causal_particle / count_causal_verb if count_causal_verb > 0 else 0
     return np.round(SMCAUSr, 3)
 
+# LAY: Ratio of intentional particles to intentional verbs.
+# ↑ Higher = intentions signalled more by particles than verbs. Approximate.
 def cm_sminter(sentences: List[Sentence], lang: str) -> Optional[float]:
+    causal_set = _causal_practical_verbs_intentional(lang)
+    if causal_set is None:
+        return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(
-        poses,
-        words,
-        lemmas,
-        tags,
-        morph_tense,
-        lang,
-        _causal_practical_verbs_intentional(lang)
-    )
+    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
     count_intentional_particle = count_tenses["counter"]["intentional_particles"]
     count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
     SMINTEr = count_intentional_particle / count_intentional_verb if count_intentional_verb > 0 else 0
@@ -1614,16 +2140,25 @@ def get_SMCAUSlsa(poses: List[List[str]], vectors: List[List[List[Any]]]):
                 if vectors[i][j] is not None:
                     all_verbs.append(vectors[i][j])
 
+    # M3 fix: previously used adjacent pairs only. Spec description is identical
+    # to SMCAUSwn, and LSASSp also uses all pairs \u2014 harmonize SMCAUSlsa to
+    # all unordered verb pairs.
     cos_similarities = []
-    for i in range(len(all_verbs) - 1):
+    for i in range(len(all_verbs)):
         vec_i = all_verbs[i]
-        vec_j = all_verbs[i + 1]
-        if vec_i is not None and vec_j is not None:
-            cos_sim = np.dot(vec_i, vec_j) / (np.linalg.norm(vec_i) * np.linalg.norm(vec_j))
-            cos_similarities.append(cos_sim)
+        for j in range(i + 1, len(all_verbs)):
+            vec_j = all_verbs[j]
+            if vec_i is not None and vec_j is not None:
+                denom = np.linalg.norm(vec_i) * np.linalg.norm(vec_j)
+                if denom == 0:
+                    continue
+                cos_sim = np.dot(vec_i, vec_j) / denom
+                cos_similarities.append(cos_sim)
 
     return np.mean(cos_similarities) if cos_similarities else 0.0
 
+# LAY: Average meaning-similarity of all verb pairs via LSA vectors.
+# ↑ Higher = verbs share semantic field. Approximate (NOTE(M5)).
 def cm_smcauslsa(sentences: List[Sentence]) -> Optional[float]:
     _, _, _, _, poses, vectors = _sm_get_data(sentences)
     SMCAUSlsa = get_SMCAUSlsa(poses, vectors)
@@ -1672,12 +2207,26 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
         SMCAUSwn = -1.0
     return SMCAUSwn
 
+# LAY: Share of verb pairs that share a WordNet synset (semantic overlap).
+# ↑ Higher = verbs cluster around shared meanings. Partial for DE (NOTE(H9)).
 def cm_smcauswn(sentences: List[Sentence], lang) -> Optional[float]:
     _, _, _, lemmas, poses, vectors = _sm_get_data(sentences)
     SMCAUSwn = get_SMCAUSwn(poses, lemmas, lang)
     return np.round(SMCAUSwn, 3)
 
+# LAY: How consistently tense/aspect is preserved across verbs in the text.
+# ↑ Higher = more tense stability (typically indicates narrative cohesion).
+#   Approximate: spec is ambiguous about the exact formula (NOTE(M2)).
 def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
+    # NOTE(M2): Interpretation of "temporal cohesion decreases as tense/aspect
+    # shifts are encountered" as the proportion of verbs with the dominant
+    # tense. This is a reasonable monotonic proxy: a text in a single tense
+    # scores 1.0; a text with uniformly distributed tenses scores ~1/k. An
+    # alternative would be 1 - (adjacent-transition rate). The original
+    # Coh-Metrix algorithm is not publicly specified at the formula level.
+    causal_set = _causal_practical_verbs_intentional(lang)
+    if causal_set is None:
+        return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
     count_tenses = count_verbs(
         poses,
@@ -1686,7 +2235,7 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
         tags,
         morph_tense,
         lang,
-        _causal_practical_verbs_intentional(lang)
+        causal_set
     )
     tense_distribution = Counter(count_tenses["tenses"])
     tenses = count_tenses["tenses"]
@@ -1926,7 +2475,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcnarz = cm_pcnarz(sentences)
             pcnarz = None
-            pcnarz_error = None
+            pcnarz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCNARz: %s", e)
             pcnarz = None
@@ -1945,7 +2494,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcnarp = cm_pcnarp(sentences)
             pcnarp = None
-            pcnarp_error = None
+            pcnarp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCNARp: %s", e)
             pcnarp = None
@@ -1964,7 +2513,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcsynz = cm_pcsynz(sentences)
             pcsynz = None
-            pcsynz_error = None
+            pcsynz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCSYNz: %s", e)
             pcsynz = None
@@ -1983,7 +2532,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcsynp = cm_pcsynp(sentences)
             pcsynp = None
-            pcsynp_error = None
+            pcsynp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCSYNp: %s", e)
             pcsynp = None
@@ -2002,7 +2551,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pccncz = cm_pccncz(sentences)
             pccncz = None
-            pccncz_error = None
+            pccncz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCCNCz: %s", e)
             pccncz = None
@@ -2021,7 +2570,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pccncp = cm_pccncp(sentences)
             pccncp = None
-            pccncp_error = None
+            pccncp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCCNCp: %s", e)
             pccncp = None
@@ -2040,7 +2589,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcrefz = cm_pcrefz(sentences)
             pcrefz = None
-            pcrefz_error = None
+            pcrefz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCREFz: %s", e)
             pcrefz = None
@@ -2059,7 +2608,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcrefp = cm_pcrefp(sentences)
             pcrefp = None
-            pcrefp_error = None
+            pcrefp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCREFp: %s", e)
             pcrefp = None
@@ -2078,7 +2627,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcdcz = cm_pcdcz(sentences)
             pcdcz = None
-            pcdcz_error = None
+            pcdcz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCDCz: %s", e)
             pcdcz = None
@@ -2097,7 +2646,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcdcp = cm_pcdcp(sentences)
             pcdcp = None
-            pcdcp_error = None
+            pcdcp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCDCp: %s", e)
             pcdcp = None
@@ -2116,7 +2665,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcverbz = cm_pcverbz(sentences)
             pcverbz = None
-            pcverbz_error = None
+            pcverbz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCVERBz: %s", e)
             pcverbz = None
@@ -2135,7 +2684,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcverbp = cm_pcverbp(sentences)
             pcverbp = None
-            pcverbp_error = None
+            pcverbp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCVERBp: %s", e)
             pcverbp = None
@@ -2154,7 +2703,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcconnz = cm_pcconnz(sentences)
             pcconnz = None
-            pcconnz_error = None
+            pcconnz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCCONNz: %s", e)
             pcconnz = None
@@ -2173,7 +2722,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pcconnp = cm_pcconnp(sentences)
             pcconnp = None
-            pcconnp_error = None
+            pcconnp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCCONNp: %s", e)
             pcconnp = None
@@ -2192,7 +2741,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pctempz = cm_pctempz(sentences)
             pctempz = None
-            pctempz_error = None
+            pctempz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCTEMPz: %s", e)
             pctempz = None
@@ -2211,7 +2760,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             #pctempp = cm_pctempp(sentences)
             pctempp = None
-            pctempp_error = None
+            pctempp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
             logger.error("Error calculating PCTEMPp: %s", e)
             pctempp = None
@@ -2427,7 +2976,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSASS1: %s", e)
             lsass1 = None
-            lsass1_error = lsa_error + "\n" + str(e)
+            # M7 fix: guard against None + str when the outer LSA step succeeded.
+            lsass1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)
         indices.append(Index(
             index=38,
             type_name="LSA",
@@ -2446,7 +2996,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSASS1d: %s", e)
             lsass1d = None
-            lsass1d_error = lsa_error + "\n" + str(e)
+            lsass1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=39,
             type_name="LSA",
@@ -2465,7 +3015,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSASSp: %s", e)
             lsassp = None
-            lsassp_error = lsa_error + "\n" + str(e)
+            lsassp_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=40,
             type_name="LSA",
@@ -2484,7 +3034,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSASSpd: %s", e)
             lsasspd = None
-            lsasspd_error = lsa_error + "\n" + str(e)
+            lsasspd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=41,
             type_name="LSA",
@@ -2503,7 +3053,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSAPP1: %s", e)
             lsapp1 = None
-            lsapp1_error = lsa_error + "\n" + str(e)
+            lsapp1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=42,
             type_name="LSA",
@@ -2522,7 +3072,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSAPP1d: %s", e)
             lsapp1d = None
-            lsapp1d_error = lsa_error + "\n" + str(e)
+            lsapp1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=43,
             type_name="LSA",
@@ -2541,7 +3091,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSAGN: %s", e)
             lsagn = None
-            lsagn_error = lsa_error + "\n" + str(e)
+            lsagn_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=44,
             type_name="LSA",
@@ -2560,7 +3110,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.error("Error calculating LSAGNd: %s", e)
             lsagnd = None
-            lsagnd_error = lsa_error + "\n" + str(e)
+            lsagnd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
             index=45,
             type_name="LSA",
@@ -2648,9 +3198,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         ### Connectives
 
+        # L1: compute connective counts once and reuse across all 9 CNC* indices.
+        try:
+            _cnc_counts = _count_connectives(request.text, request.language, tokens_count)
+        except Exception as e:
+            logger.error("Error precomputing connective counts: %s", e)
+            _cnc_counts = None
+
         # CNCAll
         try:
-            cncall = cm_cncall(request.text, request.language, tokens_count)
+            cncall = cm_cncall(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cncall_error = None
         except Exception as e:
             logger.error("Error calculating CNCAll: %s", e)
@@ -2668,7 +3225,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCCaus
         try:
-            cnccaus = cm_cnccaus(request.text, request.language, tokens_count)
+            cnccaus = cm_cnccaus(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cnccaus_error = None
         except Exception as e:
             logger.error("Error calculating CNCCaus: %s", e)
@@ -2686,7 +3243,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCLogic
         try:
-            cnclogic = cm_cnclogic(request.text, request.language, tokens_count)
+            cnclogic = cm_cnclogic(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cnclogic_error = None
         except Exception as e:
             logger.error("Error calculating CNCLogic: %s", e)
@@ -2704,7 +3261,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCADC
         try:
-            cncadc = cm_cncadc(request.text, request.language, tokens_count)
+            cncadc = cm_cncadc(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cncadc_error = None
         except Exception as e:
             logger.error("Error calculating CNCADC: %s", e)
@@ -2722,7 +3279,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCTemp
         try:
-            cnctemp = cm_cnctemp(request.text, request.language, tokens_count)
+            cnctemp = cm_cnctemp(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cnctemp_error = None
         except Exception as e:
             logger.error("Error calculating CNCTemp: %s", e)
@@ -2740,7 +3297,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCTempx
         try:
-            cnctempx = cm_cnctempx(request.text, request.language, tokens_count)
+            cnctempx = cm_cnctempx(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cnctempx_error = None
         except Exception as e:
             logger.error("Error calculating CNCTempx: %s", e)
@@ -2758,7 +3315,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCAdd
         try:
-            cncadd = cm_cncadd(request.text, request.language, tokens_count)
+            cncadd = cm_cncadd(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cncadd_error = None
         except Exception as e:
             logger.error("Error calculating CNCAdd: %s", e)
@@ -2776,7 +3333,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCPos
         try:
-            cncpos = cm_cncpos(request.text, request.language, tokens_count)
+            cncpos = cm_cncpos(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cncpos_error = None
         except Exception as e:
             logger.error("Error calculating CNCPos: %s", e)
@@ -2794,7 +3351,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # CNCNeg
         try:
-            cncneg = cm_cncneg(request.text, request.language, tokens_count)
+            cncneg = cm_cncneg(request.text, request.language, tokens_count, connectives=_cnc_counts)
             cncneg_error = None
         except Exception as e:
             logger.error("Error calculating CNCNeg: %s", e)
@@ -2996,7 +3553,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNMEDpos
         try:
-            synmedpos = cm_synmedpos(tokens)
+            synmedpos = cm_synmedpos(sentences)
             synmedpos_error = None
         except Exception as e:
             logger.error("Error calculating SYNMEDpos: %s", e)
@@ -3014,7 +3571,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNMEDwrd
         try:
-            synmedwrd = cm_synmedwrd(tokens)
+            synmedwrd = cm_synmedwrd(sentences)
             synmedwrd_error = None
         except Exception as e:
             logger.error("Error calculating SYNMEDwrd: %s", e)
@@ -3032,7 +3589,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNMEDlem
         try:
-            synmedlem = cm_synmedlem(tokens)
+            synmedlem = cm_synmedlem(sentences)
             synmedlem_error = None
         except Exception as e:
             logger.error("Error calculating SYNMEDlem: %s", e)
@@ -3086,9 +3643,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         ### Syntactic Pattern Density
 
+        # L2: compute count_metrics once and reuse across all 8 DR* indices.
+        try:
+            _dr_metrics = _count_metrics(sentences, request.noun_chunks, request.language)
+        except Exception as e:
+            logger.error("Error precomputing DR metrics: %s", e)
+            _dr_metrics = None
+
         # DRNP
         try:
-            drnp = cm_drnp(sentences, request.noun_chunks)
+            drnp = cm_drnp(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drnp_error = None
         except Exception as e:
             logger.error("Error calculating DRNP: %s", e)
@@ -3106,7 +3670,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRVP
         try:
-            drvp = cm_drvp(sentences, request.noun_chunks)
+            drvp = cm_drvp(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drvp_error = None
         except Exception as e:
             logger.error("Error calculating DRVP: %s", e)
@@ -3124,7 +3688,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRAP
         try:
-            drap = cm_drap(sentences, request.noun_chunks)
+            drap = cm_drap(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drap_error = None
         except Exception as e:
             logger.error("Error calculating DRAP: %s", e)
@@ -3142,7 +3706,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRPP
         try:
-            drpp = cm_drpp(sentences, request.noun_chunks)
+            drpp = cm_drpp(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drpp_error = None
         except Exception as e:
             logger.error("Error calculating DRPP: %s", e)
@@ -3160,7 +3724,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRPVAL
         try:
-            drpval = cm_drpval(sentences, request.noun_chunks)
+            drpval = cm_drpval(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drpval_error = None
         except Exception as e:
             logger.error("Error calculating DRPVAL: %s", e)
@@ -3178,7 +3742,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRNEG
         try:
-            drneg = cm_drneg(sentences, request.noun_chunks)
+            drneg = cm_drneg(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drneg_error = None
         except Exception as e:
             logger.error("Error calculating DRNEG: %s", e)
@@ -3196,7 +3760,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRGERUND
         try:
-            drgerund = cm_drgerund(sentences, request.noun_chunks)
+            drgerund = cm_drgerund(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drgerund_error = None
         except Exception as e:
             logger.error("Error calculating DRGERUND: %s", e)
@@ -3214,7 +3778,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # DRINF
         try:
-            drinf = cm_drinf(sentences, request.noun_chunks)
+            drinf = cm_drinf(sentences, request.noun_chunks, request.language, metrics=_dr_metrics)
             drinf_error = None
         except Exception as e:
             logger.error("Error calculating DRINF: %s", e)
@@ -3232,9 +3796,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         ### Word Information
 
+        # L11: compute WRD* counter dict once and reuse across all 10 WRD* indices.
+        try:
+            _wrd_counts = _wrd_precompute(sentences)
+        except Exception as e:
+            logger.error("Error precomputing WRD counts: %s", e)
+            _wrd_counts = None
+
         # WRDNOUN
         try:
-            wrdnoun = cm_wrdnoun(sentences)
+            wrdnoun = cm_wrdnoun(sentences, counts=_wrd_counts)
             wrdnoun_error = None
         except Exception as e:
             logger.error("Error calculating WRDNOUN: %s", e)
@@ -3252,7 +3823,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDVERB
         try:
-            wrdverb = cm_wrdverb(sentences)
+            wrdverb = cm_wrdverb(sentences, counts=_wrd_counts)
             wrdverb_error = None
         except Exception as e:
             logger.error("Error calculating WRDVERB: %s", e)
@@ -3270,7 +3841,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDADJ
         try:
-            wrdadj = cm_wrdadj(sentences)
+            wrdadj = cm_wrdadj(sentences, counts=_wrd_counts)
             wrdadj_error = None
         except Exception as e:
             logger.error("Error calculating WRDADJ: %s", e)
@@ -3288,7 +3859,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDADV
         try:
-            wrdadv = cm_wrdadv(sentences)
+            wrdadv = cm_wrdadv(sentences, counts=_wrd_counts)
             wrdadv_error = None
         except Exception as e:
             logger.error("Error calculating WRDADV: %s", e)
@@ -3306,7 +3877,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRO
         try:
-            wrdpro = cm_wrdpro(sentences)
+            wrdpro = cm_wrdpro(sentences, counts=_wrd_counts)
             wrdpro_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRO: %s", e)
@@ -3324,7 +3895,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP1s
         try:
-            wrdprp1s = cm_wrdprp1s(sentences)
+            wrdprp1s = cm_wrdprp1s(sentences, counts=_wrd_counts)
             wrdprp1s_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP1s: %s", e)
@@ -3342,7 +3913,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP1p
         try:
-            wrdprp1p = cm_wrdprp1p(sentences)
+            wrdprp1p = cm_wrdprp1p(sentences, counts=_wrd_counts)
             wrdprp1p_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP1p: %s", e)
@@ -3360,7 +3931,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP2
         try:
-            wrdprp2 = cm_wrdprp2(sentences)
+            wrdprp2 = cm_wrdprp2(sentences, counts=_wrd_counts)
             wrdprp2_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP2: %s", e)
@@ -3378,7 +3949,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP3s
         try:
-            wrdprp3s = cm_wrdprp3s(sentences)
+            wrdprp3s = cm_wrdprp3s(sentences, counts=_wrd_counts)
             wrdprp3s_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP3s: %s", e)
@@ -3396,7 +3967,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPRP3p
         try:
-            wrdprp3p = cm_wrdprp3p(sentences)
+            wrdprp3p = cm_wrdprp3p(sentences, counts=_wrd_counts)
             wrdprp3p_error = None
         except Exception as e:
             logger.error("Error calculating WRDPRP3p: %s", e)
@@ -3531,7 +4102,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDAOAc
         try:
-            wrdaoac = cm_wrdaoac(sentences)
+            wrdaoac = cm_wrdaoac(sentences, request.language)
             wrdaoac_error = None
         except Exception as e:
             logger.error("Error calculating WRDAOAc: %s", e)
@@ -3549,7 +4120,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDFAMc
         try:
-            wrdfamc = cm_wrdfamc(sentences)
+            wrdfamc = cm_wrdfamc(sentences, request.language)
             wrdfamc_error = None
         except Exception as e:
             logger.error("Error calculating WRDFAMc: %s", e)
@@ -3567,7 +4138,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDCNCc
         try:
-            wrdcncc = cm_wrdcncc(sentences)
+            wrdcncc = cm_wrdcncc(sentences, request.language)
             wrdcncc_error = None
         except Exception as e:
             logger.error("Error calculating WRDCNCc: %s", e)
@@ -3585,7 +4156,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDIMGc
         try:
-            wrdimgc = cm_wrdimgc(sentences)
+            wrdimgc = cm_wrdimgc(sentences, request.language)
             wrdimgc_error = None
         except Exception as e:
             logger.error("Error calculating WRDIMGc: %s", e)
@@ -3603,7 +4174,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDMEAc
         try:
-            wrdmeac = cm_wrdmeac(sentences)
+            wrdmeac = cm_wrdmeac(sentences, request.language)
             wrdmeac_error = None
         except Exception as e:
             logger.error("Error calculating WRDMEAc: %s", e)
@@ -3621,7 +4192,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDPOLc
         try:
-            wrdpolc = cm_wrdpolc(sentences)
+            wrdpolc = cm_wrdpolc(sentences, request.language)
             wrdpolc_error = None
         except Exception as e:
             logger.error("Error calculating WRDPOLc: %s", e)
@@ -3639,7 +4210,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDHYPn
         try:
-            wrdhypn = cm_wrdhypn(sentences)
+            wrdhypn = cm_wrdhypn(sentences, request.language)
             wrdhypn_error = None
         except Exception as e:
             logger.error("Error calculating WRDHYPn: %s", e)
@@ -3657,7 +4228,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDHYPv
         try:
-            wrdhypv = cm_wrdhypv(sentences)
+            wrdhypv = cm_wrdhypv(sentences, request.language)
             wrdhypv_error = None
         except Exception as e:
             logger.error("Error calculating WRDHYPv: %s", e)
@@ -3675,7 +4246,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDHYPnv
         try:
-            wrdhypnv = cm_wrdhypnv(sentences)
+            wrdhypnv = cm_wrdhypnv(sentences, request.language)
             wrdhypnv_error = None
         except Exception as e:
             logger.error("Error calculating WRDHYPnv: %s", e)
@@ -3692,6 +4263,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         ### Readability
+
+        # NOTE(L4): RDFRE/RDFKGL formulas are spec-correct (Flesch Reading Ease /
+        # Flesch-Kincaid Grade Level). Token/syllable counts use textstat's
+        # tokenizer, not the original Charniak constituency parser, so absolute
+        # values may differ slightly from the reference Coh-Metrix output on the
+        # same text. Relative ordering is expected to be consistent.
 
         # RDFRE
         try:
