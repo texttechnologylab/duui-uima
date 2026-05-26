@@ -1,8 +1,0 @@
-{
-  "test": "testEmptyDocument",
-  "input": "",
-  "output": "",
-  "anomaly_count": 0,
-  "anomalies": [
-  ]
-}

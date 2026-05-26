@@ -23,9 +23,11 @@ local OPTION_KEYS = {
 
 local function copy_options(params)
     local options = {}
+    print("Copying options:")
     for _, key in ipairs(OPTION_KEYS) do
         local value = param_get(params, key)
         if value ~= nil then
+            print("  ", key, "=", value)
             options[key] = value
         end
     end

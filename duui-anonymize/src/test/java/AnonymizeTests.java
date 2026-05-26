@@ -189,7 +189,7 @@ public class AnonymizeTests {
         createCas("en", text);
 
         composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
-                .withParameter("mode", "placeholder"));
+                .withParameter("mode", "remove"));
         composer.run(cas);
 
         Collection<Anomaly> anomalies = collectAnomalies();
