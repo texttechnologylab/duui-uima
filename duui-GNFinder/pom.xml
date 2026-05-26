@@ -6,7 +6,7 @@
 
     <groupId>org.texttechnology.tools</groupId>
     <artifactId>GNFinder</artifactId>
-    <version>1.0</version>
+    <version>1.1.6</version>
 
     <repositories>
         <repository>
@@ -29,8 +29,8 @@
     </repositories>
 
     <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -38,25 +38,25 @@
         <dependency>
             <groupId>org.apache.uima</groupId>
             <artifactId>uimaj-core</artifactId>
-            <version>2.11.0</version>
+            <version>3.5.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.uima</groupId>
             <artifactId>uimafit-core</artifactId>
-            <version>2.5.0</version>
+            <version>3.5.0</version>
         </dependency>
 
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>Utilities</artifactId>
-            <version>1.1.7-uima-2.10.4</version>
+            <version>3.0.0</version>
         </dependency>
 
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>29fe3e0ab5</version>
+            <version>3.0.7</version>
         </dependency>
     </dependencies>
 

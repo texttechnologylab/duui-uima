@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, Response
 from fastapi.openapi.utils import get_openapi
@@ -7,10 +7,11 @@ from pydantic import BaseModel
 
 from transformers import pipeline
 
+import torch
 import uvicorn
 
 
-class Sentence(BaseModel):
+class Selection(BaseModel):
     text: str
     iBegin: int
     iEnd: int
@@ -28,7 +29,7 @@ class Label(BaseModel):
 # Note, this is transformed by the Lua script
 class DUUIRequest(BaseModel):
     doc_text: str
-    sentences: List[Sentence]
+    selection: Optional[List[Selection]]
 
 
 # Response of this annotator
@@ -40,12 +41,14 @@ class DUUIResponse(BaseModel):
 
 # Creates an instance of the pipeline.
 # Device = 0 allows the pipeline to use the gpu, -1 forces cpu usage
-try:
-    classifier = pipeline("text-classification", model="chkla/parlbert-topic-german", top_k=None, device=0)
-except RuntimeError as e:
-    print("RuntimeError while instantiating the pipeline.")
-    print("Retrying with CPU")
-    classifier = pipeline("text-classification", model="chkla/parlbert-topic-german", top_k=None, device=-1)
+device = torch.cuda.current_device() if torch.cuda.is_available() else -1
+classifier = pipeline("text-classification", model="chkla/parlbert-topic-german", top_k=None, device=device)
+# try:
+#
+# except RuntimeError as e:
+#     print("RuntimeError while instantiating the pipeline.")
+#     print("Retrying with CPU")
+#     classifier = pipeline("text-classification", model="chkla/parlbert-topic-german", top_k=None, device=-1)
 
 
 def analyse_part(text, iBegin, iEnd):
@@ -68,15 +71,15 @@ def analyse_part(text, iBegin, iEnd):
     return analyzed_labels
 
 
-def analyse(doc_text, sentences):
+def analyse(doc_text, selections):
 
     analyzed_labels = []
 
-    labels = analyse_part(doc_text, 0, len(doc_text))
-    analyzed_labels.extend(labels)
+#     labels = analyse_part(doc_text, 0, len(doc_text))
+#     analyzed_labels.extend(labels)
 
-    for sentence in sentences:
-        labels = analyse_part(sentence.text, sentence.iBegin, sentence.iEnd)
+    for selection in selections:
+        labels = analyse_part(selection.text, selection.iBegin, selection.iEnd)
         analyzed_labels.extend(labels)
 
     return analyzed_labels
@@ -93,7 +96,7 @@ app = FastAPI(
 @app.get("/v1/details/input_output")
 def get_input_output() -> JSONResponse:
     json_item = {
-        "inputs": ["de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"],
+        "inputs": [],
         "outputs": ["org.hucompute.textimager.uima.type.category.CategoryCoveredTagged"]
     }
     return json_item
@@ -127,9 +130,9 @@ def get_communication_layer() -> str:
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
     doc_text = request.doc_text
-    sentences = request.sentences
+    selections = request.selection
 
-    analysed_labels = analyse(doc_text, sentences)
+    analysed_labels = analyse(doc_text, selections)
 
     # Return data as JSON
     return DUUIResponse(
@@ -154,6 +157,6 @@ openapi_schema["info"]["license"] = {"name": "AGPL", "url": "http://www.gnu.org/
 app.openapi_schema = openapi_schema
 
 
-# For starting the script locally
-if __name__ == "__main__":
-    uvicorn.run("parlbert_topic_german:app", host="0.0.0.0", port=9714, workers=1)
+# # For starting the script locally
+# if __name__ == "__main__":
+#     uvicorn.run("parlbert_topic_german:app", host="0.0.0.0", port=9714, workers=1)

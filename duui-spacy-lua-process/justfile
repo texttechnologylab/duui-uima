@@ -1,0 +1,19 @@
+version := "0.1.0"
+
+# runs: just country de, just eu, just europe, just europe-central
+default version=version:
+    just _build {{version}}
+    just _tag {{version}}
+    just _push {{version}}
+
+_build version=version:
+    docker build -f Dockerfile -t duui-spacy-lua-process:{{version}} --build-arg VERSION={{version}} .
+    docker tag duui-spacy-lua-process:{{version}} duui-spacy-lua-process:latest
+
+_tag version=version:
+    docker tag duui-spacy-lua-process:{{version}} docker.texttechnologylab.org/duui-spacy-lua-process:{{version}}
+    docker tag duui-spacy-lua-process:{{version}} docker.texttechnologylab.org/duui-spacy-lua-process:latest
+
+_push version=version:
+    docker push docker.texttechnologylab.org/duui-spacy-lua-process:{{version}}
+    docker push docker.texttechnologylab.org/duui-spacy-lua-process:latest

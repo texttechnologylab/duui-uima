@@ -10,21 +10,35 @@ For using GNfinder as a DUUI image it is necessary to use the Docker Unified UIM
 
 ## Use as Stand-Alone-Image
 ```bash
-docker run docker.texttechnologylab.org/gnfinder:latest
+docker run docker.texttechnologylab.org/duui-gnfinder:latest
 ```
 
 ## Run with a specific port
 ```bash
-docker run -p 1000:9714 docker.texttechnologylab.org/gnfinder:latest
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-gnfinder:latest
 ```
 
 ## Run within DUUI
 ```java
 composer.add(new DUUIDockerDriver.
-    Component("docker.texttechnologylab.org/gnfinder:latest")
+    Component("docker.texttechnologylab.org/duui-gnfinder:latest")
     .withScale(iWorkers)
     .withImageFetching());
 ```
+
+## Existing Parameters
+
+| Parameter | Description | Datatype | Default | Example |
+| --- | --- | --- | --- | --- |
+| adjustOdds | Adjust Bayes odds using density of found names. | Boolean | False |  |
+| allMatches | Verification returns all found matches. | Boolean | False |  |
+| ambiguousUninomials | Preserve uninomials that are also common words. | Boolean | False |  |
+| lang | Text's language or 'detect' for automatic detection. | String | detect | "eng", "de" |
+| noBayes | Do not run Bayes algorithms. | Boolean | False |  |
+| sources | IDs of important data-sources to verify against. If sources are set and there are matches to their data, such matches are returned in "preferred-result" results. To find IDs refer to "https://resolver.globalnames.org/data_sources". | String |  | "1,11" |
+| uniqueNames | Return unique names list. | Boolean | False | |
+| verify | Verify found name-strings. | Boolean | True |  |
+
 
 
 # Cite

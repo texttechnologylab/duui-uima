@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+    <name>SpacySentenceDetectionTypes</name>
+    <version>1.0</version>
+    <types>
+        <typeDescription>
+            <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence</name>
+            <description />
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>id</name>
+                    <description>
+                        If this unit had an ID in the source format from which it was imported, it
+                        may be stored here. IDs are typically not assigned by DKPro Core components.
+                        If an ID is present, it should be respected by writers.
+                    </description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.AnnotatorMetaData</name>
+            <description />
+            <supertypeName>uima.cas.AnnotationBase</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>reference</name>
+                    <description />
+                    <rangeTypeName>uima.cas.TOP</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>name</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>version</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>modelName</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>modelVersion</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.SpacyAnnotatorMetaData</name>
+            <description />
+            <supertypeName>org.texttechnologylab.annotation.AnnotatorMetaData</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>spacyVersion</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>modelLang</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>modelSpacyVersion</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>modelSpacyGitVersion</name>
+                    <description />
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+    </types>
+</typeSystemDescription>

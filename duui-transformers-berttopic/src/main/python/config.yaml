@@ -1,7 +1,7 @@
 model:
-  name: MaartenGr/BERTopic_Wikipedia
-  source: https://huggingface.co/MaartenGr/BERTopic_Wikipedia
-  version: 8071645598487f882580afe477835215c47a8ea1
+  name: b-verma/BERTopic_ML-ArXiv-Abstracts
+  source: https://huggingface.co/b-verma/BERTopic_ML-ArXiv-Abstracts
+  version: 62f9c0c381c8771a76b99c753c883ca4ffd94ec6
   lang: EN
   cache_size: 3
 

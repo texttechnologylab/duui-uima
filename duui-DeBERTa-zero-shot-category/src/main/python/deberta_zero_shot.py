@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, Response
 from fastapi.openapi.utils import get_openapi
@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from transformers import pipeline
 
 import uvicorn
-
+import threading
+import torch 
 
 # A label containing the label and its zero-short score
 class Label(BaseModel):
@@ -17,12 +18,19 @@ class Label(BaseModel):
     iBegin: int
     iEnd: int
 
+class Selection(BaseModel):
+    text: str
+    iBegin: int
+    iEnd: int
 
 # Request sent by DUUI
 # Note, this is transformed by the Lua script
 class DUUIRequest(BaseModel):
     doc_text: str
     labels: List[str]
+    selection: Optional[List[Selection]]
+    multi_label: bool
+    clear_gpu_cache_after: int
 
 
 # Response of this annotator
@@ -33,26 +41,53 @@ class DUUIResponse(BaseModel):
 
 
 # Creates an instance of the pipeline.
-# Device = 0 allows the pipeline to use the gpu, -1 forces cpu usage
-try:
-    classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=0)
-except RuntimeError as e:
-    print("RuntimeError while instantiating the pipeline.")
-    print("Retrying with CPU")
-    classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=-1)
+# Device = -1 forces cpu usage
+device = torch.cuda.current_device() if torch.cuda.is_available() else -1
+classifier = pipeline("zero-shot-classification", model="MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", device=device)
 
-def analyse(doc_text, labels):
+lock = threading.Lock()
+
+def run_classifier(text, labels, multi_label):
+    with lock:
+        return classifier(text, labels, multi_label=multi_label)
+
+def analyse(doc_text, selection, labels, multi_label, clear_gpu_cache_after):
     analyzed_labels = []
+    print("Start Analyse")
 
-    text_length = len(doc_text)
+    if len(selection) > 0:
+         print("Selection is set...")
+         for i, s in enumerate(selection):
 
-    result = classifier(doc_text, labels, multi_label=True)
+            result = run_classifier(s.text, labels, multi_label)
 
-    labels = result["labels"]
-    scores = result["scores"]
+            sel_labels = result["labels"]
+            sel_scores = result["scores"]
 
-    for i in range(len(labels)):
-        analyzed_labels.append(Label(label=labels[i], score=scores[i], iBegin=0, iEnd=text_length))
+            for r in range(len(sel_labels)):
+                analyzed_labels.append(Label(label=sel_labels[r], score=sel_scores[r], iBegin=s.iBegin, iEnd=s.iEnd))
+
+            if(torch.cuda.is_available() and i % clear_gpu_cache_after == 0):
+                torch.cuda.empty_cache() 
+
+#             if i % 1000 == 0:
+#                 print(f"[DEBUG] {i} / {len(selection)}")
+#                 print(sel_labels)
+#                 print(sel_scores)
+#                 print("===========================================")
+
+    else:
+        print("Analyse full text")
+
+        text_length = len(doc_text)
+
+        result = classifier(doc_text, labels, multi_label=True)
+
+        labels = result["labels"]
+        scores = result["scores"]
+
+        for i in range(len(labels)):
+            analyzed_labels.append(Label(label=labels[i], score=scores[i], iBegin=0, iEnd=text_length))
 
     return analyzed_labels
 
@@ -103,8 +138,11 @@ def get_communication_layer() -> str:
 def post_process(request: DUUIRequest) -> DUUIResponse:
     doc_text = request.doc_text
     labels = request.labels
+    selection = request.selection
+    multi_label = request.multi_label
+    clear_gpu_cache_after = request.clear_gpu_cache_after
 
-    analysed_labels = analyse(doc_text, labels)
+    analysed_labels = analyse(doc_text, selection, labels, multi_label, clear_gpu_cache_after)
 
     # Return data as JSON
     return DUUIResponse(

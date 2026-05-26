@@ -36,7 +36,6 @@ map_political = {
     21: 'Others'
 }
 
-
 class TopicCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
@@ -46,6 +45,8 @@ class TopicCheck:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         if "manifesto-project" in model_name:
             self.model = AutoModelForSequenceClassification.from_pretrained(model_name, trust_remote_code=True).to(device)
+        elif "WebOrganizer/TopicClassifier" in model_name:
+            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, trust_remote_code=True, use_memory_efficient_attention=False).to(device)
         else:
             self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
         if "poltextlab" in model_name:

@@ -4,7 +4,11 @@ from utils import convert_to_json
 from evaluator import get_evaluator
 from nubia_score import Nubia
 import torch
-from typing import List
+from typing import List, Dict
+from transformers import BertForSequenceClassification, BertTokenizer
+from scipy.special import softmax
+import numpy as np
+from minicheck import MiniCheck
 
 
 # class FactCheck:
@@ -60,6 +64,51 @@ class UniEvalFactCheck:
         data = convert_to_json(output_list=claim, src_list=evidence)
         eval_scores = self.evaluator.evaluate(data, print_result=True)
         return eval_scores
+
+
+
+class FactMiniCheck:
+    def __init__(self, model_name='flan-t5-large', device='cuda:0', cache_dir=None) -> None:
+        # model_name can be one of ['roberta-large', 'deberta-v3-large', 'flan-t5-large']
+        assert model_name in ['roberta-large', 'deberta-v3-large', 'flan-t5-large']
+        self.model = MiniCheck(model_name=model_name, device=device, cache_dir=cache_dir)
+
+    def check(self, docs: List[str], claims: List[str], chunk_size=None) -> List[Dict[str, float]]:
+        out_score = []
+        pred_label, raw_prob, _, _ = self.model.score(docs=docs, claims=claims, chunk_size=chunk_size)
+        for i in range(len(pred_label)):
+            label = "Fact"
+            score = raw_prob[i]
+            # if pred_label[i] == 0:
+            #     score = 1 - score
+            out_score.append({"consistency": score, "Not Fact": 1 - score})
+        return out_score
+
+class TransformerFactCheck:
+    def __init__(self, model_name, device) -> None:
+        self.tokenizer = BertTokenizer.from_pretrained(model_name)
+        self.model = BertForSequenceClassification.from_pretrained(model_name).to(device)
+        self.device = device
+        self.class_mapping = {"0": "consistency", "1": "Not Fact"}
+        self.labels = list(self.class_mapping.values())
+        self.model.eval()
+
+    def check(self, docs: List[str], claims: List[str]) -> List[Dict[str, float]]:
+        with torch.no_grad():
+            score_list = []
+            inputs = self.tokenizer(docs, claims, return_tensors="pt", padding=True, truncation=True, max_length=512).to(
+                self.device)
+            outputs = self.model(**inputs)
+            scores = outputs[0].detach().cpu().numpy()
+            for score in scores:
+                score_dict_i = {}
+                score_i = softmax(score)
+                ranking = np.argsort(score_i)
+                ranking = ranking[::-1]
+                for i in range(score.shape[0]):
+                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+                score_list.append(score_dict_i)
+        return score_list
 
 
 # def unieval_factcheck(src_list, output_list, task):

@@ -36,8 +36,8 @@ public class DUUICoreLLMRatingTest {
 
         JSONObject llmArgsJson = new JSONObject();
 //        llmArgsJson.put("base_url", "localhost:11434");
-        llmArgsJson.put("base_url", "172.17.0.1:11434");
-        llmArgsJson.put("model", "llama3.2:3b-instruct-q4_K_M");
+        llmArgsJson.put("base_url", "anduin.hucompute.org:11434");
+        llmArgsJson.put("model", "CORE:Keyword-ExtractionV2_Gemma-2-27B_v1");
         llmArgsJson.put("temperature", 1);
         llmArgsJson.put("num_ctx", 2048);
         llmArgsJson.put("num_predict", -2);
@@ -45,8 +45,8 @@ public class DUUICoreLLMRatingTest {
         //llmArgsJson.put("keep_alive", 3600);
 
         composer.add(
-//                new DUUIRemoteDriver.Component("http://localhost:8000")
-                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-core-llm-rating:latest")
+                new DUUIRemoteDriver.Component("http://localhost:9714")
+//                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-core-llm-rating:latest")
                         .withParameter("llm_args", llmArgsJson.toString())
                         .withScale(1)
                         .build()

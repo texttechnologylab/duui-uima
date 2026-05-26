@@ -5,16 +5,16 @@ export ANNOTATOR_CUDA=
 #export ANNOTATOR_CUDA="-cuda"
 
 export ANNOTATOR_NAME=duui-stance
-export ANNOTATOR_VERSION=0.0.1
+export ANNOTATOR_VERSION=0.0.2
 export LOG_LEVEL=DEBUG
 export MODEL_CACHE_SIZE=3
 export CHATGPT_KEY=
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 
-#export MODEL_NAME="mlburnham"
-#export MODEL_VERSION="4538315b9903f9821063023bebcf441cb8c53cdc"
-#export MODEL_URL="https://huggingface.co/mlburnham/deberta-v3-base-polistance-affect-v1.0"
-#export MODEL_LANG="en"
+export MODEL_NAME="mlburnham"
+export MODEL_VERSION="4538315b9903f9821063023bebcf441cb8c53cdc"
+export MODEL_URL="https://huggingface.co/mlburnham/deberta-v3-base-polistance-affect-v1.0"
+export MODEL_LANG="en"
 
 #export MODEL_NAME="kornosk"
 #export MODEL_VERSION="36311a4ad7200ac54d3e3aff37daee69d6472888"
@@ -26,10 +26,10 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_URL="https://platform.openai.com/"
 #export MODEL_LANG="MULTI"
 #
-export MODEL_NAME="gpt4"
-export MODEL_VERSION="gpt-4"
-export MODEL_URL="https://platform.openai.com/"
-export MODEL_LANG="MULTI"
+#export MODEL_NAME="gpt4"
+#export MODEL_VERSION="gpt-4"
+#export MODEL_URL="https://platform.openai.com/"
+#export MODEL_LANG="MULTI"
 
 docker build \
   --build-arg ANNOTATOR_NAME \
