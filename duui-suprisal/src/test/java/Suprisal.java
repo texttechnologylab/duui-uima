@@ -77,6 +77,7 @@ public class Suprisal {
          *
          *  It is also possible to store the input-file in the resource path of the project, which can then be accessed with a real path: this.getClass().getResource("name_of_file.csv").getPath()
          */
+//        executeSuprisal(this.getClass().getResource("input.csv").getPath(),"/tmp/suprisal", "en", "google/gemma-3-4b-it", "");
         executeSuprisal(this.getClass().getResource("input.csv").getPath(),"/tmp/suprisal", "en", "goldfish-models/spa_latn_1000mb", "");
 
     }
@@ -114,6 +115,7 @@ public class Suprisal {
      */
     private void executeSuprisal(String sInputPath, String sOutputPath, String sLanguage, String sModel, String sToken) throws Exception {
         executeSuprisal(sInputPath, sOutputPath, sLanguage, "http://suprisal.duui.neglab.de", sModel, sToken);
+//        executeSuprisal(sInputPath, sOutputPath, sLanguage, "http://localhost:9715", sModel, sToken);
     }
 
     /**
@@ -191,14 +193,14 @@ public class Suprisal {
          * Save results in CSV-files
          */
         writeSentenceResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Sentence.csv");
-        writeTokenResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Token.csv");
+        writeTokenResults(jCas, sOutputPath.endsWith("/") ? sOutputPath : sOutputPath+"/"+"export_Word.csv");
 
     }
 
     private void writeSentenceResults(JCas jCas, String sOutPath) throws IOException {
 
         StringBuilder outputBuilder = new StringBuilder();
-        outputBuilder.append("Item,Condition,Sentence,Target,Score,ScoreSum");
+        outputBuilder.append("Item,Sentence,Condition,Target,Score,SequenceScore,SequenceScoreSum");
 
         JCasUtil.select(jCas, ConditionSentence.class).stream().forEach(sentence -> {
             if(outputBuilder.length()>0) {
