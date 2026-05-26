@@ -1,0 +1,15 @@
+{
+  "test": "testCustomPlaceholder",
+  "input": "Send the report to max.mustermann@uni-frankfurt.de by Friday.",
+  "redacted": "Send the report to <REDACTED>ann@uni-frankfurt.de by Friday.",
+  "anomaly_count": 1,
+  "anomalies": [
+    {
+      "begin": 19,
+      "end": 30,
+      "category": "private_person",
+      "description": "<PRIVATE_PERSON>",
+      "text": "max.musterm"
+    }
+  ]
+}

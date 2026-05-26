@@ -1,0 +1,15 @@
+{
+  "test": "testPhoneNumberRedaction",
+  "input": "You can reach Dr. Miller at +49 69 1234 5678 during office hours.",
+  "redacted": "You can reach <REDACTED> at +49 69 1234 5678 during office hours.",
+  "anomaly_count": 1,
+  "anomalies": [
+    {
+      "begin": 14,
+      "end": 24,
+      "category": "private_person",
+      "description": "<PRIVATE_PERSON>",
+      "text": "Dr. Miller"
+    }
+  ]
+}

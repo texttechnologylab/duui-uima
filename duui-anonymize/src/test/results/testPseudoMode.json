@@ -1,0 +1,15 @@
+{
+  "test": "testPseudoMode",
+  "input": "Alice and Bob met at the Frankfurt main station.",
+  "redacted": "Alice and <REDACTED> met at the Frankfurt main station.",
+  "anomaly_count": 1,
+  "anomalies": [
+    {
+      "begin": 10,
+      "end": 13,
+      "category": "private_person",
+      "description": "<PRIVATE_PERSON>",
+      "text": "Bob"
+    }
+  ]
+}

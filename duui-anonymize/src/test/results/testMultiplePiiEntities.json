@@ -1,0 +1,22 @@
+{
+  "test": "testMultiplePiiEntities",
+  "input": "Patient: Jane Doe, DOB: 1985-03-22. Contact: jane.doe@hospital.org, Tel: 069-9876-5432. Address: 60325 Frankfurt am Main, Goethe-Platz 1.",
+  "redacted": "Patient: <REDACTED>, DOB: <REDACTED>3-22. Contact: jane.doe@hospital.org, Tel: 069-9876-5432. Address: 60325 Frankfurt am Main, Goethe-Platz 1.",
+  "anomaly_count": 2,
+  "anomalies": [
+    {
+      "begin": 9,
+      "end": 17,
+      "category": "private_person",
+      "description": "<PRIVATE_PERSON>",
+      "text": "Jane Doe"
+    },
+    {
+      "begin": 24,
+      "end": 30,
+      "category": "private_date",
+      "description": "<PRIVATE_DATE>",
+      "text": "1985-0"
+    }
+  ]
+}

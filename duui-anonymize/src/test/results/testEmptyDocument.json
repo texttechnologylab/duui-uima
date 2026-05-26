@@ -1,0 +1,8 @@
+{
+  "test": "testEmptyDocument",
+  "input": "",
+  "redacted": "",
+  "anomaly_count": 0,
+  "anomalies": [
+  ]
+}

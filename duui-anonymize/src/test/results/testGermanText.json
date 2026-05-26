@@ -1,0 +1,15 @@
+{
+  "test": "testGermanText",
+  "input": "Herr Klaus Muller wohnt in der Goethestrasse 12, 60313 Frankfurt am Main.",
+  "redacted": "Herr Klaus <REDACTED> wohnt in der Goethestrasse 12, 60313 Frankfurt am Main.",
+  "anomaly_count": 1,
+  "anomalies": [
+    {
+      "begin": 11,
+      "end": 17,
+      "category": "private_person",
+      "description": "<PRIVATE_PERSON>",
+      "text": "Muller"
+    }
+  ]
+}

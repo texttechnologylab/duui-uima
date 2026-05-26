@@ -1,0 +1,15 @@
+{
+  "test": "testXmiOutput",
+  "input": "Maria Schmidt (m.schmidt@example.de) lives at Berliner Str. 5, 10115 Berlin.",
+  "redacted": "Maria Schmidt (<REDACTED>le.de) lives at Berliner Str. 5, 10115 Berlin.",
+  "anomaly_count": 1,
+  "anomalies": [
+    {
+      "begin": 15,
+      "end": 30,
+      "category": "private_email",
+      "description": "<PRIVATE_EMAIL>",
+      "text": "m.schmidt@examp"
+    }
+  ]
+}

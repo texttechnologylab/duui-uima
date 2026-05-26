@@ -1,0 +1,8 @@
+{
+  "test": "testEmailRedaction",
+  "input": "Please contact support at alice@example.com for further assistance.",
+  "redacted": "Please contact support at alice@example.com for further assistance.",
+  "anomaly_count": 0,
+  "anomalies": [
+  ]
+}
