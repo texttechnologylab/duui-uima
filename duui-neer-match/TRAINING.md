@@ -33,26 +33,25 @@ In this case, the `training_data` section of `model_config.json` should look lik
 
 ```json
 "training_data": {
-"type": "single_dataset", # indicates that we are using a single dataset
-"file": "./tokens.csv", # the path to the dataset file (can be .csv or .txt)
-"sample_size": 400, # the number of original samples to use for training (or no value for all)
-"min_length": 3, # minimum length of the text values to consider for training (or no value for no minimum)
-"samples_per_original": 3, # how many modified samples to create from each original value
-"property_mutations": {
-# how to create modified samples for each property
-"text": {
-"type": "text", # indicates that this is a text property
-"min_noise": 0.1, # minimum noise level (e.g., 10% of the characters)
-"max_noise": 0.2  # maximum noise level (e.g., 20% of the characters)
-},
-"size": {
-"type": "numeric", # indicates that this is a numeric property
-"max_noise": 2  # maximum absolute value to add or subtract from the original value (e.g., +/- 2)
-},
-"whatever": {
-"type": "unchanged"  # indicates that this property should be included in the training pairs but not modified (i.e., it stays the same as the original value)
-}
-}
+  "type": "single_dataset", // indicates that we are using a single dataset
+  "file": "./tokens.csv", // the path to the dataset file (can be .csv or .txt)
+  "sample_size": 400, // the number of original samples to use for training (or no value for all)
+  "min_length": 3, // minimum length of the text values to consider for training (or no value for no minimum)
+  "samples_per_original": 3, // how many modified samples to create from each original value
+  "property_mutations": { // how to create modified samples for each property
+    "text": {
+      "type": "text", // indicates that this is a text property
+      "min_noise": 0.1, // minimum noise level (e.g., 10% of the characters)
+      "max_noise": 0.2  // maximum noise level (e.g., 20% of the characters)
+    },
+    "size": {
+      "type": "numeric", // indicates that this is a numeric property
+      "max_noise": 2  // maximum absolute value to add or subtract from the original value (e.g., +/- 2)
+    },
+    "whatever": {
+      "type": "unchanged"  // indicates that this property should be included in the training pairs but not modified (i.e., it stays the same as the original value)
+    }
+  }
 }
 ```
 
@@ -77,10 +76,10 @@ In this case, the `training_data` section of `model_config.json` should look lik
 
 ```json
 "training_data": {
-"type": "provided_split", # indicates that we are using a provided split of datasets
-"entitie_list_file": "./entities.csv", # the path to the entities dataset file (either .csv or .txt)
-"target_list_file": "./targets.csv", # the path to the targets dataset file (either .csv or .txt)
-"matches_file": "./matches.csv"  # the path to the file containing known matches between entities and targets (should have columns "entity_id" and "target_id", only .csv format is supported for the matches file)
+  "type": "provided_split", // indicates that we are using a provided split of datasets
+  "entitie_list_file": "./entities.csv", // the path to the entities dataset file (either .csv or .txt)
+  "target_list_file": "./targets.csv", // the path to the targets dataset file (either .csv or .txt)
+  "matches_file": "./matches.csv"  // the path to the file containing known matches between entities and targets (should have columns "entity_id" and "target_id", only .csv format is supported for the matches file)
 }
 ```
 

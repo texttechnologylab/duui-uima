@@ -43,8 +43,7 @@ docker run -p 1000:9714 docker.texttechnologylab.org/duui-neer-match:latest
 Probable future usage within DUUI:
 
 ```java
-composer.add(new DUUIDockerDriver.
-        Component("docker.texttechnologylab.org/duui-neer-match:latest")
+composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-neer-match:latest")
     .
 
 withScale(iWorkers)
