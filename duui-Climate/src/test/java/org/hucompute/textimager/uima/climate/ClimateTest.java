@@ -1,4 +1,4 @@
-package org.hucompute.textimager.uima.genre;
+package org.hucompute.textimager.uima.climate;
 
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import org.apache.commons.compress.compressors.CompressorException;
@@ -24,10 +24,10 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.texttechnologylab.annotation.Genre;
+import org.texttechnologylab.annotation.Climate;
 import org.texttechnologylab.annotation.AnnotationComment;
 
-public class GenreTest {
+public class ClimateTest {
     static DUUIComposer composer;
     static JCas cas;
 
@@ -99,17 +99,17 @@ public class GenreTest {
         createCas("de", sentences);
         composer.run(cas);
 
-        Collection<Genre> all_topics = JCasUtil.select(cas, Genre.class);
+        Collection<Climate> all_climates = JCasUtil.select(cas, Climate.class);
         ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-        for (Genre topic: all_topics){
-            System.out.println(topic.getCoveredText());
-            Map<String, Float> topics = new HashMap<String, Float>();
-            FSArray<AnnotationComment> topics_all = topic.getGenres();
-            for (AnnotationComment comment_i: topics_all){
-                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+        for (Climate climate: all_climates){
+            System.out.println(climate.getCoveredText());
+            Map<String, Float> climates = new HashMap<String, Float>();
+            FSArray<AnnotationComment> climates_all = climate.getClimates();
+            for (AnnotationComment comment_i: climates_all){
+                climates.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
                 System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
-            expected.add(topics);
+            expected.add(climates);
         }
 
         for (Map<String, Float> topic: expected){
@@ -134,18 +134,21 @@ public class GenreTest {
         createCas("de", sentences);
         composer.run(cas);
 
-        Collection<Genre> all_topics = JCasUtil.select(cas, Genre.class);
+        Collection<Climate> all_climates = JCasUtil.select(cas, Climate.class);
         ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-        for (Genre genre: all_topics){
-            System.out.println(genre.getCoveredText());
-            Map<String, Float> topics = new HashMap<String, Float>();
-            String model_name = genre.getModel().getModelName();
-            FSArray<AnnotationComment> topics_all = genre.getGenres();
-            for (AnnotationComment comment_i: topics_all){
-                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+        for (Climate climate: all_climates){
+            System.out.println(climate.getCoveredText());
+            Map<String, Float> climates = new HashMap<String, Float>();
+            String model_name = climate.getModel().getModelName();
+            String type_name = climate.getClimateType();
+            System.out.println(model_name);
+            System.out.println(type_name);
+            FSArray<AnnotationComment> climates_all = climate.getClimates();
+            for (AnnotationComment comment_i: climates_all){
+                climates.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
                 System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
-            expected.add(topics);
+            expected.add(climates);
         }
 
 //        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();
