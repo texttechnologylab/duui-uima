@@ -14,6 +14,8 @@ flexible model configurations.
 
 For using DUUI Neer Match as a DUUI image, it is necessary to use the Docker Unified UIMA Interface.
 
+For information on how to train new models, refer to [TRAINING.md](TRAINING.md).
+
 ### Use as Stand-Alone-Image
 
 **Note:** Currently there exists no docker image.
