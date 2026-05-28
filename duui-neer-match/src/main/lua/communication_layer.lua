@@ -3,7 +3,6 @@ StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 Class = luajava.bindClass("java.lang.Class")
 Float = luajava.bindClass("java.lang.Float")
-NeerMatchPrediction = luajava.bindClass("org.texttechnologylab.annotation.NeerMatchPrediction")
 
 function extractNeProperties(inputCas, entity)
     local properties = {}
