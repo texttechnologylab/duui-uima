@@ -1,21 +1,16 @@
 import logging
 import os.path
 from functools import lru_cache
-from typing import Annotated, Any, Dict, List, Optional, Literal, Tuple, Union
+from typing import Any, Dict, List, Optional, Literal, Tuple, Union
 
 import pandas as pd
 import numpy as np
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from neer_match.matching_model import DLMatchingModel, NSMatchingModel
 from neer_match.similarity_map import SimilarityMap
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
-
-# TODO: adjust paths for deployment as docker image
-lua_communication_script_path = "../lua/communication_layer.lua"
-typesystem_path = "../resources/typesystem.xml"
-models_path = "../resources/models"
 
 
 # Settings
@@ -27,6 +22,8 @@ class Settings(BaseSettings):
     annotator_version: str
     # Log level
     log_level: str
+    # Execution mode (development, production)
+    execution_mode: Literal["development", "production"] = "development"
 
     class Config:
         env_prefix = "DUUI_NEER_MATCH_"
@@ -34,6 +31,20 @@ class Settings(BaseSettings):
 
 # Load settings
 settings = Settings()
+
+lua_communication_script_path: str
+typesystem_path: str
+models_path: str
+if settings.execution_mode == "development":
+    lua_communication_script_path = "../lua/communication_layer.lua"
+    typesystem_path = "../resources/typesystem.xml"
+    models_path = "../resources/models"
+elif settings.execution_mode == "production":
+    lua_communication_script_path = "/app/communication_layer.lua"
+    typesystem_path = "/app/typesystem.xml"
+    models_path = "/app/models"
+else:
+    raise ValueError(f"Unknown execution mode '{settings.execution_mode}'")
 
 # Init logger
 logging.basicConfig(

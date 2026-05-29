@@ -1,0 +1,19 @@
+FROM python:3.12.3
+
+WORKDIR /app
+
+RUN pip install --upgrade pip
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY src/main/python/duui-neer-match.py .
+COPY src/main/lua/communication_layer.lua .
+COPY src/main/resources/typesystem.xml .
+COPY src/main/resources/models ./models
+
+ENV DUUI_NEER_MATCH_EXECUTION_MODE=production
+
+EXPOSE 9714
+ENTRYPOINT ["uvicorn", "duui-neer-match:app", "--host", "0.0.0.0", "--port", "9714"]
+CMD ["--workers", "1"]
