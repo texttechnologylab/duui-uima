@@ -8,8 +8,10 @@ import org.apache.uima.jcas.JCas;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIPodmanDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.IDUUIInstantiatedPipelineComponent;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.xml.sax.SAXException;
 
@@ -18,12 +20,15 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -33,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class NeerMatchTest {
 
-    static final String NEER_MATCH_URL = "http://localhost:12345";
+    static final String NEER_MATCH_IMAGE = "localhost/duui-neer-match:1.0.0";
 
     DUUIComposer composer;
     JCas cas1;
@@ -46,7 +51,7 @@ public class NeerMatchTest {
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
 
-        composer.addDriver(new DUUIRemoteDriver(), new DUUIPodmanDriver());
+        composer.addDriver(new DUUIPodmanDriver());
 
         cas1 = JCasFactory.createJCas();
         cas1.setDocumentLanguage("de");
@@ -65,9 +70,10 @@ public class NeerMatchTest {
         composer.add(
                 new DUUIPodmanDriver.Component("docker.texttechnologylab.org/textimager-duui-spacy:0.4.0").withImageFetching()
                         .build());
-        composer.add(new DUUIRemoteDriver.Component(NEER_MATCH_URL)
+        composer.add(new DUUIPodmanDriver.Component(NEER_MATCH_IMAGE)
                 .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
                 .withParameter("pipeline_id", pipelineId)
+                .withName("neer_match")
                 .build()
         );
         composer.run(cas1);
@@ -86,9 +92,10 @@ public class NeerMatchTest {
         composer.add(
                 new DUUIPodmanDriver.Component("docker.texttechnologylab.org/textimager-duui-spacy:0.4.0").withImageFetching()
                         .build());
-        composer.add(new DUUIRemoteDriver.Component(NEER_MATCH_URL)
+        composer.add(new DUUIPodmanDriver.Component(NEER_MATCH_IMAGE)
                 .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
                 .withParameter("pipeline_id", pipelineId)
+                .withName("neer_match")
                 .build()
         );
         composer.run(cas1);
@@ -119,9 +126,10 @@ public class NeerMatchTest {
         composer.add(
                 new DUUIPodmanDriver.Component("docker.texttechnologylab.org/textimager-duui-spacy:0.4.0").withImageFetching()
                         .build());
-        composer.add(new DUUIRemoteDriver.Component(NEER_MATCH_URL)
+        composer.add(new DUUIPodmanDriver.Component(NEER_MATCH_IMAGE)
                 .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity")
                 .withParameter("pipeline_id", pipelineId)
+                .withName("neer_match")
                 .build()
         );
         composer.run(cas1);
@@ -134,7 +142,47 @@ public class NeerMatchTest {
         System.out.println(gson.toJson(result));
     }
 
+    String retrieveNeerMatchContainerAddress() {
+        // Currently it is not really supported to send http requests to images directly, so we have to extract the address using reflections
+        // if using a remote driver this is not necessary because the address is already known, but this shows that it is even possible for docker driver
+        // this code is not really part of the project and should be seen as a helper function, that does nothing actually with neer match
+        DUUIComposer.PipelinePart neerMatchPart = composer.get_instantiatedPipeline().stream()
+                .filter(component -> Objects.equals(component.getName(), "neer_match"))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("NeerMatch component not found in pipeline"));
+        if (neerMatchPart.getDriver() instanceof DUUIPodmanDriver driver) {
+            try {
+                Field activeComponentsField = DUUIPodmanDriver.class.getDeclaredField("_active_components");
+                activeComponentsField.setAccessible(true);
+                //noinspection unchecked
+                Map<String, IDUUIInstantiatedPipelineComponent> activeComponents = (Map<String, IDUUIInstantiatedPipelineComponent>) activeComponentsField.get(driver);
+                IDUUIInstantiatedPipelineComponent neerMatchComponent = activeComponents.get(neerMatchPart.getUUID());
+                if (neerMatchComponent == null) {
+                    throw new RuntimeException("NeerMatch component instance not found in active components");
+                }
+                Class<?> instantiatedComponentClass = Class.forName("org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver$InstantiatedComponent");
+                Field instancesField = instantiatedComponentClass.getDeclaredField("_instances");
+                instancesField.setAccessible(true);
+                //noinspection unchecked
+                ConcurrentLinkedQueue<DUUIDockerDriver.ComponentInstance> instances = (ConcurrentLinkedQueue<DUUIDockerDriver.ComponentInstance>) instancesField.get(neerMatchComponent);
+                if (instances.size() != 1) {
+                    throw new RuntimeException("Expected exactly one instance of NeerMatch component, found " + instances.size());
+                }
+                DUUIDockerDriver.ComponentInstance instance = instances.peek();
+                if (instance == null) {
+                    throw new RuntimeException("NeerMatch component instance is null");
+                }
+                return instance.generateURL();
+            } catch (NoSuchFieldException | IllegalAccessException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            throw new RuntimeException("NeerMatch component is not running on Podman");
+        }
+    }
+
     JsonObject finalizeNeerMatch(String model, double threshold) throws IOException, InterruptedException {
+        String NEER_MATCH_URL = retrieveNeerMatchContainerAddress();
         String response;
         try (HttpClient client = HttpClient.newHttpClient()) {
             JsonObject requestBody = new JsonObject();
@@ -146,7 +194,7 @@ public class NeerMatchTest {
 
             response = client.send(
                     HttpRequest.newBuilder()
-                            .uri(java.net.URI.create(NEER_MATCH_URL + "/v1/finalize"))
+                            .uri(URI.create(NEER_MATCH_URL + "/v1/finalize"))
                             .header("Content-Type", "application/json")
                             .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
                             .build(),
