@@ -1,7 +1,7 @@
 --extra-index-url https://download.pytorch.org/whl/cu117
 torch==1.13.1+cu117
 # conda install pytorch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1 pytorch-cuda=11.7 -c pytorch -c nvidia
-torchserve==0.7.1
+torchserve==0.11.1
 transformers==4.9.1
 chardet==5.1.0
 numpy
