@@ -80,6 +80,7 @@ for LINK in "${LINKER[@]}"; do
 
       if ${BUILD_TOOL} build \
           --pull \
+          --quiet \
           --build-arg TAXONERD_MODEL="$MODEL" \
           --build-arg TAXONERD_LINKER="$LINK" \
           -f src/main/docker/Dockerfile-cuda \
