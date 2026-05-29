@@ -319,7 +319,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 audio,
                 num_speakers=request.diarization_num_speakers,
                 min_speakers=request.diarization_min_speakers,
-                max_speakers=request.diarization_min_speakers
+                max_speakers=request.diarization_max_speakers
             )
             aligned_result = whisperx.assign_word_speakers(diarize_segments, aligned_result)
 
