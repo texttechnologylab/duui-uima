@@ -16,9 +16,23 @@ TAG_PREFIX="1.0"
 TOTAL=${#LINKER[@]}
 CURRENT=0
 
+if [ -n "${BUILD_TOOL:-}" ]; then
+  echo "⚙️  Using build tool: ${BUILD_TOOL}"
+# Test if docker is available and can be used
+elif (command -v docker > /dev/null 2>&1;) && (docker info > /dev/null 2>&1;) then
+  BUILD_TOOL="docker"
+  echo "⚙️  Using Docker as build tool"
+elif (command -v podman > /dev/null 2>&1;) && (podman info > /dev/null 2>&1;) then
+  BUILD_TOOL="podman"
+  echo "⚙️  Using Podman as build tool"
+else
+  echo "❌ Error: No build tool found or permissions missing. Please install Docker or Podman and ensure you have permission to run it."
+  exit 1
+fi
+
 # 🧠 optional: einmal sauber starten (UNCOMMENT if needed)
 # echo "🧹 Cleaning Docker builder cache..."
-# docker builder prune -f >/dev/null 2>&1 || true
+# ${BUILD_TOOL} builder prune -f >/dev/null 2>&1 || true
 
 # 🎯 Progress Bar
 draw_bar () {
@@ -42,7 +56,7 @@ draw_bar () {
 
 # 🔍 check if image exists locally
 image_exists () {
-  docker image inspect "$1" > /dev/null 2>&1
+  ${BUILD_TOOL} image inspect "$1" > /dev/null 2>&1
 }
 
 echo "🚀 Building $TOTAL linker variants for model: $MODEL"
@@ -60,13 +74,12 @@ for LINK in "${LINKER[@]}"; do
   if image_exists "$TAG"; then
       echo "⚡ SKIP: Image already exists ($TAG)"
 
-#      docker image rm $TAG --force
+#      ${BUILD_TOOL} image rm $TAG --force
   else
       echo "🔧 Building $TAG"
 
-      if docker build \
+      if ${BUILD_TOOL} build \
           --pull \
-          --quiet \
           --build-arg TAXONERD_MODEL="$MODEL" \
           --build-arg TAXONERD_LINKER="$LINK" \
           -f src/main/docker/Dockerfile-cuda \
@@ -79,7 +92,7 @@ for LINK in "${LINKER[@]}"; do
 
           echo ""
           echo "💡 Tip: if this was an apt/GPG error, run:"
-          echo "   docker builder prune -f"
+          echo "   ${BUILD_TOOL} builder prune -f"
           echo "   then retry"
 
           exit 1
