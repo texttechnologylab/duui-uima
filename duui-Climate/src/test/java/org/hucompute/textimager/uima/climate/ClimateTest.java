@@ -1,4 +1,4 @@
-package org.hucompute.textimager.uima.transformers.topic;
+package org.hucompute.textimager.uima.climate;
 
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import org.apache.commons.compress.compressors.CompressorException;
@@ -8,7 +8,6 @@ import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.FSArray;
 import org.apache.uima.util.XmlCasSerializer;
-import org.hucompute.textimager.uima.type.category.CategoryCoveredTagged;
 import org.junit.jupiter.api.*;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
@@ -25,10 +24,10 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.texttechnologylab.annotation.Topic;
+import org.texttechnologylab.annotation.Climate;
 import org.texttechnologylab.annotation.AnnotationComment;
 
-public class TopicTest {
+public class ClimateTest {
     static DUUIComposer composer;
     static JCas cas;
 
@@ -100,17 +99,17 @@ public class TopicTest {
         createCas("de", sentences);
         composer.run(cas);
 
-        Collection<Topic> all_topics = JCasUtil.select(cas, Topic.class);
+        Collection<Climate> all_climates = JCasUtil.select(cas, Climate.class);
         ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-        for (Topic topic: all_topics){
-            System.out.println(topic.getCoveredText());
-            Map<String, Float> topics = new HashMap<String, Float>();
-            FSArray<AnnotationComment> topics_all = topic.getTopics();
-            for (AnnotationComment comment_i: topics_all){
-                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+        for (Climate climate: all_climates){
+            System.out.println(climate.getCoveredText());
+            Map<String, Float> climates = new HashMap<String, Float>();
+            FSArray<AnnotationComment> climates_all = climate.getClimates();
+            for (AnnotationComment comment_i: climates_all){
+                climates.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
                 System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
-            expected.add(topics);
+            expected.add(climates);
         }
 
         for (Map<String, Float> topic: expected){
@@ -122,51 +121,6 @@ public class TopicTest {
 
     @Test
     public void EnTest() throws Exception {
-        HashMap<String, ArrayList<String>> expected1 = new HashMap<>();
-        ArrayList<String> expected2 = new ArrayList<>();
-        expected2.add("603 - Traditional Morality: Positive");
-        expected2.add("305 - Political Authority");
-        expected1.put("manifesto-project/manifestoberta-xlm-roberta-56policy-topics-context-2023-1-1", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("Others");
-        expected2.add("Others");
-        expected1.put("poltextlab/xlm-roberta-large-manifesto-cap", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("daily_life");
-        expected2.add("pop_culture");
-        expected1.put("cardiffnlp/tweet-topic-latest-single", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("Instruction");
-        expected2.add("News");
-        expected1.put("classla/xlm-roberta-base-multilingual-text-genre-classifier", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("A7");
-        expected2.add("A8");
-        expected1.put("ssharoff/genres", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("arts, culture, entertainment and media");
-        expected2.add("politics");
-        expected1.put("classla/multilingual-IPTC-news-topic-classifier", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("Culture");
-        expected2.add("Government Operations");
-        expected1.put("poltextlab/xlm-roberta-large-english-cap-v3", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("Others");
-        expected2.add("Others");
-        expected1.put("poltextlab/xlm-roberta-large-party-cap-v3", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("arts_&_culture");
-        expected2.add("pop_culture");
-        expected1.put("cardiffnlp/roberta-large-tweet-topic-single-all", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("other_hobbies");
-        expected2.add("news_&_social_concern");
-        expected1.put("cardiffnlp/tweet-topic-large-multilingual", expected2);
-        expected2 = new ArrayList<>();
-        expected2.add("Travel");
-        expected2.add("Crime & Law");
-        expected1.put("WebOrganizer/TopicClassifier", expected2);
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
@@ -180,20 +134,21 @@ public class TopicTest {
         createCas("de", sentences);
         composer.run(cas);
 
-        Collection<Topic> all_topics = JCasUtil.select(cas, Topic.class);
+        Collection<Climate> all_climates = JCasUtil.select(cas, Climate.class);
         ArrayList<Map<String, Float>> expected = new ArrayList<Map<String, Float>>();
-        for (Topic topic: all_topics){
-            System.out.println(topic.getCoveredText());
-            Map<String, Float> topics = new HashMap<String, Float>();
-            String model_name = topic.getModel().getModelName();
-            FSArray<AnnotationComment> topics_all = topic.getTopics();
-            for (AnnotationComment comment_i: topics_all){
-                topics.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
+        for (Climate climate: all_climates){
+            System.out.println(climate.getCoveredText());
+            Map<String, Float> climates = new HashMap<String, Float>();
+            String model_name = climate.getModel().getModelName();
+            String type_name = climate.getClimateType();
+            System.out.println(model_name);
+            System.out.println(type_name);
+            FSArray<AnnotationComment> climates_all = climate.getClimates();
+            for (AnnotationComment comment_i: climates_all){
+                climates.put(comment_i.getKey(), Float.parseFloat(comment_i.getValue()));
                 System.out.println("key:"+comment_i.getKey()+"; Value:"+comment_i.getValue());
             }
-            expected.add(topics);
-            String key = Collections.max(topics.entrySet(), Map.Entry.comparingByValue()).getKey();
-            Assertions.assertEquals(expected1.get(model_name).get(expected.indexOf(topics)), key);
+            expected.add(climates);
         }
 
 //        HashMap<String, HashMap<String, Double>> expected = new HashMap<>();

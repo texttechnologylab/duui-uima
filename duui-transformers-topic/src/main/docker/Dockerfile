@@ -29,7 +29,10 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-latest-single')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cardiffnlp/tweet-topic-large-multilingual')"
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('WebOrganizer/TopicClassifier', trust_remote_code=True, use_memory_efficient_attention=False); AutoTokenizer.from_pretrained('WebOrganizer/TopicClassifier')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='nickmuchi/finbert-tone-finetuned-finance-topic-classification')"
+#RUN #python -c "from transformers import pipeline; pipeline('text-classification', model='nickmuchi/finbert-tone-finetuned-finance-topic-classification')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Keshav0308/multilingual-topic-classifier')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/ParlaCAP-Topic-Classifier')"
+
 # log level
 ARG LOG_LEVEL="DEBUG"
 ENV LOG_LEVEL=$LOG_LEVEL

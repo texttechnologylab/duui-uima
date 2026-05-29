@@ -8,16 +8,22 @@
 DUUI implementation for selected Hugging-Face-based transformer [Sentiment tools](https://huggingface.co/models?sort=trending&search=sentiment) models.
 ## Included Models
 
-| Name                                                          |                                                                                            | Revision                           | Languages |
-|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|------------------------------------|------|
-| twitter-xlm-roberta-base-sentiment                            | https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment | f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8 | Multilingual |
-| citizenlab-twitter-xlm-roberta-base-sentiment-finetunned      | https://huggingface.co/citizenlab/twitter-xlm-roberta-base-sentiment-finetunned | a9381f1d9e6f8aac74155964c2f6ea9a63a9e9a6 | Multilingual |
-| distilbert-base-multilingual-cased-sentiments-student         | https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student | cf991100d706c13c0a080c097134c05b7f436c45 | Multilingual |
-| philschmid-distilbert-base-multilingual-cased-sentiments-student | https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment | b45a713783e49ac09c94dfda4bff847f4ad771c5 | Multilingual |
-| cardiffnlp-sentiment-en                                       | https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest | 4ba3d4463bd152c9e4abd892b50844f30c646708 | EN   |
-| roberta-based-en | https://huggingface.co/j-hartmann/sentiment-roberta-large-english-3-classes | 81cdc0fe3eee1bc18d95ffdfb56b2151a39c9007 | EN   |
-| finance-sentiment-de  | https://huggingface.co/bardsai/finance-sentiment-de-base | 51b3d03f716eaa093dc42130f675839675a07b9a  | DE   |
-| german-sentiment-bert  | https://huggingface.co/oliverguhr/german-sentiment-bert | b1177ff59e305c966836ba2825d3dc2efc53f125  | DE   |
+| Name                                                             |                                                                                     | Revision                           | Languages    |
+|------------------------------------------------------------------|-------------------------------------------------------------------------------------|------------------------------------|--------------|
+| twitter-xlm-roberta-base-sentiment                               | https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment                | f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8 | Multilingual |
+| citizenlab-twitter-xlm-roberta-base-sentiment-finetunned         | https://huggingface.co/citizenlab/twitter-xlm-roberta-base-sentiment-finetunned     | a9381f1d9e6f8aac74155964c2f6ea9a63a9e9a6 | Multilingual |
+| distilbert-base-multilingual-cased-sentiments-student            | https://huggingface.co/lxyuan/distilbert-base-multilingual-cased-sentiments-student | cf991100d706c13c0a080c097134c05b7f436c45 | Multilingual |
+| philschmid-distilbert-base-multilingual-cased-sentiments-student | https://huggingface.co/philschmid/distilbert-base-multilingual-cased-sentiment      | b45a713783e49ac09c94dfda4bff847f4ad771c5 | Multilingual |
+| cardiffnlp-sentiment-en                                          | https://huggingface.co/cardiffnlp/twitter-roberta-base-sentiment-latest             | 4ba3d4463bd152c9e4abd892b50844f30c646708 | EN           |
+| roberta-based-en                                                 | https://huggingface.co/j-hartmann/sentiment-roberta-large-english-3-classes         | 81cdc0fe3eee1bc18d95ffdfb56b2151a39c9007 | EN           |
+| finance-sentiment-de                                             | https://huggingface.co/bardsai/finance-sentiment-de-base                            | 51b3d03f716eaa093dc42130f675839675a07b9a  | DE           |
+| german-sentiment-bert                                            | https://huggingface.co/oliverguhr/german-sentiment-bert                             | b1177ff59e305c966836ba2825d3dc2efc53f125  | DE           |
+| distilroberta-base-climate-sentiment                             | https://huggingface.co/climatebert/distilroberta-base-climate-sentiment             | e9f9a94ee4263f5ad5cfc97b8539a497fc88aa7d | EN           |
+| finance-sentiment-zh                                             | https://huggingface.co/bardsai/finance-sentiment-zh-base                            | 33595d152578da080c6e5c94b60eba15a769107f  | ZH           |
+| finance-sentiment-zh-fast                                        | https://huggingface.co/bardsai/finance-sentiment-zh-fast                            | 4cf6d7f85579bc73ac402d1dc4ecbcf3de8b6b7a  | ZH           |
+| finance-sentiment-fr                                             | https://huggingface.co/bardsai/finance-sentiment-fr-base                            | 98f660ba2ca64140df78c1a29b91dc8b6beafb62  | FR           |
+| twitter-sentiment-pl-base                                        | https://huggingface.co/bardsai/twitter-sentiment-pl-base                            | 612331865c33e03b87522600ca34b1425c400e90  | PL           |
+| twitter-sentiment-pl-fast                                        | https://huggingface.co/bardsai/twitter-sentiment-pl-fast                            | 2adf843ad928baf1d631179b4d52930fc286eee9  | PL           |
 
 # How To Use
 
