@@ -1,4 +1,4 @@
-spacy==3.5.0
+spacy==3.2.0
 coreferee==1.4.1
 numpy==1.26.4
 setuptools<70

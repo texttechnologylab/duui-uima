@@ -3,7 +3,7 @@ StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 Class = luajava.bindClass("java.lang.Class")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 DUUIutils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
-Token = luajava.bindClass("org.texttechnologylab.uima.type.spacy.SpacyToken")
+Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
 Coreference = luajava.bindClass("org.texttechnologylab.annotation.Coreference")
 
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
@@ -14,9 +14,9 @@ function serialize(inputCas, outputStream)
     -- Get data from CAS
     -- For spaCy, we need the documents text and its language
     -- TODO add additional params?
-    print("start")
+--     print("start")
     local doc_text = inputCas:getDocumentText()
-    print(doc_text)
+--     print(doc_text)
     local doc_lang = inputCas:getDocumentLanguage()
     local tokens = {}
     local begin_token = {}
@@ -31,9 +31,9 @@ function serialize(inputCas, outputStream)
         tokens_count = tokens_count + 1
     end
 --     print("sentences")
-    print(tokens)
-    print(begin_token)
-    print(end_token)
+--     print(tokens)
+--     print(begin_token)
+--     print(end_token)
     outputStream:write(json.encode({
         tokens = tokens,
         lang = doc_lang,

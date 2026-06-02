@@ -8,18 +8,37 @@ EXPOSE 9714
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 
-RUN python3 -m coreferee install en
-RUN python3 -m coreferee install de
-RUN python3 -m coreferee install fr
-RUN python3 -m coreferee install pl
-RUN python -m spacy download en_core_web_sm
-RUN python -m spacy download de_core_news_sm
-RUN python -m spacy download fr_core_news_sm
-RUN python -m spacy download pl_core_news_sm
+RUN python -m pip install --no-cache-dir \
+      "spacy==3.2.0" \
+      "coreferee" \
+      "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.2.0/en_core_web_sm-3.2.0-py3-none-any.whl" \
+      "de-core-news-sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.2.0/de_core_news_sm-3.2.0-py3-none-any.whl" \
+      "fr-core-news-sm @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.2.0/fr_core_news_sm-3.2.0-py3-none-any.whl" \
+      "pl-core-news-md @ https://github.com/explosion/spacy-models/releases/download/pl_core_news_md-3.2.0/pl_core_news_md-3.2.0-py3-none-any.whl" && \
+    python -m spacy validate && \
+    python -m coreferee install en && \
+    python -m coreferee install de && \
+    python -m coreferee install fr && \
+    python -m coreferee install pl
+
+
+#RUN python -m pip install --no-cache-dir \
+#      "spacy==3.2.0" \
+#      "coreferee" \
+#      "en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.2.0/en_core_web_lg-3.2.0-py3-none-any.whl" \
+#      "de-core-news-lg @ https://github.com/explosion/spacy-models/releases/download/de_core_news_lg-3.2.0/de_core_news_lg-3.2.0-py3-none-any.whl" \
+#      "fr-core-news-lg @ https://github.com/explosion/spacy-models/releases/download/fr_core_news_lg-3.2.0/fr_core_news_lg-3.2.0-py3-none-any.whl" \
+#      "pl-core-news-lg @ https://github.com/explosion/spacy-models/releases/download/pl_core_news_lg-3.2.0/pl_core_news_lg-3.2.0-py3-none-any.whl" && \
+#    python -m spacy validate && \
+#    python -m coreferee install en && \
+#    python -m coreferee install de && \
+#    python -m coreferee install fr && \
+#    python -m coreferee install pl
 
 # copy scripts
 COPY ./src/main/python/TypeSystemCoreference.xml ./TypeSystemCoreference.xml
 COPY ./src/main/python/duui_coreference.py ./duui_coreference.py
+COPY ./src/main/python/Coreferee_resolver.py ./Coreferee_resolver.py
 COPY ./src/main/python/duui_coreference.lua ./duui_coreference.lua
 #COPY ./src/main/python/GenreSpeech.py ./GenreSpeech.py
 

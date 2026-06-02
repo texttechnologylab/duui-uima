@@ -42,7 +42,7 @@ class CorefereeResolver:
             "en": "en_core_web_sm",
             "de": "de_core_news_sm",
             "fr": "fr_core_news_sm",
-            "pl": "pl_core_news_sm",
+            "pl": "pl_core_news_md",
         },
         "lg": {
             "en": "en_core_web_lg",

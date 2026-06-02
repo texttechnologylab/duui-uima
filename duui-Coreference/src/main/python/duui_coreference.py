@@ -228,7 +228,7 @@ def post_process(request: DUUIRequest):
         mv = ""
 
         with model_lock:
-            coreference_resolver = load_model(request.lang, settings.model_variant.lower())
+            coreference_resolver = load_model(model_lang, settings.model_variant.lower())
             doc = coreference_resolver.process_tokens(request.tokens, request.begin_token, request.end_token)
             result = coreference_resolver.get_coreference_dict(doc, include_self=False, expand_noun_chunks=True)
             begin = result["begin"]
