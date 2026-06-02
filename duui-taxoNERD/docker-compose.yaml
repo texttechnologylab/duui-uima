@@ -1,0 +1,74 @@
+services:
+
+  traefik:
+    image: traefik:v3
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "9715:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+
+  # =========================
+  # GBIF
+  # =========================
+  taxonerd-gbif:
+    image: docker.texttechnologylab.org/taxonerd-gbif_backbone:1.0
+
+    gpus: all
+
+    expose:
+      - "9714"
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.gbif.rule=PathPrefix(`/gbif`)
+      - traefik.http.routers.gbif.entrypoints=web
+      - traefik.http.middlewares.gbif-strip.stripprefix.prefixes=/gbif
+      - traefik.http.routers.gbif.middlewares=gbif-strip
+      - traefik.http.services.gbif.loadbalancer.server.port=9714
+
+
+  # =========================
+  # NCBI
+  # =========================
+  taxonerd-ncbi:
+    image: docker.texttechnologylab.org/taxonerd-ncbi_taxonomy:1.0
+
+    gpus: all
+
+    expose:
+      - "9714"
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.ncbi.rule=PathPrefix(`/ncbi`)
+      - traefik.http.routers.ncbi.entrypoints=web
+      - traefik.http.middlewares.ncbi-strip.stripprefix.prefixes=/ncbi
+      - traefik.http.routers.ncbi.middlewares=ncbi-strip
+      - traefik.http.services.ncbi.loadbalancer.server.port=9714
+
+
+  # =========================
+  # TAXREF
+  # =========================
+  taxonerd-taxref:
+    image: docker.texttechnologylab.org/taxonerd-taxref:1.0
+
+    gpus: all
+
+    expose:
+      - "9714"
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.taxref.rule=PathPrefix(`/taxref`)
+      - traefik.http.routers.taxref.entrypoints=web
+      - traefik.http.middlewares.taxref-strip.stripprefix.prefixes=/taxref
+      - traefik.http.routers.taxref.middlewares=taxref-strip
+      - traefik.http.services.taxref.loadbalancer.server.port=9714
