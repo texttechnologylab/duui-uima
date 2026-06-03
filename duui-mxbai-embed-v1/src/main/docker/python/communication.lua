@@ -13,10 +13,23 @@ function serialize(inputCas, outputStream, params)
     local text = inputCas:getSofaDataString()
     local chunkSize = params["chunkSize"] or 900
 
+    -- ollamaConfig arrives as a raw string param; decode it into a table so it
+    -- is serialised as a JSON object rather than a JSON string.
+    local ollamaConfig = nil
+    if params["ollamaConfig"] ~= nil then
+        local raw = params["ollamaConfig"]
+        -- Try direct decode first, then wrapped in braces (param may omit them)
+        local ok, decoded = pcall(json.decode, raw)
+        if not ok then
+            ok, decoded = pcall(json.decode, "{" .. raw .. "}")
+        end
+        ollamaConfig = ok and decoded or nil
+    end
+
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         text = text,
-        ollamaConfig = params["ollamaConfig"],
+        ollamaConfig = ollamaConfig,
         chunkSize = chunkSize
     }))
 end

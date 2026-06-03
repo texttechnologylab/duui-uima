@@ -1,15 +1,18 @@
-from typing import List, Optional
+from typing import Dict, List, Optional, Union
+import json
+import torch
 import uvicorn
 from cassis import *
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings
 from starlette.responses import JSONResponse
 from functools import lru_cache
 from sentence_transformers import SentenceTransformer
 from langchain_ollama import OllamaEmbeddings
+from openai import OpenAI as OpenAIClient
 import math
 
 
@@ -23,8 +26,23 @@ class Embeddings(BaseModel):
 class DUUIRequest(BaseModel):
     # sentences
     text: str
-    ollamaConfig: Optional[Union[Dict, None]]
+    ollamaConfig: Optional[Dict] = None
     chunkSize: int
+
+    # DUUI passes all params as strings; this validator coerces a JSON string
+    # (with or without surrounding braces) into a dict transparently.
+    @field_validator("ollamaConfig", mode="before")
+    @classmethod
+    def parse_ollama_config(cls, v):
+        if not isinstance(v, str):
+            return v
+        v = v.strip()
+        for candidate in (v, "{" + v + "}"):
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+        raise ValueError(f"ollamaConfig could not be parsed as a JSON object: {v!r}")
 
 # Response of this annotator
 # Note, this is transformed by the Lua script
@@ -46,6 +64,8 @@ class DUUIDocumentation(BaseModel):
 class Settings(BaseSettings):
     # Name of the Model
     model_name: Optional[str] = "base"
+    duui_tool_name: Optional[str] = "mxbai-embed-large-v1"
+    duui_tool_version: Optional[str] = "1.0"
 
 
 # settings + cache
@@ -136,26 +156,53 @@ def getModel():
         
     return model
 
-ollama_model = None
-def getOllamaModel(ollamaConfig: Union[Dict, None]):
-    global ollama_model
+_ollama_model = None
+_openai_clients: Dict = {}
 
-    if ollama_model is None:
-        ollama_model = OllamaEmbeddings(**ollamaConfig)
+def getEmbedding(text: str, ollamaConfig: Dict) -> List[float]:
+    """Return an embedding vector for *text* using the configured backend.
 
-    return ollama_model
+    If *ollamaConfig* contains an ``apiKey`` the server is assumed to expose an
+    OpenAI-compatible ``/v1/embeddings`` endpoint (e.g. TTLab LLM gateway).
+    Otherwise the native Ollama ``/api/embed`` protocol is used.
+    """
+    global _ollama_model, _openai_clients
+
+    model    = ollamaConfig["model"]
+    base_url = ollamaConfig.get("url") or ollamaConfig.get("base_url", "")
+    api_key  = ollamaConfig.get("apiKey") or ollamaConfig.get("api_key")
+
+    if api_key:
+        # ── OpenAI-compatible endpoint ──────────────────────────────────────
+        # Use the URL as-is; the caller must supply the correct base URL
+        # (typically ending in /v1) so the client can append /embeddings.
+        url = base_url.rstrip("/")
+        cache_key = (url, api_key)
+        if cache_key not in _openai_clients:
+            _openai_clients[cache_key] = OpenAIClient(base_url=url, api_key=api_key)
+        response = _openai_clients[cache_key].embeddings.create(model=model, input=text)
+        return response.data[0].embedding
+    else:
+        # ── Native Ollama endpoint (/api/embed) ─────────────────────────────
+        if _ollama_model is None:
+            kwargs: Dict = {"model": model}
+            if base_url:
+                kwargs["base_url"] = base_url
+            _ollama_model = OllamaEmbeddings(**kwargs)
+        return _ollama_model.embed_query(text)
 
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
     embeddings = []
+    chunkSize = request.chunkSize
     chunk_count = math.ceil(len(request.text) / chunkSize)
 
     for chunk_i in range(chunk_count):
         text = request.text[chunk_i * chunkSize:chunk_i * chunkSize + chunkSize]
 
-        if request.ollamaConfig == null:
+        if request.ollamaConfig is None:
             query = 'Represent this sentence for searching relevant passages: ' + text
             docs = [query]
             with torch.no_grad():
@@ -167,7 +214,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 embeddings=result[0].tolist()
             ))
         else:
-            result = getOllamaModel(request.ollamaConfig).embed_query(text)
+            result = getEmbedding(text, request.ollamaConfig)
             embeddings.append(Embeddings(
                 begin=chunk_i * chunkSize,
                 end=chunk_i * chunkSize + len(text) - 1,
