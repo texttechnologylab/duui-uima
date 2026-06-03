@@ -22,23 +22,9 @@ class Embeddings(BaseModel):
 class DUUIRequest(BaseModel):
     apiUrl: str
     text: str
-    ollamaConfig: Optional[Dict] = None
+    model: str
+    apiKey: str
     chunkSize: int
-
-    # DUUI passes all params as strings; this validator coerces a JSON string
-    # (with or without surrounding braces) into a dict transparently.
-    @field_validator("ollamaConfig", mode="before")
-    @classmethod
-    def parse_ollama_config(cls, v):
-        if not isinstance(v, str):
-            return v
-        v = v.strip()
-        for candidate in (v, "{" + v + "}"):
-            try:
-                return json.loads(candidate)
-            except json.JSONDecodeError:
-                pass
-        raise ValueError(f"ollamaConfig could not be parsed as a JSON object: {v!r}")
 
 # Response of this annotator
 class DUUIResponse(BaseModel):
@@ -179,7 +165,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
 
     embeddings = []
 
-    if request.ollamaConfig is None:
+    if not request.model:
         queries = ['Represent this sentence for searching relevant passages: ' + c for c in chunks]
         with torch.no_grad():
             results = getModel().encode(queries)
@@ -190,8 +176,8 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 embeddings=vec.tolist()
             ))
     else:
-        model_name = request.ollamaConfig["model"]
-        api_key    = request.ollamaConfig.get("apiKey") or request.ollamaConfig.get("api_key")
+        model_name = request.model
+        api_key = request.apiKey
 
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         payload = {"model": model_name, "input": chunks}
@@ -206,7 +192,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 embeddings=vec
             ))
 
-    return DUUIResponse(embeddings=embeddings, source=model_name if request.ollamaConfig else "mixedbread-ai/mxbai-embed-large-v1")
+    return DUUIResponse(embeddings=embeddings, source=model_name if request.model else "mixedbread-ai/mxbai-embed-large-v1")
 
 
 #if __name__ == "__main__":
