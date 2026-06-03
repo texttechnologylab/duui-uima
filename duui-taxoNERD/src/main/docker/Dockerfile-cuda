@@ -1,43 +1,108 @@
-#FROM python:3.10
-FROM nvidia/cuda:12.1.1-runtime-ubuntu20.04
-ARG DEBIAN_FRONTEND=noninteractive
+############################
+# 1. BUILD STAGE
+############################
+#FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_NO_BINARY=nmslib
 
 WORKDIR /usr/src/app
 
-RUN apt-get update && \
-    apt-get install -y python3.10 python3-pip python3-dev && \
-    rm -rf /var/lib/apt/lists/*
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-dev python3-venv \
+    git build-essential cmake \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip
-RUN pip install setuptools wheel
-RUN pip install setuptools pip
-COPY ./src/main/docker/requirements-cuda.txt ./requirements-cuda.txt
-#RUN pip install --no-deps -r ./requirements.txt
+# venv
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# RUN CUDA_PATH=/opt/nvidia/cuda pip install cupy==13.0.0a1
+# pip tooling
+RUN pip install --upgrade pip setuptools wheel
 
-RUN pip install "taxonerd[cuda] @ git+https://github.com/abrami/taxonerd"
-RUN pip install --no-binary :all: nmslib
+RUN pip install torch torchvision torchaudio \
+    --index-url https://download.pytorch.org/whl/cu124
 
-# The possible models
-RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_biobert-1.1.0.tar.gz
-RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_biobert_weak-1.1.0.tar.gz
-#RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_md-1.1.0.tar.gz
-#RUN pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_md_weak-1.1.0.tar.gz
+# dependencies
+COPY ./src/main/docker/requirements-cuda.txt .
+RUN pip install --no-cache-dir -r requirements-cuda.txt
 
-RUN pip install -r ./requirements-cuda.txt
+# nmslib from source (important for ANN performance)
+RUN pip install --no-cache-dir --no-binary :all: nmslib
 
-# vars
-#ARG MODEL="en_ner_eco_md"
-ARG MODEL="en_ner_eco_biobert_weak"
-#ARG MODEL="en_ner_eco_biobert"
-ENV MODEL=$MODEL
+# TaxoNERD
+RUN pip install --no-cache-dir git+https://github.com/abrami/taxonerd
 
 
-# service script
-COPY ./src/main/docker/python/types.xml ./types.xml
-COPY ./src/main/docker/python/communication.lua ./communication.lua
-COPY ./src/main/docker/python/duui_taxonerd.py ./duui_taxonerd.py
+############################
+# BUILD ARGS (DEFAULTS)
+############################
+ARG TAXONERD_MODEL=en_ner_eco_md
+ARG TAXONERD_LINKER=gbif_backbone
+ARG TAXONERD_THRESHOLD=0.7
 
-ENTRYPOINT ["uvicorn", "duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714"]
+############################
+# EXPORT TO ENV (FOR BUILD + RUNTIME)
+############################
+ENV TAXONERD_MODEL=${TAXONERD_MODEL}
+ENV TAXONERD_LINKER=${TAXONERD_LINKER}
+ENV TAXONERD_THRESHOLD=${TAXONERD_THRESHOLD}
+
+
+RUN set -eux; \
+    echo "Using model: $TAXONERD_MODEL"; \
+    if [ "$TAXONERD_MODEL" = "en_ner_eco_md" ]; then \
+        pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_md-1.1.0.tar.gz ; \
+    elif [ "$TAXONERD_MODEL" = "en_ner_eco_md_weak" ]; then \
+        pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_md_weak-1.1.0.tar.gz ; \
+    elif [ "$TAXONERD_MODEL" = "en_ner_eco_biobert" ]; then \
+        pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_biobert-1.1.0.tar.gz ; \
+    elif [ "$TAXONERD_MODEL" = "en_ner_eco_biobert_weak" ]; then \
+        pip install https://github.com/nleguillarme/taxonerd/releases/download/v1.5.4/en_ner_eco_biobert_weak-1.1.0.tar.gz ; \
+    else \
+        echo "Unknown model: $TAXONERD_MODEL" && exit 1 ; \
+    fi
+
+############################
+# 2. RUNTIME STAGE
+############################
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+ARG TAXONERD_MODEL=en_ner_eco_md
+ARG TAXONERD_LINKER=gbif_backbone
+ARG TAXONERD_THRESHOLD=0.7
+
+ENV TAXONERD_MODEL=${TAXONERD_MODEL}
+ENV TAXONERD_LINKER=${TAXONERD_LINKER}
+ENV TAXONERD_THRESHOLD=${TAXONERD_THRESHOLD}
+
+WORKDIR /usr/src/app
+
+# Runtime deps only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv \
+ && rm -rf /var/lib/apt/lists/*
+
+# copy venv from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# App code
+COPY ./src/main/docker/python/ ./
+
+# optional: GPU sanity check (fail fast if CUDA broken)
+RUN python -c "import torch; print('CUDA available:', torch.cuda.is_available())" || true
+
+# Ensure fast startup behavior
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+
+ENTRYPOINT ["uvicorn", "duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714", "--timeout-keep-alive", "360"]
 CMD ["--workers", "1"]
