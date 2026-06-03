@@ -1,5 +1,6 @@
 # Embedder using Ollama
 A DUUI pipeline for the use of [Ollama](https://ollama.com/) and a provided model by the user.
+Uses [mixedbread-ai/mxbai-embed-large-v1](https://huggingface.co/mixedbread-ai/mxbai-embed-large-v1) as default if no model has been provided.
 
 [![Version](https://img.shields.io/static/v1?label=ttlabdocker_version&message=latest&color=blue)]()
 
@@ -26,6 +27,15 @@ composer.add(new DUUIDockerDriver.
 ## Input/Output:
 
 Output: org.texttechnologylab.uima.type.Embedding
+
+## Existing Parameters
+
+| Parameter | Description | Datatype | Default |
+| --- | --- | --- | --- |
+| apiUrl | URL to the Ollama Embedding API. ("https://yourUrl/ollama/api/embed" for Open WebUI)  | String | "" |
+| model | Ollama model to use, such as "jina/jina-embeddings-v2-base-de:latest". Must be installed before. | String | "" |
+| apiKey | Api Key for Open Web UI. Passed as "Authorization": "Bearer <apiKey>" | String | "" |
+| chunkSize | Cuts the provided text every chunkSize character. Does not cut mid-word. Every cut represents one embedding. | Integer | 900 |
 
 # Cite
 If you want to use the DUUI image please quote this as follows:
