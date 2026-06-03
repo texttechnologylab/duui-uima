@@ -12,6 +12,7 @@ function serialize(inputCas, outputStream, params)
 
     local text = inputCas:getSofaDataString()
     local chunkSize = params["chunkSize"] or 900
+    local apiUrl = params["apiUrl"] or ""
 
     -- ollamaConfig arrives as a raw string param; decode it into a table so it
     -- is serialised as a JSON object rather than a JSON string.
@@ -28,6 +29,7 @@ function serialize(inputCas, outputStream, params)
 
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
+        apiUrl = apiUrl,
         text = text,
         ollamaConfig = ollamaConfig,
         chunkSize = chunkSize
@@ -49,7 +51,13 @@ function deserialize(inputCas, inputStream)
     -- Add tokens to jcas
     if results["embeddings"] ~= nil then
 
+        local metaData = luajava.newInstance("org.texttechnologylab.annotation.MetaData", inputCas)
+        metaData:setSource(results["source"])
+        metaData:addToIndexes()
+        
         for i, sent in ipairs(results["embeddings"]) do
+
+            
 
             local embedding = luajava.newInstance("org.texttechnologylab.uima.type.Embedding", inputCas)
             embedding:setBegin(sent["begin"])
@@ -58,6 +66,7 @@ function deserialize(inputCas, inputStream)
             local floatArray = FloatArray:create(inputCas, sent["embeddings"])
 
             embedding:setEmbedding(floatArray)
+            embedding:setModelReference(metaData)
             embedding:addToIndexes()
         end
     end

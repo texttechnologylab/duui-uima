@@ -1,34 +1,31 @@
-# Jina Embeddings V4
-A DUUI pipeline for the use of [Jina Embedings v4](https://huggingface.co/jinaai/jina-embeddings-v4).
+# Embedder using Ollama
+A DUUI pipeline for the use of [Ollama](https://ollama.com/) and a provided model by the user.
 
 [![Version](https://img.shields.io/static/v1?label=ttlabdocker_version&message=latest&color=blue)]()
 
 # HoToUse
-For using Jina as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
+For using the embedder as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
 
 ## Use as Stand-Alone-Image
 ```bash
-docker run docker.texttechnologylab.org/duui-jina-embeddings-v4:latest
+docker run docker.texttechnologylab.org/duui-ollama-embeddings:latest
 ```
 
 ## Run with a specific port
 ```bash
-docker run -p 1000:9714 docker.texttechnologylab.org/duui-jina-embeddings-v4:latest
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-ollama-embeddings:latest
 ```
 
 ## Run within DUUI
 ```java
 composer.add(new DUUIDockerDriver.
-    Component("docker.texttechnologylab.org/duui-jina-embeddings-v4:latest")
+    Component("docker.texttechnologylab.org/duui-ollama-embeddings:latest")
     .withScale(iWorkers)
     .withImageFetching());
 ```
 ## Input/Output:
 
-input: de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence
-
 Output: org.texttechnologylab.uima.type.Embedding
-
 
 # Cite
 If you want to use the DUUI image please quote this as follows:
@@ -67,9 +64,9 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 
 @misc{Bundan:2025,
   author         = {Bundan, Daniel}
-  title          = {Jina Embeddings V4 as DUUI-Komponent},
-  year           = {2005},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Jina-Embeddings-V4}
+  title          = {Ollama Embeddings as DUUI-Component},
+  year           = {2026},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Ollama-Embeddings}
 }
 
 ```

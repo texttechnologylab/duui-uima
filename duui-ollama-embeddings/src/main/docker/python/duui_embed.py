@@ -1,7 +1,6 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 import json
 import torch
-import uvicorn
 from cassis import *
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
@@ -9,10 +8,8 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, field_validator
 from pydantic_settings import BaseSettings
 from starlette.responses import JSONResponse
-from functools import lru_cache
 from sentence_transformers import SentenceTransformer
-from langchain_ollama import OllamaEmbeddings
-from openai import OpenAI as OpenAIClient
+import requests
 import math
 
 
@@ -22,9 +19,8 @@ class Embeddings(BaseModel):
     end: int
 
 # Request sent by DUUI
-# Note, this is transformed by the Lua script
 class DUUIRequest(BaseModel):
-    # sentences
+    apiUrl: str
     text: str
     ollamaConfig: Optional[Dict] = None
     chunkSize: int
@@ -45,11 +41,11 @@ class DUUIRequest(BaseModel):
         raise ValueError(f"ollamaConfig could not be parsed as a JSON object: {v!r}")
 
 # Response of this annotator
-# Note, this is transformed by the Lua script
 class DUUIResponse(BaseModel):
     # List of annotated:
     # - embeddings
     embeddings: List[Embeddings]
+    source: str
 
 # Documentation response
 class DUUIDocumentation(BaseModel):
@@ -68,9 +64,7 @@ class Settings(BaseSettings):
     duui_tool_version: Optional[str] = "1.0"
 
 
-# settings + cache
 settings = Settings()
-lru_cache_with_size = lru_cache(maxsize=3)
 
 # Start fastapi
 app = FastAPI(
@@ -118,7 +112,6 @@ def get_input_output() -> JSONResponse:
 # Get typesystem of this annotator
 @app.get("/v1/typesystem")
 def get_typesystem() -> Response:
-    # TODO remove cassis dependency, as only needed for typesystem at the moment?
     xml = typesystem.to_xml()
     xml_content = xml.encode("utf-8")
 
@@ -149,83 +142,72 @@ def get_documentation() -> DUUIDocumentation:
 model = None
 def getModel():
     global model
-    
+
     if model is None:
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         model = SentenceTransformer("mixedbread-ai/mxbai-embed-large-v1").to(device)
-        
+
     return model
 
-_ollama_model = None
-_openai_clients: Dict = {}
 
-def getEmbedding(text: str, ollamaConfig: Dict) -> List[float]:
-    """Return an embedding vector for *text* using the configured backend.
+def split_into_chunks(text: str, chunk_size: int) -> List[tuple]:
+    """Split text into (start_pos, chunk_text) tuples, never cutting inside a word."""
+    result = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        if end >= len(text):
+            result.append((start, text[start:]))
+            break
+        # If the cut lands inside a word, step back to the last space
+        if text[end] != ' ':
+            space_pos = text.rfind(' ', start, end)
+            if space_pos != -1:
+                end = space_pos
+        result.append((start, text[start:end]))
+        # Skip the space so the next chunk doesn't begin with one
+        start = end + 1 if text[end] == ' ' else end
+    return result
 
-    If *ollamaConfig* contains an ``apiKey`` the server is assumed to expose an
-    OpenAI-compatible ``/v1/embeddings`` endpoint (e.g. TTLab LLM gateway).
-    Otherwise the native Ollama ``/api/embed`` protocol is used.
-    """
-    global _ollama_model, _openai_clients
-
-    model    = ollamaConfig["model"]
-    base_url = ollamaConfig.get("url") or ollamaConfig.get("base_url", "")
-    api_key  = ollamaConfig.get("apiKey") or ollamaConfig.get("api_key")
-
-    if api_key:
-        # ── OpenAI-compatible endpoint ──────────────────────────────────────
-        # Use the URL as-is; the caller must supply the correct base URL
-        # (typically ending in /v1) so the client can append /embeddings.
-        url = base_url.rstrip("/")
-        cache_key = (url, api_key)
-        if cache_key not in _openai_clients:
-            _openai_clients[cache_key] = OpenAIClient(base_url=url, api_key=api_key)
-        response = _openai_clients[cache_key].embeddings.create(model=model, input=text)
-        return response.data[0].embedding
-    else:
-        # ── Native Ollama endpoint (/api/embed) ─────────────────────────────
-        if _ollama_model is None:
-            kwargs: Dict = {"model": model}
-            if base_url:
-                kwargs["base_url"] = base_url
-            _ollama_model = OllamaEmbeddings(**kwargs)
-        return _ollama_model.embed_query(text)
 
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
+    chunk_data = split_into_chunks(request.text, request.chunkSize)
+    chunks = [chunk_text for _, chunk_text in chunk_data]
+
     embeddings = []
-    chunkSize = request.chunkSize
-    chunk_count = math.ceil(len(request.text) / chunkSize)
 
-    for chunk_i in range(chunk_count):
-        text = request.text[chunk_i * chunkSize:chunk_i * chunkSize + chunkSize]
-
-        if request.ollamaConfig is None:
-            query = 'Represent this sentence for searching relevant passages: ' + text
-            docs = [query]
-            with torch.no_grad():
-                result = getModel().encode(docs)
-            # Embedding is of dimensionality 1024
+    if request.ollamaConfig is None:
+        queries = ['Represent this sentence for searching relevant passages: ' + c for c in chunks]
+        with torch.no_grad():
+            results = getModel().encode(queries)
+        for (begin, chunk_text), vec in zip(chunk_data, results):
             embeddings.append(Embeddings(
-                begin=chunk_i * chunkSize,
-                end=chunk_i * chunkSize + len(text) - 1,
-                embeddings=result[0].tolist()
+                begin=begin,
+                end=begin + len(chunk_text) - 1,
+                embeddings=vec.tolist()
             ))
-        else:
-            result = getEmbedding(text, request.ollamaConfig)
+    else:
+        model_name = request.ollamaConfig["model"]
+        api_key    = request.ollamaConfig.get("apiKey") or request.ollamaConfig.get("api_key")
+
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        payload = {"model": model_name, "input": chunks}
+        response = requests.post(request.apiUrl, json=payload, headers=headers)
+        response.raise_for_status()
+
+        result_embeddings = response.json()["embeddings"]
+        for (begin, chunk_text), vec in zip(chunk_data, result_embeddings):
             embeddings.append(Embeddings(
-                begin=chunk_i * chunkSize,
-                end=chunk_i * chunkSize + len(text) - 1,
-                embeddings=result
+                begin=begin,
+                end=begin + len(chunk_text) - 1,
+                embeddings=vec
             ))
 
-
-    return DUUIResponse(
-        embeddings=embeddings
-    )
+    return DUUIResponse(embeddings=embeddings, source=model_name if request.ollamaConfig else "mixedbread-ai/mxbai-embed-large-v1")
 
 
 #if __name__ == "__main__":
-#  uvicorn.run("duui_jina:app", host="0.0.0.0", port=9714, workers=1)
+#  uvicorn.run("duui_embed:app", host="0.0.0.0", port=9714, workers=1)
