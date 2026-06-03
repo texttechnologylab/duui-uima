@@ -4,7 +4,7 @@ Uses [mixedbread-ai/mxbai-embed-large-v1](https://huggingface.co/mixedbread-ai/m
 
 [![Version](https://img.shields.io/static/v1?label=ttlabdocker_version&message=latest&color=blue)]()
 
-# HoToUse
+# HoWToUse
 For using the embedder as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
 
 ## Use as Stand-Alone-Image
