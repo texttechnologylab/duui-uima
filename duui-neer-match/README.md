@@ -44,12 +44,8 @@ Probable future usage within DUUI:
 
 ```java
 composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-neer-match:latest")
-    .
-
-withScale(iWorkers)
-    .
-
-withImageFetching());
+    .withScale(iWorkers)
+    .withImageFetching());
 ```
 
 ## Pipeline Architecture
