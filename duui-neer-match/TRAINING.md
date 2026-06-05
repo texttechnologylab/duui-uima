@@ -4,12 +4,15 @@ This document provides a practical guide to training new models for entity match
 covers the overall process, configuration options, and tips for getting started.
 The goal is to keep training flexible without making the setup overly complicated.
 
+To test the training, you can use the example configuration and dataset provided in the `example` folder. For more
+details on that, see the [Example](#example) section at the end of this document.
+
 ## Quick Overview
 
 Training works like this:
 
 1. Prepare a training dataset.
-2. Describe the model and training settings in `model_config.json`.
+2. Describe the model and training settings in `model_config.json` or another json file, which then has to be passed as an argument to the training script (e.g., `python train-model.py --config my_model_config.json`).
 3. Run the training script.
 4. Use the exported model folder in `src/main/resources/models/`.
 
@@ -226,3 +229,11 @@ This document was partially created with the help of a large language model (LLM
 the content.
 All final content was reviewed and edited by a human to ensure accuracy and clarity.
 </footer>
+
+## Example
+
+In the folder `example` you can find an example `config_tokens.json` and a small dataset `tokens.csv` to test the training. To run the training with that configuration, use this command from the root of the project:
+
+```bash
+python3 src/main/python/train-model.py --config example/config_tokens.json
+```
