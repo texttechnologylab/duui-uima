@@ -5,9 +5,14 @@ from typing import Dict, List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
 import random
-from neer_match.matching_model import DLMatchingModel, NSMatchingModel
+from neer_match.matching_model import DLMatchingModel
 from neer_match.similarity_map import SimilarityMap
 from pydantic import BaseModel, Field
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--config", help="Path to the configuration file", default="model_config.json")
+args = parser.parse_args()
 
 # configuration for a single property of an entity in the model config
 class EntityPropertyConfig(BaseModel):
@@ -429,7 +434,7 @@ def test_model(model: DLMatchingModel, test_data: Dataset, batch_size: int):
 
 def main():
     # load model config
-    config_path = "model_config.json"
+    config_path = args.config
     if not os.path.exists(config_path):
         print(f"Error: Model config file '{config_path}' not found\n", file=sys.stderr)
         raise ValueError(f"Model config file '{config_path}' not found")
