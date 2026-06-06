@@ -10,6 +10,23 @@ FloatArray = luajava.bindClass("org.apache.uima.jcas.cas.FloatArray")
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 function serialize(inputCas, outputStream, params)
 
+    local selection_type = params["selection"] ~= nil and params["selection"]
+        or "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
+    local clazz = Class:forName(selection_type);
+    local selectionSet = JCasUtil:select(inputCas, clazz):iterator()
+    local selection_array = {}
+
+    while selectionSet:hasNext() do
+        local s = selectionSet:next()
+
+        local tSelection = {
+            sText = s:getCoveredText(),
+            iBegin = s:getBegin(),
+            iEnd = s:getEnd()
+        }
+        table.insert(selection_array, tSelection)
+    end
+
     local text = inputCas:getSofaDataString()
     local chunkSize = params["chunkSize"] or 900
     local apiUrl = params["apiUrl"] or ""
@@ -20,6 +37,7 @@ function serialize(inputCas, outputStream, params)
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
         apiUrl = apiUrl,
+        selection = selection_array,
         text = text,
         model = model,
         apiKey = apiKey,
@@ -45,10 +63,8 @@ function deserialize(inputCas, inputStream)
         local metaData = luajava.newInstance("org.texttechnologylab.annotation.MetaData", inputCas)
         metaData:setSource(results["source"])
         metaData:addToIndexes()
-        
-        for i, sent in ipairs(results["embeddings"]) do
 
-            
+        for i, sent in ipairs(results["embeddings"]) do
 
             local embedding = luajava.newInstance("org.texttechnologylab.uima.type.Embedding", inputCas)
             embedding:setBegin(sent["begin"])

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import json
 import torch
 from cassis import *
@@ -18,6 +18,12 @@ class Embeddings(BaseModel):
     begin: int
     end: int
 
+
+class Selection(BaseModel):
+    sText: str
+    iBegin: int
+    iEnd: int
+
 # Request sent by DUUI
 class DUUIRequest(BaseModel):
     apiUrl: str
@@ -25,6 +31,8 @@ class DUUIRequest(BaseModel):
     model: str
     apiKey: str
     chunkSize: int
+    selection: List[Selection]
+
 
 # Response of this annotator
 class DUUIResponse(BaseModel):
@@ -135,65 +143,135 @@ def getModel():
 
     return model
 
+def split_into_chunks(
+    sentences: List[Selection],
+    chunk_size: int
+) -> List[Tuple[int, int, str]]:
+    """
+    Gruppiert vollständige Sätze zu Chunks.
 
-def split_into_chunks(text: str, chunk_size: int) -> List[tuple]:
-    """Split text into (start_pos, chunk_text) tuples, never cutting inside a word."""
+    Return:
+        List[(begin_offset, end_offset, chunk_text)]
+    """
     result = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        if end >= len(text):
-            result.append((start, text[start:]))
-            break
-        # If the cut lands inside a word, step back to the last space
-        if text[end] != ' ':
-            space_pos = text.rfind(' ', start, end)
-            if space_pos != -1:
-                end = space_pos
-        result.append((start, text[start:end]))
-        # Skip the space so the next chunk doesn't begin with one
-        start = end + 1 if text[end] == ' ' else end
+
+    current_sentences = []
+    current_size = 0
+    chunk_begin = None
+    chunk_end = None
+
+    for sentence in sentences:
+        sentence_len = len(sentence.sText)
+
+        if chunk_begin is None:
+            chunk_begin = sentence.iBegin
+
+        if current_sentences and current_size + sentence_len > chunk_size:
+            result.append(
+                (
+                    chunk_begin,
+                    chunk_end,
+                    " ".join(current_sentences)
+                )
+            )
+
+            current_sentences = [sentence.sText]
+            current_size = sentence_len
+            chunk_begin = sentence.iBegin
+            chunk_end = sentence.iEnd
+        else:
+            current_sentences.append(sentence.sText)
+            current_size += sentence_len
+            chunk_end = sentence.iEnd
+
+    if current_sentences:
+        result.append(
+            (
+                chunk_begin,
+                chunk_end,
+                " ".join(current_sentences)
+            )
+        )
+
     return result
+
+# def split_into_chunks(text: str, chunk_size: int) -> List[tuple]:
+#     """Split text into (start_pos, chunk_text) tuples, never cutting inside a word."""
+#     result = []
+#     start = 0
+#     while start < len(text):
+#         end = start + chunk_size
+#         if end >= len(text):
+#             result.append((start, text[start:]))
+#             break
+#         # If the cut lands inside a word, step back to the last space
+#         if text[end] != ' ':
+#             space_pos = text.rfind(' ', start, end)
+#             if space_pos != -1:
+#                 end = space_pos
+#         result.append((start, text[start:end]))
+#         # Skip the space so the next chunk doesn't begin with one
+#         start = end + 1 if text[end] == ' ' else end
+#     return result
 
 
 # Process request from DUUI
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
-    chunk_data = split_into_chunks(request.text, request.chunkSize)
-    chunks = [chunk_text for _, chunk_text in chunk_data]
+#     chunk_data = split_into_chunks(request.text, request.chunkSize)
+    chunk_data = split_into_chunks(request.selection, request.chunkSize)
+    chunks = [chunk_text for _, _, chunk_text in chunk_data]
 
     embeddings = []
 
     if not request.model:
-        queries = ['Represent this sentence for searching relevant passages: ' + c for c in chunks]
+        queries = [
+            'Represent this sentence for searching relevant passages: ' + c
+            for c in chunks
+        ]
+
         with torch.no_grad():
             results = getModel().encode(queries)
-        for (begin, chunk_text), vec in zip(chunk_data, results):
-            embeddings.append(Embeddings(
-                begin=begin,
-                end=begin + len(chunk_text) - 1,
-                embeddings=vec.tolist()
-            ))
+
+        for (begin, end, chunk_text), vec in zip(chunk_data, results):
+            embeddings.append(
+                Embeddings(
+                    begin=begin,
+                    end=end,
+                    embeddings=vec.tolist()
+                )
+            )
+
     else:
         model_name = request.model
         api_key = request.apiKey
 
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         payload = {"model": model_name, "input": chunks}
-        response = requests.post(request.apiUrl, json=payload, headers=headers)
+
+        response = requests.post(
+            request.apiUrl,
+            json=payload,
+            headers=headers
+        )
         response.raise_for_status()
 
         result_embeddings = response.json()["embeddings"]
-        for (begin, chunk_text), vec in zip(chunk_data, result_embeddings):
-            embeddings.append(Embeddings(
-                begin=begin,
-                end=begin + len(chunk_text) - 1,
-                embeddings=vec
-            ))
 
-    return DUUIResponse(embeddings=embeddings, source=model_name if request.model else "mixedbread-ai/mxbai-embed-large-v1")
+        for (begin, end, chunk_text), vec in zip(chunk_data, result_embeddings):
+            embeddings.append(
+                Embeddings(
+                    begin=begin,
+                    end=end,
+                    embeddings=vec
+                )
+            )
 
+    return DUUIResponse(
+        embeddings=embeddings,
+        source=model_name if request.model else "mixedbread-ai/mxbai-embed-large-v1"
+    )
 
 #if __name__ == "__main__":
 #  uvicorn.run("duui_embed:app", host="0.0.0.0", port=9714, workers=1)
