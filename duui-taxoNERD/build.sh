@@ -60,13 +60,13 @@ for LINK in "${LINKER[@]}"; do
   if image_exists "$TAG"; then
       echo "⚡ SKIP: Image already exists ($TAG)"
 
-#      docker image rm $TAG --force
+      docker image rm $TAG --force
   else
       echo "🔧 Building $TAG"
-
+#          --quiet \
+#          --no-cache \
       if docker build \
           --pull \
-          --quiet \
           --build-arg TAXONERD_MODEL="$MODEL" \
           --build-arg TAXONERD_LINKER="$LINK" \
           -f src/main/docker/Dockerfile-cuda \
