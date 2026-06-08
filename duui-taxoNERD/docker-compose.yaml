@@ -7,21 +7,25 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
+      - --providers.docker.network=traefik
     ports:
-      - "9715:80"
+      - "9720:80"
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-
+    networks:
+      - traefik
 
   # =========================
   # GBIF
   # =========================
   taxonerd-gbif:
     image: docker.texttechnologylab.org/taxonerd-gbif_backbone:1.0
-
+    deploy:
+      replicas: 20
     gpus: all
-
+    networks:
+      - traefik
     expose:
       - "9714"
 
@@ -39,9 +43,11 @@ services:
   # =========================
   taxonerd-ncbi:
     image: docker.texttechnologylab.org/taxonerd-ncbi_taxonomy:1.0
-
+    deploy:
+      replicas: 20
     gpus: all
-
+    networks:
+      - traefik
     expose:
       - "9714"
 
@@ -59,9 +65,11 @@ services:
   # =========================
   taxonerd-taxref:
     image: docker.texttechnologylab.org/taxonerd-taxref:1.0
-
+    deploy:
+      replicas: 20
     gpus: all
-
+    networks:
+      - traefik
     expose:
       - "9714"
 
@@ -72,3 +80,9 @@ services:
       - traefik.http.middlewares.taxref-strip.stripprefix.prefixes=/taxref
       - traefik.http.routers.taxref.middlewares=taxref-strip
       - traefik.http.services.taxref.loadbalancer.server.port=9714
+
+
+networks:
+  traefik:
+    driver: bridge
+    attachable: true

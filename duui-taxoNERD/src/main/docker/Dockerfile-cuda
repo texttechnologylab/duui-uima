@@ -31,11 +31,13 @@ RUN pip install torch torchvision torchaudio \
 COPY ./src/main/docker/requirements-cuda.txt .
 RUN pip install --no-cache-dir -r requirements-cuda.txt
 
-# nmslib from source (important for ANN performance)
-RUN pip install --no-cache-dir --no-binary :all: nmslib
-
 # TaxoNERD
 RUN pip install --no-cache-dir git+https://github.com/abrami/taxonerd
+
+
+# nmslib from source (important for ANN performance)
+#RUN pip install --no-cache-dir --no-binary :all: nmslib
+
 
 
 ############################
@@ -104,5 +106,9 @@ RUN python -c "import torch; print('CUDA available:', torch.cuda.is_available())
 ENV OMP_NUM_THREADS=1
 ENV MKL_NUM_THREADS=1
 
-ENTRYPOINT ["uvicorn", "duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714", "--timeout-keep-alive", "360"]
-CMD ["--workers", "1"]
+#ENTRYPOINT ["uvicorn", "duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714", "--timeout-keep-alive", "360"]
+#ENTRYPOINT ["python", "-m", "uvicorn", "duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714", "--timeout-keep-alive", "360"]
+#CMD ["--workers", "1"]
+
+ENTRYPOINT ["python", "-m", "uvicorn"]
+CMD ["duui_taxonerd:app", "--host", "0.0.0.0", "--port", "9714", "--timeout-keep-alive", "360", "--workers", "1"]
