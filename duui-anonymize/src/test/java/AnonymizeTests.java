@@ -495,6 +495,27 @@ public class AnonymizeTests {
         assertFalse(anomalies.isEmpty(), "Expected at least one annotation in complex context");
     }
 
+
+    /** Ambiguous context where person identity is inferred from surrounding detail. */
+    @Test
+    @DisplayName("Complex context: identity inferred from description")
+    void testComplexContextKnown() throws Exception {
+        String text = "His name is Harry, he works at the Microsoft in Frankfurt, " +
+                      "he's the only Chinese guy in the office.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("mode", "remove")); // or remove/placeholder mode, should still detect the same spans 
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = %s%n",
+                a.getBegin(), a.getEnd(), a.getCategory(), a.getDescription()));
+
+        assertFalse(anomalies.isEmpty(), "Expected at least one annotation in complex context");
+    }
+
     /** Selection window: only span offsets within [selBegin, selEnd] must be annotated. */
     @Test
     @DisplayName("Selection window constrains annotation range")
