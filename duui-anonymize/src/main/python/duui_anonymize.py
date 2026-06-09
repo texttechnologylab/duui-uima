@@ -175,14 +175,15 @@ async def post_process(raw_request: Request) -> DUUIResponse:
 # ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=4)
-def _load_pipeline(model: str, device: str):
+def _load_pipeline(model: str, device: str, trust_remote_code: bool = False):
     dev = 0 if device == "cuda" else -1
-    logger.info("Loading pipeline: model=%s device=%s", model, device)
+    logger.info("Loading pipeline: model=%s device=%s trust_remote_code=%s", model, device, trust_remote_code)
     return hf_pipeline(
         task="token-classification",
         model=model,
         aggregation_strategy="simple",
         device=dev,
+        trust_remote_code=trust_remote_code,
     )
 
 
@@ -245,7 +246,8 @@ def _process(request: DUUIRequest) -> DUUIResponse:
     selected_text = request.text[sel[0]:sel[1]] if sel else request.text
     offset = sel[0] if sel else 0
 
-    pipe = _load_pipeline(model, device)
+    trust_remote_code = bool(options.get("trust_remote_code", False))
+    pipe = _load_pipeline(model, device, trust_remote_code)
     raw = pipe(selected_text)
 
     spans = [

@@ -595,4 +595,145 @@ public class AnonymizeTests {
         assertFalse(anomalies.isEmpty(),
                 "Expected at least one Anomaly annotation for the PII-rich document");
     }
+
+    // -------------------------------------------------------------------
+    // OpenMed/privacy-filter-nemotron model tests
+    // Requires trust_remote_code=true; returns 55 fine-grained labels
+    // (e.g. first_name, last_name, email, phone_number, ssn, street_address)
+    // instead of the 8 broad labels from openai/privacy-filter.
+    // -------------------------------------------------------------------
+
+    static final String OPENMED_MODEL = "OpenMed/privacy-filter-nemotron";
+
+    /**
+     * Smoke test: OpenMed model detects a person name and email with fine-grained labels.
+     * Labels expected: first_name / last_name (not private_person) and email (not private_email).
+     */
+    @Test
+    @DisplayName("[OpenMed] Fine-grained labels: person name + email")
+    void testOpenMedPersonAndEmail() throws Exception {
+        String text = "My name is Alice Johnson and my email is alice.johnson@example.com.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", OPENMED_MODEL)
+                .withParameter("trust_remote_code", "true")
+                .withParameter("mode", "placeholder"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[OpenMed] Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(),
+                "OpenMed model should detect at least one PII span");
+    }
+
+    /**
+     * OpenMed model with medical/enterprise PII: SSN, phone, address.
+     * Verifies the model returns fine-grained categories for structured PII.
+     */
+    @Test
+    @DisplayName("[OpenMed] Fine-grained: SSN, phone, address")
+    void testOpenMedStructuredPii() throws Exception {
+        String text =
+                "Patient: John Doe, SSN: 123-45-6789. " +
+                "Phone: +1-800-555-0199. " +
+                "Address: 742 Evergreen Terrace, Springfield, IL 62701.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", OPENMED_MODEL)
+                .withParameter("trust_remote_code", "true")
+                .withParameter("mode", "placeholder"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[OpenMed] Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertTrue(anomalies.size() >= 2,
+                "Expected at least 2 fine-grained PII spans (SSN, phone, or address)");
+
+        long distinctCategories = anomalies.stream().map(Anomaly::getCategory).distinct().count();
+        assertTrue(distinctCategories >= 2,
+                "Expected at least 2 distinct fine-grained categories");
+    }
+
+    /**
+     * OpenMed model with remove mode: PII is deleted from redacted_text.
+     */
+    @Test
+    @DisplayName("[OpenMed] Remove mode deletes detected PII")
+    void testOpenMedRemoveMode() throws Exception {
+        String text = "Contact Dr. Sarah Connor at sarah.connor@skynet.org for details.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", OPENMED_MODEL)
+                .withParameter("trust_remote_code", "true")
+                .withParameter("mode", "remove"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[OpenMed] Remove mode anomaly count: " + anomalies.size());
+
+        String redacted = extractRedactedText();
+        System.out.println("[OpenMed] Redacted: " + redacted);
+
+        assertFalse(anomalies.isEmpty(), "Expected detected spans even in remove mode");
+        assertTrue(redacted.length() < text.length(),
+                "Redacted text should be shorter than input when PII is removed");
+    }
+
+    /*** 
+     * OpenMed model with German text: verifies the model can process non-English input and returns annotations.
+     * Note: detection quality may vary and is not asserted here, but the test should not
+     * ***/
+        @Test
+        @DisplayName("[OpenMed] German text produces annotations")
+        void testOpenMedGermanText() throws Exception {
+            String text = "Herr Klaus Müller wohnt in der Goethestraße 12, 60313 Frankfurt am Main.";
+            createCas("de", text);
+                composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                        .withParameter("model", OPENMED_MODEL)
+                        .withParameter("trust_remote_code", "true")
+                        .withParameter("mode", "placeholder"));
+                composer.run(cas);
+                Collection<Anomaly> anomalies = collectAnomalies();
+                System.out.println("[OpenMed] German Anomaly count: " + anomalies.size());
+                anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                        a.getBegin(), a.getEnd(), a.getCategory(),
+                        text.substring(a.getBegin(), a.getEnd())));
+                assertFalse(anomalies.isEmpty(),
+                        "OpenMed model should detect some PII spans in German text");   
+        }
+
+        /*
+        * OpenMed model with Complex context: verifies that the model can detect PII in a complex sentence with multiple entities and relationships.
+        * Note: detection quality may vary and is not asserted here, but the test should not throw an exception and should return some annotations.
+        */
+        @Test
+        @DisplayName("[OpenMed] Complex context with multiple entities")
+        void testOpenMedComplexContext() throws Exception {
+            String text = "Dr. Emily Davis, a cardiologist at City Hospital, lives at 123 Main St, Springfield. Her email is emily.davis@cityhospital.com.";
+            createCas("en", text);
+            composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                    .withParameter("model", OPENMED_MODEL)
+                    .withParameter("trust_remote_code", "true")
+                    .withParameter("mode", "placeholder"));
+            composer.run(cas);
+            Collection<Anomaly> anomalies = collectAnomalies();
+            System.out.println("[OpenMed] Complex Context Anomaly count: " + anomalies.size());
+            assertFalse(anomalies.isEmpty(),
+                    "OpenMed model should detect some PII spans in complex context");   
+        }
+
 }
