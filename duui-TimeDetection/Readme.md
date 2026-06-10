@@ -1,124 +1,226 @@
-[![Version](https://img.shields.io/static/v1?label=duui-ner&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-ner/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-time&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-time/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.12&color=green)]()
-[![Version](https://img.shields.io/static/v1?label=Transformers&message=5.1.0&color=yellow)]()
-[![Version](https://img.shields.io/static/v1?label=Torch&message=2.11.0&color=red)]()
-[![Version](https://img.shields.io/static/v1?label=GLiNER&message=0.2.26&color=orange)]()
-[![Version](https://img.shields.io/static/v1?label=GLiNER2&message=1.3.1&color=orange)]()
+[![Version](https://img.shields.io/static/v1?label=FastAPI&message=0.115%2B&color=yellow)]()
+[![Version](https://img.shields.io/static/v1?label=UIMA&message=TimeX3&color=red)]()
 
-# Transformers NER
+# DUUI Time Detection
 
-DUUI implementation for selected transformer-based Named Entity Recognition (NER) models. The component is designed for use with the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+DUUI implementation for temporal expression detection and TimeX3 annotation.
 
-The component supports one NER model per Docker image/container. Each image is built with a single `MODEL_NAME` and exposes the DUUI endpoints for type system, Lua communication layer, documentation, and processing.
+The component detects temporal expressions in selected UIMA annotations or in the full document text and writes ISO-TimeML-compatible `TimeX3` annotations into the CAS. The implementation supports multiple backends. Each Docker image is built for exactly one model/backend and one language configuration.
 
 ## Included Models
 
-| Image suffix / `MODEL_SPECNAME` | `MODEL_NAME` | Model source | Model version | Languages | Backend |
-| --- | --- | --- | --- | --- | --- |
-| `gliner-multi-v2-1` | `gliner` | https://huggingface.co/urchade/gliner_multi-v2.1 | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Multilingual | GLiNER |
-| `gliner2-multi-v1` | `gliner2` | https://huggingface.co/fastino/gliner2-multi-v1 | `cc151f5b0ce4f7010c3ae8884527dd43dddf9d21` | Multilingual | GLiNER2 |
-| `roberta-ner-multilingual` | `roberta-ner-multilingual` | https://huggingface.co/julian-schelb/roberta-ner-multilingual | `d0a19147f3bb0065c8091459e3d35405ce9d48da` | Multilingual | HuggingFace token-classification |
-| `wikineural-multilingual-ner` | `wikineural-multilingual-ner` | https://huggingface.co/Babelscape/wikineural-multilingual-ner | `bed6ee7a45d2827b6c90a4fd7983f0241ae0a5c1` | Multilingual | HuggingFace token-classification |
-| `xlm-r-ner-40-lang` | `xlm-r-ner-40-lang` | https://huggingface.co/nbroad/jplu-xlm-r-ner-40-lang | `7f7f0fe9bc946a9848611aff079f556387687216` | Multilingual / 40 languages | HuggingFace token-classification |
+| Name | Backend | Model / Resource | Languages | Notes |
+| ---- | ------- | ---------------- | --------- | ----- |
+| `microsoft` | Microsoft Recognizers-Text | `recognizers-text-suite==1.0.2a2` | multilingual | Rule-based temporal recognition. |
+| `duckling` | Duckling HTTP service | external Duckling server | multilingual | Requires a running Duckling container or service. |
+| `sutime` | Stanford CoreNLP SUTime HTTP service | external CoreNLP/SUTime server | multilingual | Requires a running CoreNLP server. |
+| `german-gelectra` | Hugging Face token classification | `satyaalmasian/temporal_tagger_German_GELECTRA` | DE | German temporal tagger. |
+| `bert-got-a-date` | Hugging Face token classification | `satyaalmasian/temporal_tagger_BERT_tokenclassifier` | EN | English temporal tagger. |
+| `hf-token-classification` | Hugging Face token classification | custom `MODEL_SPECNAME` | configurable | Generic Hugging Face token-classification backend. |
+| `tei2go-de` | spaCy / TEI2GO | `de_tei2go` | DE | One image per language. |
+| `tei2go-en` | spaCy / TEI2GO | `en_tei2go` | EN | One image per language. |
+| `tei2go-es` | spaCy / TEI2GO | `es_tei2go` | ES | One image per language. |
+| `tei2go-fr` | spaCy / TEI2GO | `fr_tei2go` | FR | One image per language. |
+| `tei2go-it` | spaCy / TEI2GO | `it_tei2go` | IT | One image per language. |
+| `tei2go-pt` | spaCy / TEI2GO | `pt_tei2go` | PT | One image per language. |
+| `timexy-de` | spaCy / Timexy | `de_core_news_sm` | DE | One image per language. |
+| `timexy-en` | spaCy / Timexy | `en_core_web_sm` | EN | One image per language. |
+| `timexy-fr` | spaCy / Timexy | `fr_core_news_sm` | FR | One image per language. |
 
-## Annotation Types
+## Build Images
 
-The component creates UIMA NER annotations from the model output. Standard NER labels are mapped to DKPro NER types where possible, for example:
+The build script creates one Docker image per model and language.
 
-| Label | UIMA type |
-| --- | --- |
-| `PER`, `person` | `de.tudarmstadt.ukp.dkpro.core.api.ner.type.Person` |
-| `ORG`, `organization` | `de.tudarmstadt.ukp.dkpro.core.api.ner.type.Organization` |
-| `LOC`, `location` | `de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location` |
-| `taxon`, `taxa` | `org.texttechnologylab.annotation.type.Taxon` |
-| other labels | `de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity` |
-
-The `taxon` label is mapped to the TTLab taxon type:
-
-```text
-org.texttechnologylab.annotation.type.Taxon
-```
-
-The delivered type system must include this type if taxon annotations should be created as `Taxon` instead of falling back to a generic `NamedEntity`.
-
-## Requirements
-
-The container uses Python 3.12 and the following core Python dependencies:
-
-| Package | Version |
-| --- | --- |
-| `gliner` | `0.2.26` |
-| `gliner2[local]` | `1.3.1` |
-| `transformers` | `5.1.0` |
-| `torch` | `2.11.0` |
-| `fastapi` | `0.110.0` |
-| `dkpro-cassis` | `0.9.1` |
-| `uvicorn[standard]` | `0.27.1` |
-| `pydantic-settings` | `2.0.2` |
-
-See `requirements.txt` for the full dependency list.
-
-# How To Use
-
-## Start Docker container
+Build one model:
 
 ```bash
-docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-ner-[modelname]:latest
+./docker_build.sh microsoft de
+```
+
+Build all Timexy language variants:
+
+```bash
+./docker_build.sh timexy all
+```
+
+Build all default images:
+
+```bash
+./docker_build.sh all
+```
+
+Build a custom Hugging Face token-classification model:
+
+```bash
+./docker_build.sh hf-token-classification de satyaalmasian/temporal_tagger_German_GELECTRA
+```
+
+## Start Docker Container
+
+Run a DUUI Time Detection image locally:
+
+```bash
+docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-time-[modelname]-[lang]:latest
 ```
 
 Example:
 
-```bash[duui_time.py](../../../Downloads/duui_time_tool/duui_time.py)
-docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-ner-wikineural-multilingual-ner:latest
+```bash
+docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-time-microsoft-de:latest
+```
+
+TEI2GO example:
+
+```bash
+docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-time-tei2go-de:latest
+```
+
+Timexy example:
+
+```bash
+docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-time-timexy-de:latest
+```
+
+## External Services
+
+### Duckling
+
+Start Duckling:
+
+```bash
+docker run --rm -p 8000:8000 rasa/duckling
+```
+
+Start the DUUI Time Duckling wrapper:
+
+```bash
+docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-time-duckling-de:latest
+```
+
+In DUUI, pass the Duckling URL as runtime parameter:
+
+```java
+.withParameter("duckling_url", "http://127.0.0.1:8000")
+.withParameter("duckling_timezone", "Europe/Berlin")
+```
+
+If DUUI runs inside another Docker container, use the reachable host name, for example:
+
+```java
+.withParameter("duckling_url", "http://host.docker.internal:8000")
+```
+
+### SUTime / CoreNLP
+
+Start CoreNLP:
+
+```bash
+docker run --rm -p 9000:9000 --name corenlp nlpbox/corenlp
+```
+
+Start the DUUI Time SUTime wrapper:
+
+```bash
+docker run --rm -p 9714:9714 docker.texttechnologylab.org/duui-time-sutime-de:latest
+```
+
+In DUUI, pass the CoreNLP URL as runtime parameter:
+
+```java
+.withParameter("corenlp_url", "http://127.0.0.1:9000")
+```
+
+If DUUI runs inside another Docker container, use the reachable host name, for example:
+
+```java
+.withParameter("corenlp_url", "http://host.docker.internal:9000")
 ```
 
 ## Run within DUUI
 
-```java
-composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-ner-[modelname]:latest")
-        .withParameter(
-            "selection",
-            "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
-        )
-);
-```
+For using DUUI Time Detection as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
-With optional runtime parameters:
+### Docker Driver
 
 ```java
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-ner-[modelname]:latest")
-        .withParameter(
-            "selection",
-            "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
-        )
-        .withParameter("threshold", "0.5")
-        .withParameter("batch_size", "8")
-        .withParameter("labels", "person,organization,location,date,event,product,taxon,other")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-time-microsoft-de:latest")
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        .withParameter("document_creation_time", "2026-06-09")
 );
 ```
 
-### Parameters
+### Remote Driver
 
-| Name | Default | Description |
-| --- | --- | --- |
-| `selection` | required | Use `text` to process the full document text or any selectable UIMA type class name, e.g. `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence`. |
-| `threshold` | `0.5` | Confidence threshold for GLiNER/GLiNER2. HuggingFace token-classification models may ignore this value. |
-| `batch_size` | `8` | Batch size used during prediction. |
-| `labels` | `person,organization,location,date,event,product,taxon,other` | Candidate labels for GLiNER/GLiNER2. HuggingFace token-classification models use their trained label set. |
+If the container or local Python service is already running on port `9714`:
 
-## Runtime behavior
+```java
+composer.add(
+    new DUUIRemoteDriver.Component("http://127.0.0.1:9714")
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        .withParameter("document_creation_time", "2026-06-09")
+);
+```
 
-- Each Docker image/container uses exactly one model.
-- `MODEL_NAME` selects the backend model alias used by the Python service.
-- `MODEL_VERSION` is used as model metadata in the DUUI response.
-- `MODEL_SOURCE` and `MODEL_LANG` are also returned as metadata.
-- Runtime parameters such as `threshold`, `batch_size`, and `labels` are passed via DUUI `.withParameter(...)`.
+### Duckling Remote Driver
 
-# Cite
+```java
+composer.add(
+    new DUUIRemoteDriver.Component("http://127.0.0.1:9714")
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        .withParameter("document_creation_time", "2026-06-09")
+        .withParameter("duckling_url", "http://127.0.0.1:8000")
+        .withParameter("duckling_timezone", "Europe/Berlin")
+);
+```
 
-If you use this DUUI image, please cite DUUI as follows:
+### SUTime Remote Driver
+
+```java
+composer.add(
+    new DUUIRemoteDriver.Component("http://127.0.0.1:9714")
+        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        .withParameter("document_creation_time", "2026-06-09")
+        .withParameter("corenlp_url", "http://127.0.0.1:9000")
+);
+```
+
+## Parameters
+
+| Name | Description |
+| ---- | ----------- |
+| `selection` | Use `text` to process the full document text or any selectable UIMA type class name, for example `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence`. |
+| `document_creation_time` | Reference date for relative temporal expressions, for example `2026-06-09`. |
+| `threshold` | Optional confidence threshold for Hugging Face token-classification models. |
+| `batch_size` | Optional batch size for Hugging Face token-classification models. |
+| `duckling_url` | Runtime URL of the Duckling HTTP service. Required for `MODEL_NAME=duckling`. |
+| `duckling_timezone` | Runtime timezone for Duckling normalization, for example `Europe/Berlin`. |
+| `corenlp_url` | Runtime URL of the CoreNLP/SUTime HTTP service. Required for `MODEL_NAME=sutime`. |
+
+## Local Development
+
+Start the service locally without Docker:
+
+```bash
+export ANNOTATOR_NAME="duui-time"
+export ANNOTATOR_VERSION="0.1.0"
+export LOG_LEVEL="DEBUG"
+
+export MODEL_NAME="microsoft"
+export MODEL_SPECNAME="recognizers-text-suite"
+export MODEL_VERSION="1.0.2a2"
+export MODEL_SOURCE="https://github.com/microsoft/Recognizers-Text"
+export MODEL_LANG="de"
+export MODEL_CACHE_SIZE="1"
+
+uvicorn duui_time:app --host 0.0.0.0 --port 9714 --workers 1
+```
+
+## Cite
+
+If you want to use the DUUI image please quote this as follows:
 
 Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (2023). "Unlocking the Heterogeneous Landscape of Big Data NLP with DUUI." Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399. [[LINK](https://aclanthology.org/2023.findings-emnlp.29)] [[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)]
 
@@ -134,13 +236,12 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
   address   = {Singapore},
   publisher = {Association for Computational Linguistics},
   url       = {https://aclanthology.org/2023.findings-emnlp.29},
-  pages     = {385--399},
-  pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
+  pages     = {385--399}
 }
 
 @misc{Bagci:2026,
   author       = {Bagci, Mevlüt},
-  title        = {Transformer-based Named Entity Recognition models as {DUUI} component},
+  title        = {Temporal expression detection models as {DUUI} component},
   year         = {2026},
   howpublished = {https://github.com/texttechnologylab/duui-uima}
 }
