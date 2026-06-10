@@ -27,7 +27,7 @@ public class NERTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
 
     @BeforeAll
     static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException, CompressorException {

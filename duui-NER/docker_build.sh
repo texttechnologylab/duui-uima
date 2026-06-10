@@ -19,11 +19,11 @@ export BATCH_SIZE=8
 # GLiNER
 # Passend dazu im Dockerfile aktivieren:
 # RUN python -c "from gliner import GLiNER; GLiNER.from_pretrained(model_id='urchade/gliner_multi-v2.1', map_location='cpu')"
-#export MODEL_NAME="gliner"
-#export MODEL_SPECNAME="gliner-multi-v2-1"
-#export MODEL_VERSION="443d26d654e0324125a96bebd8e796c14ff2efe6"
-#export MODEL_SOURCE="https://huggingface.co/urchade/gliner_multi-v2.1"
-#export MODEL_LANG="Multi"
+export MODEL_NAME="gliner"
+export MODEL_SPECNAME="gliner-multi-v2-1"
+export MODEL_VERSION="443d26d654e0324125a96bebd8e796c14ff2efe6"
+export MODEL_SOURCE="https://huggingface.co/urchade/gliner_multi-v2.1"
+export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -63,11 +63,11 @@ export BATCH_SIZE=8
 # XLM-R NER 40 languages
 # Passend dazu im Dockerfile aktivieren:
 # RUN python -c "from transformers import pipeline; pipeline('token-classification', model='nbroad/jplu-xlm-r-ner-40-lang', aggregation_strategy='simple')"
-export MODEL_NAME="xlm-r-ner-40-lang"
-export MODEL_SPECNAME="xlm-r-ner-40-lang"
-export MODEL_VERSION="7f7f0fe9bc946a9848611aff079f556387687216"
-export MODEL_SOURCE="https://huggingface.co/nbroad/jplu-xlm-r-ner-40-lang"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="xlm-r-ner-40-lang"
+#export MODEL_SPECNAME="xlm-r-ner-40-lang"
+#export MODEL_VERSION="7f7f0fe9bc946a9848611aff079f556387687216"
+#export MODEL_SOURCE="https://huggingface.co/nbroad/jplu-xlm-r-ner-40-lang"
+#export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
 

@@ -227,26 +227,31 @@ class NERClassificationGLiNER:
             threshold: float = 0.5,
             batch_size: int = 8,
     ) -> List[List[Dict[str, Any]]]:
-        results: List[List[Dict[str, Any]]] = []
         with torch.no_grad():
-            for sentence in text:
-                try:
-                    output = self.model.predict_entities(
-                        sentence,
-                        labels,
-                        threshold=threshold,
-                        multi_label=True,
-                        return_class_probs=True,
-                    )
-                except TypeError:
-                    output = self.model.predict_entities(
-                        sentence,
-                        labels,
-                        multi_label=True,
-                        return_class_probs=True,
-                    )
-                results.append(normalize_entity_output(sentence, output, self.model_name, self.model_id))
-        return results
+            try:
+                outputs = self.model.inference(
+                    text,
+                    labels,
+                    threshold=threshold,
+                    multi_label=True,
+                    return_class_probs=True,
+                    batch_size=batch_size,
+                )
+            except TypeError:
+                outputs = self.model.inference(
+                    text,
+                    labels,
+                    multi_label=True,
+                    return_class_probs=True,
+                    batch_size=batch_size,
+                )
+
+        sentence_outputs = _normalize_sentence_outputs(outputs, len(text))
+
+        return [
+            normalize_entity_output(sentence, entities, self.model_name, self.model_id)
+            for sentence, entities in zip(text, sentence_outputs)
+        ]
 
 
 class NERClassificationGLiNER2:
