@@ -1,0 +1,6 @@
+ipykernel==7.2.0
+pandas==3.0.3
+pydantic==2.13.4
+requests==2.34.2
+# Taxoniq resolves NCBI taxonomic identifiers
+taxoniq==1.0.3
