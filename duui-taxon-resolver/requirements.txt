@@ -1,6 +1,14 @@
+annotated-types==0.7.0
+anyio==3.7.1
+attrs==25.4.0
+fastapi==0.104.1
 ipykernel==7.2.0
 pandas==3.0.3
 pydantic==2.13.4
+pydantic-settings==2.0.3
+python-dotenv==1.2.2
 requests==2.34.2
 # Taxoniq resolves NCBI taxonomic identifiers
 taxoniq==1.0.3
+urllib3==2.6.3
+uvicorn==0.46.0
