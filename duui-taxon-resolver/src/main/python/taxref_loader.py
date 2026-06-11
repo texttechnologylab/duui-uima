@@ -2,6 +2,7 @@ import os
 import tempfile
 from typing import override
 from pydantic import BaseModel, Field
+from shared_taxon import SharedTaxon, TaxonBase
 import requests
 import zipfile
 
@@ -67,7 +68,7 @@ def vernacular_name_index(vernacular_name_id: int) -> int:
 ### Wrapper classes ###
 
 
-class TaxrefTaxon(BaseModel):
+class TaxrefTaxon(BaseModel, TaxonBase):
     id_: int = Field(alias="id")
     taxon_id: int = Field(alias="taxonID")
     scientific_name_id: int | None = Field(alias="scientificNameID", default=None)
@@ -103,6 +104,33 @@ class TaxrefTaxon(BaseModel):
     vernacular_name: str | None = Field(alias="vernacularName", default=None)
     taxon_remarks: str | None = Field(alias="taxonRemarks", default=None)
     references: str | None = Field(default=None)
+
+    @override
+    def as_shared(self) -> SharedTaxon:
+        # TODO: resolve parent name and key using parent_name_usage_id
+        return SharedTaxon(
+            provider="taxref",
+            taxon_id=str(self.taxon_id),
+            kingdom_name=self.kingdom,
+            phylum_name=self.phylum,
+            class_name=self.class_,
+            order_name=self.order,
+            superfamily_name=self.superfamily,
+            family_name=self.family,
+            subfamily_name=self.subfamily,
+            tribe_name=self.tribe,
+            subtribe_name=self.subtribe,
+            genus_name=self.genus,
+            subgenus_name=self.subgenus,
+            species_name=self.specific_epithet,
+            scientific_name=self.scientific_name,
+            vernacular_name=self.vernacular_name,
+            accepted_name_usage=self.accepted_name_usage,
+            authorship=self.scientific_name_authorship,
+            rank=self.taxon_rank,
+            remarks=self.taxon_remarks,
+            references=self.references,
+        )
 
 
 class VernacularName(BaseModel):

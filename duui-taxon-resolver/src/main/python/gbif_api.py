@@ -2,11 +2,12 @@ from typing import override
 
 from pydantic import BaseModel, Field
 import requests
+from shared_taxon import SharedTaxon, TaxonBase
 
 base_api_url = "https://api.gbif.org/v1"
 
 
-class GbifTaxon(BaseModel):
+class GbifTaxon(BaseModel, TaxonBase):
     key: int
     taxon_id: str = Field(alias="taxonID")
     kingdom: str | None = Field(default=None)
@@ -40,6 +41,39 @@ class GbifTaxon(BaseModel):
     @property
     def raw_taxon_id(self) -> int:
         return int(self.taxon_id.split(":")[-1])
+
+    @override
+    def as_shared(self) -> SharedTaxon:
+        return SharedTaxon(
+            provider="gbif",
+            taxon_id=self.raw_taxon_id,
+            kingdom_name=self.kingdom,
+            kingdom_key=self.kingdom_key,
+            order_name=self.order,
+            order_key=self.order_key,
+            family_name=self.family,
+            family_key=self.family_key,
+            genus_name=self.genus,
+            genus_key=self.genus_key,
+            species_name=self.species,
+            species_key=self.species_key,
+            parent_name=self.parent,
+            parent_key=self.parent_key,
+            scientific_name=self.scientific_name,
+            canonical_name=self.canonical_name,
+            vernacular_name=self.vernacular_name,
+            authorship=self.authorship,
+            name_type=self.name_type,
+            rank=self.rank,
+            origin=self.origin,
+            taxonomic_status=self.taxonomic_status,
+            remarks=self.remarks,
+            published_in=self.published_in,
+            num_descendants=self.num_descendants,
+            last_crawled=self.last_crawled,
+            last_interpreted=self.last_interpreted,
+            url=f"https://www.gbif.org/species/{self.key}",
+        )
 
 
 def get_taxon(taxon_id: int) -> GbifTaxon:
