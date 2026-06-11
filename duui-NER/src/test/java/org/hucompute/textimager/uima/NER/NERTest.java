@@ -96,6 +96,11 @@ public class NERTest {
                         .withParameter("threshold", "0.5")
                         .withParameter("batch_size", "8")
                         .withParameter("labels", "person,organization,location,date,event,product,taxon,other")
+                        .withParameter("tokenizers_parallelism", "false")
+                        .withParameter("rayon_num_threads", "1")
+                        .withParameter("omp_num_threads", "1")
+                        .withParameter("mkl_num_threads", "1")
+                        .withParameter("use_fast_tokenizer", "false")
         );
 
         List<String> textes = Arrays.asList(

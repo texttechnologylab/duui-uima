@@ -4,6 +4,8 @@ transformers==5.1.0
 torch==2.11.0
 torchvision==0.26.0
 torchaudio==2.11.0
+httpx==0.28.1
+httpcore==1.0.9
 nltk==3.9.4
 termcolor==3.3.0
 six==1.17.0

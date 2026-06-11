@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import logging
 from functools import lru_cache
 from threading import Lock
@@ -20,7 +21,8 @@ from ner_classification_backend import MODEL_REGISTRY, create_ner_classifier, re
 
 
 model_lock = Lock()
-
+os.environ["CUDA_LAUNCH_BLOCKING"]="1"
+os.environ["TORCH_USE_CUDA_DSA"]="1"
 
 class UimaSentence(BaseModel):
     text: str
@@ -54,6 +56,13 @@ class Settings(BaseSettings):
     threshold: float = 0.5
     batch_size: int = 8
 
+    # Runtime tokenizer/thread defaults. These can also be passed per /v1/process request.
+    tokenizers_parallelism: str = "false"
+    rayon_num_threads: int = 1
+    omp_num_threads: int = 1
+    mkl_num_threads: int = 1
+    use_fast_tokenizer: bool = False
+
     typesystem_filename: str = "TypeSystemNER.xml"
     lua_communication_script_filename: str = "duui_ner.lua"
 
@@ -81,6 +90,14 @@ class DUUIRequest(BaseModel):
     threshold: Optional[float] = None
     batch_size: Optional[int] = None
     labels: Optional[Union[str, List[str]]] = None
+
+    # Runtime tokenizer/thread parameters passed through DUUI .withParameter(...).
+    # They are applied at the beginning of every /v1/process call.
+    tokenizers_parallelism: Optional[Union[bool, str]] = None
+    rayon_num_threads: Optional[Union[int, str]] = None
+    omp_num_threads: Optional[Union[int, str]] = None
+    mkl_num_threads: Optional[Union[int, str]] = None
+    use_fast_tokenizer: Optional[Union[bool, str]] = None
 
 
 class DocumentModification(BaseModel):
@@ -293,6 +310,62 @@ def get_ner_labels() -> List[str]:
     return parse_ner_labels(None)
 
 
+_LAST_RUNTIME_ENV: Dict[str, str] = {}
+
+
+def parse_bool_like(value: Optional[Union[bool, str]], default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
+def parse_positive_int_like(value: Optional[Union[int, str]], default: int) -> int:
+    if value is None:
+        return max(1, int(default))
+    try:
+        return max(1, int(str(value).strip()))
+    except Exception:
+        return max(1, int(default))
+
+
+def apply_runtime_env_from_request(request: DUUIRequest) -> bool:
+    """Apply tokenizer/thread runtime settings for every process call.
+
+    The values are intentionally written into os.environ on each request so DUUI
+    can pass them via .withParameter(...). If values change after a model has
+    been cached, the model cache is cleared so the backend can pick up the new
+    USE_FAST_TOKENIZER value on the next load.
+    """
+    values = {
+        "TOKENIZERS_PARALLELISM": "true" if parse_bool_like(
+            request.tokenizers_parallelism,
+            str(settings.tokenizers_parallelism).strip().lower() in {"1", "true", "yes", "y", "on"},
+            ) else "false",
+        "RAYON_NUM_THREADS": str(parse_positive_int_like(request.rayon_num_threads, settings.rayon_num_threads)),
+        "OMP_NUM_THREADS": str(parse_positive_int_like(request.omp_num_threads, settings.omp_num_threads)),
+        "MKL_NUM_THREADS": str(parse_positive_int_like(request.mkl_num_threads, settings.mkl_num_threads)),
+        "USE_FAST_TOKENIZER": "true" if parse_bool_like(request.use_fast_tokenizer, settings.use_fast_tokenizer) else "false",
+    }
+
+    changed = False
+    for key, value in values.items():
+        if os.environ.get(key) != value:
+            os.environ[key] = value
+            changed = True
+
+    global _LAST_RUNTIME_ENV
+    cache_relevant_changed = _LAST_RUNTIME_ENV.get("USE_FAST_TOKENIZER") != values["USE_FAST_TOKENIZER"]
+    _LAST_RUNTIME_ENV = values
+    return cache_relevant_changed
+
+
 def get_selected_model_name(model_name: str) -> str:
     """Return exactly one configured model for this container.
 
@@ -439,6 +512,11 @@ def model_meta_values(model_name: str) -> Tuple[str, str]:
 
 @app.post("/v1/process", response_model=DUUIResponse)
 def post_process(request: DUUIRequest):
+    runtime_env_changed = apply_runtime_env_from_request(request)
+    if runtime_env_changed:
+        with model_lock:
+            load_model.cache_clear()
+
     if not request.selections:
         return JSONResponse(status_code=400, content={"message": "The request must contain sentence selections."})
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-
+import os
 import torch
 
 
@@ -302,15 +302,23 @@ class NERClassification:
         self.model_id = model_name
         self.device = device
 
+        use_fast_tokenizer = str(
+            os.environ.get("USE_FAST_TOKENIZER", "true")
+        ).strip().lower() in {"1", "true", "yes", "y", "on"}
+
         self.model = AutoModelForTokenClassification.from_pretrained(model_name)
+
         try:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_name,
-                use_fast=True,
+                use_fast=use_fast_tokenizer,
                 add_prefix_space=True,
             )
         except TypeError:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_name,
+                use_fast=use_fast_tokenizer,
+            )
 
         self.model.to(device)
         self.model.eval()
@@ -339,7 +347,6 @@ class NERClassification:
             normalize_entity_output(sentence, sentence_output, self.model_name, self.model_id)
             for sentence, sentence_output in zip(text, sentence_outputs)
         ]
-
 
 def create_ner_classifier(
         model_name: str,

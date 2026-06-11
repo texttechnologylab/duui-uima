@@ -19,11 +19,11 @@ export BATCH_SIZE=8
 # GLiNER
 # Passend dazu im Dockerfile aktivieren:
 # RUN python -c "from gliner import GLiNER; GLiNER.from_pretrained(model_id='urchade/gliner_multi-v2.1', map_location='cpu')"
-export MODEL_NAME="gliner"
-export MODEL_SPECNAME="gliner-multi-v2-1"
-export MODEL_VERSION="443d26d654e0324125a96bebd8e796c14ff2efe6"
-export MODEL_SOURCE="https://huggingface.co/urchade/gliner_multi-v2.1"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="gliner"
+#export MODEL_SPECNAME="gliner-multi-v2-1"
+#export MODEL_VERSION="443d26d654e0324125a96bebd8e796c14ff2efe6"
+#export MODEL_SOURCE="https://huggingface.co/urchade/gliner_multi-v2.1"
+#export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -41,11 +41,11 @@ export MODEL_LANG="Multi"
 # RoBERTa multilingual NER
 # Passend dazu im Dockerfile aktivieren:
 # RUN python -c "from transformers import pipeline; pipeline('token-classification', model='julian-schelb/roberta-ner-multilingual', aggregation_strategy='simple')"
-#export MODEL_NAME="roberta-ner-multilingual"
-#export MODEL_SPECNAME="roberta-ner-multilingual"
-#export MODEL_VERSION="d0a19147f3bb0065c8091459e3d35405ce9d48da"
-#export MODEL_SOURCE="https://huggingface.co/julian-schelb/roberta-ner-multilingual"
-#export MODEL_LANG="Multi"
+export MODEL_NAME="roberta-ner-multilingual"
+export MODEL_SPECNAME="roberta-ner-multilingual"
+export MODEL_VERSION="d0a19147f3bb0065c8091459e3d35405ce9d48da"
+export MODEL_SOURCE="https://huggingface.co/julian-schelb/roberta-ner-multilingual"
+export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
