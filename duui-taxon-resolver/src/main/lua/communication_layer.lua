@@ -2,17 +2,33 @@
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 Class = luajava.bindClass("java.lang.Class")
+ClassLoader = luajava.bindClass("java.lang.ClassLoader")
+SystemClassLoader = ClassLoader:getSystemClassLoader()
 AnnotationComment = luajava.bindClass("org.texttechnologylab.annotation.AnnotationComment")
+AnnotationCommentClass = Class:forName("org.texttechnologylab.annotation.AnnotationComment")
 Taxon = luajava.bindClass("org.texttechnologylab.annotation.type.Taxon")
+TaxonClass = Class:forName("org.texttechnologylab.annotation.type.Taxon")
 Object = luajava.bindClass("java.lang.Object")
 
+function instanceOf(clazz, object)
+    -- ok this is really bad, but I could not find any other way
+    local object_class = object:getClass()
+    local object_class_name = tostring(object_class)
+    local clazz_name = tostring(clazz)
+    local is_instance = object_class_name == clazz_name
+    return is_instance
+end
+
 function selectAnnotationComments(view)
-    local selection_iterator = JCasUtil:select(view, AnnotationComment:class)
+    local selection_iterator = JCasUtil:select(view, AnnotationCommentClass):iterator()
     local annotation_comments = {}
     while selection_iterator:hasNext() do
         local annotation_comment = selection_iterator:next()
         local ref = annotation_comment:getReference()
-        if (Taxon:class:isInstance(ref)) then
+        -- TaxonClass:isAssignableFrom(ref_class) does not work
+        -- TaxonClass:isInstance(ref) does not work
+        -- Object:equals(ref_class, TaxonClass) does not throw, but always returns false, even if exactly the same
+        if (instanceOf(TaxonClass, ref)) then
             table.insert(annotation_comments, annotation_comment)
         end
     end
@@ -29,20 +45,20 @@ function serialize(inputCas, outputStream, parameters)
     local annotation_comments = selectAnnotationComments(annotations_view)
     local recognized_taxa = {}
     for _, annotation_comment in ipairs(annotation_comments) do
-        local taxon = Taxon:class:cast(annotation_comment:getReference())
+        -- local taxon = TaxonClass:cast(annotation_comment:getReference())
+        local taxon = annotation_comment:getReference()
         local begin = taxon:getBegin()
         -- insert taxon collection by begin position, if not already present
         local recognized_taxon = recognized_taxa[begin]
         if recognized_taxon == nil then
-            local end = taxon:getEnd()
-            local text = document_text:sub(begin + 1, end) -- Lua strings are 1-indexed
-            local 
-            recognized_taxon = {
-                begin = begin,
-                end = end,
+            local end_ = taxon:getEnd()
+            local text = document_text:sub(begin + 1, end_) -- Lua strings are 1-indexed
+            local recognized_taxon = {
                 text = text,
                 linkings = {}
             }
+            recognized_taxon["begin"] = begin
+            recognized_taxon["end"] = end_
             recognized_taxa[begin] = recognized_taxon
         end
         local comment_key = annotation_comment:getKey()
