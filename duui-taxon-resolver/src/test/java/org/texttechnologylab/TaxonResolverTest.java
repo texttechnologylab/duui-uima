@@ -101,7 +101,7 @@ public class TaxonResolverTest {
 		jcas.setDocumentText("Ammophila arenaria");
 
 		// manually insert a taxon annotation for "Ammophila arenaria"
-		Taxon taxon = new Taxon(jcas, 0, 17);
+		Taxon taxon = new Taxon(jcas, 0, 18);
 		taxon.addToIndexes();
 		AnnotationComment comment = new AnnotationComment(jcas);
 		comment.setReference(taxon);
@@ -147,7 +147,7 @@ public class TaxonResolverTest {
 
 		// manually insert a taxon annotation for "Ammophila arenaria" in the specified view
 		JCas annotationsJCas = jcas.createView(annotationsView);
-		Taxon taxon = new Taxon(annotationsJCas, 0, 17);
+		Taxon taxon = new Taxon(annotationsJCas, 0, 18);
 		taxon.addToIndexes();
 		AnnotationComment comment = new AnnotationComment(annotationsJCas);
 		comment.setReference(taxon);
@@ -179,7 +179,7 @@ public class TaxonResolverTest {
 		jcas.setDocumentText("Ammophila arenaria");
 
 		// manually insert taxon annotations for "Ammophila arenaria" and "Ulex europaeus"
-		Taxon taxon = new Taxon(jcas, 0, 17);
+		Taxon taxon = new Taxon(jcas, 0, 18);
 		taxon.addToIndexes();
 
 		AnnotationComment comment1 = new AnnotationComment(jcas);
