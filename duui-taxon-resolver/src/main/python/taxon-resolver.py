@@ -85,13 +85,49 @@ def get_typesystem() -> Response:
         result = load_typesystem()
     return Response(content=result, media_type="application/xml")
 
+class RecognizedTaxonLinking(BaseModel):
+    provider: TaxonProvider
+    taxon_id: int
+
+    @classmethod
+    def from_string(cls, linking_str: str) -> Self:
+        try:
+            provider_str, taxon_id_str = linking_str.split(":")
+            provider: TaxonProvider = provider_str.lower()
+            taxon_id = int(taxon_id_str)
+            return cls(provider=provider, taxon_id=taxon_id)
+        except Exception as e:
+            logger.error("Error parsing linking string '%s': %s", linking_str, e)
+            raise ValueError(f"Invalid linking string '{linking_str}': {e}")
+
 class RecognizedTaxon(BaseModel):
+    begin: int
+    end: int
     text: str
+    linkings: List[RecognizedTaxonLinking]
+
+class RequestTaxon(BaseModel):
     begin: int
     end: int
     linkings: List[str]
 
+    def to_recognized_taxon(self, document_text: str) -> RecognizedTaxon:
+        text = document_text[self.begin:self.end]
+        return RecognizedTaxon(
+            begin=self.begin,
+            end=self.end,
+            text=text,
+            linkings=[RecognizedTaxonLinking.from_string(linking_str) for linking_str in self.linkings]
+        )
+
 class DuuiRequest(BaseModel):
+    taxa: List[RequestTaxon]
+    document_text: str
+
+    @property
+    def recognized_taxa(self) -> List[RecognizedTaxon]:
+        return [taxon.to_recognized_taxon(self.document_text) for taxon in self.taxa]
+    
     taxa: List[RecognizedTaxon]
 
 class DuuiResponse(BaseModel):

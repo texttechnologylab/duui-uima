@@ -37,6 +37,9 @@ end
 
 function serialize(inputCas, outputStream, parameters)
     local document_text = inputCas:getDocumentText()
+    -- print(document_text:sub(1, 300))
+    local test_string = "äöüß"
+    print(test_string)
     local annotations_view_name = parameters["annotations_view"]
     local annotations_view = inputCas
     if annotations_view_name ~= nil and annotations_view_name ~= "" then
@@ -52,10 +55,11 @@ function serialize(inputCas, outputStream, parameters)
         local recognized_taxon = recognized_taxa[begin]
         if recognized_taxon == nil then
             local end_ = taxon:getEnd()
-            local text = document_text:sub(begin + 1, end_) -- Lua strings are 1-indexed
-            print("Recognized taxon: " .. text .. " at [" .. begin .. ", " .. end_ .. "]")
-            local recognized_taxon = {
-                text = text,
+            -- local text = document_text:sub(begin + 1, end_)
+            -- local text = taxon:getCoveredText()
+            -- print("Recognized taxon: " .. text .. " (begin: " .. begin .. ", end: " .. end_ .. ")")
+            recognized_taxon = {
+                -- text = text,
                 linkings = {}
             }
             recognized_taxon["begin"] = begin
@@ -73,8 +77,11 @@ function serialize(inputCas, outputStream, parameters)
         table.insert(recognized_taxa_list, recognized_taxon)
     end
 
+    -- print("Recognized taxa: " .. json.encode(recognized_taxa_list))
+
     outputStream:write(json.encode({
-        taxa = recognized_taxa_list
+        taxa = recognized_taxa_list,
+        document_text = document_text
     }))
 end
 
