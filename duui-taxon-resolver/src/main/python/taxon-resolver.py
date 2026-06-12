@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import List, Literal, Self
 
 from fastapi import FastAPI, Request, Response
@@ -43,6 +42,10 @@ logger = logging.getLogger(__name__)
 logger.info("TTLab Taxon Resolver started in %s mode", settings.execution_mode)
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
+
+logger.info("Loading backbone data for Taxref...")
+taxref_loader.initialize_backbone()
+logger.info("Taxref backbone data loaded successfully")
 
 def load_communication_script() -> str:
     with open(lua_communication_script_path, "r") as f:
@@ -170,5 +173,5 @@ def resolve_recognized_taxa(recognized_taxa: List[RecognizedTaxon]) -> List[Expo
 async def post_process(request: DuuiRequest) -> DuuiResponse:
     recognized_taxa = request.recognized_taxa
     resolved_taxa = resolve_recognized_taxa(recognized_taxa)
-    logger.info("Resolved %d taxons", len(resolved_taxa))
+    logger.debug("Resolved %d taxons", len(resolved_taxa))
     return DuuiResponse(taxa=resolved_taxa)

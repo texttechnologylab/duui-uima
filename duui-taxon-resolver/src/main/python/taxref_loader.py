@@ -35,7 +35,7 @@ def load_backbone(dir_path: str) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def load_backbone_from_url(
-    url: str = "https://ipt.gbif.fr/archive.do?r=taxref&v=4.17",
+    url: str = "https://ipt.gbif.fr/archive.do?r=taxref",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     with tempfile.TemporaryDirectory() as tmpdir:
         download_backbone(tmpdir, url)
@@ -52,7 +52,15 @@ def load_taxref() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 ### Backbone data ###
 
-vernacular_names, taxonomy = load_taxref()
+vernacular_names: pd.DataFrame
+taxonomy: pd.DataFrame
+
+def preload_backbone():
+    download_backbone("backbone")
+
+def initialize_backbone():
+    global vernacular_names, taxonomy
+    vernacular_names, taxonomy = load_taxref()
 
 ### Utility methods ###
 
