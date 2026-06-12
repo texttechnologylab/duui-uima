@@ -11,6 +11,10 @@ import torch
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
+import os
+
+os.environ["CUDA_LAUNCH_BLOCKING"]="1"
+os.environ["TORCH_USE_CUDA_DSA"]="1"
 
 try:
     from pydantic_settings import BaseSettings
