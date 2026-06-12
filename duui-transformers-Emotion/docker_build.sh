@@ -377,6 +377,22 @@ export MODEL_LANG="DE"
 #export MODEL_LANG="ZH"
 ####--------------------------------------------------------------------
 
+####---------------------------------------------------------------------
+export MODEL_NAME="visolex/phobert-emotion"
+export MODEL_SPECNAME="phobert-emotion"
+export MODEL_VERSION="90460fb946cf640ef9c56ae484cabb49d48ef14e"
+export MODEL_SOURCE="https://huggingface.co/visolex/phobert-emotion"
+export MODEL_LANG="VI"
+####--------------------------------------------------------------------
+
+####---------------------------------------------------------------------
+export MODEL_NAME="seara/rubert-tiny2-russian-emotion-detection-cedr"
+export MODEL_SPECNAME="rubert-tiny2-russian-emotion-detection-cedr"
+export MODEL_VERSION="927ce911c4343c6113859325ab76c6c3c473ff0f"
+export MODEL_SOURCE="https://huggingface.co/seara/rubert-tiny2-russian-emotion-detection-cedr"
+export MODEL_LANG="RU"
+####--------------------------------------------------------------------
+
 
 docker build \
   --build-arg ANNOTATOR_NAME \

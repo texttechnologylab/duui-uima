@@ -16,6 +16,7 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='j-hartmann/sentiment-roberta-large-english-3-classes')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='bardsai/finance-sentiment-de-base')"
 RUN #python -c "from germansentiment import SentimentModel; model = SentimentModel()"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='blanchefort/rubert-base-cased-sentiment')"
 
 # copy scripts
 COPY ./src/main/python/TypeSystemSentiment.xml ./TypeSystemSentiment.xml

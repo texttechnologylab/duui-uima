@@ -67,6 +67,15 @@ export MODEL_LANG="Multi"
 #export MODEL_LANG="DE"
 ####--------------------------------------------------------------------
 
+#Russische Modell
+##---------------------------------------------------------------------
+export MODEL_NAME="blanchefort/rubert-base-cased-sentiment"
+export MODEL_SPECNAME="rubert-base-cased-sentiment"
+export MODEL_VERSION="2d4b5fc431489a87ca4e44b842d904058706e8d4"
+export MODEL_SOURCE="https://huggingface.co/blanchefort/rubert-base-cased-sentiment"
+export MODEL_LANG="RU"
+##--------------------------------------------------------------------
+
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=
 

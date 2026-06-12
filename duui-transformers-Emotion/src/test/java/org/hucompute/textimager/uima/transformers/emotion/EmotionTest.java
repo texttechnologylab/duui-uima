@@ -225,4 +225,48 @@ public class EmotionTest {
             Assertions.assertEquals(expected_emotions.get(expected.indexOf(emotion)), key);
         }
     }
+
+    
+    @Test
+    public void VietnameseTest() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+        );
+
+        List<String> sentences = Arrays.asList(
+                "Tao ghét mày. Tao đang rất tức giận",
+                "Tôi rất vui khi được ở đây. Tôi yêu nơi này."
+        );
+
+        createCas("vi", sentences);
+        composer.run(cas);
+
+        Collection<Emotion> all_emotions = JCasUtil.select(cas, Emotion.class);
+        ArrayList<Map<String, Float>> expected = new ArrayList<>();
+
+        for (Emotion emotion : all_emotions) {
+            System.out.println("Text: " + emotion.getCoveredText());
+            Map<String, Float> emotions = new HashMap<>();
+            FSArray<AnnotationComment> emotions_all = emotion.getEmotions();
+
+            for (AnnotationComment comment : emotions_all) {
+                emotions.put(comment.getKey(), Float.parseFloat(comment.getValue()));
+                System.out.println("  " + comment.getKey() + ": " + comment.getValue());
+            }
+            expected.add(emotions);
+        }
+
+        // Expected: Enjoyment, Sadness (CAPITALIZED to match model output)
+        ArrayList<String> expected_emotions = new ArrayList<>(Arrays.asList("Anger", "Enjoyment"));
+
+        for (int i = 0; i < expected.size(); i++) {
+            String top_emotion = Collections.max(
+                    expected.get(i).entrySet(),
+                    Map.Entry.comparingByValue()
+            ).getKey();
+            Assertions.assertEquals(expected_emotions.get(i), top_emotion);
+        }
+    }
+    
 }
