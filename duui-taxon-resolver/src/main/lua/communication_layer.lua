@@ -62,7 +62,7 @@ function serialize(inputCas, outputStream, parameters)
             recognized_taxa[begin] = recognized_taxon
         end
         local comment_key = annotation_comment:getKey()
-        if Object:equals(comment_key, "linking") then
+        if comment_key == "linking" then
             local comment_value = annotation_comment:getValue()
             table.insert(recognized_taxon.linkings, comment_value)
         end
