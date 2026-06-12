@@ -53,6 +53,7 @@ function serialize(inputCas, outputStream, parameters)
         if recognized_taxon == nil then
             local end_ = taxon:getEnd()
             local text = document_text:sub(begin + 1, end_) -- Lua strings are 1-indexed
+            print("Recognized taxon: " .. text .. " at [" .. begin .. ", " .. end_ .. "]")
             local recognized_taxon = {
                 text = text,
                 linkings = {}
