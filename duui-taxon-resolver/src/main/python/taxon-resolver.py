@@ -1,11 +1,15 @@
 import logging
 import os
-from typing import List, Literal
+from typing import List, Literal, Self
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
+from urllib3 import request
+
+import ncbi_api, gbif_api, taxref_loader
+from shared_taxon import SharedTaxon, TaxonBase, TaxonProvider
 
 class Settings(BaseSettings):
     annotator_name: str = Field("duui-taxon-resolver", env="ANNOTATOR_NAME")
@@ -21,9 +25,8 @@ settings = Settings()
 lua_communication_script_path: str
 typesystem_path: str
 if settings.execution_mode == "development":
-    lua_communication_script_path = "./src/main/lua/communication_layer.lua"
-    typesystem_path = "./src/main/resources/typesystem.xml"
-    print(os.path.abspath(lua_communication_script_path))
+    lua_communication_script_path = "../lua/communication_layer.lua"
+    typesystem_path = "../resources/typesystem.xml"
 elif settings.execution_mode == "production":
     lua_communication_script_path = "/app/communication_layer.lua"
     typesystem_path = "/app/typesystem.xml"
@@ -128,12 +131,44 @@ class DuuiRequest(BaseModel):
     def recognized_taxa(self) -> List[RecognizedTaxon]:
         return [taxon.to_recognized_taxon(self.document_text) for taxon in self.taxa]
     
-    taxa: List[RecognizedTaxon]
+class ExportedTaxon(BaseModel):
+    begin: int
+    end: int
+    text: str
+    resolved_linkings: List[SharedTaxon]
 
 class DuuiResponse(BaseModel):
-    placeholder: str = "Not implemented yet"
+    taxa: List[ExportedTaxon]
+
+def resolve_taxon_linking(linking: RecognizedTaxonLinking) -> TaxonBase:
+    match linking.provider:
+        case "ncbi":
+            return ncbi_api.NcbiTaxon.from_tax_id(linking.taxon_id)
+        case "gbif":
+            return gbif_api.get_taxon(linking.taxon_id)
+        case "taxref":
+            return taxref_loader.taxon_from_id(linking.taxon_id)
+        case _:
+            raise ValueError(f"Unknown taxon provider '{linking.provider}'")
+
+def resolve_taxon_linkings(linkings: List[RecognizedTaxonLinking]) -> List[TaxonBase]:
+    return [resolve_taxon_linking(linking) for linking in linkings]
+
+def resolve_recognized_taxon(recognized_taxon: RecognizedTaxon) -> ExportedTaxon:
+    resolved_linkings = resolve_taxon_linkings(recognized_taxon.linkings)
+    return ExportedTaxon(
+        begin=recognized_taxon.begin,
+        end=recognized_taxon.end,
+        text=recognized_taxon.text,
+        resolved_linkings=[linking.as_shared() for linking in resolved_linkings]
+    )
+
+def resolve_recognized_taxa(recognized_taxa: List[RecognizedTaxon]) -> List[ExportedTaxon]:
+    return [resolve_recognized_taxon(recognized_taxon) for recognized_taxon in recognized_taxa]
 
 @app.post("/v1/process")
-def post_process(request: DuuiRequest) -> DuuiResponse:
-    print(request)
-    return DuuiResponse()
+async def post_process(request: DuuiRequest) -> DuuiResponse:
+    recognized_taxa = request.recognized_taxa
+    resolved_taxa = resolve_recognized_taxa(recognized_taxa)
+    logger.info("Resolved %d taxons", len(resolved_taxa))
+    return DuuiResponse(taxa=resolved_taxa)
