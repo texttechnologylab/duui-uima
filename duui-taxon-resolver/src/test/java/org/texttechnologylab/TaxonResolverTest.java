@@ -16,6 +16,7 @@ import org.texttechnologylab.annotation.type.RecognizedTaxon;
 import org.texttechnologylab.annotation.type.Taxon;
 import org.texttechnologylab.annotation.type.TaxonResolution;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -257,7 +258,13 @@ public class TaxonResolverTest {
 		if (!STORE_OUTPUT) {
 			return;
 		}
-		Path path = Path.of(".", "outputs", name + ".xmi");
+		Path folderPath = Path.of(".", "outputs");
+		try {
+			Files.createDirectories(folderPath);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		Path path = folderPath.resolve(name + ".xmi");
 		try (OutputStream os = Files.newOutputStream(path)) {
 			XmiCasSerializer.serialize(cas.getCas(), os);
 			System.out.println("CAS stored at: " + path.toAbsolutePath());
