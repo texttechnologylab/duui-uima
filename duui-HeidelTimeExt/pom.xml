@@ -1,69 +1,218 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.texttechnologylab.tools</groupId>
-    <artifactId>HeidelTimeExt</artifactId>
-    <version>1.0</version>
+    <artifactId>duui-HeidelTimeExt</artifactId>
+    <version>0.1.0</version>
+
+    <licenses>
+        <license>
+            <name>AGPL-3.0-or-later</name>
+            <url>https://www.gnu.org/licenses/agpl.txt</url>
+            <distribution>repo</distribution>
+            <comments>GNU Affero General Public License v3.0 or later</comments>
+        </license>
+    </licenses>
+
+    <organization>
+        <name>Texttechnology Lab</name>
+        <url>https://www.texttechnologylab.org</url>
+    </organization>
+
+    <developers>
+        <developer>
+            <id>mehler</id>
+            <name>Prof. Dr. Alexander Mehler</name>
+            <email>mehler@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/alexander-abrami/</url>
+            <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
+            <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
+            <roles>
+                <role>head of department</role>
+            </roles>
+        </developer>
+        <developer>
+            <id>bagci</id>
+            <name>Mevlüt Bagci</name>
+            <email>bagci@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/mevl%c3%bct-bagci/</url>
+            <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
+            <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
+            <roles>
+                <role>lead developer</role>
+            </roles>
+            <timezone>Europe/Berlin</timezone>
+        </developer>
+    </developers>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <dkpro.core.version>2.4.0</dkpro.core.version>
+    </properties>
 
     <repositories>
-        <repository>
-            <id>central</id>
-            <name>Central Repository</name>
-            <url>https://repo.maven.apache.org/maven2</url>
-            <layout>default</layout>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>ukp-oss-model-releases</id>
-            <url>https://zoidberg.ukp.informatik.tu-darmstadt.de/artifactory/public-model-releases-local</url>
-        </repository>
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
     </repositories>
 
-    <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-    </properties>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.dkpro.core</groupId>
+                <artifactId>dkpro-core-asl</artifactId>
+                <version>${dkpro.core.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Override broken transitive Utilities version from DUUI -->
+            <dependency>
+                <groupId>com.github.texttechnologylab</groupId>
+                <artifactId>Utilities</artifactId>
+                <version>3.0.2</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
-
         <dependency>
-            <groupId>org.apache.uima</groupId>
-            <artifactId>uimaj-core</artifactId>
-            <version>2.11.0</version>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>DockerUnifiedUIMAInterface</artifactId>
+            <version>1.5.5</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>Utilities</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
-            <groupId>org.apache.uima</groupId>
-            <artifactId>uimafit-core</artifactId>
-            <version>2.5.0</version>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>Utilities</artifactId>
+            <version>3.0.2</version>
         </dependency>
 
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>29fe3e0ab5</version>
+            <version>3.0.14</version>
         </dependency>
 
         <dependency>
-            <groupId>com.github.texttechnologylab.textimager-uima</groupId>
-            <artifactId>textimager-uima-heideltime-biofid</artifactId>
-            <version>9b70623c7f</version>
+            <groupId>com.github.mevbagci</groupId>
+            <artifactId>heideltime</artifactId>
+            <version>4.0.7</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-api-segmentation-asl</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-io-xmi-asl</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-api-resources-asl</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20180813</version>
+            <version>20240303</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.9.0</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <finalName>duui-HeidelTimeExt-${project.version}</finalName>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.0</version>
+                <configuration>
+                    <argLine>
+                        --illegal-access=permit
+                        --add-opens java.base/java.util=ALL-UNNAMED
+                    </argLine>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>org.texttechnologylab.tools.HeidelTimeExt</mainClass>
+                                </transformer>
+
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+
+                                <!-- Keep uimaFIT auto-discovery metadata from all shaded dependencies -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/org.apache.uima.fit/types.txt</resource>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/org.apache.uima.fit/typepriorities.txt</resource>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                                    <resource>META-INF/org.apache.uima.fit/fsindexes.txt</resource>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
