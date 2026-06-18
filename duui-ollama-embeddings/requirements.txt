@@ -10,6 +10,4 @@ packaging==24.2
 ninja==1.11.1.3
 einops==0.8.0
 peft==0.17.1
-langchain-core==0.3.64
-langchain-ollama==0.3.3
-openai>=1.30.0
+requests>=2.31.0

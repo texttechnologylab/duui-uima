@@ -1,33 +1,35 @@
-# Jina Embeddings V4
-A DUUI pipeline for the use of [Jina Embedings v4](https://huggingface.co/jinaai/jina-embeddings-v4).
-
-[![Version](https://img.shields.io/static/v1?label=ttlabdocker_version&message=latest&color=blue)]()
-
 # HoToUse
-For using Jina as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
+For using GNfinder as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
 
 ## Use as Stand-Alone-Image
 ```bash
-docker run docker.texttechnologylab.org/duui-jina-embeddings-v4:latest
+docker run docker.texttechnologylab.org/duui-gnfinder-v2:latest
 ```
 
 ## Run with a specific port
 ```bash
-docker run -p 1000:9714 docker.texttechnologylab.org/duui-jina-embeddings-v4:latest
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-gnfinder-v2:latest
 ```
 
 ## Run within DUUI
 ```java
 composer.add(new DUUIDockerDriver.
-    Component("docker.texttechnologylab.org/duui-jina-embeddings-v4:latest")
+    Component("docker.texttechnologylab.org/duui-gnfinder-v2:latest")
     .withScale(iWorkers)
     .withImageFetching());
 ```
-## Input/Output:
 
-input: de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence
+## Existing Parameters
 
-Output: org.texttechnologylab.uima.type.Embedding
+| Parameter | Description | Datatype | Default |
+| --- | --- | --- | --- |
+| language | Language of the text for better detection accuracy. | String | detect |
+| ambiguousNames | Include ambiguous name matches. | Boolean | False |
+| noBayes | Disable Bayesian odds calculation. | Boolean | False |
+| oddsDetails | Include detailed odds calculation information. | Boolean | False |
+| verification | Enable verification of found names against data sources. | Boolean | True |
+| sources | List of data source IDs to use for verification. | String | [11] |
+| allMatches | Return all matches instead of only the best match. | Boolean | False |
 
 
 # Cite
@@ -65,11 +67,11 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bundan:2025,
-  author         = {Bundan, Daniel}
-  title          = {Jina Embeddings V4 as DUUI-Komponent},
-  year           = {2005},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Jina-Embeddings-V4}
+@misc{Abrami:2022,
+  author         = {Abrami, Giuseppe},
+  title          = {GNfinder as DUUI-Komponent},
+  year           = {2022},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/edit/main/duui-GNFinder}
 }
 
 ```

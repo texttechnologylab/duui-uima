@@ -1,0 +1,44 @@
+services:
+
+  traefik:
+    image: traefik:v3
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --providers.docker.network=traefik
+    ports:
+      - "9720:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik
+
+  # =========================
+  # duui-ollama-embeddings
+  # =========================
+  duui-ollama-embeddings:
+    image: docker.texttechnologylab.org/duui-ollama-embeddings:latest
+    deploy:
+      replicas: 20
+    networks:
+      - traefik
+    expose:
+      - "9714"
+
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.duui-ollama-embeddings.rule=PathPrefix(`/embeddings`)
+      - traefik.http.routers.duui-ollama-embeddings.entrypoints=web
+      - traefik.http.middlewares.duui-ollama-embeddings-strip.stripprefix.prefixes=/embeddings
+      - traefik.http.routers.duui-ollama-embeddings.middlewares=duui-ollama-embeddings
+      - traefik.http.services.duui-ollama-embeddings.loadbalancer.server.port=9714
+
+
+
+networks:
+  traefik:
+    driver: bridge
+    attachable: true

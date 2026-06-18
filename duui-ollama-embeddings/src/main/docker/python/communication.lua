@@ -10,26 +10,37 @@ FloatArray = luajava.bindClass("org.apache.uima.jcas.cas.FloatArray")
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 function serialize(inputCas, outputStream, params)
 
+    local selection_type = params["selection"] ~= nil and params["selection"]
+        or "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
+    local clazz = Class:forName(selection_type);
+    local selectionSet = JCasUtil:select(inputCas, clazz):iterator()
+    local selection_array = {}
+
+    while selectionSet:hasNext() do
+        local s = selectionSet:next()
+
+        local tSelection = {
+            sText = s:getCoveredText(),
+            iBegin = s:getBegin(),
+            iEnd = s:getEnd()
+        }
+        table.insert(selection_array, tSelection)
+    end
+
     local text = inputCas:getSofaDataString()
     local chunkSize = params["chunkSize"] or 900
+    local apiUrl = params["apiUrl"] or ""
+    local model = params["model"] or ""
+    local apiKey = params["apiKey"] or ""
 
-    -- ollamaConfig arrives as a raw string param; decode it into a table so it
-    -- is serialised as a JSON object rather than a JSON string.
-    local ollamaConfig = nil
-    if params["ollamaConfig"] ~= nil then
-        local raw = params["ollamaConfig"]
-        -- Try direct decode first, then wrapped in braces (param may omit them)
-        local ok, decoded = pcall(json.decode, raw)
-        if not ok then
-            ok, decoded = pcall(json.decode, "{" .. raw .. "}")
-        end
-        ollamaConfig = ok and decoded or nil
-    end
 
     -- Encode data as JSON object and write to stream
     outputStream:write(json.encode({
+        apiUrl = apiUrl,
+        selection = selection_array,
         text = text,
-        ollamaConfig = ollamaConfig,
+        model = model,
+        apiKey = apiKey,
         chunkSize = chunkSize
     }))
 end
@@ -49,6 +60,10 @@ function deserialize(inputCas, inputStream)
     -- Add tokens to jcas
     if results["embeddings"] ~= nil then
 
+        local metaData = luajava.newInstance("org.texttechnologylab.annotation.MetaData", inputCas)
+        metaData:setSource(results["source"])
+        metaData:addToIndexes()
+
         for i, sent in ipairs(results["embeddings"]) do
 
             local embedding = luajava.newInstance("org.texttechnologylab.uima.type.Embedding", inputCas)
@@ -58,6 +73,7 @@ function deserialize(inputCas, inputStream)
             local floatArray = FloatArray:create(inputCas, sent["embeddings"])
 
             embedding:setEmbedding(floatArray)
+            embedding:setModelReference(metaData)
             embedding:addToIndexes()
         end
     end
