@@ -1,0 +1,21 @@
+FROM python:3.12.3
+
+WORKDIR /app
+
+RUN pip install --upgrade pip
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY src/main/python/*.py .
+COPY src/main/lua/communication_layer.lua .
+COPY src/main/resources/typesystem.xml .
+
+# Preload the backbone data to avoid doing it at runtime when the first request arrives
+RUN python -c "import taxref_loader; taxref_loader.preload_backbone()"
+
+ENV TAXON_RESOLVER_EXECUTION_MODE=production
+
+EXPOSE 9714
+ENTRYPOINT ["uvicorn", "taxon-resolver:app", "--host", "0.0.0.0", "--port", "9714"]
+CMD ["--workers", "1"]
