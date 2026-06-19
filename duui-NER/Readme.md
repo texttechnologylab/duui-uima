@@ -20,7 +20,7 @@ The component supports one NER model per Docker image/container. Each image is b
 | `roberta-ner-multilingual` | `roberta-ner-multilingual` | https://huggingface.co/julian-schelb/roberta-ner-multilingual | `d0a19147f3bb0065c8091459e3d35405ce9d48da` | Multilingual | HuggingFace token-classification |
 | `wikineural-multilingual-ner` | `wikineural-multilingual-ner` | https://huggingface.co/Babelscape/wikineural-multilingual-ner | `bed6ee7a45d2827b6c90a4fd7983f0241ae0a5c1` | Multilingual | HuggingFace token-classification |
 | `xlm-r-ner-40-lang` | `xlm-r-ner-40-lang` | https://huggingface.co/nbroad/jplu-xlm-r-ner-40-lang | `7f7f0fe9bc946a9848611aff079f556387687216` | Multilingual / 40 languages | HuggingFace token-classification |
-
+| `flair-ner-german` | `flair/ner-german` | `4e3f3d15ba39ce3e00575a7a1de5da0ce8198ce7` | DE | Flair German NER model for PER, LOC, ORG and MISC entities. |
 ## Annotation Types
 
 The component creates UIMA NER annotations from the model output. Standard NER labels are mapped to DKPro NER types where possible, for example:

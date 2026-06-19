@@ -36,6 +36,12 @@ MODEL_REGISTRY: Dict[str, Dict[str, str]] = {
         "model_source": "https://huggingface.co/nbroad/jplu-xlm-r-ner-40-lang",
         "model_lang": "multi",
     },
+    "flair-ner-german": {
+        "backend": "flair_sequence_tagger",
+        "model_id": "flair/ner-german",
+        "model_source": "https://huggingface.co/flair/ner-german",
+        "model_lang": "de",
+    },
 }
 
 
@@ -379,6 +385,11 @@ def create_ner_classifier(
         classifier.model_name = alias
         return classifier
 
+    if backend == "flair_sequence_tagger":
+        classifier = NERClassificationFlair(model_name=model_id, device=device)
+        classifier.model_name = alias
+        return classifier
+
     raise ValueError(f"Unsupported backend '{backend}' for model '{model_name}'")
 
 
@@ -394,6 +405,93 @@ def predict_ner(
     classifier = create_ner_classifier(model_name, device=device)
     return classifier.predict(texts, labels or [], threshold=threshold, batch_size=batch_size)
 
+class NERClassificationFlair:
+    def __init__(self, model_name: str = "flair/ner-german", device: str = "cuda:0"):
+        from flair.data import Sentence
+        from flair.models import SequenceTagger
+
+        self.Sentence = Sentence
+        self.model_name = "flair-ner-german"
+        self.model_id = model_name
+        self.device = device
+
+        self.model = SequenceTagger.load(model_name)
+
+        # Flair nutzt intern torch; wenn möglich explizit auf GPU setzen.
+        try:
+            self.model.to(device)
+        except Exception:
+            pass
+
+        try:
+            self.model.eval()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _safe_score(label) -> float:
+        score = getattr(label, "score", None)
+        if score is None:
+            return 1.0
+        return float(score)
+
+    def predict(
+            self,
+            text: List[str],
+            labels: Optional[List[str]] = None,
+            threshold: float = 0.5,
+            batch_size: int = 8,
+    ) -> List[List[Dict[str, Any]]]:
+        sentences = [
+            self.Sentence(sentence_text)
+            for sentence_text in text
+        ]
+
+        with torch.no_grad():
+            self.model.predict(
+                sentences,
+                mini_batch_size=max(1, int(batch_size or 1))
+            )
+
+        results: List[List[Dict[str, Any]]] = []
+
+        for sentence_text, sentence in zip(text, sentences):
+            sentence_entities: List[Dict[str, Any]] = []
+
+            for span in sentence.get_spans("ner"):
+                if not span.labels:
+                    continue
+
+                label = span.labels[0]
+                value = str(label.value)
+                score = self._safe_score(label)
+
+                if score < threshold:
+                    continue
+
+                begin = int(span.start_position)
+                end = int(span.end_position)
+
+                if end <= begin:
+                    continue
+
+                covered = sentence_text[begin:end]
+
+                sentence_entities.append(
+                    {
+                        "text": covered,
+                        "label": value,
+                        "score": score,
+                        "start": begin,
+                        "end": end,
+                        "model_name": self.model_name,
+                        "model_id": self.model_id,
+                    }
+                )
+
+            results.append(sentence_entities)
+
+        return results
 
 if __name__ == "__main__":
     textes = [

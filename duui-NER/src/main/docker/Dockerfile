@@ -18,11 +18,13 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 # MODEL_NAME=gliner2
 #RUN python -c "from gliner2 import GLiNER2; GLiNER2.from_pretrained('fastino/gliner2-multi-v1')"
 # MODEL_NAME=roberta-ner-multilingual
-RUN python -c "from transformers import pipeline; pipeline('token-classification', model='julian-schelb/roberta-ner-multilingual', aggregation_strategy='simple')"
+#RUN python -c "from transformers import pipeline; pipeline('token-classification', model='julian-schelb/roberta-ner-multilingual', aggregation_strategy='simple')"
 # MODEL_NAME=wikineural-multilingual-ner
 #RUN python -c "from transformers import pipeline; pipeline('token-classification', model='Babelscape/wikineural-multilingual-ner', aggregation_strategy='simple')"
 # MODEL_NAME=xlm-r-ner-40-lang
 #RUN python -c "from transformers import pipeline; pipeline('token-classification', model='nbroad/jplu-xlm-r-ner-40-lang', aggregation_strategy='simple')"
+# MODEL_NAME=flair-ner-german
+RUN python -c "from flair.models import SequenceTagger; SequenceTagger.load('flair/ner-german')"
 
 # copy DUUI NER scripts
 COPY ./src/main/python/TypeSystemNER.xml ./TypeSystemNER.xml

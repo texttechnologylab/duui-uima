@@ -171,8 +171,10 @@ ner_tag_map: Final[Dict[str, str]] = {
     "Taxon": "Taxon",
     "taxa": "Taxon",
     "TAXA": "Taxon",
-    "other": "NamedEntity",
     "MISC": "NamedEntity",
+    "misc": "NamedEntity",
+    "OTHER": "NamedEntity",
+    "other": "NamedEntity",
 }
 
 

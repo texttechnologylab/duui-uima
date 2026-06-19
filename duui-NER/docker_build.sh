@@ -41,11 +41,11 @@ export BATCH_SIZE=8
 # RoBERTa multilingual NER
 # Passend dazu im Dockerfile aktivieren:
 # RUN python -c "from transformers import pipeline; pipeline('token-classification', model='julian-schelb/roberta-ner-multilingual', aggregation_strategy='simple')"
-export MODEL_NAME="roberta-ner-multilingual"
-export MODEL_SPECNAME="roberta-ner-multilingual"
-export MODEL_VERSION="d0a19147f3bb0065c8091459e3d35405ce9d48da"
-export MODEL_SOURCE="https://huggingface.co/julian-schelb/roberta-ner-multilingual"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="roberta-ner-multilingual"
+#export MODEL_SPECNAME="roberta-ner-multilingual"
+#export MODEL_VERSION="d0a19147f3bb0065c8091459e3d35405ce9d48da"
+#export MODEL_SOURCE="https://huggingface.co/julian-schelb/roberta-ner-multilingual"
+#export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -69,6 +69,14 @@ export MODEL_LANG="Multi"
 #export MODEL_SOURCE="https://huggingface.co/nbroad/jplu-xlm-r-ner-40-lang"
 #export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+export MODEL_NAME="flair-ner-german"
+export MODEL_SPECNAME="flair-ner-german"
+export MODEL_VERSION="4e3f3d15ba39ce3e00575a7a1de5da0ce8198ce7"
+export MODEL_SOURCE="https://huggingface.co/flair/ner-german"
+export MODEL_LANG="DE"
+###--------------------------------------------------------------------
 
 
 docker build \
