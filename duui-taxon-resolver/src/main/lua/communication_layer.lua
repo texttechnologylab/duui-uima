@@ -308,8 +308,6 @@ function deserialize(inputCas, inputStream)
 
         for i, linking in ipairs(linkings) do
             local taxon_resolution = luajava.newInstance("org.texttechnologylab.annotation.type.TaxonResolution", inputCas)
-            taxon_resolution:setBegin(begin)
-            taxon_resolution:setEnd(end_)
             taxon_resolution:setRecognizedTaxon(recognized_taxon)
             populateTaxonResolution(taxon_resolution, linking)
             taxon_resolution:addToIndexes()
