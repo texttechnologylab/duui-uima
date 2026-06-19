@@ -51,14 +51,55 @@ function serialize(inputCas, outputStream, parameters)
     while iterator:hasNext() do
         local entity = iterator:next()
 
-        query.queries[#query.queries + 1] = {
-            reference = tostring(index),
-            text = entity:getCoveredText(),
-            begin = entity:getBegin(),
-            ["end"] = entity:getEnd()
-        }
+        local begin_pos = entity:getBegin()
+        local end_pos = entity:getEnd()
 
-        index = index + 1
+        local ok_text, text = pcall(function()
+            return entity:getCoveredText()
+        end)
+
+        if not ok_text then
+            print("GeoNamesFST WARN: getCoveredText failed for " ..
+                tostring(begin_pos) .. "-" .. tostring(end_pos) ..
+                ": " .. tostring(text))
+            text = nil
+        end
+
+        if text == nil or text == "" then
+            local ok_view, fallbackText = pcall(function()
+                local cas = inputCas:getCas()
+                local initialCas = cas:getView("_InitialView")
+                local docText = initialCas:getDocumentText()
+
+                if docText ~= nil then
+                    return docText:substring(begin_pos, end_pos)
+                end
+
+                return nil
+            end)
+
+            if ok_view and fallbackText ~= nil and fallbackText ~= "" then
+                text = fallbackText
+            else
+                print("GeoNamesFST WARN: InitialView fallback failed for " ..
+                    tostring(begin_pos) .. "-" .. tostring(end_pos) ..
+                    ": " .. tostring(fallbackText))
+            end
+        end
+
+        if text ~= nil and text ~= "" then
+            query.queries[#query.queries + 1] = {
+                reference = tostring(index),
+                text = text,
+                begin = begin_pos,
+                ["end"] = end_pos
+            }
+
+            index = index + 1
+        else
+            print("GeoNamesFST SKIP: no text for annotation " ..
+                tostring(begin_pos) .. "-" .. tostring(end_pos))
+        end
     end
 
     outputStream:write(json.encode(query))

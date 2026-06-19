@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.3.4}"
+VERSION="${1:-0.3.6}"
 REGISTRY="docker.texttechnologylab.org"
 IMAGE_NAME="duui-geonames-fst"
 PUSH="${PUSH:-true}"
