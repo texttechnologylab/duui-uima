@@ -2,15 +2,20 @@
 <typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
     <types>
         <typeDescription>
+            <name>org.texttechnologylab.annotation.type.Taxon</name>
+            <description/>
+            <supertypeName>org.texttechnologylab.annotation.NamedEntity</supertypeName>
+        </typeDescription>
+        <typeDescription>
             <name>org.texttechnologylab.annotation.type.RecognizedTaxon</name>
             <description>Annotation type for recognized taxon mentions.</description>
-            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <supertypeName>org.texttechnologylab.annotation.type.Taxon</supertypeName>
             <features>
                 <featureDescription>
                     <name>resolutions</name>
                     <description>List of taxon resolutions associated with this recognized taxon.</description>
                     <rangeTypeName>uima.cas.FSArray</rangeTypeName>
-                    <!-- <elementType>org.texttechnologylab.annotation.type.TaxonResolution</elementType> -->
+                    <elementType>org.texttechnologylab.annotation.type.TaxonResolution</elementType>
                     <multipleReferencesAllowed>true</multipleReferencesAllowed>
                 </featureDescription>
                 <featureDescription>
@@ -23,7 +28,7 @@
         <typeDescription>
             <name>org.texttechnologylab.annotation.type.TaxonResolution</name>
             <description>Annotation type for matching taxon information to a taxonomic database.</description>
-            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <supertypeName>uima.cas.AnnotationBase</supertypeName>
             <features>
                 <featureDescription>
                     <name>recognizedTaxon</name>
