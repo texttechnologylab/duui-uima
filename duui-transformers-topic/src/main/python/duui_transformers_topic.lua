@@ -9,6 +9,7 @@ function serialize(inputCas, outputStream, parameters)
     local doc_len = TopicUtils:getDocumentTextLength(inputCas)
 
     local selection_types = parameters["selection"]
+    local batch_size = parameters["batch_size"]
 
     local selections = {}
     local selections_count = 1
@@ -48,7 +49,8 @@ function serialize(inputCas, outputStream, parameters)
     outputStream:write(json.encode({
         selections = selections,
         lang = doc_lang,
-        doc_len = doc_len
+        doc_len = doc_len,
+        batch_size = batch_size
     }))
 end
 

@@ -71,11 +71,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
-#export MODEL_SPECNAME="parlacap-topic-classifier"
-#export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
-#export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
-#export MODEL_LANG="Multi"
+export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
+export MODEL_SPECNAME="parlacap-topic-classifier"
+export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
+export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
+export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -135,11 +135,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ###--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
-export MODEL_SPECNAME="parlacap-topic-classifier"
-export MODEL_VERSION="82a13c61ff63b3450638e35f7b1b2cb9e6694ad6"
-export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
+#export MODEL_SPECNAME="parlacap-topic-classifier"
+#export MODEL_VERSION="82a13c61ff63b3450638e35f7b1b2cb9e6694ad6"
+#export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
+#export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
 
 docker build \

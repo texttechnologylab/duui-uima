@@ -37,38 +37,74 @@ map_political = {
 }
 
 class TopicCheck:
-    def __init__(self, model_name: str, device='cuda:0'):
+    def __init__(self, model_name: str, device="cuda:0"):
         self.device = device
+
         if "manifesto-project" in model_name or "poltextlab" in model_name:
             self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+
         if "manifesto-project" in model_name:
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, trust_remote_code=True).to(device)
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                model_name,
+                trust_remote_code=True
+            ).to(device)
         elif "WebOrganizer/TopicClassifier" in model_name:
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name, trust_remote_code=True, use_memory_efficient_attention=False).to(device)
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+                use_memory_efficient_attention=False
+            ).to(device)
         else:
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                model_name
+            ).to(device)
+
+        self.model.eval()
+
         if "poltextlab" in model_name:
             self.class_mapping = map_political
         else:
             self.class_mapping = self.model.config.id2label
+
         self.labels = list(self.class_mapping.values())
 
-    def topic_prediction(self, texts: List[str]):
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
+
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def topic_prediction(self, texts: List[str], batch_size: int):
+        score_list = []
+
         with torch.no_grad():
-            score_list = []
-            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
-            outputs = self.model(**inputs)
-            scores = outputs[0].detach().cpu().numpy()
-            for score in scores:
-                score_dict_i = {}
-                score_i = softmax(score)
-                ranking = np.argsort(score_i)
-                ranking = ranking[::-1]
-                for i in range(score.shape[0]):
-                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
-                score_list.append(score_dict_i)
+            for text_batch in self._batch_texts(texts, batch_size):
+                inputs = self.tokenizer(
+                    text_batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512
+                ).to(self.device)
+
+                outputs = self.model(**inputs)
+                scores = outputs[0].detach().cpu().numpy()
+
+                for score in scores:
+                    score_dict_i = {}
+                    score_i = softmax(score)
+                    ranking = np.argsort(score_i)[::-1]
+
+                    for i in range(score.shape[0]):
+                        score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+
+                    score_list.append(score_dict_i)
+
         return score_list
 
 
@@ -76,11 +112,25 @@ class TopicCheckSetFit:
     def __init__(self, model_name):
         self.model = SetFitModel.from_pretrained(model_name)
 
-    def topic_prediction(self, texts):
-        out_list = self.model(texts).tolist()
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
+
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def topic_prediction(self, texts: List[str], batch_size: int):
         out_list_dict = []
-        for i, out_i in enumerate(out_list):
-            out_list_dict.append({out_i: 1.0})
+
+        with torch.no_grad():
+            for text_batch in self._batch_texts(texts, batch_size):
+                out_list = self.model(text_batch).tolist()
+
+                for out_i in out_list:
+                    out_list_dict.append({out_i: 1.0})
+
         return out_list_dict
 
 

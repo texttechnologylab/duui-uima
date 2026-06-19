@@ -170,6 +170,7 @@ public class TopicTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                        .withParameter("batch_size", "8")
         );
 
         List<String> sentences = Arrays.asList(

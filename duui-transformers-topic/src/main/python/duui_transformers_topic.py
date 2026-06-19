@@ -9,6 +9,7 @@ import torch
 from threading import Lock
 from functools import lru_cache
 from TopicSpeech import TopicCheck, TopicCheckSetFit
+import os
 # from sp_correction import SentenceBestPrediction
 
 # Settings
@@ -76,7 +77,8 @@ class Settings(BaseSettings):
     # language of the model
     model_lang: str
 
-
+os.environ["CUDA_LAUNCH_BLOCKING"]="1"
+os.environ["TORCH_USE_CUDA_DSA"]="1"
 # Load settings from env vars
 settings = Settings()
 lru_cache_with_size = lru_cache(maxsize=settings.model_cache_size)
@@ -109,6 +111,7 @@ class DUUIRequest(BaseModel):
     #
     selections: List[UimaSentenceSelection]
     #
+    batch_size: int = 4
 
 
 # UIMA type: mark modification of the document
@@ -218,7 +221,7 @@ def fix_unicode_problems(text):
     return clean_text
 
 
-def process_selection(model_name, selection):
+def process_selection(model_name, selection, batch_size):
     begin = []
     end = []
     results_out = []
@@ -237,7 +240,7 @@ def process_selection(model_name, selection):
     with model_lock:
         classifier = load_model(model_name)
 
-        results = classifier.topic_prediction(texts)
+        results = classifier.topic_prediction(texts, batch_size)
         for c, res in enumerate(results):
             res_i = []
             factor_i = []
@@ -297,7 +300,7 @@ def post_process(request: DUUIRequest):
         mv = ""
 
         for selection in request.selections:
-            processed_sentences = process_selection(settings.model_name, selection)
+            processed_sentences = process_selection(settings.model_name, selection, request.batch_size)
             begin = begin + processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]
