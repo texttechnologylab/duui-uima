@@ -540,11 +540,11 @@ if __name__ == "__main__":
         ends=ends,
     )
 
-    print("Coreference dictionary:")
-    result = resolver.get_coreference_dict(
-        doc,
-        include_self=False,
-        expand_noun_chunks=True,
-    )
+    # print("Coreference dictionary:")
+    # result = resolver.get_coreference_dict(
+    #     doc,
+    #     include_self=False,
+    #     expand_noun_chunks=True,
+    # )
 
-    print(result)
+    # print(result)
