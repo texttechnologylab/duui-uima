@@ -8,20 +8,36 @@ The service runs as a FastAPI server, receives plain text from DUUI via a Lua co
 
 ## Supported Models
 
-| Model | Labels | Notes |
-|---|---|---|
-| `openai/privacy-filter` **(default)** | 8 broad categories | No special options needed |
-| `OpenMed/privacy-filter-nemotron` | 55 fine-grained categories | Requires `trust_remote_code=true` |
+| Model | Labels | Languages | Notes |
+|---|---|---|---|
+| `openai/privacy-filter` **(default)** | 8 broad | English | No special options needed |
+| `OpenMed/privacy-filter-nemotron` | 55 fine-grained | English | Requires `trust_remote_code=true` |
+| `bardsai/eu-pii-anonimization-multilang` | 36 GDPR categories | 24 EU languages | Multilingual; no special options needed |
 
-### `openai/privacy-filter` — output labels
+### `openai/privacy-filter` — output labels (8)
 
 `private_person`, `private_email`, `private_phone`, `private_address`, `private_url`, `private_date`, `account_number`, `secret`
 
-### `OpenMed/privacy-filter-nemotron` — output labels (selected)
+### `OpenMed/privacy-filter-nemotron` — output labels (55, selected)
 
-`first_name`, `last_name`, `email`, `phone_number`, `ssn`, `tax_id`, `street_address`, `city`, `postcode`, `credit_debit_card`, `account_number`, `password`, `ipv4`, `ipv6`, `mac_address`, `api_key`, `medical_record_number`, `coordinate`, … (55 total)
+`first_name`, `last_name`, `email`, `phone_number`, `ssn`, `tax_id`, `street_address`, `city`, `postcode`, `credit_debit_card`, `account_number`, `password`, `ipv4`, `ipv6`, `mac_address`, `api_key`, `medical_record_number`, `coordinate`, …
 
 Use the OpenMed model when you need fine-grained entity types (e.g. distinguishing `first_name` from `last_name`, or `ssn` from a generic person span).
+
+### `bardsai/eu-pii-anonimization-multilang` — output labels (36, by family)
+
+| Family | Labels |
+|---|---|
+| Personal identity | `PERSON`, `DATE_OF_BIRTH`, `NATIONAL_ID` |
+| Contact & location | `EMAIL`, `PHONE`, `ADDRESS`, `GEOLOCATION` |
+| Official documents | `PASSPORT`, `DRIVERS_LICENSE`, `TAX_ID` |
+| Financial | `IBAN`, `CREDIT_CARD`, `ACCOUNT_NUMBER` |
+| Technical | `IP_ADDRESS`, `MAC_ADDRESS`, `DEVICE_ID`, `USERNAME` |
+| Organization | `EMPLOYER`, `AFFILIATION` |
+| Health / biometric / genetic | `HEALTH`, `BIOMETRIC`, `GENETIC` |
+| GDPR Art. 9 special categories | `RACIAL_ETHNIC`, `POLITICAL`, `RELIGIOUS`, `SEXUAL_ORIENTATION`, `UNION_MEMBERSHIP` |
+
+Use this model for multilingual EU documents or when GDPR Article 9 special-category data (health, biometric, political) must be identified.
 
 ---
 
@@ -42,7 +58,7 @@ The redacted text is written to a secondary CAS view named `opf_redacted`.
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `model` | string | `openai/privacy-filter` | HuggingFace model ID |
+| `model` | string | `openai/privacy-filter` | HuggingFace model ID — must be one of the three supported models listed above; any other value returns HTTP 400 |
 | `trust_remote_code` | bool | `false` | Required for `OpenMed/privacy-filter-nemotron` |
 | `device` | string | auto | `cpu` or `cuda` |
 | `mode` | string | `placeholder` | See modes below |
@@ -162,6 +178,19 @@ If you use this component, please also cite the underlying models.
 ```
 
 Model card PDF: https://cdn.openai.com/pdf/c66281ed-b638-456a-8ce1-97e9f5264a90/OpenAI-Privacy-Filter-Model-Card.pdf
+
+### bardsai/eu-pii-anonimization-multilang
+
+```bibtex
+@misc{bards.ai_2026,
+    author    = {bards.ai and Michał Swędrowski and others},
+    title     = {eu-pii-anonimization-multilang (Revision 6de9f68)},
+    year      = {2026},
+    url       = {https://huggingface.co/bardsai/eu-pii-anonimization-multilang},
+    doi       = {10.57967/hf/8721},
+    publisher = {Hugging Face}
+}
+```
 
 ### OpenMed/privacy-filter-nemotron
 

@@ -43,7 +43,7 @@ public class AnonymizeTests {
 
     static final String RESULTS_DIR = "src/test/results";
 
-    static DUUIComposer composer;
+    DUUIComposer composer;
     static JCas cas;
 
     // -------------------------------------------------------------------
@@ -51,9 +51,13 @@ public class AnonymizeTests {
     // -------------------------------------------------------------------
 
     @BeforeAll
-    static void beforeAll() throws URISyntaxException, IOException, UIMAException, SAXException, CompressorException {
+    static void beforeAll() throws IOException, UIMAException {
         Files.createDirectories(Paths.get(RESULTS_DIR));
+        cas = JCasFactory.createJCas();
+    }
 
+    @BeforeEach
+    void beforeEach() throws URISyntaxException, IOException, UIMAException, SAXException, CompressorException {
         composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
@@ -61,18 +65,10 @@ public class AnonymizeTests {
         DUUIUIMADriver uimaDriver = new DUUIUIMADriver().withDebug(false);
         DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
         composer.addDriver(remoteDriver, uimaDriver);
-
-        cas = JCasFactory.createJCas();
-    }
-
-    @AfterAll
-    static void afterAll() throws UnknownHostException {
-        composer.shutdown();
     }
 
     @AfterEach
-    void afterEach(TestInfo testInfo) throws IOException, SAXException {
-        composer.resetPipeline();
+    void afterEach(TestInfo testInfo) throws IOException, SAXException, UnknownHostException {
 
         String methodName = testInfo.getTestMethod()
                 .map(m -> m.getName())
@@ -95,6 +91,7 @@ public class AnonymizeTests {
         System.out.println("=== " + methodName + " ===");
         System.out.println(json);
 
+        composer.shutdown();
         cas.reset();
     }
 
@@ -735,5 +732,183 @@ public class AnonymizeTests {
             assertFalse(anomalies.isEmpty(),
                     "OpenMed model should detect some PII spans in complex context");   
         }
+
+    // -------------------------------------------------------------------
+    // bardsai/eu-pii-anonimization-multilang model tests
+    // Multilingual (24 EU languages); 36 GDPR-aligned categories including
+    // GDPR Art. 9 special categories (health, biometric, political, etc.).
+    // No trust_remote_code required.
+    // -------------------------------------------------------------------
+
+    static final String BARDSAI_MODEL = "bardsai/eu-pii-anonimization-multilang";
+
+    /**
+     * Smoke test: English text with a person name and phone number.
+     * Verifies the multilingual model detects basic PII in English.
+     */
+    @Test
+    @DisplayName("[bardsai] English: person name + phone")
+    void testBardsaiEnglishBasic() throws Exception {
+        String text = "John Smith, passport AB123456, phone +48 123 456 789";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", BARDSAI_MODEL)
+                .withParameter("mode", "placeholder"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[bardsai] English Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(),
+                "bardsai model should detect at least one PII span in English text");
+    }
+
+    /**
+     * German text: verifies multilingual capability — name and address in German.
+     */
+    @Test
+    @DisplayName("[bardsai] German: name + address (multilingual)")
+    void testBardsaiGerman() throws Exception {
+        String text = "Herr Klaus Müller wohnt in der Goethestraße 12, 60313 Frankfurt am Main. " +
+                      "Erreichbar unter: k.mueller@beispiel.de";
+        createCas("de", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", BARDSAI_MODEL)
+                .withParameter("mode", "placeholder"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[bardsai] German Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(),
+                "bardsai model should detect PII in German text");
+    }
+
+    
+    @Test
+    @DisplayName("[bardsai] English: name + content + address (multilingual)")
+    void testBardsaiEnglishComplex() throws Exception {
+        String text = "His name is Harry, he works at the TTLAB in Frankfurt, " +
+                      "he's the only Chinese guy in the office.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", BARDSAI_MODEL));
+                // .withParameter("mode", ""));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[bardsai] English Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(),
+                "bardsai model should detect PII in English text");
+    }
+
+    /**
+     * GDPR Article 9 special categories: health and political data.
+     * Verifies the model detects sensitive special-category PII.
+     */
+    @Test
+    @DisplayName("[bardsai] GDPR Art. 9: health + political data detected")
+    void testBardsaiGdprSpecialCategories() throws Exception {
+        String text = "Patient Maria Rossi, diagnosed with Type 2 Diabetes, is a registered member " +
+                      "of the Green Party and lives at Via Roma 5, 00100 Rome.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", BARDSAI_MODEL)
+                .withParameter("mode", "placeholder"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[bardsai] GDPR Art.9 Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(),
+                "Expected at least one annotation for health or political data");
+    }
+
+    /**
+     * Financial PII: IBAN and credit card number.
+     */
+    @Test
+    @DisplayName("[bardsai] Financial PII: IBAN + credit card")
+    void testBardsaiFinancialPii() throws Exception {
+        String text = "Please transfer funds to IBAN DE89 3704 0044 0532 0130 00. " +
+                      "Card on file: 4111 1111 1111 1111, expiry 12/27.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", BARDSAI_MODEL)
+                .withParameter("mode", "placeholder"));
+
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        System.out.println("[bardsai] Financial Anomaly count: " + anomalies.size());
+        anomalies.forEach(a -> System.out.printf("  [%d-%d] %s = '%s'%n",
+                a.getBegin(), a.getEnd(), a.getCategory(),
+                text.substring(a.getBegin(), a.getEnd())));
+
+        assertFalse(anomalies.isEmpty(),
+                "Expected at least one annotation for IBAN or credit card");
+    }
+
+    // -------------------------------------------------------------------
+    // Model guard tests
+    // -------------------------------------------------------------------
+
+    /**
+     * Passing an unknown model ID must cause the service to reject the request.
+     * The DUUI composer is expected to throw when the service returns HTTP 400.
+     */
+    @Test
+    @DisplayName("[guard] Unsupported model ID is rejected with an error")
+    void testUnsupportedModelRejected() throws Exception {
+        String text = "Alice lives at 12 Baker Street, London.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", "some/unknown-model")
+                .withParameter("mode", "placeholder"));
+
+        assertThrows(Exception.class, () -> composer.run(cas),
+                "Service should reject an unsupported model ID");
+    }
+
+    /**
+     * Passing the default model explicitly (no model param) must still work.
+     * Ensures the guard does not accidentally block the default.
+     */
+    @Test
+    @DisplayName("[guard] Default model accepted when model param is omitted")
+    void testDefaultModelAccepted() throws Exception {
+        String text = "Contact alice@example.com for details.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        assertFalse(anomalies.isEmpty(),
+                "Default model should detect PII without any model parameter");
+    }
 
 }

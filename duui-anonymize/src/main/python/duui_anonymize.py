@@ -21,6 +21,12 @@ logging.basicConfig(level=logging.INFO)
 
 DEFAULT_MODEL = "openai/privacy-filter"
 
+SUPPORTED_MODELS = {
+    "openai/privacy-filter",
+    "OpenMed/privacy-filter-nemotron",
+    "bardsai/eu-pii-anonimization-multilang",
+}
+
 MODE_REMOVE = "remove"
 MODE_PLACEHOLDER = "placeholder"  # default: replace with [category]
 MODE_PSEUDO = "pseudo"            # TODO: not yet supported
@@ -104,6 +110,12 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+    logger.error("Bad request: %s", exc)
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
 @app.exception_handler(RequestValidationError)
@@ -224,11 +236,19 @@ def _build_redacted(text: str, spans: list[DetectedSpan], mode: str) -> str:
 
 def _process(request: DUUIRequest) -> DUUIResponse:
     options = request.options
+    logger.info("RAW OPTIONS RECEIVED: %s", dict(options))
     model = str(options.get("model", settings.default_model))
+
+    if model not in SUPPORTED_MODELS:
+        raise ValueError(
+            f"Unsupported model '{model}'. "
+            f"Supported models: {sorted(SUPPORTED_MODELS)}"
+        )
+
     device = str(options.get("device") or ("cuda" if torch.cuda.is_available() else "cpu"))
     mode = str(options.get("mode", MODE_PLACEHOLDER))
 
-    print(f"Processing request: model={model} device={device} mode={mode} text_length={len(request.text)}")
+    logger.info("Processing: model=%s device=%s mode=%s text_length=%d", model, device, mode, len(request.text))
     
     # pseudo mode - not yet supported
     if mode == MODE_PSEUDO:
