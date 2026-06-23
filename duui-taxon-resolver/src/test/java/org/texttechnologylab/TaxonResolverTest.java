@@ -91,6 +91,8 @@ public class TaxonResolverTest {
 
 		Collection<RecognizedTaxon> taxa = JCasUtil.select(jcas, RecognizedTaxon.class);
 		assertTrue(taxa.isEmpty(), "Expected no taxa to be recognized");
+		
+
 	}
 
 	@Test

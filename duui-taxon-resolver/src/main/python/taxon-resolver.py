@@ -144,15 +144,20 @@ class DuuiResponse(BaseModel):
     taxa: List[ExportedTaxon]
 
 def resolve_taxon_linking(linking: RecognizedTaxonLinking) -> TaxonBase:
-    match linking.provider:
-        case "ncbi":
-            return ncbi_api.NcbiTaxon.from_tax_id(linking.taxon_id)
-        case "gbif":
-            return gbif_api.get_taxon(linking.taxon_id)
-        case "taxref":
-            return taxref_loader.taxon_from_id(linking.taxon_id)
-        case _:
-            raise ValueError(f"Unknown taxon provider '{linking.provider}'")
+
+    try:
+        match linking.provider:
+            case "ncbi":
+                return ncbi_api.NcbiTaxon.from_tax_id(linking.taxon_id)
+            case "gbif":
+                return gbif_api.get_taxon(linking.taxon_id)
+            case "taxref":
+                return taxref_loader.taxon_from_id(linking.taxon_id)
+            case _:
+                raise ValueError(f"Unknown taxon provider '{linking.provider}'")
+    except Exception as e:
+        logger.error(e)
+
 
 def resolve_taxon_linkings(linkings: List[RecognizedTaxonLinking]) -> List[TaxonBase]:
     return [resolve_taxon_linking(linking) for linking in linkings]
@@ -172,6 +177,7 @@ def resolve_recognized_taxa(recognized_taxa: List[RecognizedTaxon]) -> List[Expo
 @app.post("/v1/process")
 async def post_process(request: DuuiRequest) -> DuuiResponse:
     recognized_taxa = request.recognized_taxa
+    logger.debug(recognized_taxa)
     resolved_taxa = resolve_recognized_taxa(recognized_taxa)
     logger.debug("Resolved %d taxons", len(resolved_taxa))
     return DuuiResponse(taxa=resolved_taxa)

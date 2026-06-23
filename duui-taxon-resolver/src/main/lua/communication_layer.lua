@@ -2,8 +2,12 @@
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 Class = luajava.bindClass("java.lang.Class")
-AnnotationCommentClass = Class:forName("org.texttechnologylab.annotation.AnnotationComment")
-TaxonClass = Class:forName("org.texttechnologylab.annotation.type.Taxon")
+AnnotationCommentClass = luajava.bindClass("org.texttechnologylab.annotation.AnnotationComment")
+TaxonClass = luajava.bindClass("org.texttechnologylab.annotation.type.Taxon")
+local sTargetClass = "org.texttechnologylab.annotation.type.RecognizedTaxon"
+TargetClass = luajava.bindClass(sTargetClass);
+local sTargetResulutionClass = "org.texttechnologylab.annotation.type.TaxonResolution";
+TargetResulutionClass = luajava.bindClass(sTargetResulutionClass);
 
 function instanceOf(clazz, object)
     local object_class = object:getClass()
@@ -27,6 +31,7 @@ function selectAnnotationComments(view)
 end
 
 function serialize(inputCas, outputStream, parameters)
+
     local document_text = inputCas:getDocumentText()
     local annotations_view_name = parameters["annotations_view"]
     local annotations_view = inputCas
@@ -293,11 +298,11 @@ end
 function deserialize(inputCas, inputStream)
     local input_string = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(input_string)
-
+    print(result)
     for _, taxon in ipairs(results["taxa"] or {}) do
         local begin = taxon["begin"]
         local end_ = taxon["end"]
-        local recognized_taxon = luajava.newInstance("org.texttechnologylab.annotation.type.RecognizedTaxon", inputCas)
+        local recognized_taxon = luajava.newInstance(sTargetClass, inputCas)
         recognized_taxon:setBegin(begin)
         recognized_taxon:setEnd(end_)
         recognized_taxon:setText(taxon["text"])
@@ -307,7 +312,7 @@ function deserialize(inputCas, inputStream)
         recognized_taxon:addToIndexes()
 
         for i, linking in ipairs(linkings) do
-            local taxon_resolution = luajava.newInstance("org.texttechnologylab.annotation.type.TaxonResolution", inputCas)
+            local taxon_resolution = luajava.newInstance(sTargetResulutionClass, inputCas)
             taxon_resolution:setRecognizedTaxon(recognized_taxon)
             populateTaxonResolution(taxon_resolution, linking)
             taxon_resolution:addToIndexes()
