@@ -168,7 +168,7 @@ def resolve_recognized_taxon(recognized_taxon: RecognizedTaxon) -> ExportedTaxon
         begin=recognized_taxon.begin,
         end=recognized_taxon.end,
         text=recognized_taxon.text,
-        resolved_linkings=[linking.as_shared() for linking in resolved_linkings]
+        resolved_linkings=[linking.as_shared() for linking in resolved_linkings if linking is not None]
     )
 
 def resolve_recognized_taxa(recognized_taxa: List[RecognizedTaxon]) -> List[ExportedTaxon]:
