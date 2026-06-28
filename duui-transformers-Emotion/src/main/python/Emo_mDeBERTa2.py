@@ -115,30 +115,64 @@ class CrowdCodedTagger(pl.LightningModule):
 
 
 class DebertaEmoCheck:
-    def __init__(self, path_model: str, device='cuda:0'):
+    def __init__(self, path_model: str, device="cuda:0"):
         self.tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_NAME)
+
         model = CrowdCodedTagger(n_classes=8)
         model.load_state_dict(torch.load(path_model), strict=False)
         model.to(device)
         model.eval()
+
         self.model = model
         self.device = device
 
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
 
-    def emotion_prediction(self, texts: List[str]):
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def emotion_prediction(self, texts: List[str], batch_size: int):
+        score_list = []
+
         with torch.no_grad():
-            score_list = []
-            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512)
-            # del inputs.data
-            outputs = self.model(**inputs.to(device))
-            tensor_values = outputs[1].tolist()
-            decimal_numbers = [[num for num in sublist] for sublist in tensor_values]
-            for dec in decimal_numbers:
-                score_dict_i = {}
-                for i in range(len(dec)):
-                    score_dict_i[map_labels[LABEL_COLUMNS[i]]] = float(dec[i])
-                score_dict_i = dict(sorted(score_dict_i.items(), key=lambda item: item[1], reverse=True))
-                score_list.append(score_dict_i)
+            for text_batch in self._batch_texts(texts, batch_size):
+                inputs = self.tokenizer(
+                    text_batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512
+                )
+
+                inputs = {
+                    key: value.to(self.device)
+                    for key, value in inputs.items()
+                }
+
+                outputs = self.model(**inputs)
+
+                tensor_values = outputs[1].detach().cpu().tolist()
+
+                for dec in tensor_values:
+                    score_dict_i = {}
+
+                    for i in range(len(dec)):
+                        score_dict_i[map_labels[LABEL_COLUMNS[i]]] = float(dec[i])
+
+                    score_dict_i = dict(
+                        sorted(
+                            score_dict_i.items(),
+                            key=lambda item: item[1],
+                            reverse=True
+                        )
+                    )
+
+                    score_list.append(score_dict_i)
+
         return score_list
 
 

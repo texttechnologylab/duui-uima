@@ -41,9 +41,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.texttechnologylab</groupId>
+            <groupId>com.github.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>1.5.0</version>
+            <version>1.5.5</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.github.texttechnologylab</groupId>
@@ -52,10 +52,16 @@
             </exclusions>
         </dependency>
 
+<!--        <dependency>-->
+<!--            <groupId>org.texttechnologylab.annotation</groupId>-->
+<!--            <artifactId>typesystem</artifactId>-->
+<!--            <version>3.0.8</version>-->
+<!--        </dependency>-->
+
         <dependency>
-            <groupId>org.texttechnologylab.annotation</groupId>
-            <artifactId>typesystem</artifactId>
-            <version>3.0.8</version>
+            <groupId>com.github.texttechnologylab</groupId>
+            <artifactId>UIMATypeSystem</artifactId>
+            <version>3.0.14</version>
         </dependency>
 
         <dependency>

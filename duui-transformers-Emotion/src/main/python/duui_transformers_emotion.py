@@ -11,6 +11,7 @@ from functools import lru_cache
 from EmotionDetection import EmotionCheck, PySentimientoCheck, EmoAtlas, PolyTextLabEmotionModel, EmotionClassification
 from Emo_mDeBERTa2 import DebertaEmoCheck
 # from sp_correction import SentenceBestPrediction
+import os
 
 # Settings
 # These are automatically loaded from env variables
@@ -63,6 +64,9 @@ versions = {
     "EmoAtlas": "adae44a80dd55c1d1c467c4e72bdb2d8cf63bf28",
     "pysentimiento": "60822acfd805ad5d95437c695daa33c18dbda060",
 }
+
+os.environ["CUDA_LAUNCH_BLOCKING"]="1"
+os.environ["TORCH_USE_CUDA_DSA"]="1"
 
 
 class UimaSentence(BaseModel):
@@ -125,6 +129,8 @@ class TextImagerRequest(BaseModel):
     lang: str
     #
     selections:  List[UimaSentenceSelection]
+    #
+    batch_size: Optional[int] = 4
 
 
 # UIMA type: mark modification of the document
@@ -242,7 +248,7 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
-def process_selection(model_name, selection, doc_len, lang_document):
+def process_selection(model_name, selection, doc_len, lang_document, batch_size):
     begin = []
     end = []
     results_out = []
@@ -261,7 +267,7 @@ def process_selection(model_name, selection, doc_len, lang_document):
     with model_lock:
         classifier = load_model(model_name, lang_document)
 
-        results = classifier.emotion_prediction(texts)
+        results = classifier.emotion_prediction(texts, batch_size)
         for c, res in enumerate(results):
             res_i = []
             factor_i = []
@@ -322,7 +328,7 @@ def post_process(request: TextImagerRequest):
         mv = ""
 
         for selection in request.selections:
-            processed_sentences, model_version_2 = process_selection(settings.model_name, selection, request.doc_len, lang_document)
+            processed_sentences, model_version_2 = process_selection(settings.model_name, selection, request.doc_len, lang_document, request.batch_size)
             begin = begin+ processed_sentences["begin"]
             end = end + processed_sentences["end"]
             len_results = len_results + processed_sentences["len_results"]
