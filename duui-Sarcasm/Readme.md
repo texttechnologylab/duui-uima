@@ -28,6 +28,7 @@ Find all available image tags here: https://docker.texttechnologylab.org/v2/duui
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-sarcasm-[modelname]:latest")
         .withScale(iWorkers)
+        .withParameter("selection", "text")  // "text" or types. Provide multiple by seperating using commas.
         .withImageFetching()
 );
 ```
