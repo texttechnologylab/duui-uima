@@ -1,0 +1,21 @@
+{
+    "name": "named_entites1",
+    "type": "DL",
+    "entity_properties": {
+        "text": {
+            "property_type": "text",
+            "similarity_matchers": [
+                "levenshtein",
+                "jaro_winkler",
+                "hamming"
+            ]
+        },
+        "value": {
+            "property_type": "text",
+            "similarity_matchers": [
+                "levenshtein"
+            ]
+        }
+    },
+    "nn_model_file": "model.weights.h5"
+}
