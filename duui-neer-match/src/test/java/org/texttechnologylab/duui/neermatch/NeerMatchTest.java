@@ -1,6 +1,5 @@
 package org.texttechnologylab.duui.neermatch;
 
-import com.arangodb.entity.DocumentEntity;
 import com.google.gson.*;
 import org.apache.uima.UIMAException;
 import org.apache.uima.fit.factory.JCasFactory;
@@ -38,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class NeerMatchTest {
 
-    static final String NEER_MATCH_IMAGE = "docker.texttechnologylab.org/duui-neer-match:1.0.1";
+    static final String NEER_MATCH_IMAGE = "docker.texttechnologylab.org/duui-neer-match:latest";
 
     DUUIComposer composer;
     JCas cas1;
@@ -135,7 +134,7 @@ public class NeerMatchTest {
         composer.run(cas1);
         composer.run(cas2);
 
-        JsonObject result = finalizeNeerMatch("named_entities1", 0);
+        JsonObject result = finalizeNeerMatch("named_entity1", 0);
         Gson gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .create();
