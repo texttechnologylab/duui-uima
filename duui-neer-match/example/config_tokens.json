@@ -41,9 +41,9 @@
   "training_data": {
     "type": "single_dataset",
     "file": "./example/tokens.csv",
-    "sample_size": 400,
+    "sample_size": 300,
     "min_length": 3,
-    "samples_per_original": 5,
+    "samples_per_original": 3,
     "property_mutations": {
       "text": {
         "type": "text",
