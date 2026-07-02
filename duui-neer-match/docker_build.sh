@@ -3,7 +3,7 @@ set -euo pipefail
 
 # set default values for build args if not provided
 ANNOTATOR_NAME="${ANNOTATOR_NAME:-duui-neer-match}"
-ANNOTATOR_VERSION="${ANNOTATOR_VERSION:-1.0.0}"
+ANNOTATOR_VERSION="${ANNOTATOR_VERSION:-1.0.1}"
 LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 # Check if BUILD_TOOL is set, otherwise check for podman or docker

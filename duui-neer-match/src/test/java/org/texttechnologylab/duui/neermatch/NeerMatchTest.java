@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class NeerMatchTest {
 
-    static final String NEER_MATCH_IMAGE = "localhost/duui-neer-match:1.0.0";
+    static final String NEER_MATCH_IMAGE = "docker.texttechnologylab.org/duui-neer-match:1.0.1";
 
     DUUIComposer composer;
     JCas cas1;
@@ -79,7 +79,7 @@ public class NeerMatchTest {
         composer.run(cas1);
         composer.run(cas2);
 
-        JsonObject result = finalizeNeerMatch("token_test1", 0.01);
+        JsonObject result = finalizeNeerMatch("token1", 0.01);
         Gson gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .create();
@@ -101,7 +101,7 @@ public class NeerMatchTest {
         composer.run(cas1);
         composer.run(cas2);
 
-        JsonObject result = finalizeNeerMatch("token_test1", 0.0);
+        JsonObject result = finalizeNeerMatch("token1", 0.0);
         NeerMatchResult matchResult = parseNeerMatchResult(result);
         assertNotNull(matchResult);
         assertEquals(1, matchResult.results().length);
@@ -135,7 +135,7 @@ public class NeerMatchTest {
         composer.run(cas1);
         composer.run(cas2);
 
-        JsonObject result = finalizeNeerMatch("ne_test1", 0);
+        JsonObject result = finalizeNeerMatch("named_entities1", 0);
         Gson gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .create();
