@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# try to load environment variables from .env file if it exists
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
 # generate a fallback version string based on the current date and time (e.g. snapshot-19700101-123456)
 FALLBACK_VERSION="snapshot-$(date +%Y%m%d-%H%M%S)"
 
@@ -33,4 +38,4 @@ ${BUILD_TOOL} build \
     ${ENV_ARGUMENTS} \
     -t "${ANNOTATOR_NAME}:${ANNOTATOR_VERSION}" \
     -f DOCKERFILE \
-    .e
+    .
