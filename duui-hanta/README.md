@@ -1,17 +1,45 @@
-# DUUI.IO
+# Lemmatization with HanTa
 
-# Description
-This package provides a set of readers and writers for use in DUUI:
+DUUI component for morphological lemmatization using [HanTa (Hannover Tagger)](https://github.com/wartaal/HanTa), a probabilistic morphological tagger for German. Accepts pre-tokenized and pre-sentence-split text via `Token` and `Sentence` annotations in the CAS, runs HanTa's morphological analysis per sentence, and writes `Lemma` annotations back into the CAS.
 
-| Name          | Reader           | Writer  |  Author  |
-| ------------- |:-------------:| -----:| ------------- |
-| JSON          | Yes           |   Yes | Anna-Lena Buccoli |
-| MongoDB       | Yes           |   Yes | Anna-Lena Buccoli |
-| elasticsearch | Yes           |   Yes | Anna-Lena Buccoli |
-| graphML       |  NO           |   Yes | Anna-Lena Buccoli |
-| borland       |  NO           |   Yes | Anna-Lena Buccoli |
+## Prerequisites
 
-An explanation can be found in the respective packages.
+The component requires pre-existing `Token` and `Sentence` annotations in the CAS before it is invoked.
+
+# How To Use
+
+For using duui-hanta as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+
+## Start Docker container
+
+```
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-hanta:latest
+```
+
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-hanta/tags/list
+
+## Run within DUUI
+
+```java
+composer.add(
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-hanta:latest")
+);
+```
+
+### Input types
+
+The CAS must contain sentence and token segmentation before running this component:
+
+| Type | Description |
+|---|---|
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | Sentence boundaries used to group tokens for HanTa |
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token` | Individual tokens covered by each sentence; their `coveredText` is passed to HanTa |
+
+### Output types
+
+| Type | Description |
+|---|---|
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma` | One annotation per input token. Spans the same character offsets as the source token and stores the morphological lemma in `value`. |
 
 # Cite
 
@@ -48,4 +76,12 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                in terms of time efficiency, enabling the analysis of big text
                data.}
 }
+
+@misc{duui-hanta,
+  author         = {Konca, Maxim},
+  title          = {Lemmatization via {HanTa} as {DUUI} component},
+  year           = {2025},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-hanta}
+}
+
 ```

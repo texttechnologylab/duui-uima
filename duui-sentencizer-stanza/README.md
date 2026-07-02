@@ -1,30 +1,47 @@
-# Paraphrasing
+# How To Use
 
-This is the Paraphraser CUDA-Container (it can be used with CPU and GPU): A paraphrase is an alternative version of a given Input-Sentence i.e. a different sentence (different sentence means different words, structure etc.) with the same meaning.
+For using duui-sentencizer-stanza as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
-## 1. Annotations
-  The following is a list of Annotations, that are needed as Input for the Docker-Image and are returned as     Output by the Docker-Image:
-  - ### Input:
-    - "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
-  - ### Output:
-    - "org.texttechnologylab.annotation.Paraphrase"
+## Start Docker container
 
-## 2. Docker-Image-Versions
-  There is a Dockerfile for a german and an english Image. So build (with the respective .sh script) the desired Image. Every Dockerfile/Image has a list of models (model_ids), that can be used with it:
-  - ### English Models:
-    - "tuner007/pegasus_paraphrase" : PegasusBase
-    - "humarin/chatgpt_paraphraser_on_T5_base" : T5Base
-    - "eugenesiow/bart-paraphrase": BartBase
-    - "prithivida/parrot_paraphraser_on_T5": ParrotBase
-  - ### German Models:
-    - "Lelon/t5-german-paraphraser-small" : T5Base
-    - "Lelon/t5-german-paraphraser-large" : T5Base
+```
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-sentencizer-stanza:latest
+```
+
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-sentencizer-stanza/tags/list
+
+## Run within DUUI
+
+```java
+composer.add(
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-sentencizer-stanza:latest")
+);
+```
+
+### Parameters
+
+This component requires no runtime parameters. The document language is read automatically from the CAS.
+
+### Input types
+
+No UIMA annotations are required as input. The component reads only the raw document text and language from the CAS.
+
+| Source | Description |
+|---|---|
+| CAS document text | Full plain text |
+| CAS document language | Language code forwarded in the request payload |
+
+### Output types
+
+| Type | Description |
+|---|---|
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | One annotation per detected sentence boundary with begin/end character offsets |
 
 # Cite
 
 If you want to use the DUUI image please quote this as follows:
 
-Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (2023). "Unlocking the Heterogeneous Landscape of Big Data NLP with DUUI." Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399. [[LINK](https://aclanthology.org/2023.findings-emnlp.29)] [[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)] 
+Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (2023). "Unlocking the Heterogeneous Landscape of Big Data NLP with DUUI." Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399. [[LINK](https://aclanthology.org/2023.findings-emnlp.29)] [[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)]
 
 ## BibTeX
 
@@ -56,11 +73,11 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bagci:2024,
-  author         = {Hammerla, Leon},
-  title          = {Paraphrasing tool as DUUI component},
+@misc{duui-sentencizer-stanza,
+  author         = {Baumartz, Daniel},
+  title          = {Sentence Splitting via {stanza} as {DUUI} component},
   year           = {2023},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Paraphrase}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-sentencizer-stanza}
 }
 
 ```

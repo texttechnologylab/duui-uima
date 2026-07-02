@@ -1,50 +1,51 @@
-# Negation Detection with neg-detect
+# Sentence Splitting and Paragraph Detection with syntok
 
-DUUI component for token-level negation detection. Accepts pre-tokenized, pre-sentence-split text via `Token` and `Sentence` annotations in the CAS, identifies negation cues and their associated scopes, foci, and events, and writes `CompleteNegation` annotations back into the CAS.
+DUUI component for rule-based sentence splitting and paragraph detection using [syntok](https://github.com/fnl/syntok). Takes the raw document text directly from the CAS with no prior annotations required, segments it into sentences and paragraphs, and writes `Sentence` and/or `Paragraph` annotations back. Both annotation types can be toggled independently at runtime.
 
 # How To Use
 
-For using duui-neg-detect as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+For using duui-paragraph-splitter-syntok as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Start Docker container
 
 ```
-docker run --rm --gpus all -p 1000:9714 docker.texttechnologylab.org/v2/duui-neg-detect:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-paragraph-splitter-syntok:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-neg-detect/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-paragraph-splitter-syntok/tags/list
 
 ## Run within DUUI
 
 ```java
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-neg-detect:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-paragraph-splitter-syntok:latest")
+        .withParameter("write_paragraphs", "true")
+        .withParameter("write_sentences", "true")
 );
 ```
 
+### Parameters
+
+| Name | Description | Default |
+|---|---|---|
+| `write_paragraphs` | Write `Paragraph` annotations to the CAS | `true` |
+| `write_sentences` | Write `Sentence` annotations to the CAS | `false` |
+
 ### Input types
 
-The CAS must contain sentence and token segmentation before running this component:
+No UIMA annotations are required as input. The component reads only the raw document text and language from the CAS.
 
-| Type | Description |
+| Source | Description |
 |---|---|
-| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | Sentence boundaries used to group tokens for the negation pipeline |
-| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token` | Individual tokens covered by each sentence; surface text is passed to the BERT models |
+| CAS document text | Full plain text of the document passed directly to syntok |
+| CAS document language | Language code (`en`, `de`, `es`) forwarded in the request |
 
 ### Output types
 
 | Type | Description |
 |---|---|
-| `org.texttechnologylab.annotation.negation.CompleteNegation` | One annotation per detected negation instance. Holds a reference to the negation cue `Token` and `FSArray` fields for the scope, focus, and event token sets. |
-
-Each `CompleteNegation` carries:
-
-| Field | Type | Description |
-|---|---|---|
-| `cue` | `Token` | The negation trigger word |
-| `scope` | `FSArray<Token>` | Tokens within the syntactic scope of the negation |
-| `focus` | `FSArray<Token>` | Tokens that are the focal point of the negation |
-| `event` | `FSArray<Token>` | Event tokens associated with the negation |
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph` | One annotation per detected paragraph with begin/end character offsets. Written only when `write_paragraphs` is `true`. |
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | One annotation per detected sentence with begin/end character offsets. Written only when `write_sentences` is `true`. |
 
 # Cite
 
@@ -82,11 +83,11 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{duui-neg-detect,
-  author         = {Hammerla, Leon},
-  title          = {Negation Detection via neg-detect as {DUUI} component},
+@misc{duui-paragraph-splitter-syntok,
+  author         = {Baumartz, Daniel},
+  title          = {Sentence Splitting and Paragraph Detection via syntok as {DUUI} component},
   year           = {2025},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-neg-detect}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-paragraph-splitter-syntok}
 }
 
 ```
