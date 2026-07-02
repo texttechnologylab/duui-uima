@@ -1,7 +1,7 @@
 import logging
 import os.path
 import sys
-from typing import Dict, List, Literal, Annotated, Tuple, Union, Optional
+from typing import Any, Dict, List, Literal, Annotated, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
 import random
@@ -431,6 +431,16 @@ def test_model(model: DLMatchingModel, test_data: Dataset, batch_size: int):
     evaluation = model.evaluate(left, right, matches, verbose=1, batch_size=batch_size)
     print(f"Test evaluation: {evaluation}")
 
+def create_initialization_data(config: ModelConfig) -> Dict[str, List[Union[str, float]]]:
+    initialization_data: Dict[str, Any] = {}
+    for prop_name, prop_config in config.entity_properties.items():
+        if prop_config.property_type == "text":
+            initialization_data[prop_name] = ["dummy"]
+        elif prop_config.property_type == "numeric":
+            initialization_data[prop_name] = [0]
+        else:
+            raise ValueError(f"Unsupported property type: {prop_config.property_type}")
+    return initialization_data
 
 def main():
     # load model config
@@ -452,6 +462,8 @@ def main():
         raise ValueError(
             "Model config must specify similarity matchers for 'text' property"
         )
+    model: Optional[DLMatchingModel] = None
+    evaluate_only = False
     # check if model already exists at export path and ask user for confirmation to overwrite
     if os.path.exists(f"{config.export_path}/config.json"):
         print(
@@ -467,19 +479,31 @@ def main():
                 )  # Small joke
                 break
             if response == "n" or response == "no":
-                print("Aborting")
-                return
+                print("Do you want to evaluate the existing model instead? (y/n)")
+                response = input().strip().lower()
+                if response == "y" or response == "yes":
+                    model = create_model(config)
+                    initialization_data = create_initialization_data(config)
+                    model.predict(pd.DataFrame(initialization_data), pd.DataFrame(initialization_data))
+                    model.load_weights(f"{config.export_path}/{config.nn_model_file}")
+                    evaluate_only = True
+                    break
+                else:
+                    print("Aborting")
+                    return
     # load training and optional test data
     training_data, test_data = load_training_data(
         config.entity_properties, config.training_data, config.test_data
     )
-    # train model
-    model = train_model(config, training_data)
+    if model is None:
+        # train model
+        model = train_model(config, training_data)
     # test model if test data is provided
     if test_data is not None:
         test_model(model, test_data, config.training_settings.batch_size)
     # export model
-    export_model(model, config)
+    if not evaluate_only:
+        export_model(model, config)
 
 
 if __name__ == "__main__":
