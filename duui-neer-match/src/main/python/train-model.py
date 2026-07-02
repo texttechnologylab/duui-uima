@@ -321,20 +321,28 @@ def load_training_data_single_dataset(
         all_entities = [
             entry for entry in all_entities if len(entry["text"]) >= config.min_length
         ]
-    # sample the specified number of entities from the dataset if a sample size is specified in the training data config, otherwise use all entities from the dataset
+    training_sample_size = 0
+    test_sample_size = test_config.sample_size if test_config is not None else 0
     if config.sample_size is not None:
-        entities = random.sample(all_entities, min(len(all_entities), config.sample_size))
+        training_sample_size = config.sample_size
+    elif test_config is not None and test_config.sample_size < len(all_entities):
+        training_sample_size = len(all_entities) - test_config.sample_size
     else:
-        entities = all_entities
+        training_sample_size = len(all_entities)
+    total_samples = training_sample_size + test_sample_size
+    limited_samples = min(len(all_entities), total_samples)
+    collected_samples = random.sample(all_entities, limited_samples)
+    training_ratio = training_sample_size / total_samples if total_samples > 0 else 1.0
+    training_count = int(limited_samples * training_ratio)
+    # sample the specified number of entities from the dataset if a sample size is specified in the training data config, otherwise use all entities from the dataset
+    entities = collected_samples[:training_count]
     # build the dataset
     entities_df, targets_df, matches_df = build_dataset_with_mutations(
         entities, config.samples_per_original, config.property_mutations
     )
     # optionally build a test dataset
     if test_config is not None:
-        test_entities = random.sample(
-            all_entities, min(len(all_entities), test_config.sample_size)
-        )
+        test_entities = collected_samples[training_count:]
         test_entities_df, test_targets_df, test_matches_df = build_dataset_with_mutations(
             test_entities, config.samples_per_original, config.property_mutations
         )
