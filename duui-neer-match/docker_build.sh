@@ -25,19 +25,12 @@ else
     exit 1
 fi
 
-ENV_ARGUMENTS=""
+ENV_ARGUMENTS="--build-arg DUUI_NEER_MATCH_ANNOTATOR_NAME=${ANNOTATOR_NAME} \
+                --build-arg DUUI_NEER_MATCH_ANNOTATOR_VERSION=${ANNOTATOR_VERSION} \
+                --build-arg DUUI_NEER_MATCH_LOG_LEVEL=${LOG_LEVEL}"
 
-if [ ${BUILD_TOOL} = "docker" ]; then
-    ENV_ARGUMENTS="--build-arg DUUI_NEER_MATCH_ANNOTATOR_NAME=${ANNOTATOR_NAME} \
-                   --build-arg DUUI_NEER_MATCH_ANNOTATOR_VERSION=${ANNOTATOR_VERSION} \
-                   --build-arg DUUI_NEER_MATCH_LOG_LEVEL=${LOG_LEVEL}"
-else
-    ENV_ARGUMENTS="--env DUUI_NEER_MATCH_ANNOTATOR_NAME=${ANNOTATOR_NAME} \
-                   --env DUUI_NEER_MATCH_ANNOTATOR_VERSION=${ANNOTATOR_VERSION} \
-                   --env DUUI_NEER_MATCH_LOG_LEVEL=${LOG_LEVEL}"
-fi
 ${BUILD_TOOL} build \
     ${ENV_ARGUMENTS} \
     -t "${ANNOTATOR_NAME}:${ANNOTATOR_VERSION}" \
     -f DOCKERFILE \
-    .
+    .e
