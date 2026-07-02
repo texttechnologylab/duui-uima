@@ -1,7 +1,7 @@
 import logging
 import os.path
 import sys
-from typing import Any, Dict, List, Literal, Annotated, Tuple, Union, Optional
+from typing import Any, Dict, List, Literal, Annotated, Set, Tuple, Union, Optional
 import pandas as pd
 import tensorflow as tf
 import random
@@ -285,6 +285,16 @@ def load_training_data_single_dataset(
             "Unsupported file format for dataset. Only .txt and .csv are supported"
         )
 
+    def extract_unique_entities(entities: List[Dict[str, Union[str, float]]]) -> List[Dict[str, Union[str, float]]]:
+        seen_data: Set[Tuple[Union[str, float], ...]] = set()
+        unique_entities: List[Dict[str, Union[str, float]]] = []
+        for entity in entities:
+            entity_data_tuple = tuple(entity[prop] for prop in properties.keys())
+            if entity_data_tuple not in seen_data:
+                seen_data.add(entity_data_tuple)
+                unique_entities.append(entity)
+        return unique_entities
+
     # convert the property values to the correct types based on the property configs defined in the model config, and validate that all required properties are present in the dataset entries
     def convert_entity(
         entry: Dict[str, Union[str, float]],
@@ -304,6 +314,7 @@ def load_training_data_single_dataset(
                 )
         return converted_entry
 
+    all_entities = extract_unique_entities(all_entities)
     all_entities = [convert_entity(entry) for entry in all_entities]
     # filter out entities that do not meet the minimum length requirement if specified in the training data config
     if config.min_length is not None:
