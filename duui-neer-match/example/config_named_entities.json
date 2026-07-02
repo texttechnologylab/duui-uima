@@ -1,6 +1,6 @@
 {
-  "export_path": "src/main/resources/models/named_entities1",
-  "name": "named_entities1",
+  "export_path": "src/main/resources/models/named_entity1",
+  "name": "named_entity1",
   "type": "DL",
   "entity_properties": {
     "text": {

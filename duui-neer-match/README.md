@@ -170,7 +170,7 @@ type is not explicitly supported, it will only compare the covered text of the e
 | Model Name      | Selection   | Supported Properties     | Accuracy | Precision | Recall | F1 Score |
 |-----------------|-------------|--------------------------|----------|-----------|--------|----------|
 | token1          | Token       | text, lemma, pos, coarse | 0.9992   | 0.9274    | 1.0    | 0.9623   |
-| named_entities1 | NamedEntity | text, value              | 0.9975   | 0.9894    | 0.8267 | 0.9007   |
+| named_entity1   | NamedEntity | text, value              | 0.9975   | 0.9894    | 0.8267 | 0.9007   |
 
 ## Existing Parameters
 
