@@ -1,50 +1,47 @@
-# Negation Detection with neg-detect
+# Text Readability Analysis
 
-DUUI component for token-level negation detection. Accepts pre-tokenized, pre-sentence-split text via `Token` and `Sentence` annotations in the CAS, identifies negation cues and their associated scopes, foci, and events, and writes `CompleteNegation` annotations back into the CAS.
+DUUI component for computing standard readability metrics using [py-readability-metrics](https://github.com/cdimascio/py-readability-metrics). Takes the raw document text directly from the CAS with no prior annotations required, computes nine classical readability formulas in a single pass, and writes one `CategoryCoveredTagged` annotation per metric spanning the full document. Each annotation carries the numeric score and a JSON `tags` field with formula-specific detail.
 
 # How To Use
 
-For using duui-neg-detect as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+For using duui-readability as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Start Docker container
 
 ```
-docker run --rm --gpus all -p 1000:9714 docker.texttechnologylab.org/v2/duui-neg-detect:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-readability:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-neg-detect/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-readability/tags/list
 
 ## Run within DUUI
 
 ```java
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-neg-detect:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-readability:latest")
 );
 ```
 
+### Parameters
+
+This component requires no runtime parameters. All nine readability metrics are always computed.
+
 ### Input types
 
-The CAS must contain sentence and token segmentation before running this component:
+No UIMA annotations are required as input. The component reads only the raw document text and language from the CAS.
 
-| Type | Description |
+| Source | Description |
 |---|---|
-| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | Sentence boundaries used to group tokens for the negation pipeline |
-| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token` | Individual tokens covered by each sentence; surface text is passed to the BERT models |
+| CAS document text | Full plain text |
+| CAS document language | Forwarded in the request payload; not used to select metrics |
 
 ### Output types
 
 | Type | Description |
 |---|---|
-| `org.texttechnologylab.annotation.negation.CompleteNegation` | One annotation per detected negation instance. Holds a reference to the negation cue `Token` and `FSArray` fields for the scope, focus, and event token sets. |
-
-Each `CompleteNegation` carries:
-
-| Field | Type | Description |
-|---|---|---|
-| `cue` | `Token` | The negation trigger word |
-| `scope` | `FSArray<Token>` | Tokens within the syntactic scope of the negation |
-| `focus` | `FSArray<Token>` | Tokens that are the focal point of the negation |
-| `event` | `FSArray<Token>` | Event tokens associated with the negation |
+| `org.hucompute.textimager.uima.type.category.CategoryCoveredTagged` | One annotation per readability metric, spanning the full document. `value` holds the metric name, `score` holds the numeric result, and `tags` holds a JSON string with formula-specific detail fields (see metric table above). |
+| `org.texttechnologylab.annotation.AnnotatorMetaData` | Created for each `CategoryCoveredTagged` annotation. Records the annotator name, version, model name (`py-readability-metrics`), and model version. |
+| `org.texttechnologylab.annotation.DocumentModification` | Single annotation recording the annotator name, processing timestamp, and a version comment. |
 
 # Cite
 
@@ -82,11 +79,11 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{duui-neg-detect,
-  author         = {Hammerla, Leon},
-  title          = {Negation Detection via neg-detect as {DUUI} component},
+@misc{duui-readability,
+  author         = {Baumartz, Daniel},
+  title          = {Text Readability Analysis as {DUUI} component},
   year           = {2025},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-neg-detect}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-readability}
 }
 
 ```

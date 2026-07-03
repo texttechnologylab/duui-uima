@@ -1,5 +1,5 @@
 tqdm==4.66.1
-transformers==4.38.2
+transformers==5.0.0rc3
 torch==2.8.0
 torchvision==0.20.1
 torchaudio==2.5.1

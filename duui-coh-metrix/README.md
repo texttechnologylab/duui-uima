@@ -1,17 +1,45 @@
-# DUUI.IO
+# Coh-Metrix Text Cohesion Analysis [WIP]
 
-# Description
-This package provides a set of readers and writers for use in DUUI:
+DUUI implementation of coh-metrix, computing text cohesion and readability indices over pre-annotated UIMA documents. Produces 100+ numerical indices across descriptive, referential cohesion, LSA, lexical diversity, syntactic complexity, connective, and situation model categories.
 
-| Name          | Reader           | Writer  |  Author  |
-| ------------- |:-------------:| -----:| ------------- |
-| JSON          | Yes           |   Yes | Anna-Lena Buccoli |
-| MongoDB       | Yes           |   Yes | Anna-Lena Buccoli |
-| elasticsearch | Yes           |   Yes | Anna-Lena Buccoli |
-| graphML       |  NO           |   Yes | Anna-Lena Buccoli |
-| borland       |  NO           |   Yes | Anna-Lena Buccoli |
+## Prerequisites
 
-An explanation can be found in the respective packages.
+This annotator requires a **pre-annotated UIMA CAS** with the following annotation types (produced by e.g. the DUUI spaCy component):
+
+- `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph`
+- `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence`
+- `org.texttechnologylab.uima.type.spacy.SpacyToken`
+- `org.texttechnologylab.uima.type.spacy.SpacyNounChunk`
+
+Word vectors on tokens are required for LSA indices (`LSA*`). Without them, LSA indices will return zero vectors.
+
+# How To Use
+
+For using duui-coh-metrix as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+
+## Start Docker container
+
+```
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-coh-metrix:latest
+```
+
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-coh-metrix/tags/list
+
+```
+docker run --rm -p 1000:9714 \
+  -v /path/to/germanet:/usr/src/app/src/main/resources/germanet \
+  docker.texttechnologylab.org/v2/duui-coh-metrix:latest
+```
+
+Without GermaNet, German polysemy, hypernymy, and causal/intentional verb metrics fall back to seed-word lists or return `-1`.
+
+## Run within DUUI
+
+```
+composer.add(
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:latest")
+);
+```
 
 # Cite
 
@@ -48,4 +76,12 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                in terms of time efficiency, enabling the analysis of big text
                data.}
 }
+
+@misc{duui-coh-metrix,
+  author         = {Baumartz, Daniel},
+  title          = {Coh-Metrix Text Cohesion Analysis as {DUUI} component},
+  year           = {2026},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-coh-metrix}
+}
+
 ```

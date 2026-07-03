@@ -1,50 +1,50 @@
-# Negation Detection with neg-detect
+# Automatic Speech Recognition (ASR)
 
-DUUI component for token-level negation detection. Accepts pre-tokenized, pre-sentence-split text via `Token` and `Sentence` annotations in the CAS, identifies negation cues and their associated scopes, foci, and events, and writes `CompleteNegation` annotations back into the CAS.
+DUUI implementation for automatic speech recognition using NVIDIA NeMo Canary.
+
+## Included Models
+
+| Name                     | Version  | URL                                                                 | Languages |
+|--------------------------|----------|---------------------------------------------------------------------|-----------|
+| nvidia/canary-1b-flash   | r2.3.0   | https://huggingface.co/nvidia/canary-1b-flash                       | en, de    |
 
 # How To Use
 
-For using duui-neg-detect as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+For using duui-canary as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ## Start Docker container
 
 ```
-docker run --rm --gpus all -p 1000:9714 docker.texttechnologylab.org/v2/duui-neg-detect:latest
+docker run --rm --gpus all -p 1000:9714 docker.texttechnologylab.org/v2/duui-canary:latest
 ```
 
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-neg-detect/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-canary/tags/list
 
 ## Run within DUUI
 
-```java
+```
 composer.add(
-    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-neg-detect:latest")
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-canary:latest")
+        .withParameter("language", "en")
+        .withParameter("model", "nvidia/canary-1b-flash")
 );
 ```
 
-### Input types
+### Parameters
 
-The CAS must contain sentence and token segmentation before running this component:
+| Name       | Description                                                                 |
+|------------|-----------------------------------------------------------------------------|
+| `language` | Language of the input audio. Supported values: `en`, `de`                  |
+| `model`    | Model to use for transcription. Supported values: `nvidia/canary-1b-flash` |
 
-| Type | Description |
-|---|---|
-| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | Sentence boundaries used to group tokens for the negation pipeline |
-| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token` | Individual tokens covered by each sentence; surface text is passed to the BERT models |
+### Outputs
 
-### Output types
+The annotator produces the following UIMA annotation types:
 
-| Type | Description |
-|---|---|
-| `org.texttechnologylab.annotation.negation.CompleteNegation` | One annotation per detected negation instance. Holds a reference to the negation cue `Token` and `FSArray` fields for the scope, focus, and event token sets. |
-
-Each `CompleteNegation` carries:
-
-| Field | Type | Description |
-|---|---|---|
-| `cue` | `Token` | The negation trigger word |
-| `scope` | `FSArray<Token>` | Tokens within the syntactic scope of the negation |
-| `focus` | `FSArray<Token>` | Tokens that are the focal point of the negation |
-| `event` | `FSArray<Token>` | Event tokens associated with the negation |
+| Type                                                    | Description                                              |
+|---------------------------------------------------------|----------------------------------------------------------|
+| `org.texttechnologylab.annotation.type.AudioToken`      | Word-level token with text and audio timestamp (start/end in seconds) |
+| `org.texttechnologylab.annotation.type.AudioSentence`   | Sentence/segment span with audio timestamp (start/end in seconds)     |
 
 # Cite
 
@@ -82,11 +82,11 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{duui-neg-detect,
-  author         = {Hammerla, Leon},
-  title          = {Negation Detection via neg-detect as {DUUI} component},
+@misc{duui-canary,
+  author         = {Baumartz, Daniel},
+  title          = {Automatic Speech Recognition as {DUUI} component},
   year           = {2025},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-neg-detect}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-canary}
 }
 
 ```

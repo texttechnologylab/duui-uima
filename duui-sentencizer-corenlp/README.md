@@ -1,17 +1,41 @@
-# DUUI.IO
+# How To Use
 
-# Description
-This package provides a set of readers and writers for use in DUUI:
+For using duui-sentencizer-corenlp as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
-| Name          | Reader           | Writer  |  Author  |
-| ------------- |:-------------:| -----:| ------------- |
-| JSON          | Yes           |   Yes | Anna-Lena Buccoli |
-| MongoDB       | Yes           |   Yes | Anna-Lena Buccoli |
-| elasticsearch | Yes           |   Yes | Anna-Lena Buccoli |
-| graphML       |  NO           |   Yes | Anna-Lena Buccoli |
-| borland       |  NO           |   Yes | Anna-Lena Buccoli |
+## Start Docker container
 
-An explanation can be found in the respective packages.
+```
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-sentencizer-corenlp:latest
+```
+
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-sentencizer-corenlp/tags/list
+
+## Run within DUUI
+
+```java
+composer.add(
+    new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-sentencizer-corenlp:latest")
+);
+```
+
+### Parameters
+
+This component requires no runtime parameters. The document language is read automatically from the CAS.
+
+### Input types
+
+No UIMA annotations are required as input. The component reads only the raw document text and language from the CAS.
+
+| Source | Description |
+|---|---|
+| CAS document text | Full plain text submitted to the CoreNLP annotator |
+| CAS document language | Language code forwarded in the request payload |
+
+### Output types
+
+| Type | Description |
+|---|---|
+| `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence` | One annotation per detected sentence boundary with begin/end character offsets sourced directly from CoreNLP's `characterOffsetBegin` / `characterOffsetEnd` protobuf fields. |
 
 # Cite
 
@@ -48,4 +72,12 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                in terms of time efficiency, enabling the analysis of big text
                data.}
 }
+
+@misc{duui-sentencizer-corenlp,
+  author         = {Baumartz, Daniel},
+  title          = {Sentence Splitting via {Stanford CoreNLP} as {DUUI} component},
+  year           = {2023},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-sentencizer-corenlp}
+}
+
 ```
