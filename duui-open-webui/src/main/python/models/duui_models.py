@@ -15,6 +15,8 @@ class MultiModelModes(str, Enum):
 
 
 class Settings(BaseSettings):
+    model_config = {"env_prefix": "MM_", "protected_namespaces": ()}
+
     # Name of this annotator
     annotator_name: str
     # Version of this annotator
