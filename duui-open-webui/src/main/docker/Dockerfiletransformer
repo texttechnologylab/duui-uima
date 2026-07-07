@@ -22,7 +22,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteract
 
 # dependencies
 RUN pip install -U pip
-RUN pip install setuptools wheel psutil packaging torch==2.6.0 torchvision==0.21.0  torchaudio==2.6.0
+RUN pip install setuptools wheel psutil packaging torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0
 RUN pip install --upgrade setuptools
 COPY ./requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
@@ -32,11 +32,12 @@ RUN python -c "from transformers import Qwen2_5_VLForConditionalGeneration; Qwen
 
 # copy scripts
 COPY ./src/main/resources/TypeSystemMM.xml ./TypeSystemMM.xml
-COPY ./src/main/python/duui-mm.py ./duui-mm.py
+COPY ./src/main/python/duui_webUIWrapper.py ./duui_webUIWrapper.py
 COPY ./src/main/python/start.sh ./start.sh
 
-COPY ./src/main/python/duui-mm.lua ./duui-mm.lua
+COPY ./src/main/python/duui_webUIWrapper.lua ./duui_webUIWrapper.lua
 COPY ./src/main/python/models/ ./models/
+COPY ./src/main/python/services/ ./services/
 
 
 
@@ -65,5 +66,5 @@ ENV MM_MODEL_VERSION=$MM_MODEL_VERSION
 
 
 
-ENTRYPOINT ["uvicorn", "duui-mm:app", "--host", "0.0.0.0", "--port" ,"9714"]
+ENTRYPOINT ["uvicorn", "duui_webUIWrapper:app", "--host", "0.0.0.0", "--port" ,"9714"]
 CMD ["--workers", "1"]
