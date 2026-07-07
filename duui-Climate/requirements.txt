@@ -1,0 +1,14 @@
+torch==2.11.0
+torchaudio==2.11.0
+torchvision==0.26.0
+scipy==1.17.1
+transformers==5.9.0
+sentencepiece==0.2.1
+protobuf==4.25.3
+numpy==2.4.6
+scikit-learn==1.8.0
+fastapi==0.110.0
+dkpro-cassis==0.9.1
+uvicorn[standard]==0.27.1
+pydantic-settings==2.0.2
+torchmetrics==1.2.0

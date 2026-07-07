@@ -1,5 +1,22 @@
-FROM maven:3.8.5-jdk-11
-ADD src src
-ADD pom.xml pom.xml
-RUN mvn clean compile
-CMD mvn exec:java -Dexec.mainClass="org.texttechnologylab.tools.HeidelTimeExt"
+FROM maven:3.9.9-eclipse-temurin-21 AS build
+
+WORKDIR /build
+
+COPY pom.xml pom.xml
+RUN mvn -U -q -P '!duui-tests' -Dmaven.test.skip=true -DskipTests dependency:go-offline || true
+
+COPY src/main src/main
+RUN mvn -U -q -P '!duui-tests' -Dmaven.test.skip=true -DskipTests clean package
+
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+COPY --from=build /build/target/duui-HeidelTimeExt-*.jar /app/HeidelTimeExt.jar
+
+ENV DUUI_PORT=9714
+ENV DUUI_WORKERS=1
+
+EXPOSE 9714
+
+ENTRYPOINT ["java", "-jar", "/app/HeidelTimeExt.jar"]

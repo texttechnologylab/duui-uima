@@ -30,7 +30,7 @@ public class EmotionTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
 
 //    static String model = "pol_emo_mDeBERTa";
 
@@ -89,6 +89,7 @@ public class EmotionTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                        .withParameter("batch_size", "8")
 //                        .withParameter("token", "<TOKEN>")
         );
         List<String> sentences = Arrays.asList(
@@ -144,6 +145,7 @@ public class EmotionTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                        .withParameter("batch_size", "8")
         );
         List<String> sentences = Arrays.asList(
                 "I hasse dich. ich bin richtig wütend.",
@@ -191,6 +193,7 @@ public class EmotionTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                        .withParameter("batch_size", "8")
         );
         List<String> sentences = Arrays.asList(
                 "Seni nefret ediyorum. Çok sinirliyim.",

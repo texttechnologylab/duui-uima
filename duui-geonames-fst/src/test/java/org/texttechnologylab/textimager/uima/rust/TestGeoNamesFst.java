@@ -75,7 +75,7 @@ public class TestGeoNamesFst {
         composer.addDriver(new DUUIRemoteDriver(10000));
         composer.add(
                 new DUUIRemoteDriver.Component("http://localhost:9714")
-                        .withName("duui-geonames-fst")
+//                        .withName("duui-geonames-fst")
                         .withParameter("mode", "find")
                         .withParameter("result_selection", "first")
         );
@@ -110,16 +110,18 @@ public class TestGeoNamesFst {
         composer.addDriver(new DUUIRemoteDriver(10000));
         composer.add(
                 new DUUIRemoteDriver.Component("http://localhost:9714")
-                        .withName("duui-geonames-fst")
+//                        .withName("duui-geonames-fst")
                         .withParameter("mode", "levenshtein")
                         .withParameter("max_dist", "2")
                         .withParameter("result_selection", "first")
+                        .withTargetView("levenshtein")
         );
 
         JCas jCas = getJCas();
         composer.run(jCas);
         composer.shutdown();
 
+        jCas = jCas.getView("levenshtein");
         List<GeoNamesEntity> annotations = jCas.select(GeoNamesEntity.class).toList();
         assert annotations.size() == 6;
         for (GeoNamesEntity gn : annotations) {

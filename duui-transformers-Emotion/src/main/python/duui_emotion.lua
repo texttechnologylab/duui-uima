@@ -12,6 +12,7 @@ function serialize(inputCas, outputStream, parameters)
 --     print(doc_len)
 
     local selection_types = parameters["selection"]
+    local batch_size = parameters["batch_size"]
 --     print(select)
 
     local selections = {}
@@ -26,7 +27,7 @@ function serialize(inputCas, outputStream, parameters)
            }
            sentences[1] = s
        else
-           print("start")
+--            print("start")
            local sentences_count = 1
            local clazz = Class:forName(selection_type);
            local sentences_it = JCasUtil:select(inputCas, clazz):iterator()
@@ -37,7 +38,7 @@ function serialize(inputCas, outputStream, parameters)
                    begin = sentence:getBegin(),
                    ['end'] = sentence:getEnd()
                }
-               print(sentence:getCoveredText())
+--                print(sentence:getCoveredText())
                sentences[sentences_count] = s
                sentences_count = sentences_count + 1
            end
@@ -55,6 +56,7 @@ function serialize(inputCas, outputStream, parameters)
         selections = selections,
         lang = doc_lang,
         doc_len = doc_len,
+        batch_size = batch_size
     }))
 end
 

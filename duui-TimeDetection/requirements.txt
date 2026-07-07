@@ -1,0 +1,20 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.3,<3.0
+requests>=2.32,<3.0
+
+# Required only for Hugging Face based temporal taggers.
+torch>=2.3,<3.0
+transformers>=4.44,<5.0
+sentencepiece>=0.2,<0.3
+
+# Microsoft Recognizers-Text backend.
+# recognizers-text 1.0.2a2 expects emoji.UNICODE_EMOJI, removed in emoji>=2.
+emoji==1.7.0
+recognizers-text-suite==1.0.2a2
+
+# Optional spaCy-based backends: TEI2GO and Timexy.
+# DUUI may already provide spaCy in a separate component; keep this only for this standalone container.
+spacy>=3.7,<4.0
+timexy==0.1.3
