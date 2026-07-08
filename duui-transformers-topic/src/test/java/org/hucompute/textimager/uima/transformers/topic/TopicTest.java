@@ -32,7 +32,7 @@ public class TopicTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8000";
+    static String url = "http://127.0.0.1:9714";
 //    static String url = "http://tweentopic.service.component.duui.texttechnologylab.org";
 //    static String model = "chkla/parlbert-topic-german";
 
@@ -170,6 +170,7 @@ public class TopicTest {
         composer.add(
                 new DUUIRemoteDriver.Component(url)
                         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
+                        .withParameter("batch_size", "8")
         );
 
         List<String> sentences = Arrays.asList(

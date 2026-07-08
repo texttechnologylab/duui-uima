@@ -48,7 +48,38 @@ model_mapping = {
         0: "positive",
         1: "neutral",
         2: "negative"
-    }
+    },
+    "bardsai/finance-sentiment-zh-base":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+    "bardsai/finance-sentiment-zh-fast":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+    "bardsai/finance-sentiment-fr-base":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+    "bardsai/twitter-sentiment-pl-base":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+    "bardsai/twitter-sentiment-pl-fast":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+    "climatebert/distilroberta-base-climate-sentiment":{
+        0: "positive",
+        1: "neutral",
+        2: "negative"
+    },
+
 }
 
 

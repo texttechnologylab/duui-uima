@@ -34,6 +34,14 @@ composer.add(
 );
 ```
 
+## Parameters
+
+| Name        | Datatype                                                                     | Default                                 |
+|-------------|----------------------------------------------------------------------------|------------------------------------------|
+| diversity.homogenization    | boolean     | true |
+| diversity.compression   | boolean | true                                   |
+| diversity.ngram | integer | 4                                    |
+
 # Cite
 
 If you want to use the DUUI image please quote this as follows:

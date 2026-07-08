@@ -1,70 +1,30 @@
--- Bind static classes from java
+-- Bind static classes from Java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 
----Indicates that this component supports the "new" `process` method.
-SUPPORTS_PROCESS = true
----Indicates that this component does NOT support the old `serialize`/`deserialize` methods.
-SUPPORTS_SERIALIZE = false
+---This component does NOT support the new `process` method.
+SUPPORTS_PROCESS = false
 
----Create and yield batches of elements from an iterator after applying a transform function.
----@param iterator any an iterator over annotations
----@param batch_size integer size of each batch sent to the component
-function get_batches(iterator, batch_size)
-    local entities, references = {}, {}
-    while iterator:hasNext() do
-        local entity = iterator:next()
+---This component supports the old `serialize`/`deserialize` methods.
+SUPPORTS_SERIALIZE = true
 
-        references[#references + 1] = entity
-        entities[#entities + 1] = {
-            reference = tostring(#references),
-            text = entity:getCoveredText()
-        }
-
-        if #entities == batch_size then
-            coroutine.yield({
-                entities, references
-            })
-            entities, references = {}, {}
-        end
-    end
-
-    if #entities > 0 then
-        coroutine.yield({
-            entities, references
-        })
-    end
-end
-
----Iterate over batches of elements from an iterator after applying a transform function.
----@param iterator any an iterator over annotations
----@param batch_size integer size of each batch
----@return fun(): table an iterator over batches to process
-function batched(iterator, batch_size)
-    local co = coroutine.create(function() get_batches(iterator, batch_size) end)
-    return function()
-        local _, batch = coroutine.resume(co)
-        return batch
-    end
-end
-
-REQUEST_BATCH_SIZE = 4096
 ANNOTATION_TYPE = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.Location"
 
----Process the sentences in the given JCas in small batches.
----@param sourceCas any JCas (view) to process
----@param handler any DuuiHttpRequestHandler with a connection to the running component
+---Serialize annotations from the DUUI source view.
+---DUUI resolves `.withSourceView(...)` before calling this function.
+---Therefore inputCas is already the source view.
+---@param inputCas any source JCas view
+---@param outputStream any output stream to the remote component
 ---@param parameters table optional parameters
----@param targetCas any JCas (view) to write the results to (optional)
-function process(sourceCas, handler, parameters, targetCas)
+function serialize(inputCas, outputStream, parameters)
     parameters = parameters or {}
 
-    local batch_size = parameters.request_batch_size or REQUEST_BATCH_SIZE
     local annotation_type = parameters.annotation_type or ANNOTATION_TYPE
 
     local query = {
         mode = parameters.mode or "find",
         result_selection = parameters.result_selection or "first",
+        queries = {}
     }
 
     if parameters.filter ~= nil then
@@ -79,65 +39,204 @@ function process(sourceCas, handler, parameters, targetCas)
         query.state_limit = tostring(parameters.state_limit)
     end
 
-    handler:setHeader("Content-Type", "application/json")
-
-    local iterator, results = JCasUtil:select(sourceCas, luajava.bindClass(annotation_type)):iterator()
-    for batch in batched(iterator, batch_size) do
-        local entities, references = table.unpack(batch)
-        query.queries = entities
-
-        local response = handler:process(json.encode(query))
-
-        if not response:ok() then
-            error("Error " .. response:statusCode() .. " in communication with component: " .. response:bodyAsString())
-        end
-    
-        results = json.decode(response:body())
-        process_response(targetCas, results, references)
+    if parameters.min_length ~= nil then
+        query.min_length = tostring(parameters.min_length)
     end
 
-    local results_modification = results.modification
-    local document_modification = luajava.newInstance("org.texttechnologylab.annotation.DocumentModification", targetCas)
-    document_modification:setUser(results_modification.user)
-    document_modification:setTimestamp(results_modification.timestamp)
-    document_modification:setComment(results_modification.comment)
-    document_modification:addToIndexes()
+    local annotation_class = luajava.bindClass(annotation_type)
+    local iterator = JCasUtil:select(inputCas, annotation_class):iterator()
+
+    local index = 1
+
+    while iterator:hasNext() do
+        local entity = iterator:next()
+
+        local begin_pos = entity:getBegin()
+        local end_pos = entity:getEnd()
+
+        local ok_text, text = pcall(function()
+            return entity:getCoveredText()
+        end)
+
+        if not ok_text then
+            print("GeoNamesFST WARN: getCoveredText failed for " ..
+                tostring(begin_pos) .. "-" .. tostring(end_pos) ..
+                ": " .. tostring(text))
+            text = nil
+        end
+
+        if text == nil or text == "" then
+            local ok_view, fallbackText = pcall(function()
+                local cas = inputCas:getCas()
+                local initialCas = cas:getView("_InitialView")
+                local docText = initialCas:getDocumentText()
+
+                if docText ~= nil then
+                    return docText:substring(begin_pos, end_pos)
+                end
+
+                return nil
+            end)
+
+            if ok_view and fallbackText ~= nil and fallbackText ~= "" then
+                text = fallbackText
+            else
+                print("GeoNamesFST WARN: InitialView fallback failed for " ..
+                    tostring(begin_pos) .. "-" .. tostring(end_pos) ..
+                    ": " .. tostring(fallbackText))
+            end
+        end
+
+        if text ~= nil and text ~= "" then
+            query.queries[#query.queries + 1] = {
+                reference = tostring(index),
+                text = text,
+                begin = begin_pos,
+                ["end"] = end_pos
+            }
+
+            index = index + 1
+        else
+            print("GeoNamesFST SKIP: no text for annotation " ..
+                tostring(begin_pos) .. "-" .. tostring(end_pos))
+        end
+    end
+
+    outputStream:write(json.encode(query))
 end
 
----Process the response from the component.
----@param targetCas any JCas
----@param results table the results from the component
----@param references table<integer, any>
-function process_response(targetCas, results, references)
-    for _, entity in ipairs(results.results) do
-        local gn = entity.entry
-        
-        local annotation = luajava.newInstance("org.texttechnologylab.annotation.geonames.GeoNamesEntity", targetCas)
-        annotation:setId(tonumber(gn.id))
-        annotation:setName(gn.name)
-        annotation:setLatitude(gn.latitude)
-        annotation:setLongitude(gn.longitude)
-        annotation:setFeatureClass(gn.feature_class)
-        annotation:setFeatureCode(gn.feature_code)
-        annotation:setCountryCode(gn.country_code)
-        annotation:setAdm1(gn.adm1)
-        annotation:setAdm2(gn.adm2)
-        annotation:setAdm3(gn.adm3)
-        annotation:setAdm4(gn.adm4)
+---Deserialize GeoNames results into the DUUI target view.
+---DUUI resolves/creates `.withTargetView(...)` before calling this function.
+---Therefore inputCas is already the target view.
+---@param inputCas any target JCas view
+---@param inputStream any response stream from the remote component
+function deserialize(inputCas, inputStream)
+    local inputString = luajava.newInstance(
+        "java.lang.String",
+        inputStream:readAllBytes(),
+        StandardCharsets.UTF_8
+    )
 
-        if gn.elevation ~= nil then
-            annotation:setElevation(gn.elevation)
-        end
+    local results = json.decode(inputString)
 
-        local reference = references[tonumber(entity.reference)]
-        if reference == nil then
-            error("Failed to resolve reference annotation with index " .. entity.reference)
-        else
-            annotation:setReferenceAnnotation(reference)
-            annotation:setBegin(reference:getBegin())
-            annotation:setEnd(reference:getEnd())
-        end
-
-        annotation:addToIndexes()
+    if results == nil then
+        return
     end
+
+    if results.results ~= nil then
+        for _, entity in ipairs(results.results) do
+            add_geonames_annotation(inputCas, entity)
+        end
+    end
+
+    if results.modification ~= nil then
+        add_document_modification(inputCas, results.modification)
+    end
+end
+
+---Create one GeoNamesEntity annotation in the target view.
+---@param targetCas any target JCas view
+---@param entity table one result entry from the component
+function add_geonames_annotation(targetCas, entity)
+    if entity == nil or entity.entry == nil then
+        return
+    end
+
+    local gn = entity.entry
+
+    local begin_pos = tonumber(entity.begin)
+    local end_pos = tonumber(entity["end"])
+
+    if begin_pos == nil or end_pos == nil then
+        error(
+            "Missing begin/end offsets in GeoNames response for reference: " ..
+            tostring(entity.reference)
+        )
+    end
+
+    local annotation = luajava.newInstance(
+        "org.texttechnologylab.annotation.geonames.GeoNamesEntity",
+        targetCas
+    )
+
+    annotation:setBegin(begin_pos)
+    annotation:setEnd(end_pos)
+
+    if gn.id ~= nil then
+        annotation:setId(tonumber(gn.id))
+    end
+
+    if gn.name ~= nil then
+        annotation:setName(gn.name)
+    end
+
+    if gn.latitude ~= nil then
+        annotation:setLatitude(gn.latitude)
+    end
+
+    if gn.longitude ~= nil then
+        annotation:setLongitude(gn.longitude)
+    end
+
+    if gn.feature_class ~= nil then
+        annotation:setFeatureClass(gn.feature_class)
+    end
+
+    if gn.feature_code ~= nil then
+        annotation:setFeatureCode(gn.feature_code)
+    end
+
+    if gn.country_code ~= nil then
+        annotation:setCountryCode(gn.country_code)
+    end
+
+    if gn.adm1 ~= nil then
+        annotation:setAdm1(gn.adm1)
+    end
+
+    if gn.adm2 ~= nil then
+        annotation:setAdm2(gn.adm2)
+    end
+
+    if gn.adm3 ~= nil then
+        annotation:setAdm3(gn.adm3)
+    end
+
+    if gn.adm4 ~= nil then
+        annotation:setAdm4(gn.adm4)
+    end
+
+    if gn.elevation ~= nil then
+        annotation:setElevation(gn.elevation)
+    end
+
+    annotation:addToIndexes()
+end
+
+---Add DocumentModification annotation to the target view.
+---@param targetCas any target JCas view
+---@param modification table modification metadata from component
+function add_document_modification(targetCas, modification)
+    if modification == nil then
+        return
+    end
+
+    local document_modification = luajava.newInstance(
+        "org.texttechnologylab.annotation.DocumentModification",
+        targetCas
+    )
+
+    if modification.user ~= nil then
+        document_modification:setUser(modification.user)
+    end
+
+    if modification.timestamp ~= nil then
+        document_modification:setTimestamp(modification.timestamp)
+    end
+
+    if modification.comment ~= nil then
+        document_modification:setComment(modification.comment)
+    end
+
+    document_modification:addToIndexes()
 end

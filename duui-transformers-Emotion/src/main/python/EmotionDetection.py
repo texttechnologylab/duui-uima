@@ -438,15 +438,24 @@ def to_sample(text, label, lang, tokenizer, max_seq_length):
 
 class EmotionClassification:
     def __init__(self, model_name, device, max_seq_length=256):
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased",
-                                                       do_lower_case=False)
+        self.tokenizer = BertTokenizer.from_pretrained(
+            "bert-base-multilingual-cased",
+            do_lower_case=False
+        )
         self.bert_config = BertConfig.from_pretrained("bert-base-multilingual-cased")
         self.bert_model = BertModel.from_pretrained("bert-base-multilingual-cased")
 
-        self.model = BertForSequenceClassification(self.bert_model, self.bert_config, num_labels=5)
+        self.model = BertForSequenceClassification(
+            self.bert_model,
+            self.bert_config,
+            num_labels=5
+        )
 
         self.model = self.model.to(device)
         # self.model.load_state_dict(torch.load(model_name))
+
+        self.model.eval()
+
         self.max_seq_length = max_seq_length
         self.emotions_labels = {
             0: "anger",
@@ -457,57 +466,98 @@ class EmotionClassification:
         }
         self.device = device
 
+    @staticmethod
+    def _batch_samples(samples, batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
 
-    def emotion_prediction(self, texts):
+        for start in range(0, len(samples), batch_size):
+            yield samples[start:start + batch_size]
+
+    def emotion_prediction(self, texts, batch_size: int):
         dummy_labels = [np.zeros(5) for _ in texts]
-        samples = [to_sample(text, label, "nan", self.tokenizer, self.max_seq_length)
-                   for text, label in zip(texts, dummy_labels)]
+
+        samples = [
+            to_sample(text, label, "nan", self.tokenizer, self.max_seq_length)
+            for text, label in zip(texts, dummy_labels)
+        ]
 
         results = []
 
-        for sample in samples:
-            inputs = {
-                'input_ids': sample[0].unsqueeze(0).to(self.device),
-                'attention_mask': sample[1].unsqueeze(0).to(self.device),
-                'token_type_ids': sample[2].unsqueeze(0).to(self.device),
-                'labels': sample[3].unsqueeze(0).to(self.device)
-            }
-            with torch.no_grad():
+        with torch.no_grad():
+            for sample_batch in self._batch_samples(samples, batch_size):
+                input_ids = torch.stack([sample[0] for sample in sample_batch]).to(self.device)
+                attention_mask = torch.stack([sample[1] for sample in sample_batch]).to(self.device)
+                token_type_ids = torch.stack([sample[2] for sample in sample_batch]).to(self.device)
+                labels = torch.stack([sample[3] for sample in sample_batch]).to(self.device)
+
+                inputs = {
+                    "input_ids": input_ids,
+                    "attention_mask": attention_mask,
+                    "token_type_ids": token_type_ids,
+                    "labels": labels
+                }
+
                 logits = self.model(**inputs)
 
-            probs = logits[0].detach().cpu().numpy()
-            probs = softmax(probs).tolist()
-            # probs = torch.sigmoid(logits).cpu().numpy().flatten()
-            # probs to float
-            emotion_scores = dict(zip(list(self.emotions_labels.values()), probs))
-            results.append(emotion_scores)
+                probs = logits[0].detach().cpu().numpy()
+                probs = softmax(probs, axis=1).tolist()
+
+                for prob_i in probs:
+                    emotion_scores = dict(
+                        zip(list(self.emotions_labels.values()), prob_i)
+                    )
+                    results.append(emotion_scores)
+
         return results
 
 
-
-
 class EmotionCheck:
-    def __init__(self, model_name: str, device='cuda:0'):
+    def __init__(self, model_name: str, device="cuda:0"):
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(device)
+        self.model.eval()
+
         self.class_mapping = self.model.config.id2label
         self.labels = list(map_emotion[model_name].values())
 
-    def emotion_prediction(self, texts: List[str]):
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
+
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def emotion_prediction(self, texts: List[str], batch_size: int):
+        score_list = []
+
         with torch.no_grad():
-            score_list = []
-            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
-            outputs = self.model(**inputs)
-            scores = outputs[0].detach().cpu().numpy()
-            for score in scores:
-                score_dict_i = {}
-                score_i = softmax(score)
-                ranking = np.argsort(score_i)
-                ranking = ranking[::-1]
-                for i in range(score.shape[0]):
-                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
-                score_list.append(score_dict_i)
+            for text_batch in self._batch_texts(texts, batch_size):
+                inputs = self.tokenizer(
+                    text_batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512
+                ).to(self.device)
+
+                outputs = self.model(**inputs)
+                scores = outputs[0].detach().cpu().numpy()
+
+                for score in scores:
+                    score_dict_i = {}
+                    score_i = softmax(score)
+                    ranking = np.argsort(score_i)[::-1]
+
+                    for i in range(score.shape[0]):
+                        score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+
+                    score_list.append(score_dict_i)
+
         return score_list
 
 
@@ -515,50 +565,103 @@ class PySentimientoCheck:
     def __init__(self, lang="en"):
         self.analyzer = create_analyzer(task="emotion", lang=lang)
 
-    def emotion_prediction(self, texts: List[str]):
-        output = []
-        for text in texts:
-            prediction_i = self.analyzer.predict(text)
-            out_i = prediction_i.probas
-            output.append(out_i)
-        return output
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
 
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def emotion_prediction(self, texts: List[str], batch_size: int):
+        output = []
+
+        for text_batch in self._batch_texts(texts, batch_size):
+            for text in text_batch:
+                prediction_i = self.analyzer.predict(text)
+                out_i = prediction_i.probas
+                output.append(out_i)
+
+        return output
 
 class EmoAtlas:
     def __init__(self, language="english"):
-        # nltk.download('wordnet')
+        # nltk.download("wordnet")
         self.emo_atlas = EmoScores(language)
 
-    def emotion_prediction(self, texts: List[str]):
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
+
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def emotion_prediction(self, texts: List[str], batch_size: int):
         output = []
-        for text in texts:
-            prediction_i = self.emo_atlas.emotions(text, normalization_strategy="emotion_words")
-            out_i = prediction_i
-            output.append(out_i)
+
+        for text_batch in self._batch_texts(texts, batch_size):
+            for text in text_batch:
+                prediction_i = self.emo_atlas.emotions(
+                    text,
+                    normalization_strategy="emotion_words"
+                )
+                output.append(prediction_i)
+
         return output
 
 class PolyTextLabEmotionModel:
-    def __init__(self, model_name: str, device='cuda:0', token_reader="default"):
+    def __init__(self, model_name: str, device="cuda:0", token_reader="default"):
         self.device = device
+
         self.tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large")
-        self.model = AutoModelForSequenceClassification.from_pretrained("poltextlab/xlm-roberta-large-pooled-MORES", token=token_reader).to(device)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            "poltextlab/xlm-roberta-large-pooled-MORES",
+            token=token_reader
+        ).to(device)
+
+        self.model.eval()
+
         self.class_mapping = self.model.config.id2label
         self.labels = list(self.class_mapping.values())
 
-    def emotion_prediction(self, texts: List[str]):
+    @staticmethod
+    def _batch_texts(texts: List[str], batch_size: int):
+        batch_size = int(batch_size)
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than 0")
+
+        for start in range(0, len(texts), batch_size):
+            yield texts[start:start + batch_size]
+
+    def emotion_prediction(self, texts: List[str], batch_size: int):
+        score_list = []
+
         with torch.no_grad():
-            score_list = []
-            inputs = self.tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=512).to(self.device)
-            outputs = self.model(**inputs)
-            scores = outputs[0].detach().cpu().numpy()
-            for score in scores:
-                score_dict_i = {}
-                score_i = softmax(score)
-                ranking = np.argsort(score_i)
-                ranking = ranking[::-1]
-                for i in range(score.shape[0]):
-                    score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
-                score_list.append(score_dict_i)
+            for text_batch in self._batch_texts(texts, batch_size):
+                inputs = self.tokenizer(
+                    text_batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=512
+                ).to(self.device)
+
+                outputs = self.model(**inputs)
+                scores = outputs[0].detach().cpu().numpy()
+
+                for score in scores:
+                    score_dict_i = {}
+                    score_i = softmax(score)
+                    ranking = np.argsort(score_i)[::-1]
+
+                    for i in range(score.shape[0]):
+                        score_dict_i[self.labels[ranking[i]]] = float(score_i[ranking[i]])
+
+                    score_list.append(score_dict_i)
+
         return score_list
 
 

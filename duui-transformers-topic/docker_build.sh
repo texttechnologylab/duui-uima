@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-#export ANNOTATOR_CUDA=
-export ANNOTATOR_CUDA="-cuda"
+export ANNOTATOR_CUDA=
+#export ANNOTATOR_CUDA="-cuda"
 
 export ANNOTATOR_NAME=duui-transformers-topic
 export ANNOTATOR_VERSION=0.4.0
@@ -71,11 +71,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
-#export MODEL_SPECNAME="parlacap-topic-classifier"
-#export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
-#export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
-#export MODEL_LANG="Multi"
+export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
+export MODEL_SPECNAME="parlacap-topic-classifier"
+export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
+export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
+export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -118,12 +118,28 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ###--------------------------------------------------------------------
 
+###---------------------------------------------------------------------
+#export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
+#export MODEL_SPECNAME="parlacap-topic-classifier"
+#export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
+#export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="Keshav0308/multilingual-topic-classifier"
+#export MODEL_SPECNAME="multilingual-topic-classifier"
+#export MODEL_VERSION="57358ac84a8aebda7a493bbd87205314cccfe8e1"
+#export MODEL_SOURCE="https://huggingface.co/Keshav0308/multilingual-topic-classifier"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
+
 ##---------------------------------------------------------------------
-export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
-export MODEL_SPECNAME="parlacap-topic-classifier"
-export MODEL_VERSION="bf5c7145d4266b4851063f458eaa5ba5e28a2c43"
-export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="classla/ParlaCAP-Topic-Classifier"
+#export MODEL_SPECNAME="parlacap-topic-classifier"
+#export MODEL_VERSION="82a13c61ff63b3450638e35f7b1b2cb9e6694ad6"
+#export MODEL_SOURCE="https://huggingface.co/classla/ParlaCAP-Topic-Classifier"
+#export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
 
 docker build \

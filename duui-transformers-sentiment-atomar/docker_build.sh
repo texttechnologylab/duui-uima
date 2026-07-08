@@ -3,13 +3,13 @@ export ANNOTATOR_VERSION=0.5.1
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
-##---------------------------------------------------------------------
-export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
-export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
-export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
-export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
-export MODEL_LANG="Multi"
-##--------------------------------------------------------------------
+###---------------------------------------------------------------------
+#export MODEL_NAME="cardiffnlp/twitter-xlm-roberta-base-sentiment"
+#export MODEL_SPECNAME="twitter-xlm-roberta-base-sentiment"
+#export MODEL_VERSION="f2f1202b1bdeb07342385c3f807f9c07cd8f5cf8"
+#export MODEL_SOURCE="https://huggingface.co/cardiffnlp/twitter-xlm-roberta-base-sentiment"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="citizenlab/twitter-xlm-roberta-base-sentiment-finetunned"
@@ -66,6 +66,54 @@ export MODEL_LANG="Multi"
 #export MODEL_SOURCE="https://huggingface.co/oliverguhr/german-sentiment-bert"
 #export MODEL_LANG="DE"
 ####--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="bardsai/finance-sentiment-zh-base"
+#export MODEL_SPECNAME="finance-sentiment-zh"
+#export MODEL_VERSION="33595d152578da080c6e5c94b60eba15a769107f"
+#export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-zh-base"
+#export MODEL_LANG="ZH"
+###--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="bardsai/finance-sentiment-zh-fast"
+#export MODEL_SPECNAME="finance-sentiment-zh-fast"
+#export MODEL_VERSION="4cf6d7f85579bc73ac402d1dc4ecbcf3de8b6b7a"
+#export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-zh-fast"
+#export MODEL_LANG="ZH"
+##--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="bardsai/finance-sentiment-fr-base"
+#export MODEL_SPECNAME="finance-sentiment-fr"
+#export MODEL_VERSION="98f660ba2ca64140df78c1a29b91dc8b6beafb62"
+#export MODEL_SOURCE="https://huggingface.co/bardsai/finance-sentiment-fr-base"
+#export MODEL_LANG="FR"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="bardsai/twitter-sentiment-pl-base"
+#export MODEL_SPECNAME="twitter-sentiment-pl-base"
+#export MODEL_VERSION="612331865c33e03b87522600ca34b1425c400e90"
+#export MODEL_SOURCE="https://huggingface.co/bardsai/twitter-sentiment-pl-base"
+#export MODEL_LANG="PL"
+###--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="bardsai/twitter-sentiment-pl-fast"
+#export MODEL_SPECNAME="twitter-sentiment-pl-fast"
+#export MODEL_VERSION="2adf843ad928baf1d631179b4d52930fc286eee9"
+#export MODEL_SOURCE="https://huggingface.co/bardsai/twitter-sentiment-pl-fast"
+#export MODEL_LANG="PL"
+###--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export MODEL_NAME="climatebert/distilroberta-base-climate-sentiment"
+export MODEL_SPECNAME="distilroberta-base-climate-sentiment"
+export MODEL_VERSION="e9f9a94ee4263f5ad5cfc97b8539a497fc88aa7d"
+export MODEL_SOURCE="https://huggingface.co/climatebert/distilroberta-base-climate-sentiment"
+export MODEL_LANG="EN"
+##--------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 export DUUI_CUDA=
