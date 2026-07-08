@@ -28,8 +28,8 @@ public class DUUISentenceTransformersTest {
         composer.addDriver(dockerDriver);
 
         composer.add(
-                new DUUIRemoteDriver.Component("http://localhost:8080")
-//                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-sentence-transformers:latest")
+//                new DUUIRemoteDriver.Component("http://localhost:8080")
+                new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-sentence-transformers:latest")
                         .withParameter("model_name", "jinaai/jina-embeddings-v2-base-de")
                         .withParameter("batch_size", String.valueOf(16))
                         .withScale(1)

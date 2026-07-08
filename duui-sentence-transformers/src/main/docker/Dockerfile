@@ -2,7 +2,7 @@ FROM python:3.13
 
 WORKDIR /usr/src/app
 
-EXPOSE 9714y
+EXPOSE 9714
 
 RUN pip install setuptools wheel
 
