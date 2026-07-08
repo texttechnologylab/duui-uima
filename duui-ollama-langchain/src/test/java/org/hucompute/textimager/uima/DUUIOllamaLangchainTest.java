@@ -36,8 +36,8 @@ public class DUUIOllamaLangchainTest {
 
         JSONObject llmArgsJson = new JSONObject();
 //        llmArgsJson.put("base_url", "localhost:11434");
-        llmArgsJson.put("base_url", "anduin.hucompute.org:12447");
-        llmArgsJson.put("model", "gpt-oss:120b");
+        llmArgsJson.put("base_url", "geltlin.hucompute.org:11439");
+        llmArgsJson.put("model", "gpt-oss:20b");
         llmArgsJson.put("temperature", 1);
         llmArgsJson.put("num_ctx", 2048);
         llmArgsJson.put("num_predict", -2);
