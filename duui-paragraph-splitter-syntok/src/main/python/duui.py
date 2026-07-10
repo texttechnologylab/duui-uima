@@ -149,6 +149,75 @@ app = FastAPI(
 )
 
 
+def _tokens_with_value(sentence):
+    """
+    Return only syntok tokens that have an actual token value.
+
+    syntok can emit an empty trailing token whose value is "" and whose spacing
+    contains trailing whitespace. Such a token must not be used as the final
+    annotation token, otherwise the annotation end can be wrong.
+    """
+    return [token for token in sentence if token.value]
+
+
+def _paragraph_tokens(paragraph):
+    """
+    Flatten a syntok paragraph into value-bearing tokens.
+
+    A syntok paragraph is an iterable of sentences, and each sentence is a list
+    of tokens.
+    """
+    tokens = []
+
+    for sentence in paragraph:
+        tokens.extend(_tokens_with_value(sentence))
+
+    return tokens
+
+
+def _python_token_span(tokens):
+    """
+    Return the Python/codepoint begin/end span for value-bearing syntok tokens.
+
+    syntok Token.offset already points to the start of Token.value in the
+    original Python string. Token.spacing is the prefix before Token.value and
+    must not be added to begin or end.
+
+    The returned span uses Python's normal half-open convention:
+        [begin, end)
+    """
+    if not tokens:
+        return None
+
+    first = tokens[0]
+    last = tokens[-1]
+
+    begin = first.offset
+    end = last.offset + len(last.value)
+
+    return begin, end
+
+
+def _valid_python_span(begin: int, end: int, text_len: int) -> bool:
+    """
+    Validate a Python/codepoint span before conversion to UIMA/UTF-16 offsets.
+    """
+    return 0 <= begin <= end <= text_len
+
+
+def _to_uima_span(utf16_converter: Utf16CodepointOffsetConverter, begin: int, end: int):
+    """
+    Convert Python/codepoint offsets to Java/UIMA UTF-16 code-unit offsets.
+
+    This converter is required because syntok/Python offsets are Python string
+    indices, while UIMA/Java offsets are UTF-16 code-unit indices.
+    """
+    return (
+        utf16_converter.python_to_external(begin),
+        utf16_converter.python_to_external(end),
+    )
+
+
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
 def get_communication_layer() -> str:
     return lua_communication_script
@@ -228,50 +297,100 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             para = list(paragraph)
 
             try:
-                first = para[0][0]
-                para_begin = first.offset + len(first.spacing)
+                para_tokens = _paragraph_tokens(para)
+                para_span = _python_token_span(para_tokens)
 
-                last = para[-1][-1]
-                para_end = last.offset + len(last.spacing) + len(last.value)
-                para_end = min(para_end, text_len)
+                if para_span is not None:
+                    para_begin, para_end = para_span
 
-                paragraphs.append(Paragraph(
-                    begin=utf16_converter.python_to_external(para_begin),
-                    end=utf16_converter.python_to_external(para_end),
-                ))
+                    if _valid_python_span(para_begin, para_end, text_len):
+                        uima_begin, uima_end = _to_uima_span(
+                            utf16_converter,
+                            para_begin,
+                            para_end,
+                        )
+
+                        paragraphs.append(
+                            Paragraph(
+                                begin=uima_begin,
+                                end=uima_end,
+                            )
+                        )
+                    else:
+                        logger.error(
+                            "Skipping invalid paragraph span: begin=%s end=%s text_len=%s tokens=%r",
+                            para_begin,
+                            para_end,
+                            text_len,
+                            para_tokens,
+                        )
+                else:
+                    logger.debug("Skipping empty paragraph without value-bearing tokens")
+
             except Exception as ex:
                 logger.exception("Error processing paragraph: %s", ex)
 
             for i, s in enumerate(para):
                 try:
-                    first = s[0]
-                    last = s[-1]
+                    sent_tokens = _tokens_with_value(s)
+                    sent_span = _python_token_span(sent_tokens)
 
-                    sent_begin = first.offset + len(first.spacing)
+                    if sent_span is not None:
+                        sent_begin, sent_end = sent_span
 
-                    sent_end = last.offset + len(last.spacing) + len(last.value)
-                    sent_end = min(sent_end, text_len)
+                        if _valid_python_span(sent_begin, sent_end, text_len):
+                            uima_begin, uima_end = _to_uima_span(
+                                utf16_converter,
+                                sent_begin,
+                                sent_end,
+                            )
 
-                    sentences.append(Sentence(
-                        begin=utf16_converter.python_to_external(sent_begin),
-                        end=utf16_converter.python_to_external(sent_end),
-                    ))
+                            sentences.append(
+                                Sentence(
+                                    begin=uima_begin,
+                                    end=uima_end,
+                                )
+                            )
+                        else:
+                            logger.error(
+                                "Skipping invalid sentence span: index=%s begin=%s end=%s text_len=%s tokens=%r",
+                                i,
+                                sent_begin,
+                                sent_end,
+                                text_len,
+                                sent_tokens,
+                            )
+                    else:
+                        logger.debug(
+                            "Skipping empty sentence without value-bearing tokens: index=%s",
+                            i,
+                        )
+
                 except Exception as ex:
                     logger.exception("Error processing sentence: %s", ex)
 
     except Exception as ex:
         logger.exception(ex)
 
-    # add at least one paragraph
+    # Add at least one paragraph.
+    #
+    # request.len should already be the Java/UIMA length supplied by the DUUI
+    # side, i.e. UTF-16 code-unit length. Do not convert it here.
     if not paragraphs and request.text:
-        paragraphs.append(Paragraph(
-            begin=0, end=request.len
-        ))
+        paragraphs.append(
+            Paragraph(
+                begin=0,
+                end=request.len,
+            )
+        )
 
     if not sentences and request.text:
-        sentences.append(Sentence(
-            begin=0, end=request.len
-        ))
+        sentences.append(
+            Sentence(
+                begin=0,
+                end=request.len,
+            )
+        )
 
     logger.debug(paragraphs)
     logger.debug(sentences)
