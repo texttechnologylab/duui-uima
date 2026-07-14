@@ -34,7 +34,7 @@ DEFAULT_LANGUAGE = "en"
 # ---------------------------------------------------------------------------
 # Import anonymization modules from the repo
 # ---------------------------------------------------------------------------
-REPO_ROOT = os.environ.get("ANON_REPO_ROOT", "/usr/src/speaker-anonymization")
+REPO_ROOT = os.environ.get("ANON_REPO_ROOT", os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
 from anonymization.modules.text.recognition.whisper import WhisperASR
@@ -344,6 +344,7 @@ def _process(request: DUUIRequest) -> DUUIResponse:
         )
 
     # Convert synthesized audio to WAV bytes then base64
+    logger.info("Convert synthesized audio to WAV bytes then base64")
     import soundfile as sf
     buf = io.BytesIO()
     sf.write(file=buf, data=wav, samplerate=tts.output_sr, format="WAV")

@@ -13,6 +13,7 @@
             <name>AGPL-3.0-or-later</name>
             <url>https://www.gnu.org/licenses/agpl.txt</url>
             <distribution>repo</distribution>
+            <comments>GNU Affero General Public License v3.0 or later</comments>
         </license>
     </licenses>
 
@@ -20,6 +21,32 @@
         <name>Texttechnology Lab</name>
         <url>https://www.texttechnologylab.org</url>
     </organization>
+
+    <developers>
+        <developer>
+            <id>mehler</id>
+            <name>Prof. Dr. Alexander Mehler</name>
+            <email>mehler@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/alexander-abrami/</url>
+            <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
+            <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
+            <roles>
+                <role>head of department</role>
+            </roles>
+        </developer>
+        <developer>
+            <id>aabusale</id>
+            <name>Ali Abusaleh</name>
+            <email>a.abusaleh@em.uni-frankfurt.de</email>
+            <url>https://www.texttechnologylab.org/team/ali-abusaleh/</url>
+            <organization>Goethe University Frankfurt / Texttechnology Lab</organization>
+            <organizationUrl>https://www.texttechnologylab.org</organizationUrl>
+            <roles>
+                <role>Research assistant</role>
+            </roles>
+            <timezone>Europe/Berlin</timezone>
+        </developer>
+    </developers>
 
     <build>
         <plugins>
@@ -67,19 +94,38 @@
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
-            <version>fac60bef3f</version>
+            <version>1.5.5</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>Utilities</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>UIMATypeSystem</artifactId>
-            <version>3.0.5</version>
+<!--                <version>9806cc024d08aa3164bbe1bd00adc09d408cdf0b</version>-->
+                <version>uima-3-SNAPSHOT</version>
         </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.9.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-api-anomaly-asl</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dkpro.core</groupId>
+            <artifactId>dkpro-core-api-segmentation-asl</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -95,4 +141,6 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
 </project>
+
