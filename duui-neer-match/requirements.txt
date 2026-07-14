@@ -13,5 +13,5 @@ pydantic_core==2.10.1
 python-dotenv==1.2.2
 requests==2.33.1
 tensorflow==2.18.0
-urllib3==2.6.3
+urllib3==2.7.0
 uvicorn==0.46.0
