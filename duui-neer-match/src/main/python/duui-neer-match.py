@@ -1,0 +1,416 @@
+import logging
+import os.path
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Literal, Tuple, Union
+
+import pandas as pd
+import numpy as np
+from fastapi import FastAPI, Response
+from fastapi.responses import PlainTextResponse
+from neer_match.matching_model import DLMatchingModel, NSMatchingModel
+from neer_match.similarity_map import SimilarityMap
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
+
+
+# Settings
+# These are automatically loaded from env variables
+class Settings(BaseSettings):
+    # Name of this annotator
+    annotator_name: str
+    # Version of this annotator
+    annotator_version: str
+    # Log level
+    log_level: str
+    # Execution mode (development, production)
+    execution_mode: Literal["development", "production"] = "development"
+
+    class Config:
+        env_prefix = "DUUI_NEER_MATCH_"
+
+
+# Load settings
+settings = Settings()
+
+lua_communication_script_path: str
+typesystem_path: str
+models_path: str
+if settings.execution_mode == "development":
+    lua_communication_script_path = "../lua/communication_layer.lua"
+    typesystem_path = "../resources/typesystem.xml"
+    models_path = "../resources/models"
+elif settings.execution_mode == "production":
+    lua_communication_script_path = "/app/communication_layer.lua"
+    typesystem_path = "/app/typesystem.xml"
+    models_path = "/app/models"
+else:
+    raise ValueError(f"Unknown execution mode '{settings.execution_mode}'")
+
+# Init logger
+logging.basicConfig(
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    level=settings.log_level,
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.info("TTLab Neer Match Annotator")
+logger.info("Name: %s", settings.annotator_name)
+logger.info("Version: %s", settings.annotator_version)
+
+# configuration for a single property of an entity in the model config
+class ModelEntityPropertyConfig(BaseModel):
+    # the type of the property
+    property_type: Literal["text", "numeric"]
+    # the similarity matchers to use for this property
+    similarity_matchers: List[str]
+
+# the configuration for a model, which is loaded from the config.json file in the model folder
+class ModelConfig(BaseModel):
+    # the name of the model (must match folder name in models_path)
+    name: str
+    # the type of the model, either "DL"
+    type: Literal["DL"]
+    # the properties of the entities
+    entity_properties: Dict[str, ModelEntityPropertyConfig]
+    # the path to the model file (relative to models_path)
+    nn_model_file: str = Field(default="model.weights.h5", alias="model_file")
+
+
+# Pydantic models for request and response bodies
+
+# the properties for the matching process, which can be specified in the finalize request
+class NeerMatchProperties(BaseModel):
+    # the threshold for the matching process, between 0 and 1
+    threshold: Optional[float] = None
+    # the maximum number of matches to return per entity
+    # limit: Optional[int] = None
+    # the batch size for processing (if supported by the model)
+    batch_size: int = 16
+    # the model to use for matching
+    model: str = "example1"
+
+# represents an entity of a document
+class DocumentEntity(BaseModel):
+    # the text of the entity
+    text: str
+    # enity id
+    entity_id: Union[str, int]
+    # optional properties of the entity
+    properties: Optional[Dict[str, Union[str, int, float]]] = None
+
+# the request body for the /process endpoint, which contains the pipeline_id, selection and the entities to be matched
+class DuuiRequest(BaseModel):
+    pipeline_id: str
+    # the selected annotation classes
+    selection: str
+    # The entities to be matched, as list of strings
+    entities: List[DocumentEntity]
+
+# the request body for the /finalize endpoint, which contains the pipeline_id and the matching properties
+class DuuiFinalizeRequest(BaseModel):
+    pipeline_id: str
+    clear_storage: bool = True
+    # Matching properties
+    properties: NeerMatchProperties
+
+# represents a single match prediction between two entities, including the similarity score
+class MatchPrediction(BaseModel):
+    document_1_entity: DocumentEntity
+    document_2_entity: DocumentEntity
+    # the similarity score between 0 and 1
+    score: float
+
+# represents the matching results for a pair of documents, including the indices of the documents and the list of match predictions for this document pair
+class MatchResult(BaseModel):
+    document_1_index: int
+    document_2_index: int
+    predictions: List[MatchPrediction]
+
+# the response body for the /process endpoint, which contains the pipeline_id, the index at which the entities are stored in the pipeline storage and the count of stored entities for this pipeline_id and selection
+class DuuiResponse(BaseModel):
+    pipeline_id: str
+    stored_index: int
+    stored_count: int
+
+# the response body for the /finalize endpoint, which contains the pipeline_id and the matching results for all document pairs in this pipeline
+class DuuiFinalizeResponse(BaseModel):
+    pipeline_id: str
+    results: List[MatchResult]
+
+
+# load Lua communication script
+lua_communication_script: str
+with open(lua_communication_script_path, "r") as f:
+    lua_communication_script = f.read()
+    logger.info("Loaded Lua communication script")
+    logger.debug("Lua communication script:\n%s", lua_communication_script)
+
+# load typesystem
+typesystem: str
+with open(typesystem_path, "r") as f:
+    typesystem = f.read()
+    logger.info("Loaded typesystem")
+    logger.debug("Typesystem:\n%s", typesystem)
+
+# FastAPI app
+app = FastAPI(
+    title=settings.annotator_name,
+    description="Annotator for matching entities using neer-match",
+    version=settings.annotator_version,
+    terms_of_service="https://www.texttechnologylab.org/legal_notice/",
+    license_info={
+        "name": "AGPL",
+        "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
+    },
+)
+
+
+# Return Lua communication script
+@app.get("/v1/communication_layer", response_class=PlainTextResponse)
+def get_communication_layer() -> str:
+    return lua_communication_script
+
+
+# Return typesystem
+@app.get("/v1/typesystem")
+def get_typesystem() -> Response:
+    return Response(content=typesystem, media_type="application/xml")
+
+
+@lru_cache(maxsize=3)
+def get_model(
+    model_name: str,
+) -> Tuple[Union[DLMatchingModel, NSMatchingModel], ModelConfig]:
+    # check if model folder exists
+    folder_path = f"{models_path}/{model_name}"
+    if not os.path.exists(folder_path):
+        raise ValueError(f"Model '{model_name}' not found.")
+    # load model config
+    config_path = f"{folder_path}/config.json"
+    if not os.path.exists(config_path):
+        raise ValueError(f"Model '{model_name}' invalid: missing config.json")
+    model_config: ModelConfig
+    with open(config_path, "r") as f:
+        model_config = ModelConfig.model_validate_json(f.read())
+    # load model
+    model_file_path = f"{folder_path}/{model_config.nn_model_file}"
+    if not os.path.exists(model_file_path):
+        raise ValueError(
+            f"Model '{model_name}' invalid: missing model file '{model_config.nn_model_file}'"
+        )
+    if (
+        "text" not in model_config.entity_properties
+        or model_config.entity_properties["text"].property_type != "text"
+        or len(model_config.entity_properties["text"].similarity_matchers) == 0
+    ):
+        raise ValueError(
+            f"Model '{model_name}' invalid: missing required 'text' property with at least one similarity matcher"
+        )
+    similarity_map: SimilarityMap = SimilarityMap(
+        {
+            prop_name: prop_config.similarity_matchers
+            for prop_name, prop_config in model_config.entity_properties.items()
+        }
+    )
+    model: DLMatchingModel
+    if model_config.type == "DL":
+        model = DLMatchingModel(similarity_map)
+    elif model_config.type == "NS":
+        raise ValueError(
+            f"Model '{model_name}' invalid: model type 'NS' not supported yet"
+        )
+    else:
+        raise ValueError(
+            f"Model '{model_name}' invalid: unknown model type '{model_config.type}'"
+        )
+    # Initialize model with dummy data to build the model architecture, then load weights
+    initialization_data: Dict[str, Any] = {}
+    for prop_name, prop_config in model_config.entity_properties.items():
+        if prop_config.property_type == "text":
+            initialization_data[prop_name] = ["dummy"]
+        elif prop_config.property_type == "numeric":
+            initialization_data[prop_name] = [0]
+        else:
+            raise ValueError(
+                f"Model '{model_name}' invalid: unknown property type '{prop_config.property_type}' for property '{prop_name}'"
+            )
+    model.predict(pd.DataFrame(initialization_data), pd.DataFrame(initialization_data))
+    model.load_weights(model_file_path)
+    return model, model_config
+
+
+# represents a document stored in the pipeline, which holds the entities (with their properties) for this document
+class PipelineDocument(BaseModel):
+    entities: List[DocumentEntity]
+
+
+# represents a pipeline entity, which is created for each unique pipeline_id and selection and holds the documents (entities) stored for this pipeline
+class PipelineEntity(BaseModel):
+    pipeline_id: str
+    selection: str
+    documents: List[PipelineDocument]
+
+
+class PipelineStorage:
+    pipelines: dict[str, PipelineEntity]
+
+    def __init__(self):
+        self.pipelines = {}
+
+    def store(
+        self, pipeline_id: str, entities: List[DocumentEntity], selection: str
+    ) -> int:
+        # create pipeline entity if it does not exist
+        if pipeline_id not in self.pipelines:
+            self.pipelines[pipeline_id] = PipelineEntity(
+                pipeline_id=pipeline_id, selection=selection, documents=[]
+            )
+        # retrieve pipeline entity
+        pipeline_entity = self.pipelines[pipeline_id]
+        # check if selection matches the one of the pipeline entity
+        if pipeline_entity.selection != selection:
+            raise ValueError(
+                f"Pipeline '{pipeline_id}' selection mismatch: expected '{pipeline_entity.selection}', got '{selection}'"
+            )
+        # store entities in pipeline entity and return index for retrieval during finalize
+        stored_index = len(pipeline_entity.documents)
+        pipeline_entity.documents.append(PipelineDocument(entities=entities))
+        return stored_index
+
+    def get(self, pipeline_id: str) -> PipelineEntity:
+        # check if pipeline entity exists
+        if pipeline_id not in self.pipelines:
+            raise ValueError(f"Pipeline '{pipeline_id}' not found.")
+        # return pipeline entity
+        return self.pipelines[pipeline_id]
+
+    def clear(self, pipeline_id: str):
+        # check if pipeline entity exists
+        if pipeline_id in self.pipelines:
+            # remove pipeline entity from storage
+            del self.pipelines[pipeline_id]
+
+
+# global pipeline storage
+pipeline_storage = PipelineStorage()
+
+
+# process duui request
+@app.post("/v1/process")
+def post_process(request: DuuiRequest) -> DuuiResponse:
+    # store entities in pipeline storage and return index for retrieval during finalize
+    stored_index = pipeline_storage.store(
+        request.pipeline_id, request.entities, request.selection
+    )
+    return DuuiResponse(
+        pipeline_id=request.pipeline_id,
+        stored_index=stored_index,
+        stored_count=len(request.entities),
+    )
+
+
+def build_dataframe(
+    entities: List[DocumentEntity], selection: str, supported_properties: List[str]
+) -> pd.DataFrame:
+    # start with the required "text" property, which is required for all models and selections
+    columns: dict[str, List[Union[str, int, float]]] = {
+        "text": [e.text for e in entities]
+    }
+
+    def select_property(
+        prop_name: str, default: Union[str, int, float]
+    ) -> List[Union[str, int, float]]:
+        return [
+            (
+                e.properties[prop_name]
+                if e.properties and prop_name in e.properties
+                else default
+            )
+            for e in entities
+        ]
+
+    # select additional properties based on selection and supported properties of the model
+    if selection == "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity":
+        if "value" in supported_properties:
+            columns["value"] = select_property("value", "")
+        if "identifier" in supported_properties:
+            columns["identifier"] = select_property("identifier", "")
+    elif selection == "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token":
+        if "lemma" in supported_properties:
+            columns["lemma"] = select_property("lemma", "")
+        if "pos" in supported_properties:
+            columns["pos"] = select_property("pos", "")
+        if "coarse" in supported_properties:
+            columns["coarse"] = select_property("coarse", "")
+        if "form" in supported_properties:
+            columns["form"] = select_property("form", "")
+        if "stem" in supported_properties:
+            columns["stem"] = select_property("stem", "")
+
+    # check if all required properties for the model are present
+    if any(prop not in columns for prop in supported_properties):
+        raise ValueError(
+            f"Some properties required by the model are not supported for selection '{selection}'. Missing properties: {[prop for prop in supported_properties if prop not in columns]}"
+        )
+    return pd.DataFrame(columns)
+
+
+@app.post("/v1/finalize")
+def post_finalize(request: DuuiFinalizeRequest) -> DuuiFinalizeResponse:
+    # retrieve pipeline entity from storage
+    pipeline_entity = pipeline_storage.get(request.pipeline_id)
+    # load model and respective config for the requested model
+    model, model_config = get_model(request.properties.model)
+    # build dataframes for all documents in the pipeline entity
+    results: List[MatchResult] = []
+    supported_properties = [
+        key for key in model_config.entity_properties.keys() if key != "text"
+    ]
+    dataframes = [
+        build_dataframe(doc.entities, pipeline_entity.selection, supported_properties)
+        for doc in pipeline_entity.documents
+    ]
+    # compute matches for all document pairs
+    for i, doc1 in enumerate(pipeline_entity.documents):
+        for j, doc2 in enumerate(pipeline_entity.documents):
+            # ensure that each pair is only processed once and that documents are not matched with themselves
+            if i >= j:
+                continue
+            # compute predictions for the document pair using the model
+            predictions_np: np.ndarray = model.predict(
+                dataframes[i],
+                dataframes[j],
+                batch_size=request.properties.batch_size,
+                verbose=1,
+            )
+            # convert predictions to list of MatchPrediction, applying threshold if specified
+            predictions: List[MatchPrediction] = []
+            for idx, row in enumerate(predictions_np):
+                score = row[0]
+                if (
+                    request.properties.threshold is not None
+                    and score < request.properties.threshold
+                ):
+                    continue
+                left_idx = idx // len(doc2.entities)
+                right_idx = idx % len(doc2.entities)
+                left_entity = doc1.entities[left_idx]
+                right_entity = doc2.entities[right_idx]
+                predictions.append(
+                    MatchPrediction(
+                        document_1_entity=left_entity,
+                        document_2_entity=right_entity,
+                        score=score,
+                    )
+                )
+            # store results for this document pair
+            results.append(
+                MatchResult(
+                    document_1_index=i, document_2_index=j, predictions=predictions
+                )
+            )
+    # clear pipeline storage if requested
+    if request.clear_storage:
+        pipeline_storage.clear(request.pipeline_id)
+    # return results
+    return DuuiFinalizeResponse(pipeline_id=request.pipeline_id, results=results)
