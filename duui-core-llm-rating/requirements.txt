@@ -35,5 +35,5 @@ starlette==0.41.3
 tenacity==9.0.0
 toposort==1.7
 typing_extensions==4.12.2
-urllib3==2.3.0
+urllib3==2.7.0
 uvicorn==0.34.0
