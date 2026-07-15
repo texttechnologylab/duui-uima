@@ -1,0 +1,33 @@
+{
+    "name": "token1",
+    "type": "DL",
+    "entity_properties": {
+        "text": {
+            "property_type": "text",
+            "similarity_matchers": [
+                "levenshtein",
+                "jaro_winkler",
+                "hamming"
+            ]
+        },
+        "pos": {
+            "property_type": "text",
+            "similarity_matchers": [
+                "levenshtein"
+            ]
+        },
+        "coarse": {
+            "property_type": "text",
+            "similarity_matchers": [
+                "levenshtein"
+            ]
+        },
+        "lemma": {
+            "property_type": "text",
+            "similarity_matchers": [
+                "levenshtein"
+            ]
+        }
+    },
+    "nn_model_file": "model.weights.h5"
+}

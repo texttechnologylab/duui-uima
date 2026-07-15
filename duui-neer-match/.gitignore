@@ -1,0 +1,15 @@
+### IDEs ###
+.idea
+*.iml
+.vscode
+
+### Build files ###
+target
+__pycache__
+
+### Development environment ###
+venv
+.venv
+
+### Build artifacts ###
+# src/main/resources/models/*
