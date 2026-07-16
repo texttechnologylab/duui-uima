@@ -100,6 +100,10 @@ class DUUIRequest(BaseModel):
     #
     port: int
     #
+    base_url: str = None
+    #
+    api_key: str = None
+    #
     model_llm: str
     # The model name to use for scoring
     name_model: str
@@ -191,7 +195,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -227,7 +232,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -304,7 +310,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -414,7 +421,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -450,7 +458,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -490,7 +499,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -540,7 +550,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -587,7 +598,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -637,7 +649,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -682,7 +695,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:
@@ -730,7 +744,8 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                     port=request.port,
                     seed=request.seed,
                     temperature=request.temperature,
-                    api_key=None
+                    api_key=request.api_key,
+                    base_url=request.base_url
                 )
                 for i, (question, answer) in enumerate(zip(all_questions, all_answers)):
                     if len(all_scenes) > 0:

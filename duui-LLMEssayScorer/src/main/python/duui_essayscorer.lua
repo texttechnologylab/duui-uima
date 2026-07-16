@@ -19,6 +19,8 @@ function serialize(inputCas, outputStream, parameters)
     local temperature = parameters["temperature"]
     local url = parameters["url"]
     local port = parameters["port"]
+    local base_url = parameters["base_url"]
+    local api_key = parameters["api_key"]
     local model_llm = parameters["model_llm"]
     local name_model = parameters["name_model"]
     if seed == nil then
@@ -139,6 +141,8 @@ function serialize(inputCas, outputStream, parameters)
         temperature = temperature,
         url = url,
         port = port,
+        base_url = base_url,
+        api_key = api_key,
         model_llm = model_llm,
         name_model = name_model,
     }))

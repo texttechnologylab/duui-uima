@@ -57,8 +57,13 @@ class EssayScorer:
 
 
 class OpenAIProcessing:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        if api_key is None:
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        if base_url is not None:
+            self.openai = OpenAI(
+                base_url=base_url,
+                api_key=api_key if api_key is not None else "ollama",
+            )
+        elif api_key is None:
             self.openai = OpenAI(
                 base_url=f"http://{url}:{port}/v1/",
                 api_key="ollama"

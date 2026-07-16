@@ -28,8 +28,8 @@ essay_evaluating = {
 }
 
 class BeGradingScorer:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self, model_name: str, question: str, solution: str, category: str = "Evaluating") -> dict:
         match category:

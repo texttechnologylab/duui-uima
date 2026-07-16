@@ -1,7 +1,7 @@
 export ANNOTATOR_NAME=duui-essayscorer
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.1.1
 export LOG_LEVEL=INFO
-eport MODEL_CACHE_SIZE=3
+export MODEL_CACHE_SIZE=1
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="KevSun/Engessay_grading_ML"
@@ -29,7 +29,7 @@ eport MODEL_CACHE_SIZE=3
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="LLMAESSlowScorer"
-#export MODEL_SPECNAME="llmaesslow-scorer"
+#export MODEL_SPEC_NAME="llmaesslow-scorer"
 #export MODEL_VERSION="b0716f4ba9d9d6e3e6ed734f343aa4a5a24607e5"
 #export MODEL_SOURCE="https://github.com/Xiaochr/LLM-AES"
 #export MODEL_LANG="-"
@@ -118,11 +118,11 @@ eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="GradingMedicalEducation"
-#export MODEL_SPEC_NAME="grading-medical-education"
-#export MODEL_VERSION="0.0.1"
-#export MODEL_SOURCE="https://bmcmededuc.biomedcentral.com/articles/10.1186/s12909-024-06026-5"
-#export MODEL_LANG="-"
+export MODEL_NAME="GradingMedicalEducation"
+export MODEL_SPEC_NAME="grading-medical-education"
+export MODEL_VERSION="0.0.1"
+export MODEL_SOURCE="https://bmcmededuc.biomedcentral.com/articles/10.1186/s12909-024-06026-5"
+export MODEL_LANG="-"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -776,11 +776,11 @@ eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="EssayEvalScoring"
-export MODEL_SPEC_NAME="essay-eval-scoring"
-export MODEL_VERSION="f7bfdc023b0b4a0810437bbed1ac7f7b11a36db8"
-export MODEL_SOURCE="https://github.com/JoeyHou/essay_eval"
-export MODEL_LANG="-"
+#export MODEL_NAME="EssayEvalScoring"
+#export MODEL_SPEC_NAME="essay-eval-scoring"
+#export MODEL_VERSION="f7bfdc023b0b4a0810437bbed1ac7f7b11a36db8"
+#export MODEL_SOURCE="https://github.com/JoeyHou/essay_eval"
+#export MODEL_LANG="-"
 ##---------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"

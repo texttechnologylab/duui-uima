@@ -230,8 +230,8 @@ Your final evaluation:
     return messages_fewshot
 
 class ScoreSlowStudent:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self, model_name: str, essay: str, task: str) -> dict:
         messages = [
@@ -285,8 +285,8 @@ class ScoreSlowStudent:
         return output_llm_aes
 
 class ScoreStudent:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self, model_name, category, set_prompt, set_essay, set_examples: str = "", set_rubrics: str = ""):
         if category == "zeroshot_norubrics":
