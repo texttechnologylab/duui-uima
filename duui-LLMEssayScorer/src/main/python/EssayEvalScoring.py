@@ -60,8 +60,8 @@ model_prefix="You are a helpful assistant that evaluates essays.",
 model_suffix= "Please provide a score based on the content of the essay."
 
 class EssayEvalScoring:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self, model_name: str, task: str, essay: str) -> dict:
         scoring_rubric = essay_set_descriptions[0]["scoring_rubric"]

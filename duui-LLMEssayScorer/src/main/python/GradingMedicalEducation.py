@@ -8,8 +8,8 @@ key_user = "Key: {}"
 answer = "Student's answer: {}"
 
 class GradingMedicalEducationScorer:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self, model_name: str, course: str, question_text: str, key_text: str, student_answer: str, max_points: int=10) -> dict:
         messages = [

@@ -31,8 +31,8 @@ Give only the JSON output without any additional text.
 
 
 class AGGScore:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self, model_name: str, course:str, question: str, student_answer: str) -> dict:
         messages = [

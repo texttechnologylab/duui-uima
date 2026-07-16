@@ -1,7 +1,7 @@
 export ANNOTATOR_NAME=duui-essayscorer
-export ANNOTATOR_VERSION=0.1.0
+export ANNOTATOR_VERSION=0.1.1
 export LOG_LEVEL=INFO
-eport MODEL_CACHE_SIZE=3
+export MODEL_CACHE_SIZE=1
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="KevSun/Engessay_grading_ML"
@@ -110,11 +110,11 @@ eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="AAGScorer"
-#export MODEL_SPEC_NAME="aag-scorer"
-#export MODEL_VERSION="0.0.1"
-#export MODEL_SOURCE="https://arxiv.org/pdf/2501.14305"
-#export MODEL_LANG="-"
+export MODEL_NAME="AAGScorer"
+export MODEL_SPEC_NAME="aag-scorer"
+export MODEL_VERSION="0.0.1"
+export MODEL_SOURCE="https://arxiv.org/pdf/2501.14305"
+export MODEL_LANG="-"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
@@ -776,11 +776,11 @@ eport MODEL_CACHE_SIZE=3
 ###---------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="EssayEvalScoring"
-export MODEL_SPEC_NAME="essay-eval-scoring"
-export MODEL_VERSION="f7bfdc023b0b4a0810437bbed1ac7f7b11a36db8"
-export MODEL_SOURCE="https://github.com/JoeyHou/essay_eval"
-export MODEL_LANG="-"
+#export MODEL_NAME="EssayEvalScoring"
+#export MODEL_SPEC_NAME="essay-eval-scoring"
+#export MODEL_VERSION="f7bfdc023b0b4a0810437bbed1ac7f7b11a36db8"
+#export MODEL_SOURCE="https://github.com/JoeyHou/essay_eval"
+#export MODEL_LANG="-"
 ##---------------------------------------------------------------------
 
 export DOCKER_REGISTRY="docker.texttechnologylab.org/"
