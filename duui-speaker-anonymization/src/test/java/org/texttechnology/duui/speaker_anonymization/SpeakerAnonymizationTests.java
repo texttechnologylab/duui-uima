@@ -1,8 +1,18 @@
 package org.texttechnology.duui.speaker_anonymization;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.apache.uima.UIMAException;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
+
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.util.InvalidXMLException;
@@ -14,15 +24,6 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.Base64;
-
-import javax.sound.sampled.*;
-
-import org.apache.commons.compress.compressors.CompressorException;
 import org.xml.sax.SAXException;
 
 /**
@@ -31,7 +32,7 @@ import org.xml.sax.SAXException;
  */
 public class SpeakerAnonymizationTests {
 
-    private static final String URL = "http://geltlin:9714";
+    private static final String URL = "http://localhost:9714";
 
     private DUUIComposer composer;
     private JCas cas;
@@ -53,21 +54,12 @@ public class SpeakerAnonymizationTests {
         cas.reset();
     }
 
-    private static String minimalWavBase64() throws Exception {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        AudioFormat format = new AudioFormat(16000, 16, 1, true, false);
-        byte[] silence = new byte[16000 * 2];
-        AudioInputStream ais = new AudioInputStream(
-            new java.io.ByteArrayInputStream(silence), format, 16000);
-        AudioSystem.write(ais, AudioFileFormat.Type.WAVE, bos);
-        return Base64.getEncoder().encodeToString(bos.toByteArray());
-    }
-
     private void addComponent(String language)
             throws InvalidXMLException, IOException, URISyntaxException, SAXException, CompressorException {
         composer.add(
             new DUUIRemoteDriver.Component(URL)
                     .withParameter("language", language)
+                    .withTargetView("transcript")
                     .build().withTimeout(600)
         );
     }
@@ -75,39 +67,27 @@ public class SpeakerAnonymizationTests {
     private void runAnonymizationTest(String language, String audioPath) throws Exception {
         addComponent(language);
 
-        byte[] audioBytes;
-        try {
-            audioBytes = java.nio.file.Files.readAllBytes(java.nio.file.Path.of(audioPath));
-        } catch (java.io.IOException e) {
-            System.out.println("Skipping: no test audio at " + audioPath);
-            return;
-        }
+        byte[] audioBytes = Files.readAllBytes(Path.of(audioPath));
+        assertTrue(audioBytes.length > 44, "Input fixture must contain WAV audio data");
 
         String audioB64 = Base64.getEncoder().encodeToString(audioBytes);
-        cas.setSofaDataString(audioB64, "text/x-wave");
+        cas.setSofaDataString(audioB64, "audio/wav");
 
-        try {
-            composer.run(cas);
-        } catch (Exception e) {
-            System.err.println("Server error (is it running?): " + e.getMessage());
-            e.printStackTrace();
-            return;
-        }
+        composer.run(cas);
 
-        String text = cas.getSofaDataString();
+        String text = cas.getView("_initialView").getSofaDataString();
         assertNotNull(text);
-        System.out.println("Transcript: " + text);
+        assertFalse(text.isBlank(), "Transcript must not be empty");
 
-        try {
-            JCas anonView = cas.getView("opf_anonymized_audio");
-            assertNotNull(anonView);
-            String anonB64 = anonView.getSofaDataString();
-            assertNotNull(anonB64);
-            assertFalse(anonB64.isEmpty());
-            System.out.println("Anonymized audio: " + anonB64.length() + " chars base64");
-        } catch (Exception e) {
-            System.out.println("No anonymized audio view: " + e.getMessage());
-        }
+        JCas anonView = cas.getView("opf_anonymized_audio");
+        String anonB64 = anonView.getSofaDataString();
+        assertNotNull(anonB64);
+        assertFalse(anonB64.isBlank(), "Anonymized audio must not be empty");
+
+        byte[] anonAudio = Base64.getDecoder().decode(anonB64);
+        assertTrue(anonAudio.length > 44, "Anonymized WAV must contain audio data");
+        assertEquals("RIFF", new String(anonAudio, 0, 4, StandardCharsets.US_ASCII));
+        assertEquals("WAVE", new String(anonAudio, 8, 4, StandardCharsets.US_ASCII));
     }
 
     @Test
