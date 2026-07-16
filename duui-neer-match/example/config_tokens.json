@@ -1,0 +1,73 @@
+{
+  "export_path": "src/main/resources/models/token1",
+  "name": "token1",
+  "type": "DL",
+  "entity_properties": {
+    "text": {
+      "property_type": "text",
+      "similarity_matchers": [
+        "levenshtein",
+        "jaro_winkler",
+        "hamming"
+      ]
+    },
+    "pos": {
+      "property_type": "text",
+      "similarity_matchers": [
+        "levenshtein"
+      ]
+    },
+    "coarse": {
+      "property_type": "text",
+      "similarity_matchers": [
+        "levenshtein"
+      ]
+    },
+    "lemma": {
+      "property_type": "text",
+      "similarity_matchers": [
+        "levenshtein"
+      ]
+    }
+  },
+  "training_settings": {
+    "learning_rate": 0.0001,
+    "optimizer": "adam",
+    "loss_function": "binary_crossentropy",
+    "batch_size": 32,
+    "epochs": 30,
+    "verbose": true
+  },
+  "training_data": {
+    "type": "single_dataset",
+    "file": "./example/tokens.csv",
+    "sample_size": 300,
+    "min_length": 3,
+    "samples_per_original": 3,
+    "property_mutations": {
+      "text": {
+        "type": "text",
+        "min_noise": 0.1,
+        "max_noise": 0.3
+      },
+      "pos": {
+        "type": "text",
+        "min_noise": 0.05,
+        "max_noise": 0.2
+      },
+      "coarse": {
+        "type": "text",
+        "min_noise": 0.05,
+        "max_noise": 0.2
+      },
+      "lemma": {
+        "type": "text",
+        "min_noise": 0.05,
+        "max_noise": 0.2
+      }
+    }
+  },
+  "test_data": {
+    "sample_size": 100
+  }
+}

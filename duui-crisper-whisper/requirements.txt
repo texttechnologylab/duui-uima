@@ -67,5 +67,5 @@ transformers @ git+https://github.com/nyrahealth/transformers.git@8eb900e81d4357
 triton==3.3.1
 typing-inspection==0.4.1
 typing_extensions==4.14.1
-urllib3==2.5.0
+urllib3==2.7.0
 uvicorn==0.35.0
