@@ -30,12 +30,16 @@ logging.basicConfig(level=logging.INFO)
 
 SUPPORTED_LANGUAGES = {"en", "de", "fr", "it", "es", "pt", "nl", "pl", "ru"}
 DEFAULT_LANGUAGE = "en"
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ---------------------------------------------------------------------------
 # Import anonymization modules from the repo
 # ---------------------------------------------------------------------------
 REPO_ROOT = os.environ.get("ANON_REPO_ROOT", os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, REPO_ROOT)
+
+IMSTOUCAN_ROOT = os.path.join(REPO_ROOT, "anonymization", "modules", "tts", "IMSToucan")
+sys.path.insert(0, IMSTOUCAN_ROOT)
 
 from anonymization.modules.text.recognition.whisper import WhisperASR
 from anonymization.modules.speaker_embeddings.extraction.embedding_methods.style_embeddings import StyleEmbeddings
@@ -106,8 +110,9 @@ app = FastAPI(
     version="1.0",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
-        "name": "Tim",
+        "name": "Tim Wolf",
         "url": "https://www.texttechnologylab.org",
+        "email": "T.Wolf@em.uni-frankfurt.de"
     },
     license_info={
         "name": "AGPL",
@@ -197,7 +202,6 @@ async def post_process(raw_request: Request) -> DUUIResponse:
 # Model loading
 # ---------------------------------------------------------------------------
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info("Using device: %s", DEVICE)
 if DEVICE.type == "cuda":
     logger.info("GPU: %s (memory: %.1f GB)", torch.cuda.get_device_name(0),

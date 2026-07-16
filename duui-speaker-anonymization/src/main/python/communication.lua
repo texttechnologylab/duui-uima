@@ -54,13 +54,16 @@ function deserialize(inputCas, inputStream)
 
     -- Write the original text as the document text
     if results["original_text"] ~= nil then
-        inputCas:setSofaDataString(results["original_text"], "text/plain")
+        local view = inputCas:createView("_initialView")
+        if view ~= nil then
+            view:setSofaDataString(results["original_text"], "text/plain")
+        end
     end
 
     -- Store the anonymized audio in its own view
     if results["anonymized_audio"] ~= nil then
-        local ok, view = pcall(function() return inputCas:createView("opf_anonymized_audio") end)
-        if ok and view ~= nil then
+        local view = inputCas:createView("opf_anonymized_audio")
+        if view ~= nil then
             view:setSofaDataString(results["anonymized_audio"], "application/octet-stream")
         end
     end
