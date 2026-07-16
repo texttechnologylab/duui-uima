@@ -29,7 +29,7 @@ export MODEL_CACHE_SIZE=1
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="LLMAESSlowScorer"
-#export MODEL_SPECNAME="llmaesslow-scorer"
+#export MODEL_SPEC_NAME="llmaesslow-scorer"
 #export MODEL_VERSION="b0716f4ba9d9d6e3e6ed734f343aa4a5a24607e5"
 #export MODEL_SOURCE="https://github.com/Xiaochr/LLM-AES"
 #export MODEL_LANG="-"
@@ -110,19 +110,19 @@ export MODEL_CACHE_SIZE=1
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-export MODEL_NAME="AAGScorer"
-export MODEL_SPEC_NAME="aag-scorer"
-export MODEL_VERSION="0.0.1"
-export MODEL_SOURCE="https://arxiv.org/pdf/2501.14305"
-export MODEL_LANG="-"
+#export MODEL_NAME="AAGScorer"
+#export MODEL_SPEC_NAME="aag-scorer"
+#export MODEL_VERSION="0.0.1"
+#export MODEL_SOURCE="https://arxiv.org/pdf/2501.14305"
+#export MODEL_LANG="-"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
-#export MODEL_NAME="GradingMedicalEducation"
-#export MODEL_SPEC_NAME="grading-medical-education"
-#export MODEL_VERSION="0.0.1"
-#export MODEL_SOURCE="https://bmcmededuc.biomedcentral.com/articles/10.1186/s12909-024-06026-5"
-#export MODEL_LANG="-"
+export MODEL_NAME="GradingMedicalEducation"
+export MODEL_SPEC_NAME="grading-medical-education"
+export MODEL_VERSION="0.0.1"
+export MODEL_SOURCE="https://bmcmededuc.biomedcentral.com/articles/10.1186/s12909-024-06026-5"
+export MODEL_LANG="-"
 ###---------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
