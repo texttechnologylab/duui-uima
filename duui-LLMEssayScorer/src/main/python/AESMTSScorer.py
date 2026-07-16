@@ -23,8 +23,8 @@ def MTS_compose_prompt_score(msg_system, msg_user_retrieval, msg_assistant_retri
 
 
 class Vanilla_OpenAI:
-    def __init__(self, template_path, category, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai  = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, template_path, category, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai  = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
         self.template_path = template_path
         self.category = category
         self.template = self.load_template()
@@ -85,8 +85,8 @@ class Vanilla_OpenAI:
 
 
 class MTS_OpenAI:
-    def __init__(self, template_path, category, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, template_path, category, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
         self.template_path = template_path
         self.category = category
         self.template = self.load_template()

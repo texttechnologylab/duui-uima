@@ -9,8 +9,8 @@ self_reflection = "You already know your [Previous_evalutaion]. please revisit a
 prompt_template = """You are a professional teacher of Operating System course. You are evaluating student's tutorial. You will be given a question, a grading rubric, and a student response. Your task in to grade the student's response with a grading score in the range from 0 to {full_points} and give the confidence level of the score.\nThe current question is: {question}. The grading rubric is:{rubric}.\nHere is an example:{example}\nThe student’s response is {studata}. Please compare the student response with grading rubric. Let's think step by step. Once you made a final analysis result, output the evaluation result in the format: {format_instructions}."""
 
 class GradingLikeHumanScorer:
-    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None):
-        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key)
+    def __init__(self, url: str, port: int, seed: int, temperature: float, api_key: str = None, base_url: str = None):
+        self.openai = OpenAIProcessing(url, port, seed, temperature, api_key, base_url)
 
     def run_message(self,model_name: str, question: str, rubric: str, example:str, student_response: str, full_points: int = 10):
         output_score = self.run_message_score(model_name, question, rubric, example, student_response, full_points)
