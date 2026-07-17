@@ -34,19 +34,18 @@ It supports:
 Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
 ### Start Docker Container
-1. 
-out of `duui\src\`
+
 ```bash
-docker  build -f docker/Dockerfile -t face-anon .
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-face-anon-simple
 ```
-2. 
-```bash
-docker run face-anon
-```
+Find available image tags: [Docker Registry](https://docker.texttechnologylab.org/v2/duui-mutlimodality-transformer/tags/list)
+
 
 ## Use within DUUI
 Examplary usage, see more examples in the `src/test/java/AnonTest.java` file.
-
+There are also two test Images provided:
+`multiple_people.jpg`: https://images.pexels.com/photos/10351367/pexels-photo-10351367.jpeg
+`single_person.jpg:` https://images.pexels.com/photos/31430969/pexels-photo-31430969.jpeg
 ```java
 
     @Test

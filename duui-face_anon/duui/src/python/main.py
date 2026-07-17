@@ -340,12 +340,16 @@ app = FastAPI(
             "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
         },
 )
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     logger.error(f"Validation error on {request.url}: {exc.errors()}")
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors()},
+        content=jsonable_encoder(DUUIResponse(
+            output_images={},
+            out_errors=[str(e) for e in exc.errors()],
+        )),
     )
 @app.get("/v1/details/input_output")
 def get_input_output()-> JSONResponse:
@@ -428,8 +432,11 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
             if width is None:
                 width = source_image.width
 
+            # forced resizing
             MAX_DIM = 768
             if height > MAX_DIM or width > MAX_DIM:
+                errors_out.append(
+                    f"Image {img_id} with {height} x {width} was forcefully resized to be less than {MAX_DIM} x {MAX_DIM}.")
                 scale = MAX_DIM / max(height, width)
                 height = (int(height * scale)//8)*8
                 width = (int(width * scale)//8)*8

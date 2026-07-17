@@ -16,7 +16,7 @@ COPY ./python .
 #COPY ./python/resources ./resources
 
 
-EXPOSE 8001
+EXPOSE 9714
 
-ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9714"]
 CMD ["--workers", "1"]
