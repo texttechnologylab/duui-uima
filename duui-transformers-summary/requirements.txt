@@ -1,6 +1,6 @@
 tqdm==4.66.1
 transformers==5.3.0
-torch==2.2.0
+torch==2.12.1
 torchvision==0.17.0
 torchaudio==2.2.0
 mdmls==0.1.3
