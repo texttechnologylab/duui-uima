@@ -28,46 +28,23 @@ from custom_referencenet.referencenet.pipeline_referencenet import (
 )
 from utils.anonymize_faces_in_image import anonymize_faces_in_image
 from utils.redact_faces import redact_faces_in_image
+from utils.types import ImageType, DUUIResponse, DUUIRequest
+from cassis import load_typesystem
+
 
 
 
 # --- duui communication classes
 logger: Optional[logging.Logger] = None
-typesystem: Optional[str] = None
 device: Optional[torch.device] = None
 pipe: Optional[StableDiffusionReferenceNetPipeline] = None
 generator: Optional[torch.Generator] = None
 fa: Optional[face_alignment.FaceAlignment] = None
 
-
-
-class ImageType(BaseModel):
-    src: str
-    height: int
-    width: int
-    begin: int
-    end: int
-
-class DUUIRequest(BaseModel):
-    anon_type: str
-    anon_degree: float
-    images: Dict[int, ImageType]
-    redact_type: str
-    blur: int
-    pixel: int
-    diffusion_model: str
-    clip_model: str
-    seed: int
-    guidance: float
-    inference_steps: int
-    vis_input: bool
-    height: Optional[int] = None
-    width: Optional[int] = None
-    hf_token: str
-
-class DUUIResponse(BaseModel):
-    output_images: Dict[int, ImageType]
-    out_errors : List[str]
+# -- static typesystem --
+typesystem_filename = 'resources/typesystem_face_anon.xml'
+with open(typesystem_filename, 'rb') as f:
+    typesystem = load_typesystem(f)
 
 
 
@@ -190,6 +167,7 @@ def redact_faces(
         blur_strength,
         pixel_size,
         vis_input,
+        face_type
     )->Image:
     """
 
@@ -208,6 +186,7 @@ def redact_faces(
         redaction_method=redaction_method,
         blur_strength=blur_strength,
         pixel_size=pixel_size,
+        face_type=face_type
     )
     if vis_input:
         return combine_images([redact_image, source_image])
@@ -251,25 +230,15 @@ def b64_to_pil(b64_str):
     img_bytes = base64.b64decode(b64_str)
     return Image.open(BytesIO(img_bytes)).convert("RGB")
 
-def load_typesystem()-> str:
-    #Load the predefined typesystem that is needed for this annotator to work
-    typesystem_filename = 'resources/typesystem_face_anon.xml'
-    with open(typesystem_filename, 'r') as f:
-        type_system = f.read()
-
-        logging.basicConfig(level=logging.INFO)
-        logger.info("Loaded type system from %s", typesystem_filename)
-        return type_system
-
 
 
 def init():
-    global logger, typesystem
+    global logger
 
     logging.basicConfig(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
 
-    typesystem = load_typesystem()
+
 
 
 def load_pipeline(clip_model, diffusion_model, seed, token):
@@ -347,7 +316,7 @@ async def validation_exception_handler(request, exc):
     return JSONResponse(
         status_code=422,
         content=jsonable_encoder(DUUIResponse(
-            output_images={},
+            output_images=[],
             out_errors=[str(e) for e in exc.errors()],
         )),
     )
@@ -395,6 +364,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
     images = request.images
     # set if the anon_type is redaction, then can choose again between blur, black or pixel
     redact_type = request.redact_type
+    face_type = request.face_type
     blur = request.blur
     pixel = request.pixel
     diffusion_model = request.diffusion_model
@@ -403,30 +373,43 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
     guidance = request.guidance
     inference_steps = request.inference_steps
     vis_input = request.vis_input
-
+    """
+     -- todo implement the FaceType switches from extract_faces
+    -- half / midfull / full / full no-align / whole-face / whole face no-align / head / head no-align
+    """
   
+    # swap needs default settings
+    if anon_type == "swap":
+        inference_steps = 200
+        anon_degree = 0
 
 
     hf_token = request.hf_token
 
 
-    output_images = {}
+    output_images = []
     errors_out =[]
     try:
         if len(images) == 0:
             raise ValueError("No Images provided")
         if hf_token == "None":
             raise ValueError("Please provide a hugging face token, to access the models.")
-
+        if anon_type==swap and len(images) != 2:
+            errors_out.append("To swap two faces an input of exactly two images is required.")
+            raise ValueError(
+                f"You have passed a total number of {len(images)} images. To swap you need to pass exactly 2.")
         load_pipeline(clip_model, diffusion_model, seed, hf_token)
         # selection between the different anon types:
         # options: single_align, multiple_align, swap, redact
-        for img_id, img_data in images.items():
+
+        generator = torch.Generator(device="cuda").manual_seed(seed)
+
+        for img in images:
               # these can be "None" and will then be set later in the loop, UNLESS predefined height / width is passed
             height = request.height
             width = request.width
 
-            source_image = b64_to_pil(img_data.src)
+            source_image = b64_to_pil(img.src)
             if height is None:
                 height = source_image.height
             if width is None:
@@ -436,7 +419,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
             MAX_DIM = 768
             if height > MAX_DIM or width > MAX_DIM:
                 errors_out.append(
-                    f"Image {img_id} with {height} x {width} was forcefully resized to be less than {MAX_DIM} x {MAX_DIM}.")
+                    f"Image with {height} x {width} was forcefully resized to be less than {MAX_DIM} x {MAX_DIM}.")
                 scale = MAX_DIM / max(height, width)
                 height = (int(height * scale)//8)*8
                 width = (int(width * scale)//8)*8
@@ -444,22 +427,12 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
             # only one image
             if anon_type == "single_align":
-                generator = torch.Generator(device="cuda").manual_seed(seed)
-
 
                 output = single_aligned_face(source_image, inference_steps=inference_steps,
                                              guidance_scale=guidance, anonymization_degree=anon_degree, height=height,
                                              width=width, vis_input=vis_input, generator=generator)
-                output_images[img_id] = ImageType(
-                    src=pil_to_b64(output),
-                    height=height,
-                    width=width,
-                    begin = img_data.begin,
-                    end = img_data.end,
-                )
 
             elif anon_type == "multiple_align":
-                generator = torch.Generator(device="cuda").manual_seed(seed)
                 if height != width:
 
                     errors_out.append("width != height")
@@ -473,26 +446,12 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     generator=generator
                 )
 
-                output_images[img_id] = ImageType(
-                    src=pil_to_b64(output),
-                    height=height,
-                    width=width,
-                    begin=img_data.begin,
-                    end=img_data.end,
-                )
-
 
             elif anon_type == "swap":
-                generator = torch.Generator(device="cuda").manual_seed(seed)
 
-                if len(images) != 2:
-                    errors_out.append("To swap two faces an input of exactly two images is required.")
-                    raise ValueError(
-                        f"You have passed a total number of {len(images)} images. To swap you need to pass exactly 2.")
-                ids = list(images.values()) # work around
                 output = swap_faces(
-                    source_image=b64_to_pil(ids[0].src),
-                    conditioning_image=b64_to_pil(ids[1].src),
+                    source_image=b64_to_pil(images[0].src),
+                    conditioning_image=b64_to_pil(images[1].src),
                     inference_steps=inference_steps,
                     guidance_scale=guidance,
                     anonymization_degree=anon_degree,
@@ -501,16 +460,8 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     vis_input=vis_input,
                     generator=generator
                 )
-                # uses id 1, ignores id 2 just to be able to insert it better into the CAS
-                output_images[1] = ImageType(
-                    src=pil_to_b64(output),
-                    height=height,
-                    width=width,
-                    begin=img_data.begin,
-                    end=img_data.end
-                )
-                # can only run once so the iter across all images stops
-                break
+
+
             elif anon_type == "redact":
                 if redact_type == "None":
                     errors_out.append("Redaction Type has not been set - using default (blur)")
@@ -525,18 +476,21 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     redaction_method=redact_type,
                     blur_strength=blur,
                     pixel_size=pixel,
-                    vis_input=vis_input
+                    vis_input=vis_input,
+                    face_type=face_type,
                 )
-                output_images[img_id] = ImageType(
-                    src=pil_to_b64(output),
-                    height=height,
-                    width=width,
-                    begin=img_data.begin,
-                    end=img_data.end,
-                )
+
             else:
                 raise ValueError(f"Unknown anon_type: {anon_type}")
 
+            output_images.append(ImageType(
+                src=pil_to_b64(output),
+                height=height, width=width,
+                begin=img.begin, end=img.end,
+            ))
+            # only works if two images are in it and thus skips out after one inter
+            if anon_type == "swap":
+                break
 
         return DUUIResponse(
             output_images=output_images,
@@ -546,7 +500,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
         global logger
         logger.exception(ex)
         return DUUIResponse(
-            output_images={},
+            output_images=[],
             out_errors=[str(ex)],
         )
     finally:
