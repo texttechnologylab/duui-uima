@@ -1,4 +1,7 @@
+from pathlib import Path
 import torch
+import ruamel.yaml as yaml
+from ruamel.yaml.representer import RoundTripRepresenter, SafeRepresenter
 from typing import Union
 
 
@@ -41,6 +44,18 @@ class BaseAnonymizer:
         self.kwargs["device"] = str(self.device)
         self.kwargs["suffix"] = self.suffix
 
+    def __repr__(self):
+        if hasattr(self, "kwargs"):
+            return f"{self.__class__.__name__}({self.kwargs})"
+        else:
+            return f"{self.__class__.__name__}()"
+
+    def to_yaml(self, representer: yaml.Representer):
+        # first get data into dict format
+        data = {f"!new:{type(self).__qualname__}": self.kwargs}
+        return_str = representer.represent_dict(data)
+        return return_str
+
     def anonymize_embeddings(self, speaker_embeddings: torch.Tensor, emb_level: str = "spk") -> torch.Tensor:
         # Template method for anonymizing a dataset. Not implemented.
         raise NotImplementedError("anonymize_data")
@@ -48,3 +63,8 @@ class BaseAnonymizer:
     def to(self, device):
         self.device = device
 
+
+# necessary to make BaseAnonymizer and subclasses dumpable
+RoundTripRepresenter.add_multi_representer(
+    BaseAnonymizer, lambda representer, data: data.to_yaml(representer)
+)

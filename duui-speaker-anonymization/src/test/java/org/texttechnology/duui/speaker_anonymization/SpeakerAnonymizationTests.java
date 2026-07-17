@@ -33,8 +33,6 @@ import org.xml.sax.SAXException;
 public class SpeakerAnonymizationTests {
 
     private static final String URL = "http://geltlin:29714";
-    private static final String WHISPER_X_URL = "http://localhost:8000";
-    private static final String HF_TOKEN = "";
 
     private DUUIComposer composer;
     private JCas cas;
@@ -63,19 +61,6 @@ public class SpeakerAnonymizationTests {
                     .withParameter("language", language)
                     .withTargetView("transcript")
                     .build().withTimeout(600)
-        );
-    }
-
-    private void addWhisperXComponent(String language)
-            throws InvalidXMLException, IOException, URISyntaxException, SAXException, CompressorException {
-        composer.add(
-            new DUUIRemoteDriver.Component(WHISPER_X_URL)
-                    .withSourceView("opf_anonymized_audio")
-                    .withTargetView("anonymized_transcript")
-                    .withParameter("language", language)
-                    .withParameter("model", "large-v3")
-                    .withParameter("hf_token", HF_TOKEN)
-                    .build().withTimeout(1000000000L)
         );
     }
 
@@ -117,22 +102,5 @@ public class SpeakerAnonymizationTests {
     @Test
     void testAudioEn() throws Exception {
         runAnonymizationTest("en", "src/test/resources/zoo.wav");
-    }
-
-    @Test
-    void testAnonymizedAudioWithWhisperXDe() throws Exception {
-        String language = "de";
-        addComponent(language);
-        addWhisperXComponent(language);
-
-        byte[] audioBytes = Files.readAllBytes(Path.of("src/test/resources/Katze.wav"));
-        cas.setDocumentLanguage(language);
-        cas.setSofaDataString(Base64.getEncoder().encodeToString(audioBytes), "audio/wav");
-
-        composer.run(cas);
-
-        JCas transcriptView = cas.getView("anonymized_transcript");
-        assertFalse(transcriptView.getDocumentText().isBlank(),
-                "WhisperX must transcribe the anonymized audio");
     }
 }

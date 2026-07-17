@@ -252,6 +252,7 @@ def _load_anonymization_pipeline(language: str):
     tts = ImsTTS(
         hifigan_path=os.path.join(models_dir, "Avocodo.pt"),
         fastspeech_path=os.path.join(models_dir, "ToucanTTS_Meta.pt"),
+        embedding_path=os.path.join(models_dir, "embedding_function.pt"),
         device=DEVICE,
         lang=language,
     )
