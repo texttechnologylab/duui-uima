@@ -60,4 +60,4 @@ wasabi==0.9.0
 watchgod==0.7
 websockets==10.1
 zipp==3.7.0
-torch==1.13
+torch==2.12.1
