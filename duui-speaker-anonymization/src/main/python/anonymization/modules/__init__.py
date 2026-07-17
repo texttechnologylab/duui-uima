@@ -1,4 +1,1 @@
-from .tts import SpeechSynthesis
-from .text import SpeechRecognition
-from .prosody import ProsodyExtraction, ProsodyAnonymization
-from .speaker_embeddings import SpeakerExtraction, SpeakerAnonymization
+"""Runtime modules used by the DUUI speaker-anonymization component."""

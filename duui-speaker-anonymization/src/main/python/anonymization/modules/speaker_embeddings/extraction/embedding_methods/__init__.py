@@ -1,2 +1,2 @@
-from .speechbrain_vectors import SpeechBrainVectors
+"""Speaker-embedding extraction methods used at runtime."""
 from .style_embeddings import StyleEmbeddings

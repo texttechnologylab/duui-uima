@@ -1,1 +1,1 @@
-from .speech_synthesis import SpeechSynthesis
+from .ims_tts import ImsTTS

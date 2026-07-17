@@ -1,1 +1,1 @@
-from .speech_recognition import SpeechRecognition
+"""Speech-recognition runtime package."""

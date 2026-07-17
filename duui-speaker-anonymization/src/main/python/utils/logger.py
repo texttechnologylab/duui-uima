@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from datetime import datetime
 
 
 def setup_logger(name, log_dir='logs', filename=None):
@@ -28,6 +27,3 @@ def setup_logger(name, log_dir='logs', filename=None):
     logger.addHandler(ch)
     return logger
 
-
-def get_current_time():
-    return datetime.strftime(datetime.today(), '%d-%m-%y_%H:%M')
