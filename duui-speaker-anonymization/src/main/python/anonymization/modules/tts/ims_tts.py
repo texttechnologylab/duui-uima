@@ -8,13 +8,13 @@ logger = setup_logger(__name__)
 
 class ImsTTS:
 
-    def __init__(self, hifigan_path, fastspeech_path, device, embedding_path=None, output_sr=16000, lang='en'):
+    def __init__(self, hifigan_path, fastspeech_path, device, output_sr=16000, lang='en'):
         self.device = device
         self.output_sr = output_sr
 
         self.model = AnonFastSpeech2(device=self.device, vocoder_model_path=hifigan_path,
-                                     tts_model_path=fastspeech_path, embedding_model_path=embedding_path,
-                                     language=lang, faster_vocoder=True)
+                                     tts_model_path=fastspeech_path,
+                                     language=lang)
 
     def read_text(self, text, speaker_embedding, text_is_phones=True, duration=None, pitch=None, energy=None,
                   start_silence=None, end_silence=None):

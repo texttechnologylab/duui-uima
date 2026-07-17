@@ -949,5 +949,3 @@ def generate_feature_table():
     return phone_to_vector
 
 
-if __name__ == '__main__':
-    print(generate_feature_table())

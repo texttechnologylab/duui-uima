@@ -524,23 +524,3 @@ def get_language_id(language):
         return torch.LongTensor([17])
 
 
-if __name__ == '__main__':
-    tf = ArticulatoryCombinedTextFrontend(language="en")
-    tf.string_to_tensor("This is a complex sentence, it even has a pause! But can it do this? Nice.", view=True)
-
-    tf = ArticulatoryCombinedTextFrontend(language="de")
-    tf.string_to_tensor("Alles klar, jetzt testen wir einen deutschen Satz. Ich hoffe es gibt nicht mehr viele unspezifizierte Phoneme.", view=True)
-
-    tf = ArticulatoryCombinedTextFrontend(language="cmn")
-    tf.string_to_tensor("这是一个复杂的句子，它甚至包含一个停顿。", view=True)
-    tf.string_to_tensor("李绅 《悯农》 锄禾日当午， 汗滴禾下土。 谁知盘中餐， 粒粒皆辛苦。", view=True)
-    tf.string_to_tensor("巴 拔 把 爸 吧", view=True)
-
-    tf = ArticulatoryCombinedTextFrontend(language="vi")
-    tf.string_to_tensor("Xin chào thế giới, quả là một ngày tốt lành để học nói tiếng Việt!", view=True)
-    tf.string_to_tensor("ba bà bá bạ bả bã", view=True)
-
-    tf = ArticulatoryCombinedTextFrontend(language="fr")
-    tf.string_to_tensor("Je ne te fais pas un dessin.", view=True)
-    print(tf.get_phone_string("Je ne te fais pas un dessin."))
-    print(tf.string_to_tensor("un", view=True))

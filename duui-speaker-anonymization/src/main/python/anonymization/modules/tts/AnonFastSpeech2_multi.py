@@ -1,7 +1,5 @@
-import os
 from pathlib import Path
 
-import soundfile
 import torch
 
 import sys
@@ -9,19 +7,15 @@ sys.path.insert(0, str(Path('anonymization/modules/tts/IMSToucan').absolute()))
 
 from .IMSToucan.InferenceInterfaces.InferenceArchitectures.InferenceToucanTTS import ToucanTTS
 from .IMSToucan.InferenceInterfaces.InferenceArchitectures.InferenceAvocodo import HiFiGANGenerator
-from .IMSToucan.InferenceInterfaces.InferenceArchitectures.InferenceBigVGAN import BigVGAN
-from .IMSToucan.Preprocessing.AudioPreprocessor import AudioPreprocessor
 from .IMSToucan.Preprocessing.TextFrontend import ArticulatoryCombinedTextFrontend
 from .IMSToucan.Preprocessing.TextFrontend import get_language_id
-from .IMSToucan.TrainingInterfaces.Spectrogram_to_Embedding.StyleEmbedding import StyleEmbedding
 from utils import setup_logger
 
 logger = setup_logger(__name__)
 
 class AnonFastSpeech2(torch.nn.Module):
 
-    def __init__(self, vocoder_model_path, tts_model_path, embedding_model_path, device="cpu", language="en",
-                 faster_vocoder=True):
+    def __init__(self, vocoder_model_path, tts_model_path, device="cpu", language="en"):
         super().__init__()
         self.device = device
 
@@ -55,21 +49,10 @@ class AnonFastSpeech2(torch.nn.Module):
             self.phone2mel.store_inverse_all()  # this also removes weight norm
         self.phone2mel = self.phone2mel.to(torch.device(device))
 
-        #################################
-        #  load mel to style models     #
-        #################################
-        self.style_embedding_function = StyleEmbedding()
-        check_dict = torch.load(embedding_model_path, map_location="cpu")
-        self.style_embedding_function.load_state_dict(check_dict["style_emb_func"])
-        self.style_embedding_function.to(self.device)
-
         ################################
         #  load mel to wave model      #
         ################################
-        if faster_vocoder:
-            self.mel2wav = HiFiGANGenerator(path_to_weights=vocoder_model_path).to(torch.device(device)) # TODO
-        else:
-            self.mel2wav = BigVGAN(path_to_weights=vocoder_model_path).to(torch.device(device))
+        self.mel2wav = HiFiGANGenerator(path_to_weights=vocoder_model_path).to(torch.device(device))
         self.mel2wav.remove_weight_norm()
         self.mel2wav = torch.jit.trace(self.mel2wav, torch.randn([80, 5]).to(torch.device(device)))
 
@@ -77,47 +60,15 @@ class AnonFastSpeech2(torch.nn.Module):
         #  set defaults                #
         ################################
         self.default_utterance_embedding = checkpoint["default_emb"].to(self.device)
-        self.audio_preprocessor = AudioPreprocessor(input_sr=16000, output_sr=16000, cut_silence=True,
-                                                    device=self.device)
         logger.info(f'AnonFastSpeech2 Language: {language}')
         self.phone2mel.eval()
         self.mel2wav.eval()
-        self.style_embedding_function.eval()
         if self.use_lang_id:
             self.lang_id = get_language_id(language)
         else:
             self.lang_id = None
         self.to(torch.device(device))
         self.eval()
-
-    def set_utterance_embedding(self, path_to_reference_audio="", embedding=None):
-        if embedding is not None:
-            self.default_utterance_embedding = embedding.squeeze().to(self.device)
-            return
-        assert os.path.exists(path_to_reference_audio)
-        wave, sr = soundfile.read(path_to_reference_audio)
-        if sr != self.audio_preprocessor.sr:
-            self.audio_preprocessor = AudioPreprocessor(input_sr=sr, output_sr=16000, cut_silence=True, device=self.device)
-        spec = self.audio_preprocessor.audio_to_mel_spec_tensor(wave).transpose(0, 1)
-        spec_len = torch.LongTensor([len(spec)])
-        self.default_utterance_embedding = self.style_embedding_function(spec.unsqueeze(0).to(self.device),
-                                                                         spec_len.unsqueeze(0).to(self.device)).squeeze()
-
-    def set_language(self, lang_id):
-        """
-        The id parameter actually refers to the shorthand. This has become ambiguous with the introduction of the actual language IDs
-        """
-        self.set_phonemizer_language(lang_id=lang_id)
-        self.set_accent_language(lang_id=lang_id)
-
-    def set_phonemizer_language(self, lang_id):
-        self.text2phone = ArticulatoryCombinedTextFrontend(language=lang_id, add_silence_to_end=True)
-
-    def set_accent_language(self, lang_id):
-        if self.use_lang_id:
-            self.lang_id = get_language_id(lang_id).to(self.device)
-        else:
-            self.lang_id = None
 
     def forward(self,
                 text,

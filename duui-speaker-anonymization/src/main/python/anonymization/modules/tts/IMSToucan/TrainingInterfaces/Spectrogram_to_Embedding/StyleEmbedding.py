@@ -57,11 +57,3 @@ class StyleEmbedding(torch.nn.Module):
                         return_only_ref=return_only_refs)
 
 
-if __name__ == '__main__':
-    style_emb = StyleEmbedding()
-    print(f"GST parameter count: {sum(p.numel() for p in style_emb.gst.parameters() if p.requires_grad)}")
-
-    seq_length = 398
-    print(style_emb(torch.randn(5, seq_length, 80),
-                    torch.tensor([seq_length, seq_length, seq_length, seq_length, seq_length]),
-                    return_only_refs=False).shape)
