@@ -1,6 +1,6 @@
 tqdm==4.66.1
 transformers==5.0.0rc3
-torch==2.5.1
+torch==2.12.1
 torchvision==0.20.1
 torchaudio==2.5.1
 sentencepiece==0.2.0
