@@ -373,10 +373,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
     guidance = request.guidance
     inference_steps = request.inference_steps
     vis_input = request.vis_input
-    """
-     -- todo implement the FaceType switches from extract_faces
-    -- half / midfull / full / full no-align / whole-face / whole face no-align / head / head no-align
-    """
+
   
     # swap needs default settings
     if anon_type == "swap":
