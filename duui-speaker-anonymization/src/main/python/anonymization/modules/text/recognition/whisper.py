@@ -33,10 +33,15 @@ class WhisperASR:
         self.lang = lang
 
         model_id = 'openai/whisper-large-v3'
-        model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True,
-                                                          use_safetensors=True,
-                                                          use_flash_attention_2=self.use_flash_attention_2,
-                                                          cache_dir=model_path)
+        #model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True,
+        #                                                  use_safetensors=True,
+        #tim                                                  use_flash_attention_2=self.use_flash_attention_2,
+        #                                                  cache_dir=model_path)
+        model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            model_id,
+            torch_dtype=torch_dtype,
+            low_cpu_mem_usage=True,)
+
         model.to(self.device)
         processor = AutoProcessor.from_pretrained(model_id, cache_dir=model_path)
         self.speech2text = pipeline('automatic-speech-recognition', model=model, tokenizer=processor.tokenizer,

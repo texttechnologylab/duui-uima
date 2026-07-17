@@ -52,7 +52,8 @@ function deserialize(inputCas, inputStream)
         "java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
 
-    -- Write the original text as the document text
+    -- Write the original text into a dedicated view to avoid
+    -- conflicting with the audio already stored in the main sofa.
     if results["original_text"] ~= nil then
         local view = inputCas:createView("_initialView")
         if view ~= nil then

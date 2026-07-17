@@ -67,7 +67,8 @@ public class SpeakerAnonymizationTests {
     private void runAnonymizationTest(String language, String audioPath) throws Exception {
         addComponent(language);
 
-        byte[] audioBytes = Files.readAllBytes(Path.of(audioPath));
+        Path inputPath = Path.of(audioPath);
+        byte[] audioBytes = Files.readAllBytes(inputPath);
         assertTrue(audioBytes.length > 44, "Input fixture must contain WAV audio data");
 
         String audioB64 = Base64.getEncoder().encodeToString(audioBytes);
@@ -88,6 +89,9 @@ public class SpeakerAnonymizationTests {
         assertTrue(anonAudio.length > 44, "Anonymized WAV must contain audio data");
         assertEquals("RIFF", new String(anonAudio, 0, 4, StandardCharsets.US_ASCII));
         assertEquals("WAVE", new String(anonAudio, 8, 4, StandardCharsets.US_ASCII));
+
+        Path outputPath = Path.of("anonymized_" + inputPath.getFileName());
+        Files.write(outputPath, anonAudio);
     }
 
     @Test

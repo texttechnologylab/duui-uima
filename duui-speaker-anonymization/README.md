@@ -38,9 +38,34 @@ wget https://github.com/DigitalPhonetics/IMS-Toucan/releases/download/v2.5/Avoco
 
 The Whisper model (`whisper-large-v3`) is downloaded automatically on first use and cached in `src/main/python/models/whisper-large-v3/`.
 
+## Installation
+
+### Requirements
+
+- Python 3.10+
+- CUDA-capable GPU recommended (CPU fallback supported)
+
+### Conda environment
+
+The anonymization pipeline depends on a large set of ML packages (PyTorch, Whisper, SpeechBrain, ToucanTTS, etc.). Prepare a conda environment with all dependencies:
+
+```bash
+conda create -n anon python=3.10
+conda activate anon
+
+pip install torch==2.0.0 torchaudio==2.0.0 --index-url https://download.pytorch.org/whl/cu118
+pip install -r src/main/python/anonymization/modules/tts/IMSToucan/requirements.txt
+pip install numpy scikit-learn speechbrain pyyaml transformers noisereduce accelerate
+pip install fastapi uvicorn[standard] pydantic pydantic_settings dkpro-cassis pydub soundfile
+```
+
+### Model files
+
+Download the models listed above into `src/main/python/models/`. The Whisper model is downloaded automatically on first use.
+
 ## Running
 
-### Start the server
+Start the server from the repository root:
 
 ```bash
 cd src/main/python/

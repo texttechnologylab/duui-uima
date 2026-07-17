@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings
 from pydub import AudioSegment
 
@@ -112,7 +112,7 @@ app = FastAPI(
     contact={
         "name": "Tim Wolf",
         "url": "https://www.texttechnologylab.org",
-        "email": "T.Wolf@em.uni-frankfurt.de"
+        "email": "T.Wolf@em.uni-frankfurt.de",
     },
     license_info={
         "name": "AGPL",
@@ -194,7 +194,11 @@ async def post_process(raw_request: Request) -> DUUIResponse:
         raise RequestValidationError([
             {"type": "json_invalid", "loc": ("body",), "msg": str(exc), "input": body}
         ])
-    request = DUUIRequest.model_validate(data)
+    try:
+        request = DUUIRequest.model_validate(data)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+
     return _process(request)
 
 
@@ -210,6 +214,7 @@ if DEVICE.type == "cuda":
 models_dir = os.environ.get("MODELS_DIR", os.path.join(REPO_ROOT, "models"))
 
 model_lock = Lock()
+processing_lock = Lock()
 
 
 @lru_cache(maxsize=1)
@@ -278,6 +283,11 @@ def _decode_base64_audio(audio_b64: str) -> bytes:
 
 
 def _process(request: DUUIRequest) -> DUUIResponse:
+    with processing_lock:
+        return _process_locked(request)
+
+
+def _process_locked(request: DUUIRequest) -> DUUIResponse:
     options = request.options
     language = str(options.get("language", DEFAULT_LANGUAGE))
     if language not in SUPPORTED_LANGUAGES:
@@ -312,7 +322,7 @@ def _process(request: DUUIRequest) -> DUUIResponse:
         if signal.shape[0] > 1:
             signal = signal.mean(0, keepdim=True)
         norm_wave = normalize_wave(signal, fs, device=DEVICE)
-        spk_vector = embed_extractor.extract_vector(audio=norm_wave, sr=fs)
+        spk_vector = embed_extractor.extract_vector(audio=norm_wave, sr=16000)
 
         spk_embs = SpeakerEmbeddings(vec_type="style-embed", emb_level="utt",
                                      device=DEVICE)
