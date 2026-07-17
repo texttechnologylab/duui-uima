@@ -46,7 +46,7 @@ stanza==1.6.1
 starlette==0.27.0
 sympy==1.12
 toposort==1.7
-torch==2.1.0
+torch==2.12.1
 tqdm==4.66.1
 triton==2.1.0
 typing-extensions==4.8.0
