@@ -10,7 +10,7 @@ germansentiment==1.1.0
 pytorch-lightning==2.4.0
 numpy==1.26.3
 scikit-learn==1.5.0
-nltk==3.9
+nltk==3.10.0
 fastapi==0.110.0
 dkpro-cassis==0.9.1
 uvicorn[standard]==0.27.1
