@@ -1,3 +1,5 @@
+import os
+
 from tqdm import tqdm
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
@@ -20,32 +22,45 @@ LANGS = {
     'tr': 'turkish'
 }
 
+WHISPER_MODEL_ID = os.environ.get("WHISPER_MODEL_ID", "openai/whisper-large-v3")
+WHISPER_MODEL_REVISION = os.environ.get(
+    "WHISPER_MODEL_REVISION", "06f233fe06e710322aca913c1bc4249a0d71fce1"
+)
+
 
 class WhisperASR:
 
     def __init__(self, model_path, device, utt_start_token='', utt_end_token='', lang=None, batch_size=16, **kwargs):
         self.device = device
         torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
-        self.model_path = model_path  # TODO
+        self.model_path = model_path
         self.use_flash_attention_2 = False
         self.utt_start_token = utt_start_token
         self.utt_end_token = utt_end_token
         self.lang = lang
 
-        model_id = 'openai/whisper-large-v3'
-        #model = AutoModelForSpeechSeq2Seq.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True,
-        #                                                  use_safetensors=True,
-        #tim                                                  use_flash_attention_2=self.use_flash_attention_2,
-        #                                                  cache_dir=model_path)
+        model_id = WHISPER_MODEL_ID
+        offline = os.environ.get("HF_HUB_OFFLINE", "0") == "1"
         model = AutoModelForSpeechSeq2Seq.from_pretrained(
             model_id,
+            revision=WHISPER_MODEL_REVISION,
             torch_dtype=torch_dtype,
-            low_cpu_mem_usage=True,)
+            low_cpu_mem_usage=True,
+            use_safetensors=True,
+            cache_dir=model_path,
+            local_files_only=offline,
+        )
 
         model.to(self.device)
-        processor = AutoProcessor.from_pretrained(model_id, cache_dir=model_path)
+        processor = AutoProcessor.from_pretrained(
+            model_id,
+            revision=WHISPER_MODEL_REVISION,
+            cache_dir=model_path,
+            local_files_only=offline,
+        )
+        effective_batch_size = batch_size if self.device.type == "cuda" else 1
         self.speech2text = pipeline('automatic-speech-recognition', model=model, tokenizer=processor.tokenizer,
-                                    feature_extractor=processor.feature_extractor, batch_size=batch_size,
+                                    feature_extractor=processor.feature_extractor, batch_size=effective_batch_size,
                                     return_timestamps=False, torch_dtype=torch_dtype, device=self.device,
                                     max_new_tokens=128,)
 

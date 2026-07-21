@@ -65,8 +65,7 @@
     </build>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <dkpro.core.version>2.4.0</dkpro.core.version>
     </properties>
@@ -104,13 +103,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.github.texttechnologylab</groupId>
-            <artifactId>UIMATypeSystem</artifactId>
-<!--                <version>9806cc024d08aa3164bbe1bd00adc09d408cdf0b</version>-->
-                <version>uima-3-SNAPSHOT</version>
-        </dependency>
-
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.9.0</version>
@@ -143,4 +135,3 @@
     </dependencies>
 
 </project>
-

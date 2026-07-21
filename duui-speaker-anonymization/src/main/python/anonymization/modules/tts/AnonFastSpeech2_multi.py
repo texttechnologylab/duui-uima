@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path('anonymization/modules/tts/IMSToucan').absolute()))
 
 from .IMSToucan.InferenceInterfaces.InferenceArchitectures.InferenceToucanTTS import ToucanTTS
 from .IMSToucan.InferenceInterfaces.InferenceArchitectures.InferenceAvocodo import HiFiGANGenerator
-from .IMSToucan.InferenceInterfaces.InferenceArchitectures.InferenceBigVGAN import BigVGAN
 from .IMSToucan.Preprocessing.AudioPreprocessor import AudioPreprocessor
 from .IMSToucan.Preprocessing.TextFrontend import ArticulatoryCombinedTextFrontend
 from .IMSToucan.Preprocessing.TextFrontend import get_language_id
@@ -20,8 +19,7 @@ logger = setup_logger(__name__)
 
 class AnonFastSpeech2(torch.nn.Module):
 
-    def __init__(self, vocoder_model_path, tts_model_path, embedding_model_path, device="cpu", language="en",
-                 faster_vocoder=True):
+    def __init__(self, vocoder_model_path, tts_model_path, embedding_model_path, device="cpu", language="en"):
         super().__init__()
         self.device = device
 
@@ -66,10 +64,7 @@ class AnonFastSpeech2(torch.nn.Module):
         ################################
         #  load mel to wave model      #
         ################################
-        if faster_vocoder:
-            self.mel2wav = HiFiGANGenerator(path_to_weights=vocoder_model_path).to(torch.device(device)) # TODO
-        else:
-            self.mel2wav = BigVGAN(path_to_weights=vocoder_model_path).to(torch.device(device))
+        self.mel2wav = HiFiGANGenerator(path_to_weights=vocoder_model_path).to(torch.device(device))
         self.mel2wav.remove_weight_norm()
         self.mel2wav = torch.jit.trace(self.mel2wav, torch.randn([80, 5]).to(torch.device(device)))
 

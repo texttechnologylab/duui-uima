@@ -1,3 +1,5 @@
+import os
+
 import librosa
 import librosa.core as lb
 import librosa.display as lbd
@@ -7,6 +9,12 @@ import numpy as np
 import pyloudnorm as pyln
 import torch
 from torchaudio.transforms import Resample
+
+
+SILERO_VAD_REPOSITORY = os.environ.get(
+    "SILERO_VAD_REPOSITORY",
+    "snakers4/silero-vad:915dd3d639b8333a52e001af095f87c5b7f1e0ac",
+)
 
 
 def to_mono(x):
@@ -42,10 +50,12 @@ class AudioPreprocessor:
         if cut_silence:
             torch.hub._validate_not_a_forked_repo = lambda a, b, c: True  # torch 1.9 has a bug in the hub loading, this is a workaround
             # careful: assumes 16kHz or 8kHz audio
-            self.silero_model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+            self.silero_model, utils = torch.hub.load(repo_or_dir=SILERO_VAD_REPOSITORY,
                                                       model='silero_vad',
                                                       force_reload=False,
                                                       onnx=False,
+                                                      skip_validation=True,
+                                                      trust_repo=True,
                                                       verbose=False)
             (self.get_speech_timestamps,
              self.save_audio,

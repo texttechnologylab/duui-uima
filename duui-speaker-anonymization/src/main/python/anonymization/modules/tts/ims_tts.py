@@ -14,7 +14,7 @@ class ImsTTS:
 
         self.model = AnonFastSpeech2(device=self.device, vocoder_model_path=hifigan_path,
                                      tts_model_path=fastspeech_path, embedding_model_path=embedding_path,
-                                     language=lang, faster_vocoder=True)
+                                     language=lang)
 
     def read_text(self, text, speaker_embedding, text_is_phones=True, duration=None, pitch=None, energy=None,
                   start_silence=None, end_silence=None):

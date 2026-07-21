@@ -1,3 +1,5 @@
+import os
+
 import torch
 torch.set_num_threads(1)
 
@@ -16,6 +18,10 @@ from anonymization.modules.tts.IMSToucan.TrainingInterfaces.Text_to_Spectrogram.
 from utils import setup_logger
 
 logger = setup_logger(__name__)
+SILERO_VAD_REPOSITORY = os.environ.get(
+    "SILERO_VAD_REPOSITORY",
+    "snakers4/silero-vad:915dd3d639b8333a52e001af095f87c5b7f1e0ac",
+)
 
 class ImsProsodyExtractor:
 
@@ -34,10 +40,12 @@ class ImsProsodyExtractor:
         self.acoustic_model = self.acoustic_model.to(self.device)
         torch.hub._validate_not_a_forked_repo = lambda a, b, c: True  # torch 1.9 has a bug in the hub loading, this is a workaround
         # careful: assumes 16kHz or 8kHz audio
-        self.silero_model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+        self.silero_model, utils = torch.hub.load(repo_or_dir=SILERO_VAD_REPOSITORY,
                                                   model='silero_vad',
                                                   force_reload=False,
                                                   onnx=False,
+                                                  skip_validation=True,
+                                                  trust_repo=True,
                                                   verbose=False)
         (self.get_speech_timestamps, _, _, _, _) = utils
         torch.set_grad_enabled(True)  # finding this issue was very infuriating: silero sets

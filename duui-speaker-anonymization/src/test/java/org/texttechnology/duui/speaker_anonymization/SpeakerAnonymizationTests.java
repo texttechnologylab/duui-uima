@@ -19,6 +19,7 @@ import org.apache.uima.util.InvalidXMLException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
@@ -32,7 +33,12 @@ import org.xml.sax.SAXException;
  */
 public class SpeakerAnonymizationTests {
 
-    private static final String URL = "http://geltlin:29714";
+    private static final String URL = System.getProperty(
+            "duui.speaker.url",
+            System.getenv().getOrDefault("DUUI_SPEAKER_ANONYMIZATION_URL", "http://127.0.0.1:9714"));
+
+    @TempDir
+    Path outputDirectory;
 
     private DUUIComposer composer;
     private JCas cas;
@@ -76,7 +82,7 @@ public class SpeakerAnonymizationTests {
 
         composer.run(cas);
 
-        String text = cas.getView("_initialView").getSofaDataString();
+        String text = cas.getView("transcript").getSofaDataString();
         assertNotNull(text);
         assertFalse(text.isBlank(), "Transcript must not be empty");
 
@@ -90,7 +96,7 @@ public class SpeakerAnonymizationTests {
         assertEquals("RIFF", new String(anonAudio, 0, 4, StandardCharsets.US_ASCII));
         assertEquals("WAVE", new String(anonAudio, 8, 4, StandardCharsets.US_ASCII));
 
-        Path outputPath = Path.of("anonymized_" + inputPath.getFileName());
+        Path outputPath = outputDirectory.resolve("anonymized_" + inputPath.getFileName());
         Files.write(outputPath, anonAudio);
     }
 

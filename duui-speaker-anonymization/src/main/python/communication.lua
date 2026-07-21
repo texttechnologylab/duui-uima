@@ -12,6 +12,20 @@ end
 
 local OPTION_KEYS = {"language"}
 
+local function get_or_create_view(inputCas, name)
+    local ok, view = pcall(function() return inputCas:getView(name) end)
+    if ok and view ~= nil then
+        return view
+    end
+
+    ok, view = pcall(function() return inputCas:createView(name) end)
+    if ok and view ~= nil then
+        return view
+    end
+
+    error("Unable to get or create CAS view: " .. name)
+end
+
 local function copy_options(params)
     local options = {}
     for _, key in ipairs(OPTION_KEYS) do
@@ -52,20 +66,15 @@ function deserialize(inputCas, inputStream)
         "java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
 
-    -- Write the original text into a dedicated view to avoid
-    -- conflicting with the audio already stored in the main sofa.
+    -- DUUI resolves .withTargetView(...) before deserialization, so inputCas
+    -- is already the transcript view here.
     if results["original_text"] ~= nil then
-        local view = inputCas:createView("_initialView")
-        if view ~= nil then
-            view:setSofaDataString(results["original_text"], "text/plain")
-        end
+        inputCas:setSofaDataString(results["original_text"], "text/plain")
     end
 
-    -- Store the anonymized audio in its own view
+    -- Store the anonymized audio in a stable, reusable output view.
     if results["anonymized_audio"] ~= nil then
-        local view = inputCas:createView("opf_anonymized_audio")
-        if view ~= nil then
-            view:setSofaDataString(results["anonymized_audio"], "application/octet-stream")
-        end
+        local view = get_or_create_view(inputCas, "opf_anonymized_audio")
+        view:setSofaDataString(results["anonymized_audio"], "audio/wav")
     end
 end

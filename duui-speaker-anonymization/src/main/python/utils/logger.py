@@ -13,6 +13,9 @@ def setup_logger(name, log_dir='logs', filename=None):
     """
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if logger.handlers:
+        return logger
     formatter = logging.Formatter('%(asctime)s - %(name)s- %(levelname)s - %(message)s')
     if filename:
         Path(log_dir).mkdir(exist_ok=True, parents=True)
@@ -26,4 +29,3 @@ def setup_logger(name, log_dir='logs', filename=None):
     ch.setFormatter(formatter)
     logger.addHandler(ch)
     return logger
-

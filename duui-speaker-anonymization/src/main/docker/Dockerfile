@@ -48,9 +48,54 @@ RUN mkdir -p "${NLTK_DATA}" && \
         averaged_perceptron_tagger_eng \
         cmudict
 
+ARG IMS_TOUCAN_RELEASE_URL=https://github.com/DigitalPhonetics/IMS-Toucan/releases/download/v2.5
+
+ENV MODELS_DIR=/usr/src/app/models \
+    TORCH_HOME=/usr/src/app/models/torch
+
+# Large release assets are checksum-pinned and fetched into the image rather
+# than committed to Git.
+COPY ./src/main/python/models/download_models.py /tmp/download_models.py
+RUN python /tmp/download_models.py \
+        --destination "${MODELS_DIR}" \
+        --base-url "${IMS_TOUCAN_RELEASE_URL}" && \
+    rm -f /tmp/download_models.py
+
+ARG WHISPER_MODEL_ID=openai/whisper-large-v3
+ARG WHISPER_MODEL_REVISION=06f233fe06e710322aca913c1bc4249a0d71fce1
+ARG SILERO_VAD_REPOSITORY=snakers4/silero-vad:915dd3d639b8333a52e001af095f87c5b7f1e0ac
+
+ENV WHISPER_MODEL_ID=${WHISPER_MODEL_ID} \
+    WHISPER_MODEL_REVISION=${WHISPER_MODEL_REVISION} \
+    SILERO_VAD_REPOSITORY=${SILERO_VAD_REPOSITORY}
+
+# Cache exact Whisper and Silero revisions so runtime processing is offline and
+# cannot silently change when upstream repositories move.
+COPY ./src/main/docker/preload_external_models.py /tmp/preload_external_models.py
+RUN python /tmp/preload_external_models.py \
+        --models-dir "${MODELS_DIR}" \
+        --whisper-model "${WHISPER_MODEL_ID}" \
+        --whisper-revision "${WHISPER_MODEL_REVISION}" \
+        --silero-repository "${SILERO_VAD_REPOSITORY}" && \
+    rm -f /tmp/preload_external_models.py
+
+ENV TRANSFORMERS_OFFLINE=1 \
+    HF_HUB_OFFLINE=1 \
+    HF_HOME=/tmp/.cache/huggingface \
+    HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
+    NUMBA_CACHE_DIR=/tmp/.cache/numba
+
 COPY ./src/main/python/ ./
 
+RUN useradd --no-create-home --uid 10001 --shell /usr/sbin/nologin app
+
+USER app
+
 EXPOSE 9714
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:9714/v1/health", timeout=3).read()'
 
 # Miniforge provides tini. It forwards signals correctly to Uvicorn.
 ENTRYPOINT ["tini", "--"]

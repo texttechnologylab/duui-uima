@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import io
 import json
 import logging
@@ -22,6 +23,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings
 from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -91,6 +93,7 @@ class DUUIDocumentation(BaseModel):
 class Settings(BaseSettings):
     duui_tool_name: str = "DUUI Speaker Anonymization"
     duui_tool_version: str = "1.0"
+    max_audio_bytes: int = 100 * 1024 * 1024
 
     class Config:
         env_prefix = "duui_speaker_anonymization_"
@@ -131,10 +134,9 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     body = await request.body()
     logger.error("422 validation errors: %s", exc.errors())
-    logger.error("Raw body: %s", body.decode("utf-8", errors="replace"))
     return JSONResponse(
         status_code=422,
-        content=jsonable_encoder({"detail": exc.errors(), "body": body.decode("utf-8", errors="replace")}),
+        content=jsonable_encoder({"detail": exc.errors(), "body_size": len(body)}),
     )
 
 
@@ -159,9 +161,7 @@ with open(os.path.join(_this_dir, "typesystem.xml"), "rb") as _f:
 def get_input_output() -> JSONResponse:
     return JSONResponse(content=jsonable_encoder({
         "inputs": [],
-        "outputs": [
-            "org.texttechnologylab.annotation.type.AudioToken",
-        ],
+        "outputs": [],
     }))
 
 
@@ -183,6 +183,11 @@ def get_documentation() -> DUUIDocumentation:
         version=settings.duui_tool_version,
         implementation_lang="Python",
     )
+
+
+@app.get("/v1/health")
+def get_health() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 @app.post("/v1/process")
@@ -213,6 +218,29 @@ if DEVICE.type == "cuda":
 
 models_dir = os.environ.get("MODELS_DIR", os.path.join(REPO_ROOT, "models"))
 
+REQUIRED_MODEL_FILES = (
+    "embedding_function.pt",
+    "embedding_gan.pt",
+    "aligner.pt",
+    "ToucanTTS_Meta.pt",
+    "Avocodo.pt",
+)
+
+
+def _validate_model_files() -> None:
+    missing = [
+        filename
+        for filename in REQUIRED_MODEL_FILES
+        if not os.path.isfile(os.path.join(models_dir, filename))
+    ]
+    if missing:
+        raise RuntimeError(
+            f"Missing required model files in {models_dir}: {', '.join(missing)}"
+        )
+
+
+_validate_model_files()
+
 model_lock = Lock()
 processing_lock = Lock()
 
@@ -240,7 +268,7 @@ def _load_anonymization_pipeline(language: str):
         gan_model_path=os.path.join(models_dir, "embedding_gan.pt"),
         num_sampled=5000,
         sim_threshold=0.7,
-        save_intermediate=True,
+        save_intermediate=False,
     )
 
     prosody_extractor = ImsProsodyExtractor(
@@ -273,13 +301,22 @@ def _load_pipeline(language: str):
 # ---------------------------------------------------------------------------
 
 def _decode_base64_audio(audio_b64: str) -> bytes:
-    raw = base64.b64decode(audio_b64)
-    if raw[:4] == b"RIFF":
-        return raw
-    wav_buf = io.BytesIO()
-    audio_seg = AudioSegment.from_file(io.BytesIO(raw))
-    audio_seg.export(wav_buf, format="wav")
-    return wav_buf.getvalue()
+    if len(audio_b64) > (settings.max_audio_bytes * 4 // 3) + 4:
+        raise ValueError(f"Audio exceeds the {settings.max_audio_bytes}-byte limit")
+    try:
+        raw = base64.b64decode(audio_b64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("audio must be valid base64") from exc
+    if len(raw) > settings.max_audio_bytes:
+        raise ValueError(f"Audio exceeds the {settings.max_audio_bytes}-byte limit")
+
+    try:
+        audio_seg = AudioSegment.from_file(io.BytesIO(raw))
+        wav_buf = io.BytesIO()
+        audio_seg.export(wav_buf, format="wav")
+        return wav_buf.getvalue()
+    except (CouldntDecodeError, OSError) as exc:
+        raise ValueError("audio must contain a supported audio file") from exc
 
 
 def _process(request: DUUIRequest) -> DUUIResponse:
@@ -356,6 +393,8 @@ def _process_locked(request: DUUIRequest) -> DUUIResponse:
             start_silence=start_silence,
             end_silence=end_silence,
         )
+        if wav is None:
+            raise RuntimeError("TTS synthesis did not produce audio")
 
     # Convert synthesized audio to WAV bytes then base64
     logger.info("Convert synthesized audio to WAV bytes then base64")
