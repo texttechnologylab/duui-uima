@@ -5,7 +5,7 @@ torchaudio==2.2.0
 sentence-transformers==2.5.1
 sentencepiece==0.2.0
 protobuf==3.19.1
-nltk==3.8.1
+nltk==3.10.0
 fastapi==0.110.0
 dkpro-cassis==0.9.1
 uvicorn[standard]==0.27.1
