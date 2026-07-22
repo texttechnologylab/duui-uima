@@ -1,4 +1,25 @@
-FROM quay.io/condaforge/miniforge3:26.3.2-3
+FROM debian:bookworm-slim
+
+ARG MINIFORGE_VERSION=26.3.2-3
+ARG TARGETARCH
+
+# Installing Miniforge in a regular build layer avoids the extended filesystem
+# attributes in the prebuilt Miniforge image, which some rootless Podman storage
+# backends cannot unpack. Map Docker architecture names to Miniforge names.
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends ca-certificates curl bzip2 && \
+    case "${TARGETARCH:-amd64}" in \
+        amd64) miniforge_arch=x86_64 ;; \
+        arm64) miniforge_arch=aarch64 ;; \
+        *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac && \
+    curl --fail --location --retry 3 \
+        --output /tmp/miniforge.sh \
+        "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-${MINIFORGE_VERSION}-Linux-${miniforge_arch}.sh" && \
+    bash /tmp/miniforge.sh -b -p /opt/conda && \
+    rm -f /tmp/miniforge.sh && \
+    /opt/conda/bin/conda clean --all --yes && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -7,6 +28,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NLTK_DATA=/opt/nltk_data \
     MPLCONFIGDIR=/tmp/matplotlib \
     CONDA_ENV_NAME=speaker-anonymization
+
+ENV PATH=/opt/conda/bin:${PATH}
 
 # Runtime libraries used by the audio and speech packages, plus a compiler for
 # pip packages that do not provide a wheel for this exact Python/platform pair.
@@ -20,7 +43,8 @@ RUN apt-get update && \
         libportaudio2 \
         libsndfile1 \
         pkg-config \
-        portaudio19-dev && \
+        portaudio19-dev \
+        tini && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -97,6 +121,6 @@ EXPOSE 9714
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:9714/v1/health", timeout=3).read()'
 
-# Miniforge provides tini. It forwards signals correctly to Uvicorn.
-ENTRYPOINT ["tini", "--"]
+# Forward signals correctly to Uvicorn and reap orphaned child processes.
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["uvicorn", "duui_speaker_anonymization:app", "--host", "0.0.0.0", "--port", "9714"]
