@@ -1,5 +1,5 @@
 numpy==2.2.6
-nltk==3.9.1
+nltk==3.10.0
 torch==2.6.0
 torchaudio==2.6.0
 torchvision==0.21.0
