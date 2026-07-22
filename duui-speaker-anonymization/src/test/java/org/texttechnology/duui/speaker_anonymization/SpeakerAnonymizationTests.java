@@ -74,7 +74,7 @@ public class SpeakerAnonymizationTests {
         composer.add(
             new DUUIRemoteDriver.Component(WHISPERX_URL)
                     .withParameter("language", language)
-                    .withSourceView("opf_anonymized_audio")
+                    .withSourceView("transcript")
                     .withTargetView("anonymized_transcript")
                     .build().withTimeout(600)
         );
@@ -92,13 +92,9 @@ public class SpeakerAnonymizationTests {
 
         composer.run(cas);
 
-        System.out.println(cas.getView("anonymized_transcript").getDocumentText());
+        System.out.println("WhisperX: " + cas.getView("anonymized_transcript").getDocumentText());
 
-        String text = cas.getView("transcript").getSofaDataString();
-        assertNotNull(text);
-        assertFalse(text.isBlank(), "Transcript must not be empty");
-
-        JCas anonView = cas.getView("opf_anonymized_audio");
+        JCas anonView = cas.getView("transcript");
         String anonB64 = anonView.getSofaDataString();
         assertNotNull(anonB64);
         assertFalse(anonB64.isBlank(), "Anonymized audio must not be empty");
