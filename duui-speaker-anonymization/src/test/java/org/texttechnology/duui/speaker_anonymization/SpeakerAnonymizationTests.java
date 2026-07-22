@@ -36,6 +36,9 @@ public class SpeakerAnonymizationTests {
     private static final String URL = System.getProperty(
             "duui.speaker.url",
             System.getenv().getOrDefault("DUUI_SPEAKER_ANONYMIZATION_URL", "http://127.0.0.1:9714"));
+    private static final String WHISPERX_URL = System.getProperty(
+            "duui.whisperx.url",
+            System.getenv().getOrDefault("DUUI_WHISPERX_URL", "http://127.0.0.1:9710"));
 
     @TempDir
     Path outputDirectory;
@@ -68,6 +71,13 @@ public class SpeakerAnonymizationTests {
                     .withTargetView("transcript")
                     .build().withTimeout(600)
         );
+        composer.add(
+            new DUUIRemoteDriver.Component(WHISPERX_URL)
+                    .withParameter("language", language)
+                    .withSourceView("opf_anonymized_audio")
+                    .withTargetView("anonymized_transcript")
+                    .build().withTimeout(600)
+        );
     }
 
     private void runAnonymizationTest(String language, String audioPath) throws Exception {
@@ -81,6 +91,8 @@ public class SpeakerAnonymizationTests {
         cas.setSofaDataString(audioB64, "audio/wav");
 
         composer.run(cas);
+
+        System.out.println(cas.getView("anonymized_transcript").getDocumentText());
 
         String text = cas.getView("transcript").getSofaDataString();
         assertNotNull(text);
