@@ -80,6 +80,10 @@ The redacted text is written to a secondary CAS view named `opf_redacted`.
 
 ## Running the Service
 
+Available ready-to-use image can be found here:
+
+`docker pull docker.texttechnologylab.org/duui-anonymize`
+
 ```bash
 cd src/main/python
 uvicorn duui_anonymize:app --host 0.0.0.0 --port 9714 --workers 1

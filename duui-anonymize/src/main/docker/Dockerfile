@@ -1,10 +1,10 @@
-FROM python:3.10
+FROM python:3.12
 
 WORKDIR /usr/src/app
 
 EXPOSE 9714
 
-RUN pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install torch==2.12.0 torchvision==0.27.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cpu
 
 COPY ./src/main/python/communication.lua ./communication.lua
 COPY ./src/main/python/duui_anonymize.py ./duui_anonymize.py
