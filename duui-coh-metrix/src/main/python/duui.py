@@ -310,7 +310,8 @@ pyphens = {
 def _syllables_count(tokens: List[Token], lang: str) -> List[int]:
     syllables_counts = [
         len(pyphens[lang].positions(token.text))+1
-        for token in tokens
+        # FV1 fix: exclude punctuation to keep consistency
+        for token in tokens if not token.is_punct
     ]
     return syllables_counts
 
@@ -318,34 +319,40 @@ def _syllables_count(tokens: List[Token], lang: str) -> List[int]:
 # ↑ Higher = longer, more complex words. Reliable.
 def cm_deswlsy(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, mean
+    # FV1 fix: exclude punctuation to keep consistency
     return np.mean(_syllables_count(tokens, lang))
 
 # LAY: How uneven is the syllable count across words?
 # ↑ Higher = mix of short and long words. Reliable.
 def cm_deswlsyd(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, standard deviation
+    # FV1 fix: exclude punctuation to keep consistency
     return np.std(_syllables_count(tokens, lang))
 
 # LAY: On average, how many letters per word?
 # ↑ Higher = longer words. Reliable.
 def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
     # Word length, number of letters, mean
+    # FV1 fix: exclude punctuation to keep consistency
     text_letters = []
     for p in paragraphs:
         for s in p.sentences:
             for t in s.tokens:
-                text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
+                if not t.is_punct:
+                    text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
     return np.mean(text_letters)
 
 # LAY: How uneven is the letter count across words?
 # ↑ Higher = mix of short and long words. Reliable.
 def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
     # Word length, number of letters, standard deviation
+    # FV1 fix: exclude punctuation to keep consistency
     text_letters = []
     for p in paragraphs:
         for s in p.sentences:
             for t in s.tokens:
-                text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
+                if not t.is_punct:
+                    text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
     return np.std(text_letters)
 
 ud_noun_pos = {"NOUN", "PROPN"}
@@ -596,7 +603,10 @@ def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
 # LAY: Average number of words before the main verb of a sentence.
 # ↑ Higher = more left-embedded clauses, harder to read. Reliable.
 def cm_synle(sentences: List[Sentence]) -> Optional[float]:
-    deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
+    # FV1 fix: Count only lexical tokens before ROOT to align SYNLE
+    # with the Coh-Metrix definition ("words before main verb")
+    # and maintain consistency with other word-based indices.
+    deps = [[token.dep_type for token in sent.tokens if not token.is_punct] for sent in sentences]
 
     word_counts = []
     counter_start = 0
@@ -1106,15 +1116,20 @@ def cm_wrdprp3p(sentences: List[Sentence], counts: Optional[Dict[str, int]] = No
         counts = _wrd_precompute(sentences)
     return counts["prp3p"]
 
-def _load_mrc_database():
-    filepath = "src/main/resources/mrc_psycholinguistic_database.csv"
+# FV1 Fix: Included support for german language, respective database is
+# now loaded, depending on the text language.
+def _load_mrc_database(lang: str) -> Dict[str, float]:
+    if lang == "de":
+        filepath = "src/main/resources/mrc_psycholinguistic_database_de.csv"
+    else:
+        filepath = "src/main/resources/mrc_psycholinguistic_database.csv"
     mrc_dict = {}
     with open(filepath, 'r', encoding='utf-8') as file:
         reader = csv.DictReader(file, delimiter=',')
         for row in reader:
             word = row['Word'].lower()
-            meaningful_colorado = int(row['Meaningfulness: Coloradao Norms']) if row['Meaningfulness: Coloradao Norms'] else None
-            meaningful_pavio = int(row['Meaningfulness: Pavio Norms']) if row[
+            meaningful_colorado = float(row['Meaningfulness: Coloradao Norms']) if row['Meaningfulness: Coloradao Norms'] else None
+            meaningful_pavio = float(row['Meaningfulness: Pavio Norms']) if row[
                 'Meaningfulness: Pavio Norms'] else None
             meaningful = None
             if meaningful_colorado is not None and meaningful_pavio is not None:
@@ -1124,15 +1139,16 @@ def _load_mrc_database():
             elif meaningful_pavio is not None:
                 meaningful = meaningful_pavio
             mrc_dict[word] = {
-                'AoA': int(row['Age of Acquisition Rating']) if row['Age of Acquisition Rating'] else None,
-                'Familiarity': int(row['Familiarity']) if row['Familiarity'] else None,
-                'Concreteness': int(row['Concreteness']) if row['Concreteness'] else None,
-                'Imageability': int(row['Imageability']) if row['Imageability'] else None,
+                'AoA': float(row['Age of Acquisition Rating']) if row['Age of Acquisition Rating'] else None,
+                'Familiarity': float(row['Familiarity']) if row['Familiarity'] else None,
+                'Concreteness': float(row['Concreteness']) if row['Concreteness'] else None,
+                'Imageability': float(row['Imageability']) if row['Imageability'] else None,
                 'Meaningfulness': meaningful
             }
     return mrc_dict
 
-mrc_dict = _load_mrc_database()
+# FV1 fix: Removed old mrc_dict creation
+#mrc_dict = _load_mrc_database()
 
 def _get_content_words(sentences: List[Sentence]):
     words = [[token.text for token in sent.tokens] for sent in sentences]
@@ -1179,10 +1195,11 @@ def _average_rating(words, mrc_dict, key):
 
 # LAY: Average age at which content words are typically learned (MRC norms).
 # ↑ Higher = later-acquired, harder words. English-only (DE=None — NOTE(H8)).
-def cm_wrdaoac(sentences: List[Sentence], lang: str) -> Optional[float]:
+# FV1 Fix: Reworked Function for german language Support.
+def cm_wrdaoac(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
     # H8: MRC Psycholinguistic Database is English-only.
-    if lang != "en":
-        return None
+    if mrc_dict is None:
+        mrc_dict = _load_mrc_database(lang)
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
@@ -1190,9 +1207,10 @@ def cm_wrdaoac(sentences: List[Sentence], lang: str) -> Optional[float]:
 
 # LAY: Average subjective familiarity rating of content words (MRC norms).
 # ↑ Higher = more familiar, easier words. English-only (DE=None — NOTE(H8)).
-def cm_wrdfamc(sentences: List[Sentence], lang: str) -> Optional[float]:
-    if lang != "en":
-        return None
+# FV1 Fix: Reworked Function for german language Support.
+def cm_wrdfamc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if mrc_dict is None:
+        mrc_dict = _load_mrc_database(lang)
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
@@ -1200,9 +1218,10 @@ def cm_wrdfamc(sentences: List[Sentence], lang: str) -> Optional[float]:
 
 # LAY: Average concreteness of content words (MRC norms).
 # ↑ Higher = more concrete, sensory words. English-only (DE=None — NOTE(H8)).
-def cm_wrdcncc(sentences: List[Sentence], lang: str) -> Optional[float]:
-    if lang != "en":
-        return None
+# FV1 Fix: Reworked Function for german language Support.
+def cm_wrdcncc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if mrc_dict is None:
+        mrc_dict = _load_mrc_database(lang)
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
@@ -1210,9 +1229,10 @@ def cm_wrdcncc(sentences: List[Sentence], lang: str) -> Optional[float]:
 
 # LAY: Average imageability of content words (MRC norms).
 # ↑ Higher = easier to form a mental picture. English-only (DE=None — NOTE(H8)).
-def cm_wrdimgc(sentences: List[Sentence], lang: str) -> Optional[float]:
-    if lang != "en":
-        return None
+# FV1 Fix: Reworked Function for german language Support.
+def cm_wrdimgc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if mrc_dict is None:
+        mrc_dict = _load_mrc_database(lang)
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
@@ -1220,9 +1240,10 @@ def cm_wrdimgc(sentences: List[Sentence], lang: str) -> Optional[float]:
 
 # LAY: Average subjective meaningfulness of content words (MRC/Colorado norms).
 # ↑ Higher = stronger semantic associations. English-only (DE=None — NOTE(H8)).
-def cm_wrdmeac(sentences: List[Sentence], lang: str) -> Optional[float]:
-    if lang != "en":
-        return None
+# FV1 Fix: Reworked Function for german language Support.
+def cm_wrdmeac(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
+    if mrc_dict is None:
+        mrc_dict = _load_mrc_database(lang)
     content_words, _, _ = _get_content_words(sentences)
     if not content_words:
         return None
@@ -1738,7 +1759,8 @@ def _load_word_frequencies(path: str, lowercase_words=True) -> Dict[str, int]:
                 word, freq = parts
                 if lowercase_words:
                     word = word.lower()
-                word_freq[word] = int(freq)
+                # FV1 fix: Adjustment for identical Words
+                word_freq[word] = word_freq.get(word, 0) + int(freq)
     return word_freq
 
 all_word_frequencies_map = {
@@ -1798,7 +1820,8 @@ def cm_wrdfrqc(sentences: List[Sentence], lang: str, frequencies_source: str) ->
 def cm_wrdfrqa(tokens: List[Token], lang: str, frequencies_source: str) -> Optional[float]:
     word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
     word_frequencies = [
-        word_frequencies_map.get(word.text, 0)
+        # FV1 fix: Changed from raw text input to lowercase text input to match lowercase word list.
+        word_frequencies_map.get(word.text.lower(), 0)
         for word in tokens
     ]
     log_word_frequencies = [
@@ -1870,6 +1893,17 @@ def _sm_get_data(sentences: List[Sentence]):
         poses.append([token.pos_coarse for token in sent.tokens])
 
     return words, tags, morph_tense, lemmas, poses, vectors
+
+# FV1 fix: Changed token counter to exclude punctuation.
+def _count_non_punct_tokens(sentences: List[Sentence]) -> int:
+    # Use the same non-punctuation word count as DESWC to maintain
+    # consistent word counting across incidence-based indices.
+    return sum(
+        1
+        for sent in sentences
+        for token in sent.tokens
+        if not token.is_punct
+    )
 
 def count_verbs(poses: List[List[str]], words: List[List[str]], lemmas: List[List[str]], tags: List[List[str]], morph_tense: List[List[str]], lang,causal_practical_set):
     counters = {
@@ -2069,7 +2103,9 @@ def cm_smcausv(sentences: List[Sentence], lang: str) -> Optional[float]:
         return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
     count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
-    total_words = sum(len(s) for s in poses)
+    # FV1 fix: Use the same non-punctuation word count as DESWC to maintain
+    # consistent word counting across incidence-based indices.
+    total_words = _count_non_punct_tokens(sentences)
     count_causal_verb = count_tenses["counter"]["causal_verbs"]
     return _incidence(count_causal_verb, total_words)
 
@@ -2085,7 +2121,9 @@ def cm_smcausvp(sentences: List[Sentence], lang: str) -> Optional[float]:
         return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
     count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
-    total_words = sum(len(s) for s in poses)
+    # FV1 fix: Use the same non-punctuation word count as DESWC to maintain
+    # consistent word counting across incidence-based indices.
+    total_words = _count_non_punct_tokens(sentences)
     count_causal_verb = count_tenses["counter"]["causal_verbs"]
     count_causal_particle = count_tenses["counter"]["causal_particles"]
     return _incidence(count_causal_verb + count_causal_particle, total_words)
@@ -2102,7 +2140,9 @@ def cm_smintep(sentences: List[Sentence], lang: str) -> Optional[float]:
         return None
     words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
     count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
-    total_words = sum(len(s) for s in poses)
+    # FV1 fix: Use the same non-punctuation word count as DESWC to maintain
+    # consistent word counting across incidence-based indices.
+    total_words = _count_non_punct_tokens(sentences)
     count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
     return _incidence(count_intentional_verb, total_words)
 
@@ -2243,6 +2283,7 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
     SMTEMP = dominant_tense_freq / len(tenses) if len(tenses) > 0 else 0
     return np.round(SMTEMP, 3)
 
+
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
@@ -2261,7 +2302,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         tokens = []
         for s in sentences:
             tokens.extend(s.tokens)
-        tokens_count = len(tokens)
+
+        # FV1 fix: Exclude punctuation for overall consistancy
+        tokens_count = sum(1 for t in tokens if not t.is_punct)
 
         tokens_vector_length = 0
         for t in tokens:
@@ -4100,9 +4143,17 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             error=wrdfrqmc_error
         ))
 
-        # WRDAOAc
+        # FV1 fix:  load mrc once and reuse across all 5 WRD* indices.
         try:
-            wrdaoac = cm_wrdaoac(sentences, request.language)
+            _mrc_dict = _load_mrc_database(request.language)
+        except Exception as e:
+            logger.error("Error precomputing MRC dict: %s", e)
+            _mrc_dict = None
+
+        # WRDAOAc
+        # FV1 fix: Include mrc_dict in function call if loaded successfully
+        try:
+            wrdaoac = cm_wrdaoac(sentences, request.language, mrc_dict=_mrc_dict)
             wrdaoac_error = None
         except Exception as e:
             logger.error("Error calculating WRDAOAc: %s", e)
@@ -4119,8 +4170,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         # WRDFAMc
+        # FV1 fix: Include mrc_dict in function call if loaded successfully
         try:
-            wrdfamc = cm_wrdfamc(sentences, request.language)
+            wrdfamc = cm_wrdfamc(sentences, request.language, mrc_dict=_mrc_dict)
             wrdfamc_error = None
         except Exception as e:
             logger.error("Error calculating WRDFAMc: %s", e)
@@ -4137,8 +4189,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         # WRDCNCc
+        # FV1 fix: Include mrc_dict in function call if loaded successfully
         try:
-            wrdcncc = cm_wrdcncc(sentences, request.language)
+            wrdcncc = cm_wrdcncc(sentences, request.language, mrc_dict=_mrc_dict)
             wrdcncc_error = None
         except Exception as e:
             logger.error("Error calculating WRDCNCc: %s", e)
@@ -4155,8 +4208,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         # WRDIMGc
+        # FV1 fix: Include mrc_dict in function call if loaded successfully
         try:
-            wrdimgc = cm_wrdimgc(sentences, request.language)
+            wrdimgc = cm_wrdimgc(sentences, request.language, mrc_dict=_mrc_dict)
             wrdimgc_error = None
         except Exception as e:
             logger.error("Error calculating WRDIMGc: %s", e)
@@ -4173,8 +4227,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         # WRDMEAc
+        # FV1 fix: Include mrc_dict in function call if loaded successfully
         try:
-            wrdmeac = cm_wrdmeac(sentences, request.language)
+            wrdmeac = cm_wrdmeac(sentences, request.language, mrc_dict=_mrc_dict)
             wrdmeac_error = None
         except Exception as e:
             logger.error("Error calculating WRDMEAc: %s", e)

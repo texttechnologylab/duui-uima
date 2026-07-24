@@ -16,6 +16,7 @@ ADD https://huggingface.co/datasets/StephanAkkerman/MRC-psycholinguistic-databas
 
 COPY ./src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv ./src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv
 COPY ./src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv ./src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv
+COPY ./src/main/resources/mrc_psycholinguistic_database_de.csv ./src/main/resources/mrc_psycholinguistic_database_de.csv
 
 ARG DUUI_COH_METRIX_LOG_LEVEL="DEBUG"
 ENV DUUI_COH_METRIX_LOG_LEVEL=$DUUI_COH_METRIX_LOG_LEVEL
