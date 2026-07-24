@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+    <types>
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.type.MultimediaElement</name>
+            <description>Base type for multimedia annotations with time offsets.</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>timeStart</name>
+                    <description>Start time in seconds.</description>
+                    <rangeTypeName>uima.cas.Float</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>timeEnd</name>
+                    <description>End time in seconds.</description>
+                    <rangeTypeName>uima.cas.Float</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.type.AudioToken</name>
+            <description>A word-level token with audio timestamps.</description>
+            <supertypeName>org.texttechnologylab.annotation.type.MultimediaElement</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>value</name>
+                    <description>Transcribed text of this audio token.</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+    </types>
+</typeSystemDescription>
