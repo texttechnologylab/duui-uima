@@ -2,7 +2,7 @@ fastapi==0.66.0
 pydantic==1.8.2
 requests==2.25.1
 uvicorn
-transformers==4.31.0
+transformers==5.5.0
 torch==2.4.1
 protobuf==4.24.2
 sentencepiece==0.1.99
