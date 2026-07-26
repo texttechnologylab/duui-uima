@@ -2,5 +2,5 @@ uvicorn==0.29.0
 dkpro-cassis==0.9.1
 fastapi==0.110.2
 pydantic-settings==2.0.3
-yt-dlp
+yt-dlp[default]
 python-magic

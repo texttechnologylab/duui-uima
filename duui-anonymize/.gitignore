@@ -1,0 +1,14 @@
+/../*
+../
+../*
+../duui-mm/*
+.venv/**
+.vscode/**
+__pycache__/**
+*.pyc
+
+target/**
+dist/**
+build/**
+
+src/test/results/**

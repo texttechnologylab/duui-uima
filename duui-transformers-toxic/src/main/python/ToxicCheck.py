@@ -28,22 +28,69 @@ toxic_models = {
     "Detoxifying": "Detoxifying",
 }
 
+models_list = {
+    "garak-llm/roberta_toxicity_classifier":
+        {
+            0 : "non toxic",
+            1 : "toxic"
+        },
+    "s-nlp/russian_toxicity_classifier":
+        {
+            0: "non toxic",
+            1: "toxic"
+        },
+    "malexandersalazar/xlm-roberta-large-binary-cls-toxicity": {
+            0: "non toxic",
+            1: "toxic"
+        },
+    "sismetanin/rubert-toxic-pikabu-2ch": {
+            0: "non toxic",
+            1: "toxic"
+        },
+        "textdetox/glot500-toxicity-classifier": {
+            0: "non toxic",
+            1: "toxic"
+        },
+    "textdetox/xlmr-large-toxicity-classifier": {
+            0: "non toxic",
+            1: "toxic"
+        },
+    "textdetox/bert-multilingual-toxicity-classifier": {
+            0: "non toxic",
+            1: "toxic"
+        },
+    "dardem/xlm-roberta-large-uk-toxicity": {
+            0: "non toxic",
+            1: "toxic"
+        },
+    "Xuhui/ToxDect-roberta-large": {
+            0: "non toxic",
+            1: "toxic"
+        },
+    }
+
 
 class ToxicCheck:
     def __init__(self, model_name: str, device='cuda:0'):
         self.device = device
         self.model_name = model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir="/storage")
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=f"/storage").to(
+        if model_name == "malexandersalazar/xlm-roberta-large-binary-cls-toxicity":
+            self.tokenizer = AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-large')
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(
             device)
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             self.model.resize_token_embeddings(len(self.tokenizer))
         self.class_mapping = self.model.config.id2label
-        self.labels = list(self.class_mapping.values())
-        for i in range(len(self.labels)):
-            if self.labels[i] == "neutral" or self.labels[i] == "not toxic" or self.labels[i] == "not_toxic" or self.labels[i] == "non-toxic":
-                self.labels[i] = "non toxic"
+        if model_name in toxic_models:
+            self.labels = list(map_toxic.values())
+        else:
+            self.labels = list(self.class_mapping.values())
+            for i in range(len(self.labels)):
+                if self.labels[i] == "neutral" or self.labels[i] == "not toxic" or self.labels[i] == "not_toxic" or self.labels[i] == "non-toxic":
+                    self.labels[i] = "non toxic"
 
     def toxic_prediction(self, texts: List[str]):
         with torch.no_grad():

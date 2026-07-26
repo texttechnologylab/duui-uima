@@ -12,6 +12,10 @@ function serialize(inputCas, outputStream, params)
     local model = params["model"]
     local batch_size = params["batch_size"]
     local allow_download = params["allow_download"]
+    local hf_token = params["hf_token"]
+    local diarization_num_speakers = params["diarization_num_speakers"]
+    local diarization_min_speakers = params["diarization_min_speakers"]
+    local diarization_max_speakers = params["diarization_max_speakers"]
 
     local language = params["language"]
     if language == nil then
@@ -28,7 +32,11 @@ function serialize(inputCas, outputStream, params)
         language = language,
         model = model,
         batch_size = batch_size,
-        allow_download = allow_download
+        allow_download = allow_download,
+        hf_token = hf_token,
+        diarization_num_speakers = diarization_num_speakers,
+        diarization_min_speakers = diarization_min_speakers,
+        diarization_max_speakers = diarization_max_speakers
     }))
 end
 
@@ -60,12 +68,15 @@ function deserialize(inputCas, inputStream)
                 entireText = entireText .. " " .. sent["text"]
             end
 
-            local audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.AudioToken", inputCas)
+            local audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.DiarizedAudioToken", inputCas)
             audioToken:setBegin(sent["begin"])
             audioToken:setEnd(sent["end"])
             audioToken:setTimeStart(sent["timeStart"])
             audioToken:setTimeEnd(sent["timeEnd"])
             audioToken:setValue(sent["text"])
+            if sent["speaker"] ~= nil then
+                audioToken:setSpeakerId(sent["speaker"])
+            end
             audioToken:addToIndexes()
 
             local meta = results["meta"]

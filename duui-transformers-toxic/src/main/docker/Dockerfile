@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.12
 
 WORKDIR /usr/src/app
 
@@ -20,7 +20,23 @@ RUN pip install -r requirements.txt
 #RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('tomh/toxigen_hatebert'); AutoTokenizer.from_pretrained('tomh/toxigen_hatebert')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='tomh/toxigen_hatebert')"
 #RUN python -c "from detoxify import Detoxify; Detoxify('multilingual')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='s-nlp/roberta_toxicity_classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='s-nlp/roberta_toxicity_classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='garak-llm/roberta_toxicity_classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='s-nlp/russian_toxicity_classifier')"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-large');"
+#RUN python -c "from transformers import AutoModelForSequenceClassification, AutoTokenizer; AutoModelForSequenceClassification.from_pretrained('malexandersalazar/xlm-roberta-large-binary-cls-toxicity');"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='sismetanin/rubert-toxic-pikabu-2ch')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='textdetox/glot500-toxicity-classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='textdetox/bert-multilingual-toxicity-classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='dardem/xlm-roberta-large-uk-toxicity')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Xuhui/ToxDect-roberta-large')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus')"
+
+# copy scripts
+COPY ./src/main/python/TypeSystem.xml ./TypeSystem.xml
+COPY ./src/main/python/duui_transformers_toxic.py ./duui_transformers_toxic.py
+COPY ./src/main/python/duui_toxic.lua ./duui_toxic.lua
+COPY ./src/main/python/ToxicCheck.py ./ToxicCheck.py
 
 # log level
 ARG LOG_LEVEL="DEBUG"
@@ -50,14 +66,10 @@ ENV MODEL_LANG=$MODEL_LANG
 
 
 # offline mode for huggingface
-ARG TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1
-ENV TRANSFORMERS_OFFLINE=$TEXTIMAGER_DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE
+ARG DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=$DUUI_TRANSFORMERS_SENTIMENT_TRANSFORMERS_OFFLINE
 
-# copy scripts
-COPY ./src/main/python/TypeSystem.xml ./TypeSystem.xml
-COPY ./src/main/python/duui_transformers_toxic.py ./duui_transformers_toxic.py
-COPY ./src/main/python/duui_toxic.lua ./duui_toxic.lua
-COPY ./src/main/python/ToxicCheck.py ./ToxicCheck.py
+
 
 
 

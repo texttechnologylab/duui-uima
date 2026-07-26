@@ -12,7 +12,7 @@ catalogue==2.0.10
 certifi==2025.1.31
 chardet==3.0.4
 charset-normalizer==3.4.1
-click==7.1.2
+click==8.1.7
 compressed-rtf==1.0.6
 conllu==6.0.0
 cymem==2.0.11

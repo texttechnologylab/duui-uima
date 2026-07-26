@@ -31,7 +31,7 @@ public class ToxicTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:9714";
+    static String url = "http://127.0.0.1:8000";
     static String model = "citizenlab/distilbert-base-multilingual-cased-toxicity";
 //    static String model = "pol_emo_mDeBERTa";
 

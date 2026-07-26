@@ -1,0 +1,4 @@
+John Smith called the helpdesk on Monday.
+His email is john.smith@company.org and his phone number is +49 69 1234 5678.
+He lives at Mainzer Landstraße 50, 60329 Frankfurt am Main.
+Date of birth: 1978-11-04. Employee ID: EMP-00421.

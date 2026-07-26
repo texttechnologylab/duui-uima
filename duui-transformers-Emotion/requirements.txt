@@ -14,9 +14,10 @@ nltk==3.7
 fastapi==0.110.0
 dkpro-cassis==0.9.1
 uvicorn[standard]==0.27.1
-pydantic-settings==2.0.2
+pydantic-settings==2.9.1
 torchmetrics==1.2.0
 six==1.16.0
 pandas==1.4.3
 emoatlas==0.1.0
 pysentimiento==0.7.3
+pytorch-transformers==1.2.0

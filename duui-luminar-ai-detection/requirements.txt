@@ -1,0 +1,6 @@
+git+https://github.com/TheItCrOw/PrismAI.git
+
+fastapi==0.110.0
+dkpro-cassis==0.9.1
+pydantic_settings
+uvicorn[standard]==0.37.0

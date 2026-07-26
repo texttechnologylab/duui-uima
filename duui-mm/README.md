@@ -177,7 +177,7 @@ Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399
   author         = {Abusaleh, Ali},
   title          = {Multimodal Inference as {DUUI} Component},
   year           = {2025},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-multimodal}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-mm}
 }
 
 

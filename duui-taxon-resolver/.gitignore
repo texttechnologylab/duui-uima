@@ -1,0 +1,11 @@
+### IDE Files ###
+.idea/
+.vscode/
+
+### Java Environment ###
+target/
+
+### Python Environment ###
+__pycache__/
+*.pyc
+.venv/

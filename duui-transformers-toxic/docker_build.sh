@@ -93,11 +93,83 @@ export MODEL_CACHE_SIZE=3
 ##--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-export MODEL_NAME="s-nlp/roberta_toxicity_classifier"
-export MODEL_SPECNAME="roberta_toxicity_classifier"
-export MODEL_VERSION="048c25bb1e199b98802784f96325f4840f22145d"
-export MODEL_SOURCE="https://huggingface.co/s-nlp/roberta_toxicity_classifier"
-export MODEL_LANG="EN"
+#export MODEL_NAME="s-nlp/roberta_toxicity_classifier"
+#export MODEL_SPECNAME="roberta_toxicity_classifier"
+#export MODEL_VERSION="048c25bb1e199b98802784f96325f4840f22145d"
+#export MODEL_SOURCE="https://huggingface.co/s-nlp/roberta_toxicity_classifier"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="garak-llm/roberta_toxicity_classifier"
+#export MODEL_SPECNAME="para-detox"
+#export MODEL_VERSION="fb7e9d615fc8c59d2e70466a831ed70d6f6f895a"
+#export MODEL_SOURCE="https://huggingface.co/garak-llm/roberta_toxicity_classifier"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="s-nlp/russian_toxicity_classifier"
+#export MODEL_SPECNAME="russe-2022"
+#export MODEL_VERSION="0694e1f99efc08e73479e5c6f06c7bbe393aca89"
+#export MODEL_SOURCE="https://huggingface.co/s-nlp/russian_toxicity_classifier"
+#export MODEL_LANG="RU"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="malexandersalazar/xlm-roberta-large-binary-cls-toxicity"
+#export MODEL_SPECNAME="xlm-multi-toxic"
+#export MODEL_VERSION="6968ce7aa290a1bb2bbada047a3491aa048e2bd3"
+#export MODEL_SOURCE="https://huggingface.co/malexandersalazar/xlm-roberta-large-binary-cls-toxicity"
+#export MODEL_LANG="EN,DE,FR,IT,PT,TH,HI,ES"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="sismetanin/rubert-toxic-pikabu-2ch"
+#export MODEL_SPECNAME="rubert-toxic"
+#export MODEL_VERSION="1e5d55aeca25ab0a91725abc08821694de7dd5ea"
+#export MODEL_SOURCE="https://huggingface.co/sismetanin/rubert-toxic-pikabu-2ch"
+#export MODEL_LANG="RU"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="textdetox/glot500-toxicity-classifier"
+#export MODEL_SPECNAME="textdetox-glot500"
+#export MODEL_VERSION="4c2e8b298c4c7980d23566e92ab68b53f30db025"
+#export MODEL_SOURCE="https://huggingface.co/textdetox/glot500-toxicity-classifier"
+#export MODEL_LANG="EN,FR,IT,ES,RU,UK,AR,HI,JA,ZH,DE,TT,HE,AM"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="textdetox/bert-multilingual-toxicity-classifier"
+#export MODEL_SPECNAME="textdetox-bert"
+#export MODEL_VERSION="0667d0fbb85a1ea7b1e3a1f2a9a2901f5ce8c16c"
+#export MODEL_SOURCE="https://huggingface.co/textdetox/bert-multilingual-toxicity-classifier"
+#export MODEL_LANG="EN,FR,IT,ES,RU,UK,AR,HI,JA,ZH,DE,TT,HE,AM"
+##--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="dardem/xlm-roberta-large-uk-toxicity"
+#export MODEL_SPECNAME="toxicity-classifier-uk"
+#export MODEL_VERSION="6e2c8c305cc7ccff14a6dfe3d8fdd83d6556f514"
+#export MODEL_SOURCE="https://huggingface.co/dardem/xlm-roberta-large-uk-toxicity"
+#export MODEL_LANG="UK"
+###--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+#export MODEL_NAME="Xuhui/ToxDect-roberta-large"
+#export MODEL_SPECNAME="toxdect"
+#export MODEL_VERSION="7b97c89938cb241d3ae9235257bbe4916d4f0c75"
+#export MODEL_SOURCE="https://huggingface.co/Xuhui/ToxDect-roberta-large"
+#export MODEL_LANG="EN"
+##--------------------------------------------------------------------
+
+##---------------------------------------------------------------------
+export MODEL_NAME="EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus"
+export MODEL_SPECNAME="multi-toxic-classifier-plus"
+export MODEL_VERSION="0126552291025f2fc854f5acdbe45b2212eabf4a"
+export MODEL_SOURCE="https://huggingface.co/EIStakovskii/xlm_roberta_base_multilingual_toxicity_classifier_plus"
+export MODEL_LANG="EN,RU,FR,DE"
 ##--------------------------------------------------------------------
 
 

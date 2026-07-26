@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/static/v1?label=duui-transformers-berttopic&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-topic/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-transformers-berttopic&message=1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-transformers-topic/tags/list)
 [![Version](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
 [![Version](https://img.shields.io/static/v1?label=Transformers&message=4.41.2&color=yellow)]()
 [![Version](https://img.shields.io/static/v1?label=Torch&message=2.3.0&color=red)]()
@@ -6,21 +6,31 @@
 
 # Transformers BERTopic
 
-DUUI implementation for a trained [BERTopic](https://github.com/MaartenGr/BERTopic) model. This implementation
-uses [BERTopic model](https://huggingface.co/MaartenGr/BERTopic_Wikipedia) trained on wikipedia pages.
+DUUI implementation for a trained [BERTopic](https://github.com/MaartenGr/BERTopic) model. 
+
 # How To Use
 
 For using duui-transformers-berttopic as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
+
 
 ## Start Docker container
 
 ```
 ## CPU container
-docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-bertopic:latest
+docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-bertopic:[version]
 
 ## CUDA container
 docker run --rm -p 1000:9714 docker.texttechnologylab.org/duui-transformers-berttopic-cuda:latest
 ```
+
+Find all available image tags here: [https://docker.texttechnologylab.org/v2/duui-transformers-bertopic/tags/list](https://docker.texttechnologylab.org/v2/duui-transformers-bertopic/tags/list)
+
+## Versions
+
+| Tag       | Type System                                                                                                    | Model                                                                                      | Training Data                                                                 |
+|-----------|---------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| `0.1`     | [BertTopic](https://github.com/texttechnologylab/UIMATypeSystem/blob/uima-3/src/main/resources/desc/type/TypeSystemBertTopic.xml) (specific to BERTopic) | [BERTopic_Wikipedia](https://huggingface.co/MaartenGr/BERTopic_Wikipedia)                 | [Wikipedia pages ](https://huggingface.co/datasets/Cohere/wikipedia-22-12)                                                               |
+| `latest` / `1.0` | [UnifiedTopic](https://github.com/texttechnologylab/UIMATypeSystem/blob/uima-3/src/main/resources/desc/type/TypeSystemUnifiedTopic.xml) (generic, works for different models) | [BERTopic_ML-ArXiv-Abstracts](https://huggingface.co/b-verma/BERTopic_ML-ArXiv-Abstracts) | [ML-ArXiv-Papers](https://huggingface.co/datasets/CShorten/ML-ArXiv-Papers)   |
 
 ## Run within DUUI
 

@@ -1,0 +1,14 @@
+numpy
+dkpro_cassis
+fastapi
+pydantic
+pydantic-settings
+pydantic_core
+starlette
+uvicorn
+torch
+torchvision
+torchaudio
+transformers
+accelerate
+setuptools
