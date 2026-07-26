@@ -1,44 +1,17 @@
 from typing import List, Optional
+
+from attr.filters import exclude
+from cassis import *
 from fastapi import FastAPI, Response
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import PlainTextResponse, JSONResponse
-from fastapi.concurrency import run_in_threadpool
-from contextlib import asynccontextmanager
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from taxonerd import TaxoNERD
+from pydantic_settings import BaseSettings
+from starlette.responses import JSONResponse
+from taxonerd import *
+from functools import lru_cache
 import uvicorn
-import time
-import threading
-import os
-from cassis import *
 
-
-ner: TaxoNERD = None
-initialized: bool = False
-init_lock = threading.Lock()
-
-
-
-class ModelConfig(BaseModel):
-    model: str = os.getenv("TAXONERD_MODEL", "en_ner_eco_md")
-    linker: str = os.getenv("TAXONERD_LINKER", "gbif_backbone")
-    threshold: float = float(os.getenv("TAXONERD_THRESHOLD", "0.7"))
-    exclude: list = [
-        "tagger",
-        "parser"
-#         "taxo_abbrev_detector",
-#         "taxon_linker",
-#         "pysbd_sentencizer"
-    ]
-
-config = ModelConfig()
-
-perf_stats = {
-    "init_time": None,
-    "warmup_time": None,
-    "requests": 0,
-    "total_inference_time": 0.0
-}
 
 class GBIF(BaseModel):
     id: str
@@ -62,10 +35,6 @@ class DUUIRequest(BaseModel):
     linking: str
     # Threshold
     threshold: float
-    #
-    exclude: List[str]
-    #
-    model: str
 
 
 # Response of this annotator
@@ -75,108 +44,73 @@ class DUUIResponse(BaseModel):
     taxons: List[Taxon]
 
 
+class Settings(BaseSettings):
+    # Name of the Model
+    model: str
+
+# settings + cache
+settings = Settings()
+lru_cache_with_size = lru_cache(maxsize=3)
+
+# config = {"prefer_gpu": True,
+#           "model": settings.model,
+#           "with_linking": "gbif_backbone"}
+
+config = {"prefer_gpu": False}
+model_settings = {'model': settings.model,
+         'linker': 'gbif_backbone',
+         'threshold': 0.7,
+          'exclude':[
+              'tagger',
+              'parser',
+              'taxo_abbrev_detector',
+              'taxon_linker',
+              'pysbd_sentencizer'
+          ]
+         }
+
+ner = TaxoNERD(prefer_gpu=True)
+
+# @lru_cache(maxsize=1)
+def load_taxonerd(settings):
+    # Add with_linking="gbif_backbone" or with_linking="taxref" to activate entity linking
+    # ner.load(model="en_ner_eco_biobert", linker=request.linking, threshold=request.threshold)
+    print(settings)
+    #ner.load(model=settings["model"], exclude=settings["exclude"], linker=settings["linker"], threshold=settings["threshold"])
+    ner.load(model=settings["model"], exclude=[], linker=settings["linker"], threshold=settings["threshold"])
+    return ner
+
 def analyse(text, ner):
 
-    start = time.perf_counter()
-
     result = ner.find_in_text(text)
-    # print(result)
-
-    if result.empty:
-        return []
-
-    offsets_col = result["offsets"].values
-    entities_col = result["entity"].values
+    print(result)
 
     taxons = []
 
-    append_taxon = taxons.append  # local binding (micro-optimization)
+    for index, row in result.iterrows():
+        offset = row['offsets'].split(" ")
+        entity = row['entity']
+        entries = []
 
-    for offsets, entities in zip(offsets_col, entities_col):
+        for e in entity:
+            entries.append(GBIF(
+                    id=str(e[0]),
+                    value=str(e[1]),
+                    propability=float(e[2])
+                ))
 
-        # schneller als split + indexing mehrfach
-        parts = offsets.split(" ")
-        begin = int(parts[1])
-        end = int(parts[2])
+        taxons.append(Taxon(
+            begin=int(offset[1]),
+            end=int(offset[2]),
+            comment=entries
+        ))
 
-        # entries effizient bauen
-        entries = [
-            {
-                "id": str(e[0]),
-                "value": str(e[1]),
-                "propability": float(e[2])
-            }
-            for e in entities
-        ]
-
-        append_taxon({
-            "begin": begin,
-            "end": end,
-            "comment": entries
-        })
-
-    end = time.perf_counter()
-
-    # update runtime stats
-    perf_stats["requests"] += 1
-    perf_stats["total_inference_time"] += (end - start)
-
-#     print(f"⚡ Inference time: {end - start:.4f}s")
+    print(taxons)
 
     return taxons
 
 
-
-def get_perf_summary():
-
-    if perf_stats["requests"] == 0:
-        return {"status": "no requests yet"}
-
-    avg = perf_stats["total_inference_time"] / perf_stats["requests"]
-
-    return {
-        "init_time": perf_stats["init_time"],
-        "warmup_time": perf_stats["warmup_time"],
-        "requests": perf_stats["requests"],
-        "avg_inference_time": avg
-    }
-
-
-@asynccontextmanager
-async def lifespan(app):
-
-    global ner, initialized
-
-    print("🔥 Starting TaxoNERD initialization...")
-
-    t0 = time.time()
-
-    with init_lock:
-        ner = TaxoNERD(prefer_gpu=True)
-
-        ner.load(
-            model=config.model,
-            linker=config.linker,
-            threshold=config.threshold,
-            exclude=config.exclude
-        )
-
-        # GPU warmup (wichtig für first request latency)
-        ner.find_in_text("Homo sapiens")
-
-        initialized = True
-
-    print(f"✅ TaxoNERD ready in {time.time() - t0:.2f}s")
-
-    yield
-
-    print("🧹 Shutdown complete")
-
-def get_ner():
-    return ner
-
 app = FastAPI(
-    lifespan=lifespan,
     openapi_url="/openapi.json",
     docs_url="/api",
     redoc_url=None,
@@ -200,6 +134,7 @@ communication = "communication.lua"
 with open(communication, 'rb') as f:
     communication = f.read().decode("utf-8")
 
+
 # Load the predefined typesystem that is needed for this annotator to work
 typesystem_filename = 'types.xml'
 with open(typesystem_filename, 'rb') as f:
@@ -221,12 +156,15 @@ def get_input_output() -> JSONResponse:
 # Get typesystem of this annotator
 @app.get("/v1/typesystem")
 def get_typesystem() -> Response:
+    # TODO remove cassis dependency, as only needed for typesystem at the moment?
     xml = typesystem.to_xml()
     xml_content = xml.encode("utf-8")
+
     return Response(
         content=xml_content,
         media_type="application/xml"
     )
+
 
 
 # Return Lua communication script
@@ -236,17 +174,24 @@ def get_communication_layer() -> str:
 
 # Process request from DUUI
 @app.post("/v1/process")
-async def post_process(request: DUUIRequest) -> DUUIResponse:
+def post_process(request: DUUIRequest) -> DUUIResponse:
 
-    model = get_ner()
+    print(request)
 
-    taxons = await run_in_threadpool(analyse, request.text, model)
+    text = request.text
+    model_settings["linker"]=request.linking
+    model_settings["threshold"]=request.threshold
+    # print(config)
+    # print(model)
+    ner = load_taxonerd(model_settings)
 
-#     print(get_perf_summary())
+    print("Finish Loading")
+    taxons = analyse(text, ner)
 
     # Return data as JSON
-    return DUUIResponse(taxons=taxons)
-
+    return DUUIResponse(
+        taxons=taxons
+    )
 
 
 if __name__ == "__main__":
