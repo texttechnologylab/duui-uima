@@ -7,7 +7,7 @@ from fastapi import FastAPI, Response
 from cassis import load_typesystem
 import torch
 from functools import lru_cache
-from hatechecker import HateCheck, HateCheckEziisk
+from hatechecker import HateCheck
 from threading import Lock
 # from sp_correction import SentenceBestPrediction
 
@@ -213,7 +213,7 @@ def get_documentation():
 
 # Process request from DUUI
 @app.post("/v1/process")
-def post_process(request: DUUIRequest):
+def post_process(request: TextImagerRequest):
     # Return data
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
@@ -252,9 +252,6 @@ def post_process(request: DUUIRequest):
 
 @lru_cache_with_size
 def load_model(model_name):
-    if model_name == "HateCheckEziisk":
-        model_i = HateCheckEziisk(device)
-    else:
-        model_i = HateCheck(model_name, device)
+    model_i = HateCheck(model_name, device)
     return model_i
 
