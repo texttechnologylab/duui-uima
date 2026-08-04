@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+target/
+Dockerfile-cuda
+/src/main/python/models/*.pt
