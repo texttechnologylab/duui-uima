@@ -27,7 +27,7 @@ public class AnonTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8001";
+    static String url = "http://127.0.0.1:9714";
     static String inputPath = "resources/input";
     static String sOutputPath = "resources/output";
     static String hf_token;

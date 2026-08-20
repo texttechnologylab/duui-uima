@@ -49,7 +49,7 @@ function serialize(inputCas, outputStream, parameters)
     local image_it = JCasUtil:select(inputCas, Image):iterator()
     while image_it:hasNext() do
         local image = image_it:next()
-        images[tostring(number_of_images)] = {
+        images[number_of_images] = {
             src = image:getSrc(),
             height = image:getHeight(),
             width = image:getWidth(),

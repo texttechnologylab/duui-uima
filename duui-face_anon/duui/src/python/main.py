@@ -22,7 +22,7 @@ from diffusers import AutoencoderKL, DDPMScheduler
 from custom_referencenet.referencenet.referencenet_unet_2d_condition import (
     ReferenceNetModel,
 )
-from diffusers import UNet2DConditionModel
+from custom_referencenet.referencenet.unet_2d_condition import UNet2DConditionModel
 from custom_referencenet.referencenet.pipeline_referencenet import (
     StableDiffusionReferenceNetPipeline,
 )
@@ -30,7 +30,6 @@ from utils.anonymize_faces_in_image import anonymize_faces_in_image
 from utils.redact_faces import redact_faces_in_image
 from utils.types import ImageType, VideoType, DUUIResponse, DUUIRequest
 from utils.video import process_video
-from cassis import load_typesystem
 
 
 
@@ -45,7 +44,7 @@ fa: Optional[face_alignment.FaceAlignment] = None
 # -- static typesystem --
 typesystem_filename = 'resources/typesystem_face_anon.xml'
 with open(typesystem_filename, 'rb') as f:
-    typesystem = load_typesystem(f)
+    typesystem = f.read()
 
 
 
@@ -132,16 +131,16 @@ def swap_faces(
         generator
     ):
     """
-    
+
     :param source_image: image to be anonymized
     :param conditioning_image: face to swap with
     :param inference_steps: number of infrence steps
-    :param guidance_scale: guidance scale 
+    :param guidance_scale: guidance scale
     :param anonymization_degree: degree of anonymization
     :param width: output image width (if not vis True)
     :param height: output image height (if not vis True)
     :param vis_input: weather to visualize input-output next to another
-    :return: 
+    :return:
     """""
     # generate an image that swaps faces
     assert pipe is not None
@@ -313,12 +312,17 @@ app = FastAPI(
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    logger.error(f"Validation error on {request.url}: {exc.errors()}")
+    errors = [
+        f"{'.'.join(str(part) for part in error['loc'])}: "
+        f"{error['msg']} ({error['type']})"
+        for error in exc.errors()
+    ]
+    logger.error("Validation error on %s: %s", request.url, errors)
     return JSONResponse(
         status_code=422,
         content=jsonable_encoder(DUUIResponse(
             output_images=[],
-            out_errors=[str(e) for e in exc.errors()],
+            out_errors=errors,
         )),
     )
 @app.get("/v1/details/input_output")
@@ -362,7 +366,13 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
 
     """
-    print(request)
+    logger.info(
+        "Processing request: anon_type=%s, images=%d, videos=%d, frame_interval=%d",
+        request.anon_type,
+        len(request.images),
+        len(request.videos),
+        request.frame_interval,
+    )
     # the base selection between which anonymization is run
     anon_type = request.anon_type
     # the amount of anonymization
@@ -382,7 +392,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
     inference_steps = request.inference_steps
     vis_input = request.vis_input
 
-  
+
     # swap needs default settings
     if anon_type == "swap":
         inference_steps = 200
@@ -548,7 +558,6 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
             out_errors = errors_out
         )
     except Exception as ex:
-        global logger
         logger.exception(ex)
         return DUUIResponse(
             output_images=[],

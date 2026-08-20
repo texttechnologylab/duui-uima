@@ -5,5 +5,5 @@
     "NVIDIA_VISIBLE_DEVICES": "all",
     "NVIDIA_DRIVER_CAPABILITIES": "compute,utility"
   },
-  "postCreateCommand": "apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*"
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
 }
