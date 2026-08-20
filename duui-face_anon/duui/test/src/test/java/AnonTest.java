@@ -27,9 +27,9 @@ public class AnonTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:9714";
+    static String url = "http://127.0.0.1:8001";
     static String inputPath = "resources/input";
-    static String sOutputPath = "resources/output";
+    static String sOutputPath = "target/test-output";
     static String hf_token;
 
     @BeforeAll
@@ -62,7 +62,7 @@ public class AnonTest {
 
 
         cas.reset();
-        
+
     }
 
 
@@ -88,27 +88,33 @@ public class AnonTest {
         }
     }
     // Helper method to save Base64 string back to an image file
-    private static void saveBase64ToImage(String base64String, String name) {
+    private static void saveBase64ToImage(String base64String, String name) throws IOException {
         LocalDateTime currentDateTime = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH-mm-ss");
 
-        try {
-            // Decode the Base64 string into a byte array
-            byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+        // Decode the Base64 string into a byte array
+        byte[] decodedBytes = Base64.getDecoder().decode(base64String);
 
-            // Create an image from the byte array
-            InputStream inputStream = new ByteArrayInputStream(decodedBytes);
-            BufferedImage image = ImageIO.read(inputStream);
-
-            // Save the image to the specified output file
-            File outputFile = new File(sOutputPath + "/" + currentDateTime.format(formatter) + "_" + name + ".png");
-            ImageIO.write(image, "png", outputFile);
-
-            System.out.println("Image saved as: " + outputFile.getAbsolutePath());
-
-        } catch (IOException e) {
-            e.printStackTrace();
+        // Create an image from the byte array
+        BufferedImage image;
+        try (InputStream inputStream = new ByteArrayInputStream(decodedBytes)) {
+            image = ImageIO.read(inputStream);
+            if (image == null) {
+                throw new IOException("Output is not a supported image");
+            }
         }
+
+        // Save generated test artifacts outside the input resources directory.
+        File outputFile = new File(sOutputPath + "/" + currentDateTime.format(formatter) + "_" + name + ".png");
+        File outputDirectory = outputFile.getParentFile();
+        if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
+            throw new IOException("Could not create output directory: " + outputDirectory);
+        }
+        if (!ImageIO.write(image, "png", outputFile)) {
+            throw new IOException("No PNG writer is available");
+        }
+
+        System.out.println("Image saved as: " + outputFile.getAbsolutePath());
     }
 
 
@@ -182,7 +188,7 @@ public class AnonTest {
                         .withParameter("anon_type", "multiple_align")
                         .withParameter("vis_input", "true")
                         .withParameter("hf_token", hf_token)
-        
+
                         // to write to 
                         .withTargetView("output")
                         .build().withTimeout(1000)
