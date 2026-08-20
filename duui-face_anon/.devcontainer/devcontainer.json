@@ -1,5 +1,9 @@
 {
   "name": "duui-face-anon-simple",
   "image": "docker.texttechnologylab.org/duui-face-anon-simple:latest",
+  "runArgs": [
+    "--device",
+    "nvidia.com/gpu=all"
+  ],
   "postCreateCommand": "apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*"
 }
