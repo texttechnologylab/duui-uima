@@ -127,3 +127,4 @@ xformers==0.0.22.post7
 xxhash==3.8.0
 yarl==1.15.2
 zipp==3.20.2
+dkpro-cassis==0.9.1
