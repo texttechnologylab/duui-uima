@@ -42,6 +42,7 @@ install_apt_packages \
     ca-certificates \
     curl \
     gnupg \
+    ffmpeg \
     libgl1 \
     libglib2.0-0 \
     maven

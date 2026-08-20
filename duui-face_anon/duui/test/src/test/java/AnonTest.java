@@ -11,12 +11,15 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.texttechnologylab.annotation.type.Image;
+import org.texttechnologylab.annotation.type.Video;
 import org.xml.sax.SAXException;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -27,8 +30,9 @@ public class AnonTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8001";
+    static String url = "http://127.0.0.1:9714";
     static String inputPath = "resources/input";
+    static String videoInputPath = "resources/input/videos/kids_video.mp4";
     static String sOutputPath = "target/test-output";
     static String hf_token;
 
@@ -152,6 +156,27 @@ public class AnonTest {
 
     }
 
+    private void createVideoCas() throws IOException, UIMAException {
+        cas.setDocumentLanguage("eng");
+        cas.setDocumentText("video");
+
+        Video video = new Video(cas, 1, 4);
+        video.setSrc(Base64.getEncoder().encodeToString(
+                Files.readAllBytes(Path.of(videoInputPath))
+        ));
+        video.setFps(30.0);
+        video.setLength(1.0);
+        video.addToIndexes();
+
+        cas.createView("output");
+    }
+
+    private static void saveBase64ToVideo(String base64String, String name) throws IOException {
+        Path outputDirectory = Path.of(sOutputPath);
+        Files.createDirectories(outputDirectory);
+        Files.write(outputDirectory.resolve(name + ".mp4"), Base64.getDecoder().decode(base64String));
+    }
+
 //    /*
 //    to visualize the cas to check if it was initialized correctly
 //     */
@@ -189,7 +214,7 @@ public class AnonTest {
                         .withParameter("vis_input", "true")
                         .withParameter("hf_token", hf_token)
 
-                        // to write to 
+                        // to write to
                         .withTargetView("output")
                         .build().withTimeout(1000)
         );
@@ -268,6 +293,37 @@ public class AnonTest {
         composer.run(cas);
         readImagesInCas("blackout");
 
+    }
+
+    @Test
+    public void testVideoRedactBlur() throws Exception {
+        int frameInterval = 5;
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter("anon_type", "redact")
+                        .withParameter("redact_type", "blur")
+                        .withParameter("blur", "51")
+                        .withParameter("frame_interval", Integer.toString(frameInterval))
+                        .withTargetView("output")
+                        .build().withTimeout(1000)
+        );
+
+        createVideoCas();
+        composer.run(cas);
+
+        List<Video> outputVideos = List.copyOf(
+                JCasUtil.select(cas.getView("output"), Video.class)
+        );
+        Assertions.assertEquals(1, outputVideos.size());
+
+        Video output = outputVideos.get(0);
+        Assertions.assertFalse(output.getSrc().isBlank());
+        Assertions.assertTrue(output.getFps() > 0.0);
+        Assertions.assertTrue(output.getFps() < 30.0);
+        Assertions.assertTrue(output.getLength() > 0.0);
+        Assertions.assertEquals(1, output.getBegin());
+        Assertions.assertEquals(4, output.getEnd());
+        saveBase64ToVideo(output.getSrc(), "video-redact-blur");
     }
 //    @Test
 //    public void testMissingHfTokenFails() throws Exception {
