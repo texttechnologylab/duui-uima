@@ -1,0 +1,6 @@
+{
+  "name": "duui-face-anon-simple",
+  "build": {
+    "dockerfile": "Dockerfile"
+  }
+}
