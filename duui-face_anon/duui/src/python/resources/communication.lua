@@ -58,8 +58,6 @@ function serialize(inputCas, outputStream, parameters)
         }
         number_of_images = number_of_images + 1
     end
-    print(images)
-
     -- input videos
     local videos = {}
     local number_of_videos = 1

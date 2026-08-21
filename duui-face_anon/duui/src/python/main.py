@@ -409,21 +409,22 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
     try:
         if len(images) == 0 and len(videos) == 0:
             raise ValueError("No images or videos provided")
-        if videos and anon_type != "redact":
-            raise ValueError("Video input currently supports only anon_type=redact")
-        if len(images) > 0 and hf_token == "None":
+        if videos and anon_type == "swap":
+            raise ValueError("Video input does not support anon_type=swap")
+        if (images or videos) and anon_type != "redact" and hf_token == "None":
             raise ValueError("Please provide a hugging face token, to access the models.")
         if anon_type == "swap" and len(images) != 2:
             errors_out.append("To swap two faces an input of exactly two images is required.")
             raise ValueError(
                 f"You have passed a total number of {len(images)} images. To swap you need to pass exactly 2.")
-        if images:
+        requires_pipeline = anon_type != "redact" and (images or videos)
+        if requires_pipeline:
             load_pipeline(clip_model, diffusion_model, seed, hf_token)
         # selection between the different anon types:
         # options: single_align, multiple_align, swap, redact
 
         generator = None
-        if images:
+        if requires_pipeline:
             generator = torch.Generator(device="cuda").manual_seed(seed)
 
         for img in images:
@@ -515,35 +516,65 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                 break
 
         video_face_alignment = None
-        if videos:
+        if videos and vis_input:
+            errors_out.append("vis_input is ignored for video output.")
+        if videos and anon_type == "redact":
             if redact_type == "blur" and blur % 2 == 0:
                 errors_out.append(
                     f"The passed blur parameter ({blur}) was even. Setting to default 51."
                 )
                 blur = 51
-            if vis_input:
-                errors_out.append("vis_input is ignored for video output.")
             video_face_alignment = face_alignment.FaceAlignment(
                 face_alignment.LandmarksType.TWO_D,
                 face_detector="sfd",
             )
 
-        def redact_video_frame(frame: Image.Image) -> Image.Image:
-            return redact_faces_in_image(
-                source_image=frame,
-                face_image_size=frame.height,
-                redaction_method=redact_type,
-                blur_strength=blur,
-                pixel_size=pixel,
-                face_type=face_type,
-                face_alignment_model=video_face_alignment,
-            )
+        def process_video_frame(frame: Image.Image) -> Image.Image:
+            if anon_type == "redact":
+                return redact_faces_in_image(
+                    source_image=frame,
+                    face_image_size=frame.height,
+                    redaction_method=redact_type,
+                    blur_strength=blur,
+                    pixel_size=pixel,
+                    face_type=face_type,
+                    face_alignment_model=video_face_alignment,
+                )
+
+            max_dim = 768
+            scale = min(1.0, max_dim / max(frame.width, frame.height))
+            width = max(8, (int(frame.width * scale) // 8) * 8)
+            height = max(8, (int(frame.height * scale) // 8) * 8)
+            if frame.size != (width, height):
+                frame = frame.resize((width, height), Image.LANCZOS)
+
+            if anon_type == "single_align":
+                return single_aligned_face(
+                    source_image=frame,
+                    inference_steps=inference_steps,
+                    guidance_scale=guidance,
+                    anonymization_degree=anon_degree,
+                    height=height,
+                    width=width,
+                    vis_input=False,
+                    generator=generator,
+                )
+            if anon_type == "multiple_align":
+                return multiple_aligned_face(
+                    source_image=frame,
+                    image_size=height,
+                    inference_steps=inference_steps,
+                    guidance_scale=guidance,
+                    anonymization_degree=anon_degree,
+                    generator=generator,
+                )
+            raise ValueError(f"Unsupported video anon_type: {anon_type}")
 
         for video in videos:
             processed_video = process_video(
                 video_base64=video.src,
                 frame_interval=request.frame_interval,
-                process_frame=redact_video_frame,
+                process_frame=process_video_frame,
             )
             output_videos.append(VideoType(
                 src=processed_video["src"],

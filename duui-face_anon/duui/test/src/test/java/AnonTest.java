@@ -327,6 +327,39 @@ public class AnonTest {
         Assertions.assertEquals(4, output.getEnd());
         saveBase64ToVideo(output.getSrc(), "video-redact-" + redactType);
     }
+
+    @ParameterizedTest(name = "video anonymization: {0}")
+    @ValueSource(strings = {"single_align", "multiple_align"})
+    public void testVideoAnonymization(String anonType) throws Exception {
+        int frameInterval = 30;
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withName("duui-face-anon-video-" + anonType)
+                        .withParameter("anon_type", anonType)
+                        .withParameter("hf_token", hf_token)
+                        .withParameter("inference_steps", "2")
+                        .withParameter("frame_interval", Integer.toString(frameInterval))
+                        .withTargetView("output")
+                        .build().withTimeout(1000)
+        );
+
+        createVideoCas();
+        composer.run(cas);
+
+        List<Video> outputVideos = List.copyOf(
+                JCasUtil.select(cas.getView("output"), Video.class)
+        );
+        Assertions.assertEquals(1, outputVideos.size());
+
+        Video output = outputVideos.get(0);
+        Assertions.assertFalse(output.getSrc().isBlank());
+        Assertions.assertTrue(output.getFps() > 0.0);
+        Assertions.assertTrue(output.getFps() < 30.0);
+        Assertions.assertTrue(output.getLength() > 0.0);
+        Assertions.assertEquals(1, output.getBegin());
+        Assertions.assertEquals(4, output.getEnd());
+        saveBase64ToVideo(output.getSrc(), "video-" + anonType);
+    }
 //    @Test
 //    public void testMissingHfTokenFails() throws Exception {
 //        composer.add(

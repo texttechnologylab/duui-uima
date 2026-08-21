@@ -104,14 +104,17 @@ def process_video(video_base64: str, frame_interval: int, process_frame: FramePr
         if not frame_files:
             raise ValueError("No frames could be decoded from the input video")
 
+        output_frame_size = None
         for frame_path in frame_files:
             with Image.open(frame_path) as frame:
-                # The callback is the boundary between video transport and redaction.
+                # The callback is the boundary between video transport and frame processing.
                 processed_frame = process_frame(frame.convert("RGB"))
                 if not isinstance(processed_frame, Image.Image):
                     raise TypeError("process_frame must return a PIL Image")
-                if processed_frame.size != frame.size:
-                    raise ValueError("process_frame must preserve the video frame dimensions")
+                if output_frame_size is None:
+                    output_frame_size = processed_frame.size
+                elif processed_frame.size != output_frame_size:
+                    raise ValueError("process_frame must return the same dimensions for every frame")
                 processed_frame.convert("RGB").save(frame_path, format="PNG")
 
         encode_command = [
