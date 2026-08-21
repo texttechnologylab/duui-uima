@@ -129,7 +129,7 @@ def swap_faces(
         height,
         vis_input,
         generator
-    ):
+):
     """
 
     :param source_image: image to be anonymized
@@ -168,7 +168,7 @@ def redact_faces(
         pixel_size,
         vis_input,
         face_type
-    )->Image:
+)->Image:
     """
 
     :param source_image: image to be redacted
@@ -299,15 +299,15 @@ app = FastAPI(
     title="duui-face_anon",
     description="Implementation of [WACV 2025] 'Face Anonymization Made Simple' for DUUI.",
     version="0.1",
-        contact={
-            "name": "Coco Sittardt, TTLab Team",
-            "url": "https://texttechnologylab.org",
-            "email": "sittardt@em.uni-frankfurt.de",
-        },
-        license_info={
-            "name": "AGPL",
-            "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
-        },
+    contact={
+        "name": "Coco Sittardt, TTLab Team",
+        "url": "https://texttechnologylab.org",
+        "email": "sittardt@em.uni-frankfurt.de",
+    },
+    license_info={
+        "name": "AGPL",
+        "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
+    },
 )
 
 @app.exception_handler(RequestValidationError)
@@ -328,10 +328,10 @@ async def validation_exception_handler(request, exc):
 @app.get("/v1/details/input_output")
 def get_input_output()-> JSONResponse:
     json_item = {
-       "inputs" : [
-           "org.texttechnologylab.annotation.type.Image",
-           "org.texttechnologylab.annotation.type.Video",
-       ],
+        "inputs" : [
+            "org.texttechnologylab.annotation.type.Image",
+            "org.texttechnologylab.annotation.type.Video",
+        ],
         "outputs" : [
             "org.texttechnologylab.annotation.type.Image",
             "org.texttechnologylab.annotation.type.Video",
@@ -367,8 +367,9 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
     """
     logger.info(
-        "Processing request: anon_type=%s, images=%d, videos=%d, frame_interval=%d",
+        "Processing request: anon_type=%s, redact_type=%s, images=%d, videos=%d, frame_interval=%d",
         request.anon_type,
+        request.redact_type,
         len(request.images),
         len(request.videos),
         request.frame_interval,
@@ -426,7 +427,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
             generator = torch.Generator(device="cuda").manual_seed(seed)
 
         for img in images:
-              # these can be "None" and will then be set later in the loop, UNLESS predefined height / width is passed
+            # these can be "None" and will then be set later in the loop, UNLESS predefined height / width is passed
             height = request.height
             width = request.width
 

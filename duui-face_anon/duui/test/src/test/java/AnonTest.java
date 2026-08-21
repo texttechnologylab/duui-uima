@@ -4,6 +4,8 @@ import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.util.CasIOUtils;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
@@ -32,16 +34,20 @@ public class AnonTest {
 
     static String url = "http://127.0.0.1:9714";
     static String inputPath = "resources/input";
-    static String videoInputPath = "resources/input/videos/kids_video.mp4";
+    static String videoInputPath = "resources/input/videos/Trump.mp4"; // Source: https://commons.wikimedia.org/wiki/File:President_Trump_Gives_Remarks_at_Welcome_Banquet_in_China.webm
     static String sOutputPath = "target/test-output";
     static String hf_token;
 
     @BeforeAll
-    static void beforeAll() throws Exception {
+    static void beforeAll() {
         hf_token = System.getenv("HF_TOKEN");
         if (hf_token == null) {
             throw new IllegalStateException("HF_TOKEN environment variable is not set");
         }
+    }
+
+    @BeforeEach
+    void beforeEach() throws Exception {
         composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
@@ -55,18 +61,11 @@ public class AnonTest {
         cas = JCasFactory.createJCas();
     }
 
-    @AfterAll
-    static void afterAll() throws UnknownHostException {
-        composer.shutdown();
-    }
-
     @AfterEach
-    public void afterEach() throws Exception {
-        composer.resetPipeline();
-
-
-        cas.reset();
-
+    public void afterEach() throws UnknownHostException {
+        if (composer != null) {
+            composer.shutdown();
+        }
     }
 
 
@@ -295,14 +294,17 @@ public class AnonTest {
 
     }
 
-    @Test
-    public void testVideoRedactBlur() throws Exception {
+    @ParameterizedTest(name = "video redaction: {0}")
+    @ValueSource(strings = {"blur", "pixel", "black"})
+    public void testVideoRedaction(String redactType) throws Exception {
         int frameInterval = 5;
         composer.add(
                 new DUUIRemoteDriver.Component(url)
+                        .withName("duui-face-anon-video-" + redactType)
                         .withParameter("anon_type", "redact")
-                        .withParameter("redact_type", "blur")
+                        .withParameter("redact_type", redactType)
                         .withParameter("blur", "51")
+                        .withParameter("pixel", "10")
                         .withParameter("frame_interval", Integer.toString(frameInterval))
                         .withTargetView("output")
                         .build().withTimeout(1000)
@@ -323,7 +325,7 @@ public class AnonTest {
         Assertions.assertTrue(output.getLength() > 0.0);
         Assertions.assertEquals(1, output.getBegin());
         Assertions.assertEquals(4, output.getEnd());
-        saveBase64ToVideo(output.getSrc(), "video-redact-blur");
+        saveBase64ToVideo(output.getSrc(), "video-redact-" + redactType);
     }
 //    @Test
 //    public void testMissingHfTokenFails() throws Exception {
