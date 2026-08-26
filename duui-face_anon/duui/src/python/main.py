@@ -367,12 +367,12 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
     """
     logger.info(
-        "Processing request: anon_type=%s, redact_type=%s, images=%d, videos=%d, frame_interval=%d",
+        "Processing request: anon_type=%s, redact_type=%s, sampling_mode=%s, images=%d, videos=%d",
         request.anon_type,
         request.redact_type,
+        request.sampling_mode,
         len(request.images),
         len(request.videos),
-        request.frame_interval,
     )
     # the base selection between which anonymization is run
     anon_type = request.anon_type
@@ -575,6 +575,9 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                 video_base64=video.src,
                 frame_interval=request.frame_interval,
                 process_frame=process_video_frame,
+                sampling_mode=request.sampling_mode,
+                segment_duration=request.segment_duration,
+                representative_frames=request.representative_frames,
             )
             output_videos.append(VideoType(
                 src=processed_video["src"],

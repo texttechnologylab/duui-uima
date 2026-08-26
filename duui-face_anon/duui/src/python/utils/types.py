@@ -33,12 +33,20 @@ class AnonType(str, Enum):
     redact = "redact"
 
 
+class SamplingMode(str, Enum):
+    uniform = "uniform"
+    adaptive = "adaptive"
+
+
 class DUUIRequest(BaseModel):
     anon_type: AnonType
     anon_degree: float
     images: List[ImageType] = Field(default_factory=list)
     videos: List[VideoType] = Field(default_factory=list)
+    sampling_mode: SamplingMode = SamplingMode.uniform
     frame_interval: int = Field(default=1, ge=1)
+    segment_duration: float = Field(default=10.0, gt=0)
+    representative_frames: int = Field(default=5, ge=1)
     redact_type: RedactType
     face_type: str = "full_face"
     blur: int

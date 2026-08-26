@@ -328,6 +328,36 @@ public class AnonTest {
         saveBase64ToVideo(output.getSrc(), "video-redact-" + redactType);
     }
 
+    @Test
+    public void testVideoAdaptiveSampling() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withName("duui-face-anon-video-adaptive")
+                        .withParameter("anon_type", "redact")
+                        .withParameter("redact_type", "black")
+                        .withParameter("sampling_mode", "adaptive")
+                        .withParameter("segment_duration", "50")
+                        .withParameter("representative_frames", "60")
+                        .withTargetView("output")
+                        .build().withTimeout(1000)
+        );
+
+        createVideoCas();
+        composer.run(cas);
+
+        List<Video> outputVideos = List.copyOf(
+                JCasUtil.select(cas.getView("output"), Video.class)
+        );
+        Assertions.assertEquals(1, outputVideos.size());
+        Video output = outputVideos.get(0);
+        Assertions.assertFalse(output.getSrc().isBlank());
+        Assertions.assertTrue(output.getFps() > 0.0);
+        Assertions.assertTrue(output.getLength() > 0.0);
+        Assertions.assertEquals(1, output.getBegin());
+        Assertions.assertEquals(4, output.getEnd());
+        saveBase64ToVideo(output.getSrc(), "video-adaptive-black");
+    }
+
     @ParameterizedTest(name = "video anonymization: {0}")
     @ValueSource(strings = {"single_align", "multiple_align"})
     public void testVideoAnonymization(String anonType) throws Exception {

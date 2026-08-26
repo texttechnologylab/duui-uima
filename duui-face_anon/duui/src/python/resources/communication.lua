@@ -36,10 +36,13 @@ function serialize(inputCas, outputStream, parameters)
     local height = parameters["height"] if parameters["height"]==nil then height = tonumber(height) end
     local width = parameters["width"] if parameters["width"]==nil then width = tonumber(height) end
     local frame_interval = parameters["frame_interval"] if parameters["frame_interval"]==nil then frame_interval = 1 end
+    local sampling_mode = parameters["sampling_mode"] if parameters["sampling_mode"]==nil then sampling_mode = "uniform" end
+    local segment_duration = parameters["segment_duration"] if parameters["segment_duration"]==nil then segment_duration = 10.0 end
+    local representative_frames = parameters["representative_frames"] if parameters["representative_frames"]==nil then representative_frames = 5 end
 
 
     --print(anon_type..redact_type..blur..pixel..diffusion_model..clip_model..seed..guidance..inference_steps..anon_degree..vis_input..height..width)
-     
+
 
 
     -- input images
@@ -80,7 +83,10 @@ function serialize(inputCas, outputStream, parameters)
         anon_degree = anon_degree,
         images = images,
         videos = videos,
+        sampling_mode = sampling_mode,
         frame_interval = frame_interval,
+        segment_duration = segment_duration,
+        representative_frames = representative_frames,
         redact_type = redact_type,
         face_type = face_type,
         blur = blur,
