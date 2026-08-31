@@ -7,6 +7,7 @@ function serialize(inputCas, outputStream, parameters)
     local db_backend = parameters["db_backend"]
     local target_table = parameters["target_table"]
     local target_table_prefix = parameters["target_table_prefix"]
+    local qdrant_distance = parameters["qdrant_distance"]
 
     -- DocumentMetaData ist optional: laeuft das Tool ausserhalb einer Pipeline,
     -- die eine Dokument-ID setzt, wird stattdessen "unknown_document" verwendet.
@@ -48,6 +49,7 @@ function serialize(inputCas, outputStream, parameters)
         db_backend = db_backend,
         target_table = target_table,
         target_table_prefix = target_table_prefix,
+        qdrant_distance = qdrant_distance,
         embeddings = embeddings
     }))
 end

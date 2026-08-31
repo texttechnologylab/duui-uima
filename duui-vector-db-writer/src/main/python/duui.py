@@ -79,6 +79,7 @@ class ProcessRequest(BaseModel):
     db_backend: str
     target_table: Optional[str] = None
     target_table_prefix: Optional[str] = None
+    qdrant_distance: Optional[str] = None
     embeddings: List[EmbeddingIn]
 
 
@@ -310,7 +311,31 @@ def write_postgres(request: ProcessRequest) -> ProcessResponse:
 
 _qdrant_client = None
 _qdrant_lock = Lock()
-_qdrant_known_collections = set()
+# Name -> tatsaechlich angelegtes Distanzmass, damit ein wiederholter Aufruf
+# mit abweichendem qdrant_distance auch dann noch erkannt wird, wenn die
+# Collection in diesem Prozess schon einmal bestaetigt wurde (sonst wuerde
+# der Cache den Vergleich in ensure_collection umgehen).
+_qdrant_known_collections = {}
+
+# Qdrant legt das Distanzmass beim Anlegen der Collection fest und erlaubt
+# danach keine Aenderung mehr (dafuer muesste die Collection neu angelegt
+# werden) -- deshalb hier waehlbar statt wie zuvor hart auf EUCLID gesetzt.
+QDRANT_DISTANCE_MAP = {
+    "euclid": qmodels.Distance.EUCLID,
+    "cosine": qmodels.Distance.COSINE,
+    "dot": qmodels.Distance.DOT,
+    "manhattan": qmodels.Distance.MANHATTAN,
+}
+DEFAULT_QDRANT_DISTANCE = "euclid"
+
+
+def resolve_qdrant_distance(name: Optional[str]) -> qmodels.Distance:
+    key = (name or DEFAULT_QDRANT_DISTANCE).lower()
+    if key not in QDRANT_DISTANCE_MAP:
+        raise ValueError(
+            f"Unknown qdrant_distance \"{name}\", expected one of {sorted(QDRANT_DISTANCE_MAP)}"
+        )
+    return QDRANT_DISTANCE_MAP[key]
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -326,20 +351,40 @@ def get_qdrant_client() -> QdrantClient:
         return _qdrant_client
 
 
-def ensure_collection(client: QdrantClient, collection_name: str, embedding_dim: int) -> None:
-    if collection_name in _qdrant_known_collections:
+def ensure_collection(client: QdrantClient, collection_name: str, embedding_dim: int, distance: qmodels.Distance) -> None:
+    known_distance = _qdrant_known_collections.get(collection_name)
+    if known_distance is not None:
+        if known_distance != distance:
+            raise ValueError(
+                f"Collection \"{collection_name}\" already exists with distance "
+                f"\"{known_distance.value}\", requested \"{distance.value}\" cannot be "
+                f"applied retroactively -- use a different target_table/target_table_prefix "
+                f"or delete the existing collection first"
+            )
         return
+
     try:
-        client.get_collection(collection_name)
-    except (UnexpectedResponse, ValueError):
-        # Euklidische Distanz, damit sie zur restlichen Pipeline passt
-        # (SentenceDistanceAnalyzer rechnet ebenfalls euklidisch).
+        existing = client.get_collection(collection_name)
+        existing_distance = existing.config.params.vectors.distance
+        if existing_distance != distance:
+            raise ValueError(
+                f"Collection \"{collection_name}\" already exists with distance "
+                f"\"{existing_distance.value}\", requested \"{distance.value}\" cannot be "
+                f"applied retroactively -- use a different target_table/target_table_prefix "
+                f"or delete the existing collection first"
+            )
+        distance = existing_distance
+    except (UnexpectedResponse, ValueError) as ex:
+        if isinstance(ex, ValueError):
+            raise
+        # Default: qdrant-client zeigt eine nicht existierende Collection als
+        # 404 (UnexpectedResponse) -- neu anlegen mit dem gewuenschten Mass.
         client.create_collection(
             collection_name=collection_name,
-            vectors_config=qmodels.VectorParams(size=embedding_dim, distance=qmodels.Distance.EUCLID),
+            vectors_config=qmodels.VectorParams(size=embedding_dim, distance=distance),
         )
-        logger.info("Created Qdrant collection %s (dim %d)", collection_name, embedding_dim)
-    _qdrant_known_collections.add(collection_name)
+        logger.info("Created Qdrant collection %s (dim %d, distance %s)", collection_name, embedding_dim, distance.value)
+    _qdrant_known_collections[collection_name] = distance
 
 
 def _point_id(doc_id: str, model_name: str, begin: int, end: int, agg: str) -> str:
@@ -362,12 +407,13 @@ def write_qdrant(request: ProcessRequest) -> ProcessResponse:
 
     try:
         collection_name = resolve_target_name(request)
+        distance = resolve_qdrant_distance(request.qdrant_distance)
     except ValueError as e:
         return ProcessResponse(status="error", comment=str(e), timestamp=now)
 
     try:
         client = get_qdrant_client()
-        ensure_collection(client, collection_name, embedding_dim)
+        ensure_collection(client, collection_name, embedding_dim, distance)
 
         vectors = np.array([e.vector for e in request.embeddings], dtype=np.float32)
         points = []

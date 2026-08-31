@@ -72,6 +72,7 @@ composer.run(cas);
 | `db_backend` | ja | `postgres` oder `qdrant` |
 | `target_table` | genau eines von beiden | Alle Modelle schreiben in dieselbe Tabelle/Collection (Embedding-Dimension muss übereinstimmen) |
 | `target_table_prefix` | genau eines von beiden | Pro Modell wird eine eigene Tabelle/Collection `<prefix>_<sanitizer_modellname>` angelegt |
+| `qdrant_distance` | nein, nur bei `db_backend=qdrant` | `euclid` (Default), `cosine`, `dot` oder `manhattan` — siehe unten |
 
 Bei Qdrant heißt `target_table`/`target_table_prefix` inhaltlich "Collection"
 statt "Tabelle" — der Parametername ist bewusst backend-neutral gehalten,
@@ -114,13 +115,23 @@ Gleiches Datenmodell wie bei Postgres, nur als Payload statt als Spalten:
 }
 ```
 
-Distanzmetrik ist `EUCLID`, nicht das sonst bei Sentence-Embeddings übliche
-`COSINE` — bewusst so gewählt, damit sie zur euklidischen Distanzberechnung
-passt, die der Rest der `audio-nlp-pipeline` bereits nutzt
-(`SentenceDistanceAnalyzer`). Die Punkt-ID wird deterministisch aus den
-fachlichen Schlüsselfeldern abgeleitet (UUID5), ein erneuter Schreibvorgang
-überschreibt denselben Punkt per Upsert statt ihn zu duplizieren — das
-Postgres-Gegenstück dazu ist `ON CONFLICT DO NOTHING`.
+Distanzmetrik ist per `qdrant_distance` wählbar (`euclid` | `cosine` | `dot` |
+`manhattan`), Default ist `euclid` — damit passt sie ohne weiteres Zutun zur
+euklidischen Distanzberechnung, die der Rest der `audio-nlp-pipeline` bereits
+nutzt (`SentenceDistanceAnalyzer`); für andere Anwendungsfälle (z.B.
+klassische Sentence-Embedding-Suche) ist `cosine` üblicher.
+
+**Wichtig:** Qdrant legt das Distanzmaß beim Anlegen der Collection fest und
+erlaubt danach **keine Änderung mehr**. Existiert die Ziel-Collection schon
+mit einem anderen Maß als angefragt, antwortet der Writer mit einem Fehler
+statt das Maß stillschweigend zu ignorieren — in dem Fall entweder eine neue
+Collection (anderer `target_table`/`target_table_prefix`) verwenden oder die
+bestehende vorher löschen.
+
+Die Punkt-ID wird deterministisch aus den fachlichen Schlüsselfeldern
+abgeleitet (UUID5), ein erneuter Schreibvorgang überschreibt denselben Punkt
+per Upsert statt ihn zu duplizieren — das Postgres-Gegenstück dazu ist
+`ON CONFLICT DO NOTHING`.
 
 ## Required UIMA input
 

@@ -41,6 +41,71 @@ public class DUUIVectorDbWriterTest {
         runWriteTest("qdrant");
     }
 
+    /**
+     * Qdrant legt das Distanzmass beim Anlegen einer Collection fest und
+     * erlaubt danach keine Aenderung mehr. Erster Schreibvorgang legt die
+     * Collection mit "cosine" an, zweiter fragt fuer dieselbe Collection
+     * "euclid" an -- das muss der Writer ablehnen statt es stillschweigend
+     * zu ignorieren (auch dann noch, wenn der Container die Collection aus
+     * dem ersten Aufruf bereits im Speicher-Cache kennt).
+     */
+    @Test
+    public void testQdrantDistanceMismatchIsRejected() throws Exception {
+        String table = "test_emb_distance_mismatch";
+
+        String firstComment = writeWithQdrantDistance(table, "cosine", "mismatch-doc-1");
+        assert firstComment.startsWith("Wrote") : "Erster Schreibvorgang (cosine) war nicht erfolgreich: " + firstComment;
+
+        String secondComment = writeWithQdrantDistance(table, "euclid", "mismatch-doc-2");
+        assert !secondComment.startsWith("Wrote") : "Abweichendes Distanzmass wurde nicht abgelehnt: " + secondComment;
+        assert secondComment.contains("already exists with distance")
+                : "Fehlermeldung erklaert den Mismatch nicht: " + secondComment;
+    }
+
+    private String writeWithQdrantDistance(String targetTable, String qdrantDistance, String docId) throws Exception {
+        DUUIComposer composer = new DUUIComposer()
+                .withWorkers(1)
+                .withSkipVerification(true)
+                .withLuaContext(new DUUILuaContext().withJsonLibrary());
+
+        DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
+        composer.addDriver(remoteDriver);
+
+        composer.add(
+                new DUUIRemoteDriver.Component("http://localhost:9714")
+                        .withParameter("db_backend", "qdrant")
+                        .withParameter("target_table", targetTable)
+                        .withParameter("qdrant_distance", qdrantDistance)
+                        .build()
+                        .withTimeout(30000L)
+        );
+
+        JCas jCas = JCasFactory.createJCas();
+        jCas.setDocumentText("Das ist ein Test.");
+        jCas.setDocumentLanguage("de");
+
+        DocumentMetaData meta = DocumentMetaData.create(jCas);
+        meta.setDocumentId(docId);
+        meta.addToIndexes();
+
+        MetaData modelMeta = new MetaData(jCas);
+        modelMeta.setSource("test-model");
+        modelMeta.addToIndexes();
+
+        addEmbedding(jCas, modelMeta, 0, 18, new float[]{0.1f, 0.2f, 0.3f});
+
+        composer.run(jCas);
+        composer.shutdown();
+
+        List<DocumentModification> modifications =
+                new java.util.ArrayList<>(JCasUtil.select(jCas, DocumentModification.class));
+        assert !modifications.isEmpty() : "Kein DocumentModification-Eintrag vom Writer erhalten";
+
+        String comment = modifications.get(0).getComment();
+        System.out.println("Writer-Antwort (qdrant, distance=" + qdrantDistance + "): " + comment);
+        return comment;
+    }
+
     private void runWriteTest(String dbBackend) throws Exception {
         DUUIComposer composer = new DUUIComposer()
                 .withWorkers(1)
