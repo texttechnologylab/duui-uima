@@ -1,9 +1,0 @@
-{
-  "name": "duui-face-anon-simple",
-  "image": "docker.texttechnologylab.org/duui-face-anon-simple:latest",
-  "containerEnv": {
-    "NVIDIA_VISIBLE_DEVICES": "all",
-    "NVIDIA_DRIVER_CAPABILITIES": "compute,utility"
-  },
-  "postCreateCommand": "bash .devcontainer/post-create.sh"
-}
