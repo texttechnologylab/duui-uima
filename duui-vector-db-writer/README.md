@@ -72,7 +72,7 @@ composer.run(cas);
 | `db_backend` | ja | `postgres` oder `qdrant` |
 | `target_table` | genau eines von beiden | Alle Modelle schreiben in dieselbe Tabelle/Collection (Embedding-Dimension muss übereinstimmen) |
 | `target_table_prefix` | genau eines von beiden | Pro Modell wird eine eigene Tabelle/Collection `<prefix>_<sanitizer_modellname>` angelegt |
-| `qdrant_distance` | nein, nur bei `db_backend=qdrant` | `euclid` (Default), `cosine`, `dot` oder `manhattan` — siehe unten |
+| `qdrant_distance` | nein, nur bei `db_backend=qdrant` | `euclid` (Default), `cosine`, `dot` oder `manhattan` — siehe [Collection-Schema (Qdrant)](#collection-schema-qdrant) für die Erklärung, wann welches Maß sinnvoll ist |
 
 Bei Qdrant heißt `target_table`/`target_table_prefix` inhaltlich "Collection"
 statt "Tabelle" — der Parametername ist bewusst backend-neutral gehalten,
@@ -115,11 +115,19 @@ Gleiches Datenmodell wie bei Postgres, nur als Payload statt als Spalten:
 }
 ```
 
-Distanzmetrik ist per `qdrant_distance` wählbar (`euclid` | `cosine` | `dot` |
-`manhattan`), Default ist `euclid` — damit passt sie ohne weiteres Zutun zur
-euklidischen Distanzberechnung, die der Rest der `audio-nlp-pipeline` bereits
-nutzt (`SentenceDistanceAnalyzer`); für andere Anwendungsfälle (z.B.
-klassische Sentence-Embedding-Suche) ist `cosine` üblicher.
+Distanzmetrik ist per `qdrant_distance` wählbar:
+
+| Wert | Bedeutung | Wann benutzen |
+| --- | --- | --- |
+| `euclid` (Default) | Geometrischer Abstand zwischen zwei Punkten (Pythagoras) | Passt ohne weiteres Zutun zur euklidischen Distanzberechnung, die der Rest der `audio-nlp-pipeline` bereits nutzt (`SentenceDistanceAnalyzer`) — Default, damit sich am bisherigen Verhalten nichts ändert |
+| `cosine` | Winkel zwischen zwei Vektoren, Länge des Vektors spielt keine Rolle | Bei den meisten Sentence-Embedding-Modellen (auch `paraphrase-multilingual-MiniLM-L12-v2`) trägt die Richtung des Vektors die Bedeutung, nicht die Länge — deshalb in der Praxis der gebräuchlichste Standard für "welche Sätze sind sich inhaltlich am ähnlichsten", z.B. für semantische Suche |
+| `dot` | Skalarprodukt (Kombination aus Winkel und Länge) | Wenn die Vektorlänge selbst Information trägt (z.B. bei manchen unnormalisierten Embeddings) oder für Performance, wenn Vektoren schon normalisiert sind (dann ist `dot` rechnerisch gleichwertig zu `cosine`, aber schneller) |
+| `manhattan` | Abstand entlang der Achsen statt diagonal (Summe der Betragsdifferenzen) | Seltener bei Embeddings; eher relevant, wenn einzelne Dimensionen unabhängig voneinander interpretiert werden sollen |
+
+Für dieses Projekt ist `euclid` (Default) die richtige Wahl, solange die
+Ergebnisse mit der restlichen Pipeline vergleichbar bleiben sollen. Für einen
+reinen "ähnlichste Sätze finden"-Anwendungsfall unabhängig von der übrigen
+Pipeline ist `cosine` die Standardempfehlung.
 
 **Wichtig:** Qdrant legt das Distanzmaß beim Anlegen der Collection fest und
 erlaubt danach **keine Änderung mehr**. Existiert die Ziel-Collection schon
