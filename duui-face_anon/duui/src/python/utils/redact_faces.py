@@ -86,6 +86,7 @@ def redact_faces_in_image(
     blur_strength=51,
     pixel_size=16,
     face_type=FaceType.WHOLE_FACE,
+    face_alignment_model=None,
 ) -> Image:
     """
     Extract faces from an image, redact them (blur, pixelate, or black out),
@@ -98,14 +99,20 @@ def redact_faces_in_image(
         blur_strength: Kernel size for Gaussian blur (must be odd number)
         pixel_size: Size of pixelation blocks for pixelate method
         face_type: Type of face extraction (default: WHOLE_FACE)
+        face_alignment_model: Optional reusable face detector, intended for video frames
     """
     # Load the input image
     # image = Image.open(input_image_path)
 
-    # Initialize face alignment model
-    fa = face_alignment.FaceAlignment(
-        face_alignment.LandmarksType.TWO_D, face_detector="sfd"
-    )
+    if isinstance(face_type, str):
+        face_type = FaceType.fromString(face_type)
+
+    # Reuse a caller-owned detector for video frames when one is supplied.
+    fa = face_alignment_model
+    if fa is None:
+        fa = face_alignment.FaceAlignment(
+            face_alignment.LandmarksType.TWO_D, face_detector="sfd"
+        )
 
     # Extract faces from the image
     # print(f"Extracting faces from {input_image_path}...")
