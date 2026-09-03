@@ -11,6 +11,7 @@ RUN pip install --no-deps -r requirements.txt
 
 RUN python -c "import nltk; nltk.download('wordnet')"
 RUN python -c "import nltk; nltk.download('omw-1.4')"
+RUN python -c "import nltk; nltk.download('cmudict')"
 
 ADD https://huggingface.co/datasets/StephanAkkerman/MRC-psycholinguistic-database/raw/main/mrc_psycholinguistic_database.csv ./src/main/resources/mrc_psycholinguistic_database.csv
 
