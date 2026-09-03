@@ -355,7 +355,8 @@ def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
-    return np.mean(text_letters)
+    # FV4 fix: Return 0 instead of NaN if no letters exist
+    return np.mean(text_letters) if text_letters else 0
 
 # LAY: How uneven is the letter count across words?
 # ↑ Higher = mix of short and long words. Reliable.
@@ -368,7 +369,8 @@ def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
-    return np.std(text_letters)
+    # FV4 fix: Return 0 instead of NaN if no letters exist
+    return np.std(text_letters) if text_letters else 0
 
 ud_noun_pos = {"NOUN", "PROPN"}
 # H6 fix: DET was previously in this set which caused pronoun-overlap (and thus
@@ -423,7 +425,7 @@ def _stem_overlap(
     content_words = {
         token.lemma.lower()
         for token in sentence_contents.tokens
-        if token.pos_coarse in ud_stem_content_pos
+        if token.pos_coarse in ud_content_pos
         and token.lemma
     }
 
@@ -1475,8 +1477,6 @@ def _count_metrics(
         # V3-oriented structural counters
         "verb_phrase_count": 0,
         "adverbial_phrase_count": 0,
-        "agentless_passive_sentences": 0,
-
         "neg_count": 0,
         "gerund_count": 0,
         "infinitive_count": 0,
@@ -1488,21 +1488,17 @@ def _count_metrics(
             sentence, lang
         )
 
-        # DRPVAL: sentence-level passive + explicit-agent distinction.
+        # DRPVAL: documented passive-sentence density.  The Coh-Metrix/TTLab
+        # definition counts each passive sentence once; explicit agents do
+        # not exclude a sentence (the documented example contains "vom
+        # Hund" and is still counted).
         if lang == "de":
-            passive_participles = _german_passive_participle_indices(sentence)
-            is_passive = bool(passive_participles)
-            has_explicit_agent = _german_passive_has_explicit_agent(
-                sentence, passive_participles
-            )
+            is_passive = bool(_german_passive_participle_indices(sentence))
         else:
-            is_passive, has_explicit_agent = _english_passive_status(sentence)
+            is_passive, _ = _english_passive_status(sentence)
 
         if is_passive:
             count_metrics_dict["passive_sentences"] += 1
-
-            if not has_explicit_agent:
-                count_metrics_dict["agentless_passive_sentences"] += 1
 
         for i, token in enumerate(sentence.tokens):
             if not token.is_punct:
@@ -1622,20 +1618,17 @@ def cm_drpp(
 
 # LAY: How many agentless passive constructions occur per 1,000 words?
 # ↑ Higher = more agentless passive/impersonal constructions.
-# Dependency-based approximation of the Coh-Metrix agentless passive index.
+# Dependency-based approximation of the Coh-Metrix DRPVAL index.
 def cm_drpval(
     sentences: List[Sentence],
     noun_chunks: List[NounChunk],
     lang: str,
     metrics: Optional[Dict[str, int]] = None
 ) -> Optional[float]:
-    # DRPVAL: agentless passive voice incidence per 1,000 words.
-    # Passive detection and explicit-agent detection are language-specific
-    # dependency-based approximations.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
     return _incidence(
-        metrics["agentless_passive_sentences"],
+        metrics["passive_sentences"],
         metrics["total_tokens"]
     )
 
@@ -1921,44 +1914,93 @@ def cm_wrdprp3p(sentences: List[Sentence], counts: Optional[Dict[str, int]] = No
 
 # FV1 Fix: Included support for german language, respective database is
 # now loaded, depending on the text language.
+# FV4 Fix: Treat 0 values as None values, since they represent a missing rating inside the MRC databse.
 @lru_cache(maxsize=2)
-def _load_mrc_database(lang: str) -> Dict[str, Dict[str, Optional[float]]]:
+def _load_mrc_database(
+    lang: str
+) -> Dict[str, Dict[str, Optional[float]]]:
+
     if lang == "de":
         filepath = "src/main/resources/mrc_psycholinguistic_database_de.csv"
     else:
         filepath = "src/main/resources/mrc_psycholinguistic_database.csv"
 
+    def _parse_mrc_rating(value) -> Optional[float]:
+        if value is None:
+            return None
+
+        value = str(value).strip()
+
+        if not value:
+            return None
+
+        try:
+            rating = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        # MRC uses 0 as a missing-value sentinel.
+        if rating <= 0:
+            return None
+
+        # Defensive check for NaN / infinity.
+        if not math.isfinite(rating):
+            return None
+
+        return rating
+
     mrc_dict = {}
 
-    with open(filepath, 'r', encoding='utf-8') as file:
-        reader = csv.DictReader(file, delimiter=',')
+    with open(
+        filepath,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        reader = csv.DictReader(
+            file,
+            delimiter=","
+        )
 
         for row in reader:
-            word = row['Word'].lower()
 
-            # FV2 fix: WRDMEAc is defined specifically by the MRC Colorado
-            # meaningfulness norms. Paivio meaningfulness values must therefore
-            # not be combined with, or used as a fallback for, the Colorado rating.
-            meaningful_colorado = (
-                float(row['Meaningfulness: Coloradao Norms'])
-                if row['Meaningfulness: Coloradao Norms']
-                else None
-            )
+            word = (
+                row.get("Word") or ""
+            ).strip().lower()
+
+            if not word:
+                continue
 
             mrc_dict[word] = {
-                'AoA': float(row['Age of Acquisition Rating'])
-                if row['Age of Acquisition Rating'] else None,
+                "AoA": _parse_mrc_rating(
+                    row.get(
+                        "Age of Acquisition Rating"
+                    )
+                ),
 
-                'Familiarity': float(row['Familiarity'])
-                if row['Familiarity'] else None,
+                "Familiarity": _parse_mrc_rating(
+                    row.get(
+                        "Familiarity"
+                    )
+                ),
 
-                'Concreteness': float(row['Concreteness'])
-                if row['Concreteness'] else None,
+                "Concreteness": _parse_mrc_rating(
+                    row.get(
+                        "Concreteness"
+                    )
+                ),
 
-                'Imageability': float(row['Imageability'])
-                if row['Imageability'] else None,
+                "Imageability": _parse_mrc_rating(
+                    row.get(
+                        "Imageability"
+                    )
+                ),
 
-                'Meaningfulness': meaningful_colorado
+                "Meaningfulness": _parse_mrc_rating(
+                    row.get(
+                        "Meaningfulness: Coloradao Norms"
+                    )
+                ),
             }
 
     return mrc_dict
@@ -4520,6 +4562,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=12,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCNARz_wikipedia",
             label_v3="PCNARz",
             label_v2="n/a",
             description="Text Easability PC Narrativity, z score",
@@ -4539,6 +4582,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=13,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCNARp_wikipedia",
             label_v3="PCNARp",
             label_v2="n/a",
             description="Text Easability PC Narrativity, percentile",
@@ -4560,6 +4604,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Text Easability Principal Component Scores",
             label_v3="PCSYNz",
             label_v2="n/a",
+            label_ttlab="PCSYNz_wikipedia",
             description="Text Easability PC Syntactic simplicity, z score",
             value=pcsynz,
             error=pcsynz_error
@@ -4577,6 +4622,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=15,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCSYNp_wikipedia",
             label_v3="PCSYNp",
             label_v2="n/a",
             description="Text Easability PC Syntactic simplicity, percentile",
@@ -4596,6 +4642,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=16,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCNCz_wikipedia",
             label_v3="PCCNCz",
             label_v2="n/a",
             description="Text Easability PC Word concreteness, z score",
@@ -4615,6 +4662,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=17,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCNCp_wikipedia",
             label_v3="PCCNCp",
             label_v2="n/a",
             description="Text Easability PC Word concreteness, percentile",
@@ -4634,6 +4682,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=18,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCREFz_wikipedia",
             label_v3="PCREFz",
             label_v2="n/a",
             description="Text Easability PC Referential cohesion, z score",
@@ -4653,6 +4702,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=19,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCREFp_wikipedia",
             label_v3="PCREFp",
             label_v2="n/a",
             description="Text Easability PC Referential cohesion, percentile",
@@ -4672,6 +4722,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=20,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCDCz_wikipedia",
             label_v3="PCDCz",
             label_v2="n/a",
             description="Text Easability PC Deep cohesion, z score",
@@ -4691,6 +4742,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=21,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCDCp_wikipedia",
             label_v3="PCDCp",
             label_v2="n/a",
             description="Text Easability PC Deep cohesion, percentile",
@@ -4710,6 +4762,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=22,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCVERBz_wikipedia",
             label_v3="PCVERBz",
             label_v2="n/a",
             description="Text Easability PC Verb cohesion, z score",
@@ -4729,6 +4782,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=23,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCVERBp_wikipedia",
             label_v3="PCVERBp",
             label_v2="n/a",
             description="Text Easability PC Verb cohesion, percentile",
@@ -4748,6 +4802,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=24,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCONNz_wikipedia",
             label_v3="PCCONNz",
             label_v2="n/a",
             description="Text Easability PC Connectivity, z score",
@@ -4767,6 +4822,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=25,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCONNp_wikipedia",
             label_v3="PCCONNp",
             label_v2="n/a",
             description="Text Easability PC Connectivity, percentile",
@@ -4786,6 +4842,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=26,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCTEMPz_wikipedia",
             label_v3="PCTEMPz",
             label_v2="n/a",
             description="Text Easability PC Temporality, z score",
@@ -4805,6 +4862,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=27,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCTEMPp_wikipedia",
             label_v3="PCTEMPp",
             label_v2="n/a",
             description="Text Easability PC Temporality, percentile",
@@ -5258,6 +5316,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=50,
             type_name="Connectives",
+            label_ttlab="CNCAll_gptlist",
             label_v3="CNCAll",
             label_v2="CONi",
             description="All connectives incidence",
@@ -5276,6 +5335,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=51,
             type_name="Connectives",
+            label_ttlab="CNCCaus_gptlist",
             label_v3="CNCCaus",
             label_v2="CONCAUSi",
             description="Causal connectives incidence",
@@ -5294,6 +5354,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=52,
             type_name="Connectives",
+            label_ttlab="CNCLogic_gptlist",
             label_v3="CNCLogic",
             label_v2="CONLOGi",
             description="Logical connectives incidence",
@@ -5312,6 +5373,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=53,
             type_name="Connectives",
+            label_ttlab="CNCADC_gptlist",
             label_v3="CNCADC",
             label_v2="CONADVCONi",
             description="Adversative and contrastive connectives incidence",
@@ -5330,6 +5392,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=54,
             type_name="Connectives",
+            label_ttlab="CNCTemp_gptlist",
             label_v3="CNCTemp",
             label_v2="CONTEMPi",
             description="Temporal connectives incidence",
@@ -5348,6 +5411,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=55,
             type_name="Connectives",
+            label_ttlab="CNCTempx_gptlist",
             label_v3="CNCTempx",
             label_v2="CONTEMPEXi",
             description="Expanded temporal connectives incidence",
@@ -5366,6 +5430,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=56,
             type_name="Connectives",
+            label_ttlab="CNCAdd_gptlist",
             label_v3="CNCAdd",
             label_v2="CONADDi",
             description="Additive connectives incidence",
@@ -5384,6 +5449,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=57,
             type_name="Connectives",
+            label_ttlab="CNCPos_gptlist",
             label_v3="CNCPos",
             label_v2="n/a",
             description="Positive connectives incidence",
@@ -5402,6 +5468,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=58,
             type_name="Connectives",
+            label_ttlab="CNCNeg_gptlist",
             label_v3="CNCNeg",
             label_v2="n/a",
             description="Negative connectives incidence",
@@ -5422,6 +5489,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=59,
             type_name="Situation Model",
+            label_ttlab="SMCAUSv_germanet",
             label_v3="SMCAUSv",
             label_v2="CAUSV",
             description="Causal verb incidence",
@@ -5440,6 +5508,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=60,
             type_name="Situation Model",
+            label_ttlab="SMCAUSvp_germanet",
             label_v3="SMCAUSvp",
             label_v2="CAUSVP",
             description="Causal verbs and causal particles incidence",
@@ -5458,6 +5527,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=61,
             type_name="Situation Model",
+            label_ttlab="SMINTEp_germanet",
             label_v3="SMINTEp",
             label_v2="INTEi",
             description="Intentional verbs incidence",
@@ -5476,6 +5546,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=62,
             type_name="Situation Model",
+            label_ttlab="SMCAUSr_germanet",
             label_v3="SMCAUSr",
             label_v2="CAUSC",
             description="Ratio of causal particles to causal verbs",
@@ -5494,6 +5565,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=63,
             type_name="Situation Model",
+            label_ttlab="SMINTEr_germanet",
             label_v3="SMINTEr",
             label_v2="INTEC",
             description="Ratio of intentional particles to intentional verbs",
@@ -5512,6 +5584,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=64,
             type_name="Situation Model",
+            label_ttlab="SMCAUSlsa_spacy",
             label_v3="SMCAUSlsa",
             label_v2="CAUSLSA",
             description="LSA verb overlap",
@@ -5530,6 +5603,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=65,
             type_name="Situation Model",
+            label_ttlab = "SMCAUSwn_germanet",
             label_v3="SMCAUSwn",
             label_v2="CAUSWN",
             description="WordNet verb overlap",
@@ -5548,6 +5622,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=66,
             type_name="Situation Model",
+            label_ttlab="SMTEMP_gptlist",
             label_v3="SMTEMP",
             label_v2="TEMPta",
             description="Temporal cohesion, tense and aspect repetition, mean",
@@ -5795,6 +5870,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=79,
             type_name="Syntactic Pattern Density",
+            label_ttlab="DRNEG_gptlist",
             label_v3="DRNEG",
             label_v2="DENNEGi",
             description="Negation density, incidence",
@@ -6163,6 +6239,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=95,
             type_name="Word Information",
+            label_ttlab="WRDAOAc_mrctranslate",
             label_v3="WRDAOAc",
             label_v2="WRDAacwm",
             description="Age of acquisition for content words, mean",
@@ -6182,6 +6259,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=96,
             type_name="Word Information",
+            label_ttlab="WRDFAMc_mrctranslate",
             label_v3="WRDFAMc",
             label_v2="WRDFacwm",
             description="Familiarity for content words, mean",
@@ -6201,6 +6279,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=97,
             type_name="Word Information",
+            label_ttlab="WRDCNCc_mrctranslate",
             label_v3="WRDCNCc",
             label_v2="WRDCacwm",
             description="Concreteness for content words, mean",
@@ -6220,6 +6299,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=98,
             type_name="Word Information",
+            label_ttlab="WRDIMGc_mrctranslate",
             label_v3="WRDIMGc",
             label_v2="WRDIacwm",
             description="Imagability for content words, mean",
@@ -6239,6 +6319,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=99,
             type_name="Word Information",
+            label_ttlab="WRDMEAc_mrctranslate",
             label_v3="WRDMEAc",
             label_v2="WRDMacwm",
             description="Meaningfulness, Colorado norms, content words, mean",
@@ -6257,6 +6338,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=100,
             type_name="Word Information",
+            label_ttlab="WRDPOLc_germanet",
             label_v3="WRDPOLc",
             label_v2="POLm",
             description="Polysemy for content words, mean",
@@ -6291,6 +6373,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=101,
             type_name="Word Information",
+            label_ttlab="WRDHYPn_germanet",
             label_v3="WRDHYPn",
             label_v2="HYNOUNaw",
             description="Hypernymy for nouns, mean",
@@ -6304,6 +6387,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=102,
             type_name="Word Information",
+            label_ttlab="WRDHYPv_germanet",
             label_v3="WRDHYPv",
             label_v2="HYVERBaw",
             description="Hypernymy for verbs, mean",
@@ -6317,6 +6401,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=103,
             type_name="Word Information",
+            label_ttlab="WRDHYPnv_germanet",
             label_v3="WRDHYPnv",
             label_v2="HYPm",
             description="Hypernymy for nouns and verbs, mean",
