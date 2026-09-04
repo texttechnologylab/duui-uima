@@ -28,19 +28,62 @@ function serialize(inputCas, outputStream, parameters)
                 text = sentence:getCoveredText(),
                 tokens = {}
             }
-            local tokens_it = luajava.newInstance("java.util.ArrayList", JCasUtil:selectCovered(Token, sentence)):listIterator()
-            while tokens_it:hasNext() do
-                local token = tokens_it:next()
+            local sentence_tokens = luajava.newInstance(
+				"java.util.ArrayList",
+				JCasUtil:selectCovered(Token, sentence)
+			)
 
-                dep_type = ""
-                local deps_it = luajava.newInstance("java.util.ArrayList", JCasUtil:selectCovered(Dependency, sentence)):listIterator()
-                while deps_it:hasNext() do
-                    local dep = deps_it:next()
-                    if dep:getDependent() == token then
-                        dep_type = dep:getDependencyType()
-                        break
-                    end
-                end
+			local tokens_it = sentence_tokens:listIterator()
+            while tokens_it:hasNext() do
+				-- FV3 fix: Store the zero-based sentence-local token index so the
+				-- dependency governor can be transferred to Python as head_index.
+				local token_index = tokens_it:nextIndex()
+				local token = tokens_it:next()
+
+				local dep_type = ""
+				local head_index = nil
+
+				local deps_it = luajava.newInstance(
+					"java.util.ArrayList",
+					JCasUtil:selectCovered(Dependency, sentence)
+				):listIterator()
+
+				while deps_it:hasNext() do
+					local dep = deps_it:next()
+
+					if dep:getDependent() == token then
+						dep_type = dep:getDependencyType()
+
+						local governor = dep:getGovernor()
+
+						if governor ~= nil then
+							-- Find the governor's zero-based index in the current sentence.
+							for i = 0, sentence_tokens:size() - 1 do
+								local candidate = sentence_tokens:get(i)
+
+								if candidate:getBegin() == governor:getBegin()
+									and candidate:getEnd() == governor:getEnd()
+								then
+									head_index = i
+									break
+								end
+							end
+						end
+
+						-- Fallback for ROOT annotations if no governor could be resolved.
+						if head_index == nil
+							and (
+								dep_type == "--"
+								or dep_type == "ROOT"
+								or dep_type == "root"
+							)
+						then
+							head_index = token_index
+						end
+
+						break
+					end
+				end
 
                 local vector = nil
                 local has_vector = token:getHasVector()
@@ -63,6 +106,7 @@ function serialize(inputCas, outputStream, parameters)
                     is_alpha = token:getIsAlpha(),
                     is_punct = token:getIsPunct(),
                     dep_type = dep_type,
+					head_index = head_index,
                     morph_person = token:getMorph():getPerson(),
                     morph_number = token:getMorph():getNumber(),
                     morph_tense = token:getMorph():getTense(),

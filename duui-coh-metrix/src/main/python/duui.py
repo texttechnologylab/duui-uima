@@ -7,7 +7,7 @@ import math
 from platform import python_version
 from sys import version as sys_version
 from time import time
-from typing import List, Optional, Dict, Tuple, Any
+from typing import List, Optional, Dict, Tuple, Set, Any
 
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
@@ -16,15 +16,14 @@ from pydantic import BaseModel, validator
 from pydantic_settings import BaseSettings
 from lexicalrichness import LexicalRichness
 from lexical_diversity import lex_div as ld
-from similarity.normalized_levenshtein import NormalizedLevenshtein
-from itertools import combinations
-from collections import defaultdict, Counter
+from collections import defaultdict
 from nltk.corpus import wordnet as wn
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
 from germanetpy.germanet import Germanet
 from germanetpy.synset import WordCategory
 from pathlib import Path
+from functools import lru_cache
 
 import numpy as np
 
@@ -33,6 +32,8 @@ class Settings(BaseSettings):
     annotator_version: str
     log_level: str
     germanet_path: Optional[str] = None
+    lsa_use_truncated_svd: bool = False
+    lsa_svd_components: int = 100
 
     class Config:
         env_prefix = 'duui_coh_metrix_'
@@ -46,6 +47,18 @@ logger.info("TTLab TextImager DUUI Coh-Metrix")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
 
+# LSA configuration
+logger.info(
+    "LSA TruncatedSVD: %s",
+    "enabled" if settings.lsa_use_truncated_svd else "disabled"
+)
+
+if settings.lsa_use_truncated_svd:
+    logger.info(
+        "LSA TruncatedSVD components: %d",
+        settings.lsa_svd_components
+    )
+
 TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = [
 ]
 
@@ -53,6 +66,7 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = [
     "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence",
     "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token",
     "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma",
+    "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency",
 ]
 
 SUPPORTED_LANGS = [
@@ -69,6 +83,7 @@ class Token(BaseModel):
     is_alpha: bool
     is_punct: bool
     dep_type: str
+    head_index: Optional[int] = None
     morph_person: Optional[str] = ""
     morph_number: Optional[str] = ""
     morph_tense: Optional[str] = ""
@@ -340,7 +355,8 @@ def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
-    return np.mean(text_letters)
+    # FV4 fix: Return 0 instead of NaN if no letters exist
+    return np.mean(text_letters) if text_letters else 0
 
 # LAY: How uneven is the letter count across words?
 # ↑ Higher = mix of short and long words. Reliable.
@@ -353,7 +369,8 @@ def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
-    return np.std(text_letters)
+    # FV4 fix: Return 0 instead of NaN if no letters exist
+    return np.std(text_letters) if text_letters else 0
 
 ud_noun_pos = {"NOUN", "PROPN"}
 # H6 fix: DET was previously in this set which caused pronoun-overlap (and thus
@@ -361,7 +378,10 @@ ud_noun_pos = {"NOUN", "PROPN"}
 # like "the"/"der"/"die"/"das" appear in nearly every sentence. Spec (Ch. 4,
 # §Referential cohesion) specifies pronouns ("he/he"), not determiners.
 ud_pronouns_pos = {"PRON"}
-ud_content_pos = {"NOUN", "VERB", "ADJ", "ADV"}
+ud_content_pos = {"NOUN","PROPN", "VERB", "ADJ", "ADV"}
+# FV3 Fix: Use the Coh-Metrix content-word classes for CRFCWO,
+# including pronouns and proper nouns.
+ud_stem_content_pos = {"NOUN","PROPN","VERB","ADJ","ADV","PRON",}
 
 def _noun_overlap(sentence_a: Sentence, sentence_b: Sentence) -> int:
     nouns_a = set([t.text for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
@@ -373,29 +393,95 @@ def _argument_overlap(sentence_a: Sentence, sentence_b: Sentence) -> int:
     nouns_b = set([t.lemma for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
     noun_overlap = len(nouns_a.intersection(nouns_b))
 
-    promouns_a = set([t.text for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_pronouns_pos])
-    promouns_b = set([t.text for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_pronouns_pos])
-    pronoun_overlap = len(promouns_a.intersection(promouns_b))
+    pronouns_a = {
+        t.text.lower()
+        for t in sentence_a.tokens
+        if t.pos_coarse in ud_pronouns_pos
+    }
+
+    pronouns_b = {
+        t.text.lower()
+        for t in sentence_b.tokens
+        if t.pos_coarse in ud_pronouns_pos
+    }
+    pronoun_overlap = len(pronouns_a.intersection(pronouns_b))
 
     return noun_overlap + pronoun_overlap
 
-def _stem_overlap(sentence_nouns: Sentence, sentence_contents: Sentence) -> int:
-    nouns_a = set([t.lemma for t in sentence_nouns.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
-    nouns_b = set([t.lemma for t in sentence_contents.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
-    return len(nouns_a.intersection(nouns_b))
+# FV3 Fix: Stem overlap compares noun lemmas in the current sentence
+# with content-word lemmas in the previous sentence and also includes
+# matching pronouns as specified for Coh-Metrix stem overlap.
+def _stem_overlap(
+    sentence_nouns: Sentence,
+    sentence_contents: Sentence
+) -> int:
+    nouns = {
+        token.lemma.lower()
+        for token in sentence_nouns.tokens
+        if token.pos_coarse in ud_noun_pos
+        and token.lemma
+    }
 
-def _word_overlap(sentence_a: Sentence, sentence_b: Sentence) -> float:
-    # H5 fix: denominator must be the union of CONTENT-word lemmas only, not all
-    # tokens (function words, determiners, punctuation were previously included,
-    # which deflated overlap ratios). Spec: Ch. 4 §Referential cohesion -
-    # "proportion of explicit content words that overlap between pairs of sentences".
-    nouns_a = set([t.lemma for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
-    nouns_b = set([t.lemma for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_content_pos])
-    overlap = len(nouns_a.intersection(nouns_b))
+    content_words = {
+        token.lemma.lower()
+        for token in sentence_contents.tokens
+        if token.pos_coarse in ud_content_pos
+        and token.lemma
+    }
 
-    all_words = nouns_a | nouns_b
+    noun_content_overlap = len(
+        nouns.intersection(content_words)
+    )
 
-    return overlap / len(all_words) if len(all_words) > 0 else 0.0
+    pronouns_a = {
+        token.text.lower()
+        for token in sentence_nouns.tokens
+        if token.pos_coarse in ud_pronouns_pos
+    }
+
+    pronouns_b = {
+        token.text.lower()
+        for token in sentence_contents.tokens
+        if token.pos_coarse in ud_pronouns_pos
+    }
+
+    pronoun_overlap = len(
+        pronouns_a.intersection(pronouns_b)
+    )
+
+    return noun_content_overlap + pronoun_overlap
+
+# FV3 Fix: CRFCWO measures the proportion of explicit surface-form
+# content words in the current sentence that also occur in the previous sentence.
+def _word_overlap(
+    current_sentence: Sentence,
+    previous_sentence: Sentence
+) -> float:
+    current_content_words = [
+        token.text.lower()
+        for token in current_sentence.tokens
+        if token.pos_coarse in ud_stem_content_pos
+        and token.is_alpha
+    ]
+
+    previous_content_words = {
+        token.text.lower()
+        for token in previous_sentence.tokens
+        if token.pos_coarse in ud_stem_content_pos
+        and token.is_alpha
+    }
+
+    if not current_content_words:
+        return 0.0
+
+    overlap = sum(
+        1
+        for word in current_content_words
+        if word in previous_content_words
+    )
+    # FV3 Fix: Normalize overlap by the number of content words in the
+    # current sentence instead of using the union of both sentences.
+    return overlap / len(current_content_words)
 
 # ============================================================================
 # REFERENTIAL COHESION (CRF*) — "Do sentences keep talking about the same things?"
@@ -477,6 +563,8 @@ def cm_crfso1(sentences: List[Sentence]) -> Optional[float]:
 
 # LAY: Do any two sentences share a word stem?
 # ↑ Higher = word-family recurrence throughout text. Reliable.
+# FV3 Fix: Apply the same temporal direction as local CRFCWO:
+# compare each later sentence against each earlier sentence.
 def cm_crfsoa(sentences: List[Sentence]) -> Optional[float]:
     # Stem overlap, all sentences, binary, mean
     stem_overlap_per_sentence = []
@@ -484,67 +572,75 @@ def cm_crfsoa(sentences: List[Sentence]) -> Optional[float]:
         for sindb in range(len(sentences)):
             if sindb <= sinda:
                 continue
-            sentence_a = sentences[sinda]
-            sentence_b = sentences[sindb]
-            stem_overlap = min(1, _stem_overlap(sentence_a, sentence_b))
+            previous_sentence = sentences[sinda]
+            current_sentence = sentences[sindb]
+            stem_overlap = min(1, _stem_overlap(current_sentence,previous_sentence))
             stem_overlap_per_sentence.append(stem_overlap)
     return np.mean(stem_overlap_per_sentence)
 
 # LAY: What share of content words is shared between adjacent sentences? (mean)
 # ↑ Higher = tighter local cohesion. Reliable.
 def cm_crfcwo1(sentences: List[Sentence]) -> Optional[float]:
-    # Content word overlap, adjacent sentences, proportional, mean
     word_overlap_per_sentence = []
-    for sind in range(len(sentences)):
-        if sind == 0:
-            continue
+    for sind in range(1, len(sentences)):
         current_sentence = sentences[sind]
-        previous_sentence = sentences[sind-1]
-        word_overlap = min(1, _word_overlap(current_sentence, previous_sentence))
+        previous_sentence = sentences[sind - 1]
+        word_overlap = _word_overlap(
+            current_sentence,
+            previous_sentence
+        )
         word_overlap_per_sentence.append(word_overlap)
     return np.mean(word_overlap_per_sentence)
 
 # LAY: How uneven is the content-word overlap between adjacent sentences?
 # ↑ Higher = some pairs repeat heavily, others not at all. Reliable.
 def cm_crfcwo1d(sentences: List[Sentence]) -> Optional[float]:
-    # Content word overlap, adjacent sentences, proportional, standard deviation
     word_overlap_per_sentence = []
-    for sind in range(len(sentences)):
-        if sind == 0:
-            continue
+    for sind in range(1, len(sentences)):
         current_sentence = sentences[sind]
-        previous_sentence = sentences[sind-1]
-        word_overlap = min(1, _word_overlap(current_sentence, previous_sentence))
+        previous_sentence = sentences[sind - 1]
+        word_overlap = _word_overlap(
+            current_sentence,
+            previous_sentence
+        )
         word_overlap_per_sentence.append(word_overlap)
     return np.std(word_overlap_per_sentence)
 
 # LAY: What share of content words is shared across all sentence pairs? (mean)
 # ↑ Higher = global cohesion. Reliable.
+# FV3 Fix: Apply the same temporal direction as local CRFCWO:
+# compare each later sentence against each earlier sentence.
 def cm_crfcwoa(sentences: List[Sentence]) -> Optional[float]:
-    # Content word overlap, all sentences, proportional, mean
     word_overlap_per_sentence = []
     for sinda in range(len(sentences)):
         for sindb in range(len(sentences)):
             if sindb <= sinda:
                 continue
-            sentence_a = sentences[sinda]
-            sentence_b = sentences[sindb]
-            word_overlap = min(1, _word_overlap(sentence_a, sentence_b))
+            previous_sentence = sentences[sinda]
+            current_sentence = sentences[sindb]
+            word_overlap = _word_overlap(
+                current_sentence,
+                previous_sentence
+            )
             word_overlap_per_sentence.append(word_overlap)
     return np.mean(word_overlap_per_sentence)
 
 # LAY: How uneven is the global content-word overlap across sentence pairs?
 # ↑ Higher = mix of tight and loose cohesion. Reliable.
+# FV3 Fix: Apply the same temporal direction as local CRFCWO:
+# compare each later sentence against each earlier sentence.
 def cm_crfcwoad(sentences: List[Sentence]) -> Optional[float]:
-    # Content word overlap, all sentences, proportional, mean
     word_overlap_per_sentence = []
     for sinda in range(len(sentences)):
         for sindb in range(len(sentences)):
             if sindb <= sinda:
                 continue
-            sentence_a = sentences[sinda]
-            sentence_b = sentences[sindb]
-            word_overlap = min(1, _word_overlap(sentence_a, sentence_b))
+            previous_sentence = sentences[sinda]
+            current_sentence = sentences[sindb]
+            word_overlap = _word_overlap(
+                current_sentence,
+                previous_sentence
+            )
             word_overlap_per_sentence.append(word_overlap)
     return np.std(word_overlap_per_sentence)
 
@@ -601,30 +697,72 @@ def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
 # ============================================================================
 
 # LAY: Average number of words before the main verb of a sentence.
-# ↑ Higher = more left-embedded clauses, harder to read. Reliable.
-def cm_synle(sentences: List[Sentence]) -> Optional[float]:
-    # FV1 fix: Count only lexical tokens before ROOT to align SYNLE
-    # with the Coh-Metrix definition ("words before main verb")
-    # and maintain consistency with other word-based indices.
-    deps = [[token.dep_type for token in sent.tokens if not token.is_punct] for sent in sentences]
+# ↑ Higher = more left-embedded clauses, harder to read.
+def cm_synle(
+    sentences: List[Sentence],
+    lang: str
+) -> Optional[float]:
+
+    lang = (lang or "").strip().lower()
 
     word_counts = []
-    counter_start = 0
-    # M1 fix (partial): accept multiple ROOT conventions. DKPro/Stanford interop
-    # emits "--", spaCy/UD emits "ROOT"/"root". Previously only "--" was matched,
-    # which made SYNLE silently return 0 under UD-style pipelines.
-    # TODO(M1): verify which marker the current DUUI spaCy component emits; this
-    # wider match is safe because none of these strings collide with any real
-    # non-root dep label.
-    _ROOT_MARKERS = ("--", "ROOT", "root")
-    for sent in deps:
-        root = [c for c, token in enumerate(sent) if token in _ROOT_MARKERS]
-        if root:
-            root_index = (counter_start+root[0]) - counter_start
-            word_counts.append(root_index)
-        counter_start += len(sent)
 
-    return np.mean(word_counts) if word_counts else 0
+    _ROOT_MARKERS = {
+        "--",
+        "ROOT",
+        "root"
+    }
+
+    for sentence in sentences:
+
+        if lang == "de":
+            # German-specific correction:
+            # auxiliary/modal ROOTs are resolved to the lexical
+            # main verb of the main verbal complex.
+            main_verb_index = _de_synle_main_verb_index(
+                sentence
+            )
+
+        else:
+            # English: keep existing ROOT-based approximation,
+            # which passed the diagnostic cases.
+            main_verb_index = None
+
+            for token_index, token in enumerate(
+                sentence.tokens
+            ):
+                if token.dep_type in _ROOT_MARKERS:
+                    main_verb_index = token_index
+                    break
+
+                # Defensive fallback for self-headed ROOT conventions.
+                if token.head_index == token_index:
+                    main_verb_index = token_index
+                    break
+
+        if main_verb_index is None:
+            continue
+
+        # Count non-punctuation words occurring before the selected
+        # main-verb token. We retain the ORIGINAL sentence-local token
+        # indices because head_index refers to this token sequence.
+        words_before_main_verb = sum(
+            1
+            for token_index, token
+            in enumerate(sentence.tokens)
+            if token_index < main_verb_index
+            and not token.is_punct
+        )
+
+        word_counts.append(
+            words_before_main_verb
+        )
+
+    return (
+        np.mean(word_counts)
+        if word_counts
+        else 0
+    )
 
 ud_tiger_dep_mapping_de = {
     "de": {
@@ -661,255 +799,847 @@ def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str)
 
     return np.mean(modifier_counts) if modifier_counts else 0
 
+def _sequence_levenshtein(seq1, seq2):
+    # FV1 fix: Coh-Metrix MED compares linguistic sequence elements
+    # (POS tags, words, or lemmas), not individual characters of a joined string.
+    # Therefore, insertion, deletion, and substitution operate on complete
+    # sequence elements with unit cost.
+    if len(seq1) < len(seq2):
+        seq1, seq2 = seq2, seq1
+
+    previous_row = list(range(len(seq2) + 1))
+
+    for i, item1 in enumerate(seq1, start=1):
+        current_row = [i]
+
+        for j, item2 in enumerate(seq2, start=1):
+            insertion = current_row[j - 1] + 1
+            deletion = previous_row[j] + 1
+            substitution = previous_row[j - 1] + (
+                0 if item1 == item2 else 1
+            )
+
+            current_row.append(
+                min(insertion, deletion, substitution)
+            )
+
+        previous_row = current_row
+
+    return previous_row[-1]
+
+
+def _normalized_sequence_edit_distance(seq1, seq2):
+    # FV1 fix: normalize the sequence-level Levenshtein distance by
+    # the length of the longer linguistic sequence. This keeps MED in [0, 1]
+    # and follows the intended element-level comparison between sentences.
+    max_len = max(len(seq1), len(seq2))
+
+    if max_len == 0:
+        return np.nan
+
+    distance = _sequence_levenshtein(seq1, seq2)
+
+    return distance / max_len
+
 # LAY: How different are adjacent sentences in their POS-tag sequences?
 # ↑ Higher = consecutive sentences have very different grammatical shapes. Reliable.
 def cm_synmedpos(sentences: List[Sentence]) -> Optional[float]:
     # H1 fix: compute mean normalized edit distance between CONSECUTIVE SENTENCES'
     # POS-tag sequences (spec: Ch. 4, "distance ... between consecutive sentences"),
     # not between adjacent individual tokens as done previously.
-    # Approximation: character-level Levenshtein on space-joined POS strings.
-    sent_pos_strs = [" ".join(token.pos_coarse for token in sent.tokens) for sent in sentences]
-    normalized_levenshtein = NormalizedLevenshtein()
+    #
+    # FV2 fix: compare complete POS tags as sequence elements instead of
+    # applying character-level Levenshtein to space-joined POS strings.
+    # Example: replacing NOUN with PRON counts as one substitution, independent
+    # of the number of characters in the POS labels.
+    sent_pos_sequences = [
+        [token.pos_coarse for token in sent.tokens]
+        for sent in sentences
+    ]
+
     pos_dists = []
-    for i in range(len(sent_pos_strs) - 1):
-        pos_dists.append(normalized_levenshtein.distance(sent_pos_strs[i], sent_pos_strs[i + 1]))
+
+    for i in range(len(sent_pos_sequences) - 1):
+        pos_dists.append(
+            _normalized_sequence_edit_distance(
+                sent_pos_sequences[i],
+                sent_pos_sequences[i + 1]
+            )
+        )
+
     return np.mean(pos_dists) if pos_dists else 0
 
 # LAY: How different are adjacent sentences word-for-word?
 # ↑ Higher = neighbours share fewer surface words. Reliable.
 def cm_synmedwrd(sentences: List[Sentence]) -> Optional[float]:
-    # H1 fix: see cm_synmedpos. Edit distance over consecutive sentence texts.
-    sent_word_strs = [" ".join(token.text for token in sent.tokens) for sent in sentences]
-    normalized_levenshtein = NormalizedLevenshtein()
+    # H1 fix: compute mean normalized edit distance between CONSECUTIVE SENTENCES'
+    # word sequences, following the Coh-Metrix MED definition.
+    #
+    # FV2 fix: compare complete words as sequence elements instead of
+    # characters of a joined sentence string. Replacing one word therefore
+    # counts as one substitution regardless of the word's character length.
+    sent_word_sequences = [
+        [token.text for token in sent.tokens]
+        for sent in sentences
+    ]
+
     word_dists = []
-    for i in range(len(sent_word_strs) - 1):
-        word_dists.append(normalized_levenshtein.distance(sent_word_strs[i], sent_word_strs[i + 1]))
+
+    for i in range(len(sent_word_sequences) - 1):
+        word_dists.append(
+            _normalized_sequence_edit_distance(
+                sent_word_sequences[i],
+                sent_word_sequences[i + 1]
+            )
+        )
+
     return np.mean(word_dists) if word_dists else 0
 
 # LAY: How different are adjacent sentences at the lemma level?
 # ↑ Higher = neighbours share fewer word stems. Reliable.
 def cm_synmedlem(sentences: List[Sentence]) -> Optional[float]:
-    # H1 fix: see cm_synmedpos. Edit distance over consecutive sentence lemmas.
-    sent_lemma_strs = [" ".join(token.lemma for token in sent.tokens) for sent in sentences]
-    normalized_levenshtein = NormalizedLevenshtein()
+    # H1 fix: compute mean normalized edit distance between CONSECUTIVE SENTENCES'
+    # lemma sequences, following the Coh-Metrix MED definition.
+    #
+    # FV2 fix: compare complete lemmas as sequence elements instead of
+    # characters of a joined lemma string. This ensures that inflectional
+    # variants mapped to the same lemma do not introduce artificial distance.
+    sent_lemma_sequences = [
+        [token.lemma for token in sent.tokens]
+        for sent in sentences
+    ]
+
     lemma_dists = []
-    for i in range(len(sent_lemma_strs) - 1):
-        lemma_dists.append(normalized_levenshtein.distance(sent_lemma_strs[i], sent_lemma_strs[i + 1]))
+
+    for i in range(len(sent_lemma_sequences) - 1):
+        lemma_dists.append(
+            _normalized_sequence_edit_distance(
+                sent_lemma_sequences[i],
+                sent_lemma_sequences[i + 1]
+            )
+        )
+
     return np.mean(lemma_dists) if lemma_dists else 0
 
-# NOTE(M9): SYNSTRUT is a documented approximation of Coh-Metrix's constituency-
-# based tree similarity. The spec (Ch. 4, Fig. 4.1) computes the maximum common
-# subtree over constituency parses (NP, VP, S, DT, NN, VBD, PRP, …). Here we
-# operate on (dep_label, pos_tag) node sets because the DUUI pipeline emits
-# dependency parses, not constituency trees. Jaccard over these tuple-nodes
-# preserves the intended signal (structural similarity) but values are not
-# numerically comparable to the original Coh-Metrix output.
-def _compute_tree_similarity(nodes1, nodes2):
-    common = nodes1 & nodes2
-    total = len(nodes1) + len(nodes2) - len(common)
-    return len(common) / total if total else 0.0
+# NOTE(M9): SYNSTRUT is a documented approximation of Coh-Metrix's
+# constituency-tree similarity. Coh-Metrix compares constituency parse trees
+# using a maximum-common-tree approach. This implementation reconstructs
+# ordered dependency trees from (dep_type, pos_coarse) nodes and head_index.
+# Parent-child relations, sibling order, and repeated structures are preserved.
+# The largest common ordered dependency structure is approximated recursively
+# and normalized as:
+#
+#   common / (size_tree1 + size_tree2 - common)
+#
+# SYNSTRUTa compares adjacent sentences; SYNSTRUTt compares sentence pairs
+# belonging to different paragraphs. Because dependency trees are used instead
+# of the original constituency trees, the resulting values are not numerically
+# identical to the original Coh-Metrix output.
+def _normalize_tree_dep(dep_type: str) -> str:
+    if dep_type in {"--", "ROOT", "root"}:
+        return "ROOT"
 
-def _get_tree_nodes(deps, poses, puncts):
-    # Each node is a tuple of dependency + POS tag
-    nodes = set()
-    for token_pos, token_deps, token_punct in zip(poses, deps, puncts):
-        if not token_punct:
-            nodes.add((token_deps, token_pos))
-    return nodes
+    return dep_type or ""
 
-def _get_tree_nodes_paragraphs(deps, poses, puncts):
-    nodes = set()
-    for sent_pos, sent_deps, sent_puncts in zip(poses, deps, puncts):
-        for pos, dep, punct in zip(sent_pos, sent_deps, sent_puncts):
-            if not punct:
-                nodes.add((dep, pos))
-    return nodes
 
-# LAY: How similar are adjacent sentences in grammatical structure?
-# ↑ Higher = neighbours share grammatical patterns. Approximate (uses
-#   dependency parse; original uses constituency parse — see NOTE(M9)).
-def cm_synstruta(sentences: List[Sentence]) -> Optional[float]:
-    poses = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
-    puncts = [[token.is_punct for token in sent.tokens] for sent in sentences]
+def _build_dependency_tree(sentence: Sentence):
+    tokens = sentence.tokens
+
+    # FV3 fix: preserve the original token indices because head_index refers
+    # to the complete, unfiltered sentence token list.
+    valid_indices = {
+        i
+        for i, token in enumerate(tokens)
+        if not token.is_punct
+    }
+
+    if not valid_indices:
+        return None
+
+    children = {
+        i: []
+        for i in valid_indices
+    }
+
+    roots = []
+
+    def _resolve_non_punct_head(token_index: int):
+        token = tokens[token_index]
+        head_index = token.head_index
+
+        visited = {token_index}
+
+        while head_index is not None:
+            if head_index < 0 or head_index >= len(tokens):
+                return None
+
+            # Self-reference denotes ROOT.
+            if head_index == token_index:
+                return None
+
+            if head_index in visited:
+                return None
+
+            visited.add(head_index)
+
+            if head_index in valid_indices:
+                return head_index
+
+            # Head is punctuation: continue towards its governor.
+            next_head = tokens[head_index].head_index
+
+            if next_head == head_index:
+                return None
+
+            head_index = next_head
+
+        return None
+
+    for token_index in sorted(valid_indices):
+        parent_index = _resolve_non_punct_head(token_index)
+
+        if parent_index is None:
+            roots.append(token_index)
+        else:
+            children[parent_index].append(token_index)
+
+    # Preserve sentence order among siblings.
+    for child_indices in children.values():
+        child_indices.sort()
+
+    def _build_node(token_index: int, path=None):
+        if path is None:
+            path = set()
+
+        # Defensive protection against malformed dependency cycles.
+        if token_index in path:
+            return None
+
+        new_path = path | {token_index}
+        token = tokens[token_index]
+
+        label = (
+            _normalize_tree_dep(token.dep_type),
+            token.pos_coarse
+        )
+
+        child_trees = []
+
+        for child_index in children[token_index]:
+            child_tree = _build_node(
+                child_index,
+                new_path
+            )
+
+            if child_tree is not None:
+                child_trees.append(child_tree)
+
+        return (
+            label,
+            tuple(child_trees)
+        )
+
+    root_trees = []
+
+    for root_index in sorted(roots):
+        root_tree = _build_node(root_index)
+
+        if root_tree is not None:
+            root_trees.append(root_tree)
+
+    if not root_trees:
+        return None
+
+    # Virtual sentence root. Coh-Metrix operates on complete parse trees;
+    # this provides an equivalent common starting point for dependency trees.
+    return (
+        ("__ROOT__", "__ROOT__"),
+        tuple(root_trees)
+    )
+
+
+@lru_cache(maxsize=4096)
+def _tree_size(tree) -> int:
+    _, children = tree
+
+    return 1 + sum(
+        _tree_size(child)
+        for child in children
+    )
+
+
+@lru_cache(maxsize=16384)
+def _maximum_common_tree_size(tree1, tree2) -> int:
+    label1, children1 = tree1
+    label2, children2 = tree2
+
+    if label1 != label2:
+        return 0
+
+    n = len(children1)
+    m = len(children2)
+
+    # DP table for the optimal matching of the two child sequences.
+    dp = [
+        [0] * (m + 1)
+        for _ in range(n + 1)
+    ]
+
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+
+            matched_subtree = _maximum_common_tree_size(
+                children1[i - 1],
+                children2[j - 1]
+            )
+
+            dp[i][j] = max(
+                dp[i - 1][j],
+                dp[i][j - 1],
+                dp[i - 1][j - 1] + matched_subtree
+            )
+
+    # +1 for the matching current node.
+    return 1 + dp[n][m]
+
+def _clear_synstrut_caches() -> None:
+    _tree_size.cache_clear()
+    _maximum_common_tree_size.cache_clear()
+
+def _compute_tree_similarity(
+    tree1,
+    tree2
+) -> float:
+    if tree1 is None or tree2 is None:
+        return 0.0
+
+    size1 = _tree_size(tree1)
+    size2 = _tree_size(tree2)
+
+    common_size = _maximum_common_tree_size(
+        tree1,
+        tree2
+    )
+
+    denominator = (
+        size1
+        + size2
+        - common_size
+    )
+
+    if denominator == 0:
+        return 0.0
+
+    return common_size / denominator
+
+
+# LAY: Mean syntactic similarity between adjacent sentences.
+# ↑ Higher = consecutive sentences use more similar syntactic structures.
+# Approximate for Coh-Metrix 3.0 because dependency trees are used instead
+# of the original constituency parse trees.
+def cm_synstruta(
+    sentences: List[Sentence]
+) -> float:
 
     similarities = []
-    for i in range(len(deps) - 1):
-        sim = _compute_tree_similarity(
-            _get_tree_nodes(deps[i], poses[i], puncts[i]),
-            _get_tree_nodes(deps[i + 1], poses[i + 1], puncts[i + 1])
+
+    for i in range(len(sentences) - 1):
+        tree1 = _build_dependency_tree(
+            sentences[i]
         )
-        similarities.append(sim)
 
-    return np.mean(similarities) if similarities else 0.0
+        tree2 = _build_dependency_tree(
+            sentences[i + 1]
+        )
 
-# LAY: How similar are any two paragraphs in grammatical structure?
-# ↑ Higher = consistent syntactic style across paragraphs. Approximate (see NOTE(M9)).
-def cm_synstrutt(paragraphs: List[Paragraph]) -> Optional[float]:
-    poses_paragraph = []
-    deps_paragraph = []
-    puncts_paragraph = []
-    for par in paragraphs:
-        poses_sent = []
-        deps_sent = []
-        puncts_sent = []
-        for sent in par.sentences:
-            poses_sent.append([token.pos_coarse for token in sent.tokens])
-            deps_sent.append([token.dep_type for token in sent.tokens])
-            puncts_sent.append([token.is_punct for token in sent.tokens])
-        poses_paragraph.append(poses_sent)
-        deps_paragraph.append(deps_sent)
-        puncts_paragraph.append(puncts_sent)
+        if tree1 is None or tree2 is None:
+            continue
+
+        similarity = _compute_tree_similarity(
+            tree1,
+            tree2
+        )
+
+        similarities.append(similarity)
+
+    return (
+        np.mean(similarities)
+        if similarities
+        else 0.0
+    )
+
+
+# LAY: Mean syntactic similarity between all sentence pairs that belong
+# to different paragraphs.
+# ↑ Higher = syntactic structures remain similar across paragraph boundaries.
+# Approximate for Coh-Metrix 3.0 because dependency trees are used instead
+# of the original constituency parse trees.
+def cm_synstrutt(
+    paragraphs: List[Paragraph]
+) -> float:
+
+    paragraph_trees = []
+
+    for paragraph in paragraphs:
+        trees = []
+
+        for sentence in paragraph.sentences:
+            tree = _build_dependency_tree(
+                sentence
+            )
+
+            if tree is not None:
+                trees.append(tree)
+
+        paragraph_trees.append(trees)
 
     similarities = []
-    # M8 fix: was range(len - 1), which dropped the last paragraph from all
-    # pair combinations. Spec (SYNSTRUTt) wants all paragraph pairs.
-    for s1, s2 in combinations(range(len(deps_paragraph)), 2):
-        sim = _compute_tree_similarity(
-            _get_tree_nodes_paragraphs(deps_paragraph[s1], poses_paragraph[s1], puncts_paragraph[s1]),
-            _get_tree_nodes_paragraphs(deps_paragraph[s2], poses_paragraph[s2], puncts_paragraph[s2])
-        )
-        similarities.append(sim)
 
-    return np.mean(similarities) if similarities else 0.0
+    # FV3 fix: SYNSTRUTt compares sentence pairs ACROSS paragraphs,
+    # not aggregated paragraph structures.
+    for paragraph_i in range(
+        len(paragraph_trees) - 1
+    ):
+        for paragraph_j in range(
+            paragraph_i + 1,
+            len(paragraph_trees)
+        ):
+            for tree1 in paragraph_trees[paragraph_i]:
+                for tree2 in paragraph_trees[paragraph_j]:
 
-def _count_metrics(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str) -> Dict[str, int]:
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    tags = [[token.pos_value for token in sent.tokens] for sent in sentences]
-    deps = [[token.dep_type for token in sent.tokens] for sent in sentences]
-    lemmas = [[token.lemma for token in sent.tokens] for sent in sentences]
-    puncts = [[token.is_punct for token in sent.tokens] for sent in sentences]
+                    similarity = _compute_tree_similarity(
+                        tree1,
+                        tree2
+                    )
 
+                    similarities.append(similarity)
+
+    return (
+        np.mean(similarities)
+        if similarities
+        else 0.0
+    )
+
+_DE_NEGATION_LEMMAS = {
+    "nicht",
+    "kein",
+    "keiner",
+    "niemand",
+    "nichts",
+    "nie",
+    "niemals",
+    "nirgends",
+    "nirgendwo",
+    "keinesfalls",
+    "keineswegs",
+    "mitnichten",
+    "nein",
+    "weder",
+}
+
+_EN_NEGATION_LEMMAS = {
+    "not",
+    "no",
+    "nobody",
+    "nothing",
+    "none",
+    "never",
+    "neither",
+    "nowhere",
+}
+
+_DE_INFINITIVE_TAGS = {
+    "VVINF",   # lexical verb infinitive
+    "VAINF",   # auxiliary infinitive
+    "VMINF",   # modal infinitive
+    "VVIZU",   # zu-infinitive, if emitted as a combined STTS tag
+}
+
+_DE_PASSIVE_AUX_LEMMAS = {"werden", "sein"}
+
+def _get_head_index(sentence: Sentence, token_index: int) -> Optional[int]:
+    if token_index < 0 or token_index >= len(sentence.tokens):
+        return None
+
+    head_index = sentence.tokens[token_index].head_index
+
+    if head_index is None:
+        return None
+    if head_index < 0 or head_index >= len(sentence.tokens):
+        return None
+    if head_index == token_index:
+        return None
+
+    return head_index
+
+
+def _head_chain_reaches(
+    sentence: Sentence,
+    start_index: int,
+    target_indices: set[int],
+    max_hops: int = 8,
+) -> bool:
+    current = start_index
+    visited = set()
+
+    for _ in range(max_hops):
+        if current in visited:
+            return False
+        visited.add(current)
+
+        head_index = _get_head_index(sentence, current)
+        if head_index is None:
+            return False
+
+        if head_index in target_indices:
+            return True
+
+        current = head_index
+
+    return False
+
+
+def _is_adverbial_modifier(token: Token, lang: str) -> bool:
+    if token.pos_coarse != "ADV":
+        return False
+
+    dep = (token.dep_type or "").strip()
+
+    if lang == "de":
+        return dep == "MO"
+
+    return dep.lower() in {"advmod"}
+
+
+def _count_adverbial_phrases(sentence: Sentence, lang: str) -> int:
+    count = 0
+
+    for i, token in enumerate(sentence.tokens):
+        if not _is_adverbial_modifier(token, lang):
+            continue
+
+        head_index = _get_head_index(sentence, i)
+
+        # If this ADV/MO modifies another ADV/MO, it belongs to the same
+        # adverbial phrase and is not counted as a separate phrase head.
+        if head_index is not None:
+            head = sentence.tokens[head_index]
+            if _is_adverbial_modifier(head, lang):
+                continue
+
+        count += 1
+
+    return count
+
+
+def _german_passive_participle_indices(sentence: Sentence) -> set[int]:
+    passive_participles: set[int] = set()
+
+    for i, token in enumerate(sentence.tokens):
+        if token.pos_value != "VVPP":
+            continue
+        if token.pos_coarse not in {"VERB", "AUX"}:
+            continue
+
+        current = i
+        visited = set()
+
+        for _ in range(8):
+            if current in visited:
+                break
+            visited.add(current)
+
+            head_index = _get_head_index(sentence, current)
+            if head_index is None:
+                break
+
+            head = sentence.tokens[head_index]
+            head_lemma = (head.lemma or head.text or "").lower()
+
+            if head.pos_coarse == "AUX" and head_lemma in _DE_PASSIVE_AUX_LEMMAS:
+                if head_lemma == "werden":
+                    passive_participles.add(i)
+                elif head_lemma == "sein" and token.dep_type == "PD":
+                    passive_participles.add(i)
+                break
+
+            current = head_index
+
+    return passive_participles
+
+
+def _german_passive_has_explicit_agent(
+    sentence: Sentence,
+    passive_participles: set[int],
+) -> bool:
+    if not passive_participles:
+        return False
+
+    for i, token in enumerate(sentence.tokens):
+        dep = (token.dep_type or "").upper()
+        lemma = (token.lemma or token.text or "").lower()
+
+        # Strong TIGER passive-subject / agent signal.
+        if dep == "SBP":
+            if _head_chain_reaches(sentence, i, passive_participles):
+                return True
+
+        # Diagnostic approximation for "durch den Jungen".
+        if (
+            token.pos_coarse == "ADP"
+            and lemma == "durch"
+            and dep == "MO"
+            and _head_chain_reaches(sentence, i, passive_participles)
+        ):
+            return True
+
+    return False
+
+
+def _english_passive_status(sentence: Sentence) -> Tuple[bool, bool]:
+    passive_deps = {
+        "auxpass",
+        "nsubjpass",
+        "csubjpass",
+    }
+    agent_deps = {"agent"}
+
+    is_passive = any(
+        (token.dep_type or "").lower() in passive_deps
+        for token in sentence.tokens
+    )
+
+    has_agent = any(
+        (token.dep_type or "").lower() in agent_deps
+        for token in sentence.tokens
+    )
+
+    return is_passive, has_agent
+
+
+def _is_infinitive_token(sentence: Sentence, token_index: int, lang: str) -> bool:
+    token = sentence.tokens[token_index]
+
+    if token.pos_coarse not in {"VERB", "AUX"}:
+        return False
+
+    if lang == "de":
+        if token.pos_value not in _DE_INFINITIVE_TAGS:
+            return False
+
+        # Prevent known false positives: finite verb tagged VVINF but with tense.
+        if (token.morph_tense or "").strip():
+            return False
+
+        return True
+
+    # English
+    if token.pos_value != "VB":
+        return False
+
+    # "to + VB"
+    if token_index > 0:
+        prev = sentence.tokens[token_index - 1]
+        if (prev.lemma or prev.text or "").lower() == "to":
+            return True
+
+    # FV3 fix: bare infinitive with modal auxiliary.
+    # In spaCy, the modal AUX is attached TO the lexical VB.
+    # Example: "can sleep" -> can(AUX/MD) --AUX--> sleep(VERB/VB)
+    for child_index, child in enumerate(sentence.tokens):
+        if (
+                child_index != token_index
+                and child.head_index == token_index
+                and child.pos_coarse == "AUX"
+                and child.pos_value == "MD"
+        ):
+            return True
+
+    return False
+
+
+def _count_metrics(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str
+) -> Dict[str, int]:
     count_metrics_dict = {
         "total_tokens": 0,
-        "total_sentences": 0,
-        "noun_phrase_count": 0,
+        "total_sentences": len(sentences),
+        "noun_phrase_count": len(noun_chunks),
+
+        # legacy/raw counters retained
         "verb_count": 0,
         "adverb_count": 0,
         "prep_count": 0,
         "passive_sentences": 0,
+
+        # V3-oriented structural counters
+        "verb_phrase_count": 0,
+        "adverbial_phrase_count": 0,
         "neg_count": 0,
         "gerund_count": 0,
-        "infinitive_count": 0
+        "infinitive_count": 0,
     }
 
-    count_metrics_dict["noun_phrase_count"] = len(noun_chunks)
+    for sentence in sentences:
+        # DRAP: phrase-level count from dependency hierarchy.
+        count_metrics_dict["adverbial_phrase_count"] += _count_adverbial_phrases(
+            sentence, lang
+        )
 
-    # H3: passive detection must be language-specific.
-    #  - English (spec Ch. 4, \u00a7Syntactic complexity): sentence has an auxpass
-    #    or nsubjpass dependency.
-    #  - German: \"Vorgangspassiv\" = form of werden + past participle (VVPP);
-    #    \"Zustandspassiv\" = form of sein + past participle.
-    de_passive_aux_lemmas = {"werden", "sein"}
+        # DRPVAL: documented passive-sentence density.  The Coh-Metrix/TTLab
+        # definition counts each passive sentence once; explicit agents do
+        # not exclude a sentence (the documented example contains "vom
+        # Hund" and is still counted).
+        if lang == "de":
+            is_passive = bool(_german_passive_participle_indices(sentence))
+        else:
+            is_passive, _ = _english_passive_status(sentence)
 
-    for c, tokens in enumerate(token_pos):
-        is_passive = False
-        for j, token_pos_i in enumerate(tokens):
-            match token_pos_i:
-                case "VERB":
-                    count_metrics_dict["verb_count"] += 1
-                case "ADV":
-                    count_metrics_dict["adverb_count"] += 1
-                case "ADP":
-                    count_metrics_dict["prep_count"] += 1
-            word_i = words[c][j]
-            tag_i = tags[c][j]
-            dep_i = deps[c][j]
-            lemma_i = lemmas[c][j]
-            if lang == "de":
-                # German passive: auxiliary werden/sein co-occurring with a
-                # past participle (VVPP) in the same sentence.
-                if lemma_i.lower() in de_passive_aux_lemmas and "VVPP" in tags[c]:
-                    is_passive = True
-            else:
-                # English passive: look for auxpass / nsubjpass deps.
-                if dep_i in ("AUXPASS", "NSUBJPASS", "auxpass", "nsubjpass"):
-                    is_passive = True
-            if dep_i == "NEG" or dep_i == "NG":
-                count_metrics_dict["neg_count"] += 1
-            # H11: VBG is the English gerund (\"-ing\"). German has no gerund
-            # equivalent, so leave count at 0 for DE (previously VVPP/ADJD were
-            # counted, but VVPP is past participle and ADJD is adverbial
-            # adjective \u2013 not gerunds).
-            if lang != "de" and tag_i == "VBG":
-                count_metrics_dict["gerund_count"] += 1
-            if 0 < j < len(tokens) - 1:
-                # DE = VVINF
-                #if (word_i.lower() == "to" or word_i.lower() == "zu") and (tags[c][j+1] == "VB" or tags[c][j+1] == "VVINF") and token_pos[c][j+1] == "VERB":
-                #    count_metrics_dict["infinitive_count"] += 1
-                if word_i.lower() == "to" or word_i.lower() == "zu":
-                    if j + 1 < len(tags[c]) and j + 1 < len(token_pos[c]):
-                        if (tags[c][j+1] in ["VB", "VVINF"]) and token_pos[c][j+1] == "VERB":
-                            count_metrics_dict["infinitive_count"] += 1
-                if tags[c][j] == "VM" and token_pos[c][j] == "VERB":
-                    for offset in range(1, 3):
-                        next_idx = j + offset
-                        if next_idx < len(tags[c]) and next_idx < len(token_pos[c]):
-                            if tags[c][next_idx] == "VVINF" and token_pos[c][next_idx] == "VERB":
-                                count_metrics_dict["infinitive_count"] += 1
-                                break
         if is_passive:
             count_metrics_dict["passive_sentences"] += 1
 
-    # iterate over puncts count falses
-    count_metrics_dict["total_tokens"] = len([token for sublist in puncts for token in sublist if not token])
-    count_metrics_dict["total_sentences"] = len(token_pos)
+        for i, token in enumerate(sentence.tokens):
+            if not token.is_punct:
+                count_metrics_dict["total_tokens"] += 1
+
+            # Legacy lexical counters.
+            if token.pos_coarse == "VERB":
+                count_metrics_dict["verb_count"] += 1
+            elif token.pos_coarse == "ADV":
+                count_metrics_dict["adverb_count"] += 1
+            elif token.pos_coarse == "ADP":
+                count_metrics_dict["prep_count"] += 1
+
+            # DRVP approximation:
+            # constituency VP projections are approximated by verbal heads.
+            # AUX is intentionally included; diagnostic AUX+VERB constructions
+            # therefore contribute two verbal projections instead of one.
+            if token.pos_coarse in {"VERB", "AUX"}:
+                count_metrics_dict["verb_phrase_count"] += 1
+
+            dep = (token.dep_type or "").upper()
+            lemma = (token.lemma or token.text or "").lower()
+
+            # DRNEG: dependency signal + conservative German lexical coverage.
+            if lang == "de":
+                is_negation = (
+                    dep in {"NEG", "NG"}
+                    or lemma in _DE_NEGATION_LEMMAS
+                )
+            else:
+                is_negation = (
+                        dep in {"NEG", "NG"}
+                        or lemma in _EN_NEGATION_LEMMAS
+                )
+            if is_negation:
+                count_metrics_dict["neg_count"] += 1
+
+            # DRGERUND: English-only VBG approximation.
+            if lang != "de" and token.pos_value == "VBG":
+                count_metrics_dict["gerund_count"] += 1
+
+            # DRINF
+            if _is_infinitive_token(sentence, i, lang):
+                count_metrics_dict["infinitive_count"] += 1
 
     return count_metrics_dict
 
 # ============================================================================
 # SYNTACTIC PATTERN DENSITY (DR*) — "Which grammatical constructions appear,
-# and how often?" All values are incidences (per 1,000 words). Reliable
-# counts, modulo one language caveat: DRGERUND returns 0 for German (no direct
-# gerund equivalent — see NOTE(H11)). DRPVAL is a per-sentence proportion.
+# and how often?"
+# The implemented measures are incidences per 1,000 non-punctuation words.
+# Constituency-based Coh-Metrix patterns are approximated from the available
+# dependency/POS annotations where necessary.
+#
+# DRGERUND is English-specific and returns None for German because German has
+# no directly corresponding grammatical gerund category.
 # ============================================================================
 
 # LAY: How many noun phrases per 1,000 words?
 # ↑ Higher = more noun-heavy text. Reliable.
-def cm_drnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
-    # H12: DRNP is an INCIDENCE (per 1000 words), not a raw ratio.
-    # L2: accept precomputed dict to avoid recomputing 8 times per request.
+def cm_drnp(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
+    # H12: DRNP incidence per 1000 words.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
     return _incidence(metrics["noun_phrase_count"], metrics["total_tokens"])
 
-# LAY: How many verbs per 1,000 words?
-# ↑ Higher = more action/verb-driven text. Reliable.
-def cm_drvp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+# LAY: How many verb-phrase approximations occur per 1,000 words?
+# ↑ Higher = greater density of verbal structures.
+# Constituency VP nodes are approximated by VERB/AUX verbal projections.
+def cm_drvp(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     # H12: DRVP incidence per 1000 words.
+    # FV3 approximation: verbal phrase/projection density, not raw VERB density.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
-    return _incidence(metrics["verb_count"], metrics["total_tokens"])
+    return _incidence(metrics["verb_phrase_count"], metrics["total_tokens"])
 
-# LAY: How many adverbs per 1,000 words?
-# ↑ Higher = more descriptive modifiers. Reliable.
-def cm_drap(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+# LAY: How many adverbial-phrase approximations occur per 1,000 words?
+# ↑ Higher = greater density of adverbial structures.
+# Maximal dependency-based adverbial structures approximate constituency ADVPs.
+def cm_drap(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     # H12: DRAP incidence per 1000 words.
+    # FV3 approximation: maximal dependency-based adverbial phrases.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
-    return _incidence(metrics["adverb_count"], metrics["total_tokens"])
+    return _incidence(metrics["adverbial_phrase_count"], metrics["total_tokens"])
 
-# LAY: How many prepositions per 1,000 words?
-# ↑ Higher = more phrase-rich syntax. Reliable.
-def cm_drpp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+# LAY: How many prepositional-phrase approximations occur per 1,000 words?
+# ↑ Higher = greater density of prepositional structures.
+# The current approximation uses ADP/preposition heads rather than
+# constituency PP nodes.
+def cm_drpp(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     # H12: DRPP incidence per 1000 words.
+    # Retained: ADP/preposition incidence is the current V3 approximation.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
     return _incidence(metrics["prep_count"], metrics["total_tokens"])
 
-# LAY: Proportion of sentences in passive voice (spec: per-sentence, not per 1000 words).
-# ↑ Higher = more passive/impersonal style. Reliable.
-def cm_drpval(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
-    # DRPVAL: passive voice density. Spec (Ch.4) defines as incidence of
-    # passive sentences per 1000 words (Appendix A index 77).
+# LAY: How many agentless passive constructions occur per 1,000 words?
+# ↑ Higher = more agentless passive/impersonal constructions.
+# Dependency-based approximation of the Coh-Metrix DRPVAL index.
+def cm_drpval(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
-    return _incidence(metrics["passive_sentences"], metrics["total_tokens"])
+    return _incidence(
+        metrics["passive_sentences"],
+        metrics["total_tokens"]
+    )
 
 # LAY: How many negations (not/nicht/kein/...) per 1,000 words?
 # ↑ Higher = more negation. Reliable.
-def cm_drneg(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+def cm_drneg(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     # H12: DRNEG incidence per 1000 words.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
@@ -917,15 +1647,31 @@ def cm_drneg(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str,
 
 # LAY: How many English gerunds ("-ing" verb forms) per 1,000 words?
 # Language-limited: DE=0 (German has no gerund equivalent — NOTE(H11)).
-def cm_drgerund(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+def cm_drgerund(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     # H12: DRGERUND incidence per 1000 words.
+    # German has no direct grammatical equivalent of the English -ing gerund.
+    # None means "not applicable", not "zero gerunds observed".
+    if lang == "de":
+        return None
+
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
+
     return _incidence(metrics["gerund_count"], metrics["total_tokens"])
 
 # LAY: How many infinitive verb forms (to/zu + VERB) per 1,000 words?
 # ↑ Higher = more infinitive constructions. Reliable.
-def cm_drinf(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str, metrics: Optional[Dict[str, int]] = None) -> Optional[float]:
+def cm_drinf(
+    sentences: List[Sentence],
+    noun_chunks: List[NounChunk],
+    lang: str,
+    metrics: Optional[Dict[str, int]] = None
+) -> Optional[float]:
     # H12: DRINF incidence per 1000 words.
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
@@ -941,104 +1687,154 @@ def _incidence(count, total_words):
     # this by checking for empty input upstream.
     return (count / total_words) * 1000 if total_words > 0 else 0
 
-def _count_words(poses: List[List[str]], words: List[List[str]], pronouns_category) -> Dict[str, int]:
-    total_words  = 0
-    for sent in words:
-        for word in sent:
-            if word.isalpha():
-                total_words += 1
+def _normalize_morph_person(
+    value: Optional[str]
+) -> Optional[str]:
+
+    if not value:
+        return None
+
+    value = str(value).strip().lower()
+
+    if value in {"1", "1st", "first"}:
+        return "1"
+
+    if value in {"2", "2nd", "second"}:
+        return "2"
+
+    if value in {"3", "3rd", "third"}:
+        return "3"
+
+    return None
+
+
+def _normalize_morph_number(
+    value: Optional[str]
+) -> Optional[str]:
+
+    if not value:
+        return None
+
+    value = str(value).strip().lower()
+
+    if value in {
+        "sing",
+        "singular",
+        "sg",
+        "s",
+    }:
+        return "sing"
+
+    if value in {
+        "plur",
+        "plural",
+        "pl",
+        "p",
+    }:
+        return "plur"
+
+    return None
+
+# FV4 fix:
+# WRD incidence scores use the same word denominator as DESWC:
+# all non-punctuation tokens.
+#
+# Pronoun subcategories are classified per token from morphological
+# Person/Number annotations rather than from sets of surface forms.
+# This prevents ambiguous forms such as German "sie" from being assigned
+# to several person/number categories simultaneously.
+def _count_words(
+    sentences: List[Sentence]
+) -> Dict[str, float]:
+
     counters = {
         "noun": 0,
         "verb": 0,
         "adj": 0,
         "adv": 0,
         "pronoun_total": 0,
-        "prp1s": 0,  # first-person singular pronouns
-        "prp1p": 0,  # first-person plural pronouns
-        "prp2": 0,  # second-person pronouns
-        "prp3s": 0,  # third-person singular pronouns
-        "prp3p": 0  # third-person plural pronouns
+        "prp1s": 0,
+        "prp1p": 0,
+        "prp2": 0,
+        "prp3s": 0,
+        "prp3p": 0,
     }
-    for i, sent in enumerate(poses):
-        for j, pos in enumerate(sent):
-            word_i = words[i][j].lower()
-            match pos:
-                case "NOUN":
-                    counters["noun"] += 1
-                case "VERB":
-                    counters["verb"] += 1
-                case "ADJ":
-                    counters["adj"] += 1
-                case "ADV":
-                    counters["adv"] += 1
-                case "PRON":
-                    counters["pronoun_total"] += 1
-                    if "prp1s" in pronouns_category:
-                        if word_i in pronouns_category["prp1s"]:
-                            counters["prp1s"] += 1
-                    if "prp1p" in pronouns_category:
-                        if word_i in pronouns_category["prp1p"]:
-                            counters["prp1p"] += 1
-                    if "prp2" in pronouns_category:
-                        if word_i in pronouns_category["prp2"]:
-                            counters["prp2"] += 1
-                    if "prp3s" in pronouns_category:
-                        if word_i in pronouns_category["prp3s"]:
-                            counters["prp3s"] += 1
-                    if "prp3p" in pronouns_category:
-                        if word_i in pronouns_category["prp3p"]:
-                            counters["prp3p"] += 1
-    counter_1000 = {
-        "noun": 0,
-        "verb": 0,
-        "adj": 0,
-        "adv": 0,
-        "pronoun_total": 0,
-        "prp1s": 0,  # first-person singular pronouns
-        "prp1p": 0,  # first-person plural pronouns
-        "prp2": 0,  # second-person pronouns
-        "prp3s": 0,  # third-person singular pronouns
-        "prp3p": 0   # third-person plural pronouns
-    }
-    for key in counters:
-        counter_1000[key] = _incidence(counters[key], total_words)
-    return counter_1000
 
-def _get_morhological_features(poses: List[List[str]], words: List[List[str]], morph_Person, morph_Number) -> defaultdict[Any, set]:
-    pronouns_by_category = defaultdict(set)
-    for i, sent in enumerate(poses):
-        for  j, pos in enumerate(sent):
-            if pos != "PRON":
+    total_words = 0
+
+    for sentence in sentences:
+        for token in sentence.tokens:
+
+            # Use the same word basis as DESWC and the other
+            # incidence-based indices: all non-punctuation tokens.
+            if token.is_punct:
                 continue
-            person = morph_Person[i][j]
-            number = morph_Number[i][j]
 
-            person = person[0] if person else "Unknown"
-            number = number[0] if number else "Unknown"
-            if person == "2":
-                key = "prp2"
-            else:
-                key = f"prp{person.lower()}{'s' if number == 'S' else 'p'}"
-            pronouns_by_category[key].add(words[i][j].lower())
+            total_words += 1
 
-    return pronouns_by_category
+            pos = token.pos_coarse
 
-def _wrd_precompute(sentences: List[Sentence]) -> Dict[str, int]:
-    # L11 helper: compute the shared WRD* per-1000 counter dict once so the
-    # 10 cm_wrd* wrappers don't re-iterate tokens and morphology features.
-    token_pos = [[token.pos_coarse for token in sent.tokens] for sent in sentences]
-    words = [[token.text for token in sent.tokens] for sent in sentences]
-    morph_person = [[token.morph_person for token in sent.tokens] for sent in sentences]
-    morph_number = [[token.morph_number for token in sent.tokens] for sent in sentences]
-    pronouns_by_category = _get_morhological_features(token_pos, words, morph_person, morph_number)
-    return _count_words(token_pos, words, pronouns_by_category)
+            if pos in {"NOUN", "PROPN"}:
+                counters["noun"] += 1
+
+            elif pos == "VERB":
+                counters["verb"] += 1
+
+            elif pos == "ADJ":
+                counters["adj"] += 1
+
+            elif pos == "ADV":
+                counters["adv"] += 1
+
+            elif pos == "PRON":
+                counters["pronoun_total"] += 1
+
+                person = _normalize_morph_person(
+                    token.morph_person
+                )
+
+                number = _normalize_morph_number(
+                    token.morph_number
+                )
+
+                # First person
+                if person == "1":
+                    if number == "sing":
+                        counters["prp1s"] += 1
+                    elif number == "plur":
+                        counters["prp1p"] += 1
+
+                # Second person:
+                # Coh-Metrix has one combined second-person index.
+                elif person == "2":
+                    counters["prp2"] += 1
+
+                # Third person
+                elif person == "3":
+                    if number == "sing":
+                        counters["prp3s"] += 1
+                    elif number == "plur":
+                        counters["prp3p"] += 1
+
+    return {
+        key: _incidence(value, total_words)
+        for key, value in counters.items()
+    }
+
+def _wrd_precompute(
+    sentences: List[Sentence]
+) -> Dict[str, float]:
+    return _count_words(sentences)
 
 # ============================================================================
 # WORD INFORMATION (WRD*) — "What kind of words are used?"
 # Three sub-groups:
 #   (a) POS & pronoun incidences — counts per 1,000 words. Reliable.
-#   (b) MRC psycholinguistic ratings (AoA, familiarity, concreteness,
-#       imageability, meaningfulness). English-only — DE returns None. NOTE(H8).
+#   (b) Psycholinguistic ratings (AoA, familiarity, concreteness,
+#       imageability, meaningfulness). English uses the processed MRC norms;
+#       German uses the project-specific translated/aggregated approximation.
+#       German and English values therefore do not represent identical lexical
+#       resources and should be interpreted accordingly.
 #   (c) Polysemy & hypernymy via WordNet (en) / GermaNet (de). Values are
 #       not directly comparable across languages. NOTE(H9).
 #   (d) CELEX word-frequency indices are stubbed None; Wikipedia-sample
@@ -1118,33 +1914,95 @@ def cm_wrdprp3p(sentences: List[Sentence], counts: Optional[Dict[str, int]] = No
 
 # FV1 Fix: Included support for german language, respective database is
 # now loaded, depending on the text language.
-def _load_mrc_database(lang: str) -> Dict[str, float]:
+# FV4 Fix: Treat 0 values as None values, since they represent a missing rating inside the MRC databse.
+@lru_cache(maxsize=2)
+def _load_mrc_database(
+    lang: str
+) -> Dict[str, Dict[str, Optional[float]]]:
+
     if lang == "de":
         filepath = "src/main/resources/mrc_psycholinguistic_database_de.csv"
     else:
         filepath = "src/main/resources/mrc_psycholinguistic_database.csv"
+
+    def _parse_mrc_rating(value) -> Optional[float]:
+        if value is None:
+            return None
+
+        value = str(value).strip()
+
+        if not value:
+            return None
+
+        try:
+            rating = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        # MRC uses 0 as a missing-value sentinel.
+        if rating <= 0:
+            return None
+
+        # Defensive check for NaN / infinity.
+        if not math.isfinite(rating):
+            return None
+
+        return rating
+
     mrc_dict = {}
-    with open(filepath, 'r', encoding='utf-8') as file:
-        reader = csv.DictReader(file, delimiter=',')
+
+    with open(
+        filepath,
+        "r",
+        encoding="utf-8"
+    ) as file:
+
+        reader = csv.DictReader(
+            file,
+            delimiter=","
+        )
+
         for row in reader:
-            word = row['Word'].lower()
-            meaningful_colorado = float(row['Meaningfulness: Coloradao Norms']) if row['Meaningfulness: Coloradao Norms'] else None
-            meaningful_pavio = float(row['Meaningfulness: Pavio Norms']) if row[
-                'Meaningfulness: Pavio Norms'] else None
-            meaningful = None
-            if meaningful_colorado is not None and meaningful_pavio is not None:
-                meaningful = meaningful_colorado + meaningful_pavio
-            elif meaningful_colorado is not None:
-                meaningful = meaningful_colorado
-            elif meaningful_pavio is not None:
-                meaningful = meaningful_pavio
+
+            word = (
+                row.get("Word") or ""
+            ).strip().lower()
+
+            if not word:
+                continue
+
             mrc_dict[word] = {
-                'AoA': float(row['Age of Acquisition Rating']) if row['Age of Acquisition Rating'] else None,
-                'Familiarity': float(row['Familiarity']) if row['Familiarity'] else None,
-                'Concreteness': float(row['Concreteness']) if row['Concreteness'] else None,
-                'Imageability': float(row['Imageability']) if row['Imageability'] else None,
-                'Meaningfulness': meaningful
+                "AoA": _parse_mrc_rating(
+                    row.get(
+                        "Age of Acquisition Rating"
+                    )
+                ),
+
+                "Familiarity": _parse_mrc_rating(
+                    row.get(
+                        "Familiarity"
+                    )
+                ),
+
+                "Concreteness": _parse_mrc_rating(
+                    row.get(
+                        "Concreteness"
+                    )
+                ),
+
+                "Imageability": _parse_mrc_rating(
+                    row.get(
+                        "Imageability"
+                    )
+                ),
+
+                "Meaningfulness": _parse_mrc_rating(
+                    row.get(
+                        "Meaningfulness: Coloradao Norms"
+                    )
+                ),
             }
+
     return mrc_dict
 
 # FV1 fix: Removed old mrc_dict creation
@@ -1194,7 +2052,7 @@ def _average_rating(words, mrc_dict, key):
     return sum(ratings) / len(ratings)
 
 # LAY: Average age at which content words are typically learned (MRC norms).
-# ↑ Higher = later-acquired, harder words. English-only (DE=None — NOTE(H8)).
+# ↑ Higher = later-acquired, harder words.
 # FV1 Fix: Reworked Function for german language Support.
 def cm_wrdaoac(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
     # H8: MRC Psycholinguistic Database is English-only.
@@ -1206,7 +2064,7 @@ def cm_wrdaoac(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str
     return _average_rating(content_words, mrc_dict, 'AoA')
 
 # LAY: Average subjective familiarity rating of content words (MRC norms).
-# ↑ Higher = more familiar, easier words. English-only (DE=None — NOTE(H8)).
+# ↑ Higher = more familiar, easier words.
 # FV1 Fix: Reworked Function for german language Support.
 def cm_wrdfamc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
     if mrc_dict is None:
@@ -1217,7 +2075,7 @@ def cm_wrdfamc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str
     return _average_rating(content_words, mrc_dict, 'Familiarity')
 
 # LAY: Average concreteness of content words (MRC norms).
-# ↑ Higher = more concrete, sensory words. English-only (DE=None — NOTE(H8)).
+# ↑ Higher = more concrete, sensory words.
 # FV1 Fix: Reworked Function for german language Support.
 def cm_wrdcncc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
     if mrc_dict is None:
@@ -1228,7 +2086,7 @@ def cm_wrdcncc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str
     return _average_rating(content_words, mrc_dict, 'Concreteness')
 
 # LAY: Average imageability of content words (MRC norms).
-# ↑ Higher = easier to form a mental picture. English-only (DE=None — NOTE(H8)).
+# ↑ Higher = easier to form a mental picture.
 # FV1 Fix: Reworked Function for german language Support.
 def cm_wrdimgc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
     if mrc_dict is None:
@@ -1239,8 +2097,10 @@ def cm_wrdimgc(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str
     return _average_rating(content_words, mrc_dict, 'Imageability')
 
 # LAY: Average subjective meaningfulness of content words (MRC/Colorado norms).
-# ↑ Higher = stronger semantic associations. English-only (DE=None — NOTE(H8)).
+# ↑ Higher = stronger semantic associations.
 # FV1 Fix: Reworked Function for german language Support.
+# FV3 FIX: Uses the Colorado meaningfulness field only; Paivio meaningfulness is not
+# combined with or substituted for the Colorado rating.
 def cm_wrdmeac(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str, float]] = None) -> Optional[float]:
     if mrc_dict is None:
         mrc_dict = _load_mrc_database(lang)
@@ -1248,6 +2108,46 @@ def cm_wrdmeac(sentences: List[Sentence], lang: str, mrc_dict: Optional[Dict[str
     if not content_words:
         return None
     return _average_rating(content_words, mrc_dict, 'Meaningfulness')
+
+def _get_lexical_lookup_form(
+    token: Token,
+    lang: str
+) -> Optional[str]:
+    if token.pos_coarse not in ud_content_pos:
+        return None
+
+    if not token.is_alpha:
+        return None
+
+    lemma = (token.lemma or "").strip()
+
+    if not lemma or lemma == "--":
+        lemma = token.text.strip()
+
+    if not lemma:
+        return None
+
+    # Princeton WordNet entries are normalized to lowercase.
+    if lang == "en":
+        return lemma.lower()
+
+    # Preserve German lemma casing, especially for nouns.
+    # Individual GermaNet-based measures decide separately whether lookup should
+    # be case-sensitive; polysemy currently preserves case, whereas the hypernym
+    # lookup uses ignorecase=True.
+    return lemma
+
+
+def _iter_content_lemmas(
+    sentences: List[Sentence],
+    lang: str
+):
+    for sentence in sentences:
+        for token in sentence.tokens:
+            lemma = _get_lexical_lookup_form(token, lang)
+
+            if lemma is not None:
+                yield lemma, token.pos_coarse
 
 def _get_polysemy(word, lang: str = "en"):
     # H9: dispatch by language. WordNet for English; GermaNet for German when
@@ -1257,17 +2157,28 @@ def _get_polysemy(word, lang: str = "en"):
     if lang == "en":
         synsets = wn.synsets(word)
         return len(synsets)
+
     if lang == "de":
         if germanet is None:
             return None
+
         try:
-            return len(germanet.get_synsets_by_orthform(word))
+            # FV2 refinement: German lemma casing is preserved by
+            # _get_lexical_lookup_form(). Keep the GermaNet lookup
+            # case-sensitive here to avoid conflating lexically distinct
+            # German forms that differ only in capitalization.
+            return len(
+                germanet.get_synsets_by_orthform(word)
+            )
         except Exception:
             return None
+
     return None
 
 def _get_max_hypernym_depth(word, pos=None, lang: str = "en"):
     # H9: dispatch by language (see _get_polysemy).
+    # FV2 Fix: Set ignorecase for germanet to prevent not finding words because
+    # of upper/lowercase start
     if lang == "en":
         synsets = wn.synsets(word, pos=pos) if pos else wn.synsets(word)
         if not synsets:
@@ -1283,12 +2194,25 @@ def _get_max_hypernym_depth(word, pos=None, lang: str = "en"):
                 word_cat = WordCategory.nomen
             elif pos == "VERB":
                 word_cat = WordCategory.verben
-            synsets = germanet.get_synsets_by_orthform(word)
+            synsets = germanet.get_synsets_by_orthform(word, ignorecase=True)
             if word_cat is not None:
                 synsets = [s for s in synsets if s.word_category == word_cat]
             if not synsets:
                 return None
-            depths = [s.min_depth() if hasattr(s, "min_depth") else 0 for s in synsets]
+            depths = []
+
+            for synset in synsets:
+                paths = synset.hypernym_paths()
+
+                if not paths:
+                    continue
+
+                max_depth = max(
+                    len(path) - 1
+                    for path in paths
+                )
+
+                depths.append(max_depth)
             return max(depths) if depths else None
         except Exception:
             return None
@@ -1296,47 +2220,82 @@ def _get_max_hypernym_depth(word, pos=None, lang: str = "en"):
 
 # LAY: Average polysemy: how many senses each content word has.
 # ↑ Higher = more ambiguous vocabulary. Approximate for DE (GermaNet) — NOTE(H9).
-def cm_wrdpolc(sentences: List[Sentence], lang: str) -> Optional[float]:
+def cm_wrdpolc(
+    sentences: List[Sentence],
+    lang: str
+) -> Optional[float]:
     polysemies = []
 
-    content_word, _, _ = _get_content_words(sentences)
-    for word in content_word:
-        poly = _get_polysemy(word, lang=lang)
-        if poly is None or poly <= 0:
+    for lemma, _ in _iter_content_lemmas(sentences, lang):
+        polysemy = _get_polysemy(
+            lemma,
+            lang=lang
+        )
+
+        # Preserve the current coverage policy:
+        # uncovered words are not included as zero values.
+        if polysemy is None or polysemy <= 0:
             continue
-        polysemies.append(poly)
+
+        polysemies.append(polysemy)
 
     return np.mean(polysemies) if polysemies else None
 
-def _calc_wrdhyp(sentences: List[Sentence], lang: str) -> Dict[str, Optional[float]]:
+def _calc_wrdhyp(
+    sentences: List[Sentence],
+    lang: str
+) -> Dict[str, Optional[float]]:
     hypernym_nouns = []
     hypernym_verbs = []
 
-    content_word, words, poses = _get_content_words(sentences)
-    set_content_word = set(content_word)
-    for i, sent in enumerate(words):
-        for j, word in enumerate(sent):
-            pos = poses[i][j]
-            if word.lower() in set_content_word and (pos=="NOUN" or pos=="VERB"):
-                # For EN pass WordNet POS; for DE pass coarse POS string so
-                # dispatch can map to a GermaNet WordCategory.
-                if lang == "en":
-                    pos_in = wn.NOUN if pos == "NOUN" else wn.VERB
-                else:
-                    pos_in = pos
-                hyp = _get_max_hypernym_depth(word.lower(), pos=pos_in, lang=lang)
-                if hyp is not None:
-                    if pos == "NOUN":
-                        hypernym_nouns.append(hyp)
-                    elif pos == "VERB":
-                        hypernym_verbs.append(hyp)
+    for lemma, pos in _iter_content_lemmas(sentences, lang):
+        if pos not in {"NOUN", "VERB"}:
+            continue
 
-    # Average hypernymy for nouns and verbs separately
-    hypn_avg = sum(hypernym_nouns) / len(hypernym_nouns) if hypernym_nouns else None
-    hypv_avg = sum(hypernym_verbs) / len(hypernym_verbs) if hypernym_verbs else None
-    # Combined hypernymy average
+        if lang == "en":
+            pos_for_lookup = (
+                wn.NOUN
+                if pos == "NOUN"
+                else wn.VERB
+            )
+        else:
+            # _get_max_hypernym_depth maps these values
+            # to the corresponding GermaNet WordCategory.
+            pos_for_lookup = pos
+
+        depth = _get_max_hypernym_depth(
+            lemma,
+            pos=pos_for_lookup,
+            lang=lang
+        )
+
+        if depth is None:
+            continue
+
+        if pos == "NOUN":
+            hypernym_nouns.append(depth)
+        else:
+            hypernym_verbs.append(depth)
+
+    hypn_avg = (
+        sum(hypernym_nouns) / len(hypernym_nouns)
+        if hypernym_nouns
+        else None
+    )
+
+    hypv_avg = (
+        sum(hypernym_verbs) / len(hypernym_verbs)
+        if hypernym_verbs
+        else None
+    )
+
     combined = hypernym_nouns + hypernym_verbs
-    hypnv_avg = sum(combined) / len(combined) if combined else None
+
+    hypnv_avg = (
+        sum(combined) / len(combined)
+        if combined
+        else None
+    )
 
     return {
         "WRDHYPn": hypn_avg,
@@ -1395,14 +2354,6 @@ connectives_list = {
     }
 }
 
-all_connectives_list = {
-    "en": set(),
-    "de": set()
-}
-for category, connectives in connectives_list.items():
-    for lang, words in connectives.items():
-        all_connectives_list[lang].update(words)
-
 # H4 fix: previous impl used `text.count(conn)` which produced massive
 # false-positive matches (e.g., counted \"since\" inside \"princess\", or
 # German \"und\" inside \"Bund/Stunde\"). Now we tokenize on whitespace and do
@@ -1416,44 +2367,152 @@ def _normalize_tokens_for_connectives(text: str) -> List[str]:
     # Lowercase, split on whitespace, strip surrounding punctuation from each token.
     return [_re_conn.sub(r"^[^\w]+|[^\w]+$", "", t.lower()) for t in text.split()]
 
-def _count_phrase_occurrences(tokens: List[str], phrase: str) -> int:
-    phrase_tokens = phrase.lower().split()
-    if not phrase_tokens:
-        return 0
-    n = len(phrase_tokens)
-    count = 0
-    for i in range(len(tokens) - n + 1):
-        if tokens[i:i + n] == phrase_tokens:
-            count += 1
-    return count
+_CONNECTIVE_CATEGORY_TO_INDEX = {
+    "Causal": "CNCCaus",
+    "Logical": "CNCLogic",
+    "Adversative": "CNCADC",
+    "Temporal": "CNCTemp",
+    "Expanded": "CNCTempX",
+    "Additive": "CNCAdd",
+    "Positive": "CNCPos",
+    "Negative": "CNCNeg",
+}
 
-def _count_connectives_in_doc(text: str, connectives_set) -> int:
-    # H4 fix: proper whole-word/phrase counting via tokenization.
+
+def _build_connective_patterns(
+    lang: str
+) -> Dict[Tuple[str, ...], Set[str]]:
+    patterns: Dict[Tuple[str, ...], Set[str]] = defaultdict(set)
+
+    for category, language_lists in connectives_list.items():
+        for expression in language_lists.get(lang, set()):
+
+            pattern = tuple(
+                expression.lower().split()
+            )
+
+            if not pattern:
+                continue
+
+            patterns[pattern].add(category)
+
+    return patterns
+
+
+def _find_non_overlapping_connectives(
+    text: str,
+    lang: str
+) -> List[Tuple[int, int, Tuple[str, ...], Set[str]]]:
     tokens = _normalize_tokens_for_connectives(text)
-    count = 0
-    for conn in connectives_set:
-        count += _count_phrase_occurrences(tokens, conn)
-    return count
+    patterns = _build_connective_patterns(lang)
 
-def _count_connectives(text: str, lang: str, total_words: int) -> Dict[str, float]:
-    count_list = {
-        "CNCAll": _count_connectives_in_doc(text, all_connectives_list[lang]),
-        "CNCCaus": _count_connectives_in_doc(text, connectives_list["Causal"][lang]),
-        "CNCLogic": _count_connectives_in_doc(text, connectives_list["Logical"][lang]),
-        "CNCADC": _count_connectives_in_doc(text, connectives_list["Adversative"][lang]),
-        "CNCTemp": _count_connectives_in_doc(text, connectives_list["Temporal"][lang]),
-        "CNCTempX": _count_connectives_in_doc(text, connectives_list["Expanded"][lang]),
-        "CNCAdd": _count_connectives_in_doc(text, connectives_list["Additive"][lang]),
-        "CNCPos": _count_connectives_in_doc(text, connectives_list["Positive"][lang]),
-        "CNCNeg": _count_connectives_in_doc(text, connectives_list["Negative"][lang])
+    candidates = []
+
+    # Find all possible occurrences first.
+    for pattern, categories in patterns.items():
+        pattern_length = len(pattern)
+
+        for start_index in range(
+            len(tokens) - pattern_length + 1
+        ):
+            end_index = start_index + pattern_length
+
+            if tuple(tokens[start_index:end_index]) == pattern:
+                candidates.append(
+                    (
+                        start_index,
+                        end_index,
+                        pattern,
+                        categories
+                    )
+                )
+    candidates.sort(
+        key=lambda match: (
+            -(match[1] - match[0]),
+            match[0]
+        )
+    )
+
+    occupied_indices: Set[int] = set()
+    accepted_matches = []
+
+    for (
+        start_index,
+        end_index,
+        pattern,
+        categories
+    ) in candidates:
+
+        span = set(
+            range(start_index, end_index)
+        )
+        if span.intersection(occupied_indices):
+            continue
+
+        accepted_matches.append(
+            (
+                start_index,
+                end_index,
+                pattern,
+                categories
+            )
+        )
+
+        occupied_indices.update(span)
+    accepted_matches.sort(
+        key=lambda match: match[0]
+    )
+
+    return accepted_matches
+
+def _count_connectives(
+    text: str,
+    lang: str,
+    total_words: int
+) -> Dict[str, float]:
+
+    raw_counts = {
+        "CNCAll": 0,
+        "CNCCaus": 0,
+        "CNCLogic": 0,
+        "CNCADC": 0,
+        "CNCTemp": 0,
+        "CNCTempX": 0,
+        "CNCAdd": 0,
+        "CNCPos": 0,
+        "CNCNeg": 0,
     }
-    count_list_per_1000_words = {k: (v / total_words * 1000) if total_words > 0 else 0 for k, v in count_list.items()}
-    return count_list_per_1000_words
+
+    matches = _find_non_overlapping_connectives(
+        text,
+        lang
+    )
+
+    for _, _, _, categories in matches:
+        raw_counts["CNCAll"] += 1
+        for category in categories:
+            index_name = _CONNECTIVE_CATEGORY_TO_INDEX.get(
+                category
+            )
+
+            if index_name is not None:
+                raw_counts[index_name] += 1
+
+    return {
+        key: _incidence(value, total_words)
+        for key, value in raw_counts.items()
+    }
 
 # ============================================================================
-# CONNECTIVES (CNC*) — "How often are connecting words (and, because, however)
-# used?" All are incidences per 1,000 words. Approximate: the word lists were
-# LLM-generated and contain some double-counting across categories (NOTE(H10)).
+# CONNECTIVES (CNC*) — "How often are connecting expressions used?"
+# All values are incidences per 1,000 words.
+#
+# The connective inventories are project-specific approximations of the
+# Coh-Metrix connective categories. Matching is case-insensitive and
+# longest-expression-first. Overlapping shorter expressions are suppressed.
+# Each accepted surface occurrence contributes once to CNCAll, while the same
+# complete expression may legitimately contribute to multiple connective
+# categories when it is listed in more than one category.
 # ============================================================================
 
 # LAY: All connectives combined, per 1,000 words.
@@ -1547,13 +2606,16 @@ def _sentence_vector(token_has_vector, words, tokens_vector_length: int):
     else:
         return np.zeros(tokens_vector_length)
 
-# NOTE(M5): LSA approximation. The original Coh-Metrix LSA indices are built on
-# a ~300-dim LSA space trained on the TASA corpus (Landauer et al., 2007). This
-# implementation uses the pipeline's spaCy word vectors, averages per sentence/
-# paragraph, and applies sklearn TruncatedSVD to 100 dimensions (see also L3).
-# Absolute values differ from the original; rank-ordering is expected to be
-# similar on the same text. No TASA-trained weights are shipped with this
-# container.
+# NOTE(M5): LSA approximation. The original Coh-Metrix LSA indices are based
+# on an LSA semantic space trained on the TASA corpus. This implementation
+# instead uses the word vectors provided by the upstream spaCy component and
+# averages them to obtain sentence and paragraph vectors.
+#
+# Optional per-document TruncatedSVD dimensionality reduction is available
+# through the lsa_use_truncated_svd setting but is disabled by default.
+# Therefore, the default implementation operates directly in the spaCy vector
+# space. The resulting values are an approximation and are not numerically
+# equivalent to the original TASA-based Coh-Metrix LSA scores.
 def _reduce_dimensionality(vectors, n_components=100):
     # L12 fix: TruncatedSVD requires n_components < min(n_samples, n_features).
     # Previous code only capped at n_features-1, which caused ValueError on
@@ -1578,17 +2640,49 @@ def _reduce_dimensionality(vectors, n_components=100):
 # previous sentence vectors {v_0..v_{i-1}}; the projection's length is the
 # "given" component G, the orthogonal residual's length is the "new" component
 # N, and the index returned is G / (G + N) ∈ [0, 1]. The first sentence has no
-# prior context, so G = 0 and the ratio is 0. QR decomposition of the basis
-# matrix gives an orthonormal Q; Q @ (Q.T @ v) is the orthogonal projection.
+# prior context, so G = 0 and the ratio is 0. # The subspace of the preceding
+# sentence vectors is determined using an SVD.
+# Only singular vectors belonging to the numerical rank of the basis are
+# retained. The current sentence vector is projected onto this orthonormal
+# basis; the projection represents the "given" component and the orthogonal
+# residual represents the "new" component. Rank-aware projection prevents
+# linearly dependent preceding vectors from introducing artificial dimensions.
 # Caveat: the implementation uses spaCy word vectors (see NOTE(M5)), not TASA-
 # trained LSA, so absolute values differ from the reference Coh-Metrix output.
 # @see docs/review-report-v3.html (M5, L3) for the LSA approximation context.
+# FV3 Fix: Build the Given-New hyperplane from the numerical rank of
+# previous vectors so dependent vectors cannot add artificial dimensions.
 def _project_onto_hyperplane(v, basis):
     if basis.shape[0] == 0:
         return np.zeros_like(v), v
-    Q, _ = np.linalg.qr(basis.T)
-    p = Q @ (Q.T @ v)
-    return p, v - p
+
+    basis_t = np.asarray(basis, dtype=float).T
+
+    U, singular_values, _ = np.linalg.svd(
+        basis_t,
+        full_matrices=False
+    )
+
+    if singular_values.size == 0:
+        return np.zeros_like(v), v
+
+    tolerance = (
+        max(basis_t.shape)
+        * np.finfo(singular_values.dtype).eps
+        * singular_values[0]
+    )
+
+    rank = np.sum(singular_values > tolerance)
+
+    if rank == 0:
+        return np.zeros_like(v), v
+
+    Q = U[:, :rank]
+
+    projection = Q @ (Q.T @ v)
+    perpendicular = v - projection
+
+    return projection, perpendicular
 
 def _lsa_given_new_for_vectors(vectors):
     results = []
@@ -1606,14 +2700,12 @@ def _lsa_given_new_for_vectors(vectors):
         results.append(given_new_ratio)
     return np.array(results)
 
-def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float]]]], words: List[List[List[str]]], tokens_vector_length: int, n_components) -> Dict[str, Any]:
-    all_sentences = []
+def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float]]]], words: List[List[List[str]]], tokens_vector_length: int, n_components, use_truncated_svd: bool = False) -> Dict[str, Any]:
     sentence_vectors = []
     paragraph_vectors = []
     sentences_per_paragraph = []
     for c, para in enumerate(vec_per_paragraph_sentences):
         sentences_per_paragraph.append(len(para))
-        all_sentences.extend(para)
         sent_vecs = np.array([_sentence_vector(sent, sent_words, tokens_vector_length) for sent, sent_words in zip(para, words[c]) if sent])
         sentence_vectors.append(sent_vecs)
         # paragraph vector = mean of sentence vectors
@@ -1627,13 +2719,23 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
     paragraph_vectors = np.array(paragraph_vectors)
 
     # Reduce dimensionality (LSA)
-    sentence_vectors_reduced = _reduce_dimensionality(sentence_vectors_all, n_components)
-    paragraph_vectors_reduced = _reduce_dimensionality(paragraph_vectors, n_components)
+    if use_truncated_svd:
+        sentence_vectors_transformed = _reduce_dimensionality(
+            sentence_vectors_all,
+            n_components
+        )
+        paragraph_vectors_transformed = _reduce_dimensionality(
+            paragraph_vectors,
+            n_components
+        )
+    else:
+        sentence_vectors_transformed = sentence_vectors_all
+        paragraph_vectors_transformed = paragraph_vectors
 
     # --- LSA similarity between adjacent sentences ---
     adj_sent_sim = []
-    for i in range(len(sentence_vectors_reduced) - 1):
-        sim = cosine_similarity([sentence_vectors_reduced[i]], [sentence_vectors_reduced[i + 1]])[0][0]
+    for i in range(len(sentence_vectors_transformed) - 1):
+        sim = cosine_similarity([sentence_vectors_transformed[i]], [sentence_vectors_transformed[i + 1]])[0][0]
         adj_sent_sim.append(sim)
     adj_sent_sim = np.array(adj_sent_sim)
 
@@ -1642,7 +2744,7 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
     idx = 0
     for count in sentences_per_paragraph:
         if count > 1:
-            sent_vecs = sentence_vectors_reduced[idx:idx + count]
+            sent_vecs = sentence_vectors_transformed[idx:idx + count]
             sim_matrix = cosine_similarity(sent_vecs)
             # Take upper triangle excluding diagonal
             triu_indices = np.triu_indices(count, k=1)
@@ -1653,12 +2755,12 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
 
     # --- LSA similarity between adjacent paragraphs ---
     adj_para_sim = []
-    for i in range(len(paragraph_vectors_reduced) - 1):
-        sim = cosine_similarity([paragraph_vectors_reduced[i]], [paragraph_vectors_reduced[i + 1]])[0][0]
+    for i in range(len(paragraph_vectors_transformed) - 1):
+        sim = cosine_similarity([paragraph_vectors_transformed[i]], [paragraph_vectors_transformed[i + 1]])[0][0]
         adj_para_sim.append(sim)
     adj_para_sim = np.array(adj_para_sim)
 
-    given_new_ratios = _lsa_given_new_for_vectors(sentence_vectors_reduced)
+    given_new_ratios = _lsa_given_new_for_vectors(sentence_vectors_transformed)
 
     return {
         'LSASS1': np.mean(adj_sent_sim) if adj_sent_sim.size > 0 else np.nan,
@@ -1670,14 +2772,6 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
         'LSAGN': np.mean(given_new_ratios) if given_new_ratios.size > 0 else np.nan,
         'LSAGNd': np.std(given_new_ratios) if given_new_ratios.size > 0 else np.nan,
     }
-
-# ============================================================================
-# LSA (LSA*) — "Are ideas in nearby sentences similar in meaning?"
-# Latent Semantic Analysis overlap scores. 0 = unrelated, 1 = identical.
-# Approximate: uses spaCy word vectors + TruncatedSVD(100) instead of the
-# original TASA-trained 300-dim space (NOTE(M5)). Rank-order should track,
-# absolute values are not comparable to published Coh-Metrix output.
-# ============================================================================
 
 # LAY: Average meaning-similarity between adjacent sentences.
 # ↑ Higher = smoother topic flow. Approximate (NOTE(M5)).
@@ -1696,13 +2790,9 @@ def cm_lsass1(lsa_indices: Dict[str, Any]) -> Optional[float]:
 
 # LAY: How uneven is the meaning-similarity of adjacent sentences?
 # ↑ Higher = bumpy topic transitions. Approximate (NOTE(M5)).
-# LAY: How uneven is the meaning-similarity of adjacent sentences?
-# ↑ Higher = bumpy topic transitions. Approximate (NOTE(M5)).
 def cm_lsass1d(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSASS1d"]
 
-# LAY: Average meaning-similarity among all sentences within each paragraph.
-# ↑ Higher = internally coherent paragraphs. Approximate (NOTE(M5)).
 # LAY: Average meaning-similarity among all sentences within each paragraph.
 # ↑ Higher = internally coherent paragraphs. Approximate (NOTE(M5)).
 def cm_lsassp(lsa_indices: Dict[str, Any]) -> Optional[float]:
@@ -1710,13 +2800,9 @@ def cm_lsassp(lsa_indices: Dict[str, Any]) -> Optional[float]:
 
 # LAY: How uneven is the within-paragraph meaning-similarity?
 # ↑ Higher = mix of tight and loose paragraphs. Approximate (NOTE(M5)).
-# LAY: How uneven is the within-paragraph meaning-similarity?
-# ↑ Higher = mix of tight and loose paragraphs. Approximate (NOTE(M5)).
 def cm_lsasspd(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSASSpd"]
 
-# LAY: Average meaning-similarity between adjacent paragraphs.
-# ↑ Higher = smooth flow across paragraphs. Approximate (NOTE(M5)).
 # LAY: Average meaning-similarity between adjacent paragraphs.
 # ↑ Higher = smooth flow across paragraphs. Approximate (NOTE(M5)).
 def cm_lsapp1(lsa_indices: Dict[str, Any]) -> Optional[float]:
@@ -1724,22 +2810,16 @@ def cm_lsapp1(lsa_indices: Dict[str, Any]) -> Optional[float]:
 
 # LAY: How uneven is the meaning-similarity of adjacent paragraphs?
 # ↑ Higher = abrupt topic shifts between paragraphs. Approximate (NOTE(M5)).
-# LAY: How uneven is the meaning-similarity of adjacent paragraphs?
-# ↑ Higher = abrupt topic shifts between paragraphs. Approximate (NOTE(M5)).
 def cm_lsapp1d(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAPP1d"]
 
-# LAY: How much NEW information each sentence adds, on average ("given/new" ratio).
-# ↑ Higher = each sentence introduces more novel content. Approximate (NOTE(M5), NOTE(LSA-GivenNew)).
-# LAY: How much NEW information each sentence adds, on average ("given/new" ratio).
-# ↑ Higher = each sentence introduces more novel content. Approximate (NOTE(M5), NOTE(LSA-GivenNew)).
+# LAY: How much of each sentence is already given by previous sentences?
+# ↑ Higher = more previously given information and greater semantic cohesion. Approximate (NOTE(M5)).
 def cm_lsagn(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAGN"]
 
 # LAY: How uneven is the given/new ratio across sentences?
-# ↑ Higher = mix of reinforcing and information-dense sentences. Approximate.
-# LAY: How uneven is the given/new ratio across sentences?
-# ↑ Higher = mix of reinforcing and information-dense sentences. Approximate.
+# ↑ Higher = greater variation in how much prior information sentences reuse. Approximate (NOTE(M5)).
 def cm_lsagnd(lsa_indices: Dict[str, Any]) -> Optional[float]:
     return lsa_indices["LSAGNd"]
 
@@ -1763,12 +2843,45 @@ def _load_word_frequencies(path: str, lowercase_words=True) -> Dict[str, int]:
                 word_freq[word] = word_freq.get(word, 0) + int(freq)
     return word_freq
 
+def _normalize_word_frequencies_per_million(
+        word_counts: Dict[str, int]
+) -> Dict[str, float]:
+    # FV2 fix: the current Wikipedia resource contains absolute token counts,
+    # whereas Coh-Metrix word-frequency indices use corpus-normalized lexical
+    # frequencies. Restrict the temporary approximation to alphabetic word
+    # forms and convert their counts to occurrences per million word tokens.
+    lexical_counts = {
+        word: count
+        for word, count in word_counts.items()
+        if word.isalpha() and count > 0
+    }
+
+    total_word_count = sum(lexical_counts.values())
+
+    if total_word_count == 0:
+        return {}
+
+    factor = 1_000_000 / total_word_count
+
+    return {
+        word: count * factor
+        for word, count in lexical_counts.items()
+    }
+
 all_word_frequencies_map = {
     "en": {
-        "wiki-20220301-sample10000": _load_word_frequencies("src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv"),
+        "wiki-20220301-sample10000": _normalize_word_frequencies_per_million(
+            _load_word_frequencies(
+                "src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv"
+            )
+        ),
     },
     "de": {
-        "wiki-20220301-sample10000": _load_word_frequencies("src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv"),
+        "wiki-20220301-sample10000": _normalize_word_frequencies_per_million(
+            _load_word_frequencies(
+                "src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv"
+            )
+        ),
     }
 }
 
@@ -1792,83 +2905,121 @@ all_word_frequencies_map = {
 
 # LAY: Average frequency of content words in everyday text.
 # ↑ Higher = uses common words. Approximate (Wikipedia sample — NOTE(L9)).
-# ============================================================================
-# WORD FREQUENCY (WRDFRQ*) & L2 READABILITY (RDL2)
-# Approximate: the original Coh-Metrix uses the CELEX lexical database, which
-# is paywalled. This implementation uses a 10,000-article Wikipedia sample
-# (NOTE(L9)). Standard outputs WRDFRQc/a/mc remain None; the _wiki10000
-# suffix variants are emitted instead. RDL2 is the "L2 Readability" composite
-# formula (Crossley et al. 2008) and is emitted twice — using SYNSTRUTa and
-# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)).
-# ============================================================================
-
-# LAY: Average frequency of content words in everyday text.
-# ↑ Higher = uses common words. Approximate (Wikipedia sample — NOTE(L9)).
-def cm_wrdfrqc(sentences: List[Sentence], lang: str, frequencies_source: str) -> Optional[float]:
+def cm_wrdfrqc(
+        sentences: List[Sentence],
+        lang: str,
+        frequencies_source: str
+) -> Optional[float]:
     word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
     content_words, _, _ = _get_content_words(sentences)
+
+    # FV2 fix: Coh-Metrix excludes words that are not covered by the
+    # frequency lexicon instead of assigning an artificial frequency of 0.
     word_frequencies = [
-        word_frequencies_map.get(word, 0)
+        word_frequencies_map[word]
         for word in content_words
+        if word in word_frequencies_map
     ]
+
     return np.mean(word_frequencies) if word_frequencies else 0.0
 
 # LAY: Average log-frequency of ALL words in everyday text.
 # ↑ Higher = text leans on common vocabulary. Approximate (NOTE(L9)).
-# LAY: Average log-frequency of ALL words in everyday text.
-# ↑ Higher = text leans on common vocabulary. Approximate (NOTE(L9)).
-def cm_wrdfrqa(tokens: List[Token], lang: str, frequencies_source: str) -> Optional[float]:
+def cm_wrdfrqa(
+        tokens: List[Token],
+        lang: str,
+        frequencies_source: str
+) -> Optional[float]:
     word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
+
+    # FV2 fix: WRDFRQa operates on lexical word tokens. Exclude punctuation
+    # and other non-alphabetic tokens and ignore words not covered by the
+    # reference frequency resource instead of assigning them frequency 0.
     word_frequencies = [
-        # FV1 fix: Changed from raw text input to lowercase text input to match lowercase word list.
-        word_frequencies_map.get(word.text.lower(), 0)
-        for word in tokens
+        word_frequencies_map[token.text.lower()]
+        for token in tokens
+        if token.is_alpha
+        and token.text.lower() in word_frequencies_map
     ]
+
+    # FV2 approximation: use base-10 logarithms for the normalized
+    # frequency values to approximate the published Coh-Metrix scale.
     log_word_frequencies = [
-        np.log(freq + 1e-5)  # smoothing to avoid log(0)
+        np.log10(freq)
         for freq in word_frequencies
+        if freq > 0
     ]
+
     return np.mean(log_word_frequencies) if log_word_frequencies else 0.0
 
 # LAY: Average MINIMUM log-frequency among content words (rarest word per sentence).
 # ↑ Higher = even the rarest content words are reasonably common. Approximate (NOTE(L9)).
-# LAY: Average MINIMUM log-frequency among content words (rarest word per sentence).
-# ↑ Higher = even the rarest content words are reasonably common. Approximate (NOTE(L9)).
-def cm_wrdfrqmc(sentences: List[Sentence], lang: str, frequencies_source: str) -> Optional[float]:
+def cm_wrdfrqmc(
+        sentences: List[Sentence],
+        lang: str,
+        frequencies_source: str
+) -> Optional[float]:
     # CELEX Log minimum frequency for content words, mean
     # -> across sentences
     word_frequencies_map = all_word_frequencies_map[lang][frequencies_source]
     content_words, _, _ = _get_content_words_per_sentence(sentences)
-    sentence_min_frequencies = []
-    for sentence in content_words:
-        try:
-            word_frequencies = [
-                word_frequencies_map.get(word, 0)
-                for word in sentence
-            ]
-            log_word_frequencies = [
-                np.log(freq + 1e-5)  # smoothing to avoid log(0)
-                for freq in word_frequencies
-            ]
-            min_freq = np.min(log_word_frequencies)
-            sentence_min_frequencies.append(min_freq)
-        except:
-            # ignore problems when processing sentences
-            pass
-    return np.mean(sentence_min_frequencies) if sentence_min_frequencies else 0.0
 
-# LAY: Second-language readability composite score (Crossley et al. 2008).
-# ↑ Higher = easier for L2 learners. Approximate (NOTE(L7) — emitted twice).
+    sentence_min_frequencies = []
+
+    for sentence in content_words:
+        # FV2 fix: ignore OOV content words instead of assigning frequency 0.
+        # Only frequencies actually covered by the reference resource can
+        # contribute to the minimum frequency of a sentence.
+        word_frequencies = [
+            word_frequencies_map[word]
+            for word in sentence
+            if word in word_frequencies_map
+        ]
+
+        if not word_frequencies:
+            continue
+
+        log_word_frequencies = [
+            np.log10(freq)
+            for freq in word_frequencies
+            if freq > 0
+        ]
+
+        if not log_word_frequencies:
+            continue
+
+        sentence_min_frequencies.append(
+            np.min(log_word_frequencies)
+        )
+
+    return (
+        np.mean(sentence_min_frequencies)
+        if sentence_min_frequencies
+        else 0.0
+    )
+
 # LAY: Second-language readability composite score (Crossley et al. 2008).
 # ↑ Higher = easier for L2 learners. Approximate (NOTE(L7) — emitted twice).
 def cm_rdl2(crfcwo1: float, synstrut: float, wrdfrqmc: float) -> Optional[float]:
     # RDL2: Coh-Metrix L2 Readability (Appendix A index 106).
-    # Formula + constants from Crossley, Greenfield & McNamara (2008), as cited
-    # in the Coh-Metrix 3.0 spec (Ch. 5 §Readability / L2 readability formula):
-    #   RDL2 = -45.032 + 52.230·CRFCWO1 + 61.306·SYNSTRUT + 22.205·WRDFRQmc
-    # Note the spec writes "SYNSTRUT" without disambiguation; this service
-    # computes two variants (RDL2_synstruta using SYNSTRUTa, RDL2_synstrutt
-    # using SYNSTRUTt) — see NOTE(L7).
+    # Formula:
+    #
+    #   RDL2 = -45.032
+    #          + 52.230 * CRFCWO1
+    #          + 61.306 * SYNSTRUT
+    #          + 22.205 * WRDFRQmc
+    #
+    # The published formula labels the syntactic predictor only as "SYNSTRUT".
+    # Two project variants are therefore retained:
+    #
+    #   RDL2_synstruta -> uses adjacent-sentence syntax similarity (SYNSTRUTa)
+    #   RDL2_synstrutt -> uses across-paragraph syntax similarity (SYNSTRUTt)
+    #
+    # Available source evidence indicates that the adjacent-sentence measure
+    # (SYNSTRUTa) is the closer approximation to the original RDL2 predictor.
+    # RDL2_synstrutt is retained as an additional project-specific variant.
+    # Both values remain approximations because SYNSTRUT is dependency-based and
+    # WRDFRQmc uses the project Wikipedia frequency resource instead of CELEX.
     # L8 fix: make the None-path explicit instead of relying on the caller's
     # try/except to swallow a TypeError from None * float.
     if crfcwo1 is None or synstrut is None or wrdfrqmc is None:
@@ -1905,54 +3056,83 @@ def _count_non_punct_tokens(sentences: List[Sentence]) -> int:
         if not token.is_punct
     )
 
-def count_verbs(poses: List[List[str]], words: List[List[str]], lemmas: List[List[str]], tags: List[List[str]], morph_tense: List[List[str]], lang,causal_practical_set):
+def _count_phrase_matches(
+    sentence_words: List[str],
+    expressions: List[str]
+) -> int:
+
+    words = [word.lower() for word in sentence_words]
+
+    patterns = [
+        tuple(expression.lower().split())
+        for expression in expressions
+        if expression and expression.strip()
+    ]
+
+    # Longest expressions first.
+    patterns.sort(key=len, reverse=True)
+
+    count = 0
+    i = 0
+
+    while i < len(words):
+        matched_length = 0
+
+        for pattern in patterns:
+            length = len(pattern)
+
+            if tuple(words[i:i + length]) == pattern:
+                count += 1
+                matched_length = length
+                break
+
+        if matched_length > 0:
+            i += matched_length
+        else:
+            i += 1
+
+    return count
+
+def count_verbs(
+    poses,
+    words,
+    lemmas,
+    causal_practical_set
+):
     counters = {
         "causal_verbs": 0,
         "intentional_verbs": 0,
         "causal_particles": 0,
-        "intentional_particles": 0
+        "intentional_particles": 0,
     }
-    tenses = []
-
+    # FV3 fix:
+    # Count causal/intentional particles as lexical expressions rather
+    # than individual tokens. This is required for multi-token expressions
+    # such as "in order to" and "aus diesem Grund".
     for i, sent in enumerate(poses):
-        for j, pos in enumerate(sent):
-            word_i = words[i][j].lower()
-            lemma_i = lemmas[i][j].lower()
-            tag_i = tags[i][j]
-            morph_i = morph_tense[i][j]
-            if pos == "VERB":
-                if lemma_i in causal_practical_set["causal_verbs"]:
-                    counters["causal_verbs"] += 1
-                if lemma_i in causal_practical_set["intentional_verbs"]:
-                    counters["intentional_verbs"] += 1
-            if word_i in causal_practical_set["causal_particles"]:
-                counters["causal_particles"] += 1
-            if word_i in causal_practical_set["intentional_particles"]:
-                counters["intentional_particles"] += 1
+        counters["causal_particles"] += _count_phrase_matches(
+            words[i],
+            causal_practical_set["causal_particles"]
+        )
 
-            if lang=="en":
-                match tag_i:
-                    case "VBD" | "VBN":
-                        tenses.append("past")
-                    case "VB" | "VBP" | "VBZ":
-                        tenses.append("present")
-                    case "VBG":
-                        tenses.append("progressive")
-                    case "MD":
-                        tenses.append("modal")
-                    case _:
-                        tenses.append("other")
-            elif lang=="de":
-                if morph_i:
-                    tenses.append(morph_i[0].lower())
-                else:
-                    tenses.append("other")
-            else:
-                tenses.append("other")
-    return {
-        "counter": counters,
-        "tenses": tenses
-    }
+        counters["intentional_particles"] += _count_phrase_matches(
+            words[i],
+            causal_practical_set["intentional_particles"]
+        )
+
+        for j, pos in enumerate(sent):
+            if pos != "VERB":
+                continue
+
+            lemma = lemmas[i][j].lower()
+
+            if lemma in causal_practical_set["causal_verbs"]:
+                counters["causal_verbs"] += 1
+
+            if lemma in causal_practical_set["intentional_verbs"]:
+                counters["intentional_verbs"] += 1
+
+    return counters
 
 def _get_hyponyms(synset):
     hypos = set()
@@ -1968,10 +3148,6 @@ def _get_verb_lemmas_for_synset(synset):
     return {v.replace('_', ' ') for v in verbs}
 
 def _germanet_all_hyponyms(synset) -> set:
-    """Recursively collect all GermaNet hyponyms of a synset.
-    The germanetpy API exposes direct hyponyms either as a property
-    (`direct_hyponyms`) or via `causes`/`entailments` \u2014 we probe both.
-    """
     hypos = set()
     # germanetpy Synset: `direct_hyponyms` is a set attribute.
     direct = getattr(synset, "direct_hyponyms", None)
@@ -1989,9 +3165,6 @@ def _germanet_all_hyponyms(synset) -> set:
     return hypos
 
 def _germanet_expand_verb_lemmas(orthforms) -> set:
-    """Given one or more German verb lemmas, return the transitive closure of
-    hyponym lemmas across all matching verb synsets in GermaNet. Returns an
-    empty set on any failure (caller should use a seed fallback)."""
     if germanet is None:
         return set()
     lemmas: set = set()
@@ -2047,50 +3220,837 @@ else:
     _de_intentional_verbs_expanded |= _DE_INTENTIONAL_SEED
     logger.info("DE intentional verbs: %d entries (GermaNet expansion)", len(_de_intentional_verbs_expanded))
 
-def _causal_practical_verbs_intentional(lang: str):
-    cause_synset = wn.synset('cause.v.01')
-    causal_verbs_en = _get_verb_lemmas_for_synset(cause_synset)
-    intend_synset = wn.synset('intend.v.01')
-    plan_synset = wn.synset('plan.v.01')
-    intentional_verbs_en = _get_verb_lemmas_for_synset(intend_synset) | _get_verb_lemmas_for_synset(plan_synset)
-
-    causal_particles_en_seed = ["because", "therefore", "since", "so", "thus", "hence", "in order to"]
-    intentional_particles_en_seed = ["want", "need", "plan", "intend", "decide"]
-
-    causal_particles_de_seed = ["weil", "deshalb", "daher", "darum", "folglich", "infolgedessen", "aus diesem Grund"]
-    intentional_particles_de_seed = ["wollen", "planen", "beabsichtigen", "versuchen", "vorhaben"]
-
-    # M11 fix: precomputed GermaNet-expanded sets (with seed fallback) replace
-    # the previous 10-word hardcoded lists.
-    causal_verbs_de = _de_causal_verbs_expanded
-    intentional_verbs_de = _de_intentional_verbs_expanded
-
+@lru_cache(maxsize=2)
+def _causal_practical_verbs_intentional(
+    lang: str
+):
     if lang == "en":
+        cause_synset = wn.synset(
+            "cause.v.01"
+        )
+
+        causal_verbs_en = _get_verb_lemmas_for_synset(
+            cause_synset
+        )
+
+        intend_synset = wn.synset(
+            "intend.v.01"
+        )
+
+        plan_synset = wn.synset(
+            "plan.v.01"
+        )
+
+        intentional_verbs_en = (
+            _get_verb_lemmas_for_synset(
+                intend_synset
+            )
+            |
+            _get_verb_lemmas_for_synset(
+                plan_synset
+            )
+        )
+
         return {
             "causal_verbs": causal_verbs_en,
             "intentional_verbs": intentional_verbs_en,
-            "causal_particles": causal_particles_en_seed,
-            "intentional_particles": intentional_particles_en_seed
+            "causal_particles": [
+                "because",
+                "therefore",
+                "since",
+                "so",
+                "thus",
+                "hence",
+                "in order to",
+            ],
+            "intentional_particles": [
+                "in order not to",
+                "in order to",
+                "so as not to",
+                "so as to",
+                "in order that",
+                "lest",
+            ],
         }
-    elif lang == "de":
+
+    if lang == "de":
         return {
-            "causal_verbs": causal_verbs_de,
-            "intentional_verbs": intentional_verbs_de,
-            "causal_particles": causal_particles_de_seed,
-            "intentional_particles": intentional_particles_de_seed
+            "causal_verbs": _de_causal_verbs_expanded,
+            "intentional_verbs": _de_intentional_verbs_expanded,
+            "causal_particles": [
+                "weil",
+                "deshalb",
+                "daher",
+                "darum",
+                "folglich",
+                "infolgedessen",
+                "aus diesem Grund",
+            ],
+            "intentional_particles": [
+                "um nicht zu",
+                "um zu",
+                "auf dass",
+                "auf daß",
+            ],
         }
-    else:
-        # TODO: no causal/intentional verb resources available for other languages
+
+    return None
+
+@lru_cache(maxsize=10000)
+def _is_german_verb(word: str) -> bool:
+    if germanet is None or not word:
+        return False
+    word = word.strip().lower()
+    if not word:
+        return False
+    try:
+        synsets = germanet.get_synsets_by_orthform(word)
+        return any((synset.word_category == WordCategory.verben for synset in synsets))
+    except Exception:
+        return False
+
+# STTS verb tags used by the German spaCy pipeline.
+
+_DE_FINITE_TAGS = {
+    "VVFIN",  # lexical finite verb
+    "VAFIN",  # finite auxiliary
+    "VMFIN",  # finite modal
+}
+
+_DE_PARTICIPLE_TAGS = {
+    "VVPP",
+    "VAPP",
+    "VMPP",
+}
+
+_DE_VERB_TAGS = (
+    _DE_FINITE_TAGS
+    | _DE_INFINITIVE_TAGS
+    | _DE_PARTICIPLE_TAGS
+)
+
+# Dependency relations used to reconstruct German verbal complexes.
+
+_DE_VERBAL_LINK_DEPS = {
+    "oc",
+    "aux",
+    "auxpass",
+    "aux:pass",
+    "pd",
+}
+
+# German auxiliary forms used as lexical fallback.
+
+_DE_HABEN_FORMS = {
+    "habe", "hast", "hat", "haben", "habt",
+    "hatte", "hattest", "hatten", "hattet",
+    "gehabt",
+}
+
+_DE_SEIN_FORMS = {
+    "bin", "bist", "ist", "sind", "seid",
+    "war", "warst", "waren", "wart",
+    "sei", "seien",
+    "sein",
+    "gewesen",
+}
+
+_DE_WERDEN_FORMS = {
+    "werde", "wirst", "wird", "werden", "werdet",
+    "wurde", "wurdest", "wurden", "wurdet",
+    "worden", "geworden",
+}
+
+_DE_WUERDE_FORMS = {
+    "würde",
+    "würdest",
+    "würden",
+    "würdet",
+}
+
+_DE_PRESENT_FORMS = {
+    "bin", "bist", "ist", "sind", "seid",
+    "habe", "hast", "hat", "haben", "habt",
+    "werde", "wirst", "wird", "werden", "werdet",
+}
+
+_DE_PAST_FORMS = {
+    "war", "warst", "waren", "wart",
+    "hatte", "hattest", "hatten", "hattet",
+    "wurde", "wurdest", "wurden", "wurdet",
+}
+
+# Lexical Ersatzinfinitiv triggers; modal infinitives are identified via VMINF.
+
+_DE_ERSATZINFINITIV_LEMMAS = {
+    "lassen",
+    "sehen",
+    "hören",
+    "brauchen",
+}
+
+# Project-level lexical approximation of semantic completion.
+
+_DE_COMPLETION_LEMMAS = {
+    "aufessen",
+    "austrinken",
+    "aufbrauchen",
+    "abschließen",
+    "beenden",
+    "vollenden",
+    "fertigstellen",
+    "erledigen",
+    "fertigmachen",
+}
+
+_DE_COMPLETION_PARTICLE_VERBS = {
+    ("auf", "essen"),
+    ("aus", "trinken"),
+    ("auf", "brauchen"),
+    ("ab", "schließen"),
+}
+
+_DE_COMPLETION_NEGATION_WORDS = {
+    "nicht",
+    "nie",
+    "niemals",
+    "keinesfalls",
+}
+
+_DE_COMPLETION_APPROXIMATION_WORDS = {
+    "fast",
+    "beinahe",
+    "halb",
+    "teilweise",
+    "kaum",
+}
+
+_DE_COMPLETION_SCOPE_BLOCKERS = {
+    "versuchen",
+    "beginnen",
+    "anfangen",
+    "planen",
+    "beabsichtigen",
+    "vorhaben",
+    "wollen",
+}
+
+def _de_norm_dep(token) -> str:
+    return (token.dep_type or '').strip().lower()
+
+def _de_norm_text(token) -> str:
+    return (token.text or '').strip().lower()
+
+def _de_norm_lemma(token) -> str:
+    lemma = (token.lemma or '').strip().lower()
+    if lemma:
+        return lemma
+    return _de_norm_text(token)
+
+def _de_is_root_token(token, token_index: int) -> bool:
+    dep = _de_norm_dep(token)
+    return dep in {'root', '--'} or token.head_index == token_index
+
+def _de_find_root_index(sentence: Sentence) -> Optional[int]:
+    for i, token in enumerate(sentence.tokens):
+        if _de_is_root_token(token, i):
+            return i
+    return None
+
+def _de_is_finite(token) -> bool:
+    return token.pos_value in _DE_FINITE_TAGS
+
+def _de_is_infinitive(token) -> bool:
+    return token.pos_value in _DE_INFINITIVE_TAGS
+
+def _de_is_participle(token) -> bool:
+    return token.pos_value in _DE_PARTICIPLE_TAGS
+
+def _de_is_verbish(token) -> bool:
+    if token.pos_value in _DE_VERB_TAGS:
+        return True
+    return token.pos_coarse in {'VERB', 'AUX'}
+
+def _de_is_haben(token) -> bool:
+    lemma = _de_norm_lemma(token)
+    text = _de_norm_text(token)
+    return lemma == 'haben' or text in _DE_HABEN_FORMS
+
+def _de_is_sein(token) -> bool:
+    lemma = _de_norm_lemma(token)
+    text = _de_norm_text(token)
+    return lemma == 'sein' or text in _DE_SEIN_FORMS
+
+def _de_is_werden(token) -> bool:
+    lemma = _de_norm_lemma(token)
+    text = _de_norm_text(token)
+    return lemma == 'werden' or text in _DE_WERDEN_FORMS
+
+def _de_is_gewesen(token) -> bool:
+    return _de_norm_text(token) == 'gewesen' and _de_is_participle(token)
+
+def _de_is_worden(token) -> bool:
+    return _de_norm_text(token) == 'worden' and _de_is_participle(token)
+
+def _de_get_verbal_component(sentence: Sentence, seed_index: int) -> Set[int]:
+    tokens = sentence.tokens
+    if not 0 <= seed_index < len(tokens):
+        return set()
+    component = {seed_index}
+    changed = True
+    while changed:
+        changed = False
+        for i, token in enumerate(tokens):
+            if i in component:
+                continue
+            if not _de_is_verbish(token):
+                continue
+            head_index = token.head_index
+            if head_index is not None and head_index in component and (_de_norm_dep(token) in _DE_VERBAL_LINK_DEPS):
+                component.add(i)
+                changed = True
+                continue
+            for component_index in list(component):
+                component_token = tokens[component_index]
+                if component_token.head_index == i and _de_norm_dep(component_token) in _DE_VERBAL_LINK_DEPS:
+                    component.add(i)
+                    changed = True
+                    break
+    return component
+
+def _de_get_main_component(sentence: Sentence) -> Set[int]:
+    root_index = _de_find_root_index(sentence)
+    if root_index is not None:
+        component = _de_get_verbal_component(sentence, root_index)
+        if component:
+            return component
+    return set()
+
+# SYNLE: lexical German verb tags.
+# In auxiliary/modal constructions, Coh-Metrix's "main verb" is
+# approximated by the lexical verb belonging to the main verbal complex.
+_DE_SYNLE_LEXICAL_VERB_TAGS = {
+    "VVFIN",
+    "VVINF",
+    "VVIZU",
+    "VVPP",
+}
+
+
+def _de_synle_distance_to_root(
+    sentence: Sentence,
+    token_index: int,
+    root_index: int,
+    max_hops: int = 16
+) -> Optional[int]:
+    if token_index == root_index:
+        return 0
+
+    current = token_index
+    visited = set()
+
+    for distance in range(1, max_hops + 1):
+        if current in visited:
+            return None
+
+        visited.add(current)
+
+        head_index = _get_head_index(
+            sentence,
+            current
+        )
+
+        if head_index is None:
+            return None
+
+        if head_index == root_index:
+            return distance
+
+        current = head_index
+
+    return None
+
+
+def _de_synle_main_verb_index(
+    sentence: Sentence
+) -> Optional[int]:
+    root_index = _de_find_root_index(sentence)
+
+    if root_index is None:
         return None
 
+    root_token = sentence.tokens[root_index]
+
+    # Simple lexical predicate:
+    # "Der Hund läuft."
+    if root_token.pos_value in _DE_SYNLE_LEXICAL_VERB_TAGS:
+        return root_index
+
+    component = _de_get_main_component(sentence)
+
+    if not component:
+        return root_index
+
+    lexical_candidates = [
+        token_index
+        for token_index in component
+        if sentence.tokens[token_index].pos_value
+        in _DE_SYNLE_LEXICAL_VERB_TAGS
+    ]
+
+    if lexical_candidates:
+        ranked_candidates = []
+
+        for token_index in lexical_candidates:
+            distance = _de_synle_distance_to_root(
+                sentence,
+                token_index,
+                root_index
+            )
+
+            if distance is not None:
+                ranked_candidates.append(
+                    (distance, token_index)
+                )
+
+        if ranked_candidates:
+            # Shortest dependency path first.
+            # Token index is only a deterministic tie-breaker.
+            ranked_candidates.sort(
+                key=lambda item: (
+                    item[0],
+                    item[1]
+                )
+            )
+
+            return ranked_candidates[0][1]
+
+    # No lexical VV* verb found:
+    # retain ROOT, e.g. copular constructions.
+    return root_index
+
+def _de_get_finite_tense(token) -> Optional[str]:
+    if not _de_is_finite(token):
+        return None
+    text = _de_norm_text(token)
+    if text in _DE_WUERDE_FORMS:
+        return None
+    morph_tense = (token.morph_tense or '').strip()
+    if morph_tense == 'Past':
+        return 'PAST'
+    if morph_tense == 'Pres':
+        return 'PRESENT'
+    if text in _DE_PAST_FORMS:
+        return 'PAST'
+    if text in _DE_PRESENT_FORMS:
+        return 'PRESENT'
+    return None
+
+def _de_find_finite_anchor(sentence: Sentence, component: Set[int]) -> Optional[int]:
+    root_index = _de_find_root_index(sentence)
+    if root_index is not None and root_index in component and _de_is_finite(sentence.tokens[root_index]):
+        return root_index
+    for i in sorted(component):
+        if _de_is_finite(sentence.tokens[i]):
+            return i
+    return None
+
+def _de_is_future_component(sentence: Sentence, component: Set[int], finite_index: int) -> bool:
+    finite = sentence.tokens[finite_index]
+    if not _de_is_werden(finite):
+        return False
+    finite_tense = _de_get_finite_tense(finite)
+    if finite_tense != 'PRESENT':
+        return False
+    for i in component:
+        if i == finite_index:
+            continue
+        if _de_is_infinitive(sentence.tokens[i]):
+            return True
+    return False
+
+def _de_is_ersatzinfinitiv_trigger(token) -> bool:
+    if token.pos_value == 'VMINF':
+        return True
+    return _de_norm_lemma(token) in _DE_ERSATZINFINITIV_LEMMAS
+
+def _de_has_ersatzinfinitiv(sentence: Sentence, component: Set[int]) -> bool:
+    infinitives = [sentence.tokens[i] for i in component if _de_is_infinitive(sentence.tokens[i])]
+    if len(infinitives) < 2:
+        return False
+    return any((_de_is_ersatzinfinitiv_trigger(token) for token in infinitives))
+
+def _de_participle_relations(sentence: Sentence, component: Set[int]):
+    result = []
+    for i in component:
+        token = sentence.tokens[i]
+        if not _de_is_participle(token):
+            continue
+        result.append((i, token, _de_norm_dep(token)))
+    return result
+
+def _de_detect_perfect_component(sentence: Sentence, component: Set[int], finite_index: int):
+    tokens = sentence.tokens
+    finite = tokens[finite_index]
+    participles = _de_participle_relations(sentence, component)
+    has_participle = bool(participles)
+    if _de_is_haben(finite):
+        if has_participle:
+            return (True, 'high', 'haben_perfect')
+        if _de_has_ersatzinfinitiv(sentence, component):
+            return (True, 'high', 'ersatzinfinitiv_perfect')
+        return (False, 'high', 'haben_nonperfect')
+    if _de_is_sein(finite):
+        if any((_de_is_gewesen(token) for _, token, _ in participles)):
+            return (True, 'high', 'sein_gewesen_perfect')
+        if any((_de_is_worden(token) for _, token, _ in participles)):
+            return (True, 'high', 'passive_perfect_worden')
+        if not participles:
+            return (False, 'high', 'sein_nonperfect')
+        deps = {dep for _, _, dep in participles}
+        if 'oc' in deps:
+            return (True, 'high', 'sein_perfect_oc')
+        if deps and deps <= {'pd'}:
+            return (False, 'high', 'stative_passive_pd')
+        return (None, 'low', 'sein_participle_ambiguous')
+    if _de_is_future_component(sentence, component, finite_index):
+        nonfinite_haben = [tokens[i] for i in component if i != finite_index and _de_is_infinitive(tokens[i]) and _de_is_haben(tokens[i])]
+        if nonfinite_haben:
+            if has_participle or _de_has_ersatzinfinitiv(sentence, component):
+                return (True, 'high', 'future_perfect_haben')
+        nonfinite_sein = [tokens[i] for i in component if i != finite_index and _de_is_infinitive(tokens[i]) and _de_is_sein(tokens[i])]
+        if nonfinite_sein:
+            if any((_de_is_worden(token) or _de_is_gewesen(token) for _, token, _ in participles)):
+                return (True, 'high', 'future_perfect_sein_explicit')
+            deps = {dep for _, _, dep in participles}
+            if 'oc' in deps:
+                return (True, 'high', 'future_perfect_sein_oc')
+            if deps and deps <= {'pd'}:
+                return (False, 'high', 'future_stative_passive')
+            if participles:
+                return (None, 'low', 'future_sein_participle_ambiguous')
+        return (False, 'high', 'future_nonperfect')
+    return (False, 'high', 'nonperfect_construction')
+
+def _detect_german_grammatical_aspect(sentence: Sentence):
+    component = _de_get_main_component(sentence)
+    if not component:
+        return ('UNKNOWN', 'none', None)
+    finite_index = _de_find_finite_anchor(sentence, component)
+    if finite_index is None:
+        return ('UNKNOWN', 'none', None)
+    is_perfect, confidence, evidence = _de_detect_perfect_component(sentence, component, finite_index)
+    if is_perfect is True:
+        return ('PERFECT', confidence, evidence)
+    if is_perfect is False:
+        return ('IMPERFECT', confidence, evidence)
+    return ('UNKNOWN', confidence, evidence)
+
+def _detect_german_tense(sentence: Sentence):
+    component = _de_get_main_component(sentence)
+    if not component:
+        return ('UNKNOWN', 'none', None)
+    finite_index = _de_find_finite_anchor(sentence, component)
+    if finite_index is None:
+        return ('UNKNOWN', 'none', None)
+    finite = sentence.tokens[finite_index]
+    if _de_norm_text(finite) in _DE_WUERDE_FORMS:
+        return ('UNKNOWN', 'low', 'conditional_wuerde')
+    if _de_is_future_component(sentence, component, finite_index):
+        return ('FUTURE', 'high', 'future_construction')
+    finite_tense = _de_get_finite_tense(finite)
+    if finite_tense == 'PAST':
+        return ('PAST', 'high', 'finite_past')
+    if finite_tense == 'PRESENT':
+        return ('PRESENT', 'high', 'finite_present')
+    for i in component:
+        token = sentence.tokens[i]
+        tense = _de_get_finite_tense(token)
+        if tense == 'PAST':
+            return ('PAST', 'medium', 'finite_past_fallback')
+        if tense == 'PRESENT':
+            return ('PRESENT', 'medium', 'finite_present_fallback')
+    return ('UNKNOWN', 'none', None)
+
+def _de_is_nominalized_infinitive(token) -> bool:
+    text = _de_norm_text(token)
+    lemma = _de_norm_lemma(token)
+    if not text:
+        return False
+    candidates = {text, lemma}
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            if _is_german_verb(candidate):
+                return True
+        except Exception:
+            pass
+    return False
+
+def _de_find_progressive_nominal(sentence: Sentence, prep_index: int) -> Optional[int]:
+    tokens = sentence.tokens
+    for i, token in enumerate(tokens):
+        if token.head_index != prep_index:
+            continue
+        if _de_is_nominalized_infinitive(token):
+            return i
+    upper = min(len(tokens), prep_index + 4)
+    for i in range(prep_index + 1, upper):
+        token = tokens[i]
+        if token.pos_coarse == 'PUNCT':
+            break
+        if _de_is_nominalized_infinitive(token):
+            return i
+    return None
+
+def _detect_german_progressive(sentence: Sentence):
+    tokens = sentence.tokens
+    has_sein = any((_de_is_sein(token) for token in tokens if _de_is_verbish(token)))
+    if not has_sein:
+        return (False, 'none', None)
+    for i, token in enumerate(tokens):
+        text = _de_norm_text(token)
+        if text not in {'am', 'beim'}:
+            continue
+        nominal_index = _de_find_progressive_nominal(sentence, i)
+        if nominal_index is None:
+            continue
+        if text == 'am':
+            return (True, 'high', 'am_progressive')
+        if text == 'beim':
+            return (True, 'medium', 'beim_progressive')
+    return (False, 'none', None)
+
+def _de_has_completion_blocker(sentence: Sentence) -> bool:
+    tokens = sentence.tokens
+    for token in tokens:
+        text = _de_norm_text(token)
+        lemma = _de_norm_lemma(token)
+        dep = _de_norm_dep(token)
+        if dep in {'neg', 'ng'} or text in _DE_COMPLETION_NEGATION_WORDS:
+            return True
+        if text in _DE_COMPLETION_APPROXIMATION_WORDS:
+            return True
+        if token.pos_value in {'VMFIN', 'VMINF'}:
+            return True
+        if lemma in _DE_COMPLETION_SCOPE_BLOCKERS:
+            return True
+        if text in {'wenn', 'falls', 'sofern'}:
+            return True
+    return False
+
+def _de_has_completion_predicate(sentence: Sentence) -> bool:
+    tokens = sentence.tokens
+    for token in tokens:
+        lemma = _de_norm_lemma(token)
+        if lemma in _DE_COMPLETION_LEMMAS:
+            return True
+    for i, token in enumerate(tokens):
+        dep = _de_norm_dep(token)
+        if dep != 'svp':
+            continue
+        particle = _de_norm_text(token)
+        head_index = token.head_index
+        if head_index is None or not 0 <= head_index < len(tokens):
+            continue
+        head = tokens[head_index]
+        base = _de_norm_lemma(head)
+        if (particle, base) in _DE_COMPLETION_PARTICLE_VERBS:
+            return True
+        combined = particle + base
+        if combined in _DE_COMPLETION_LEMMAS:
+            return True
+    return False
+
+def _detect_german_completion(sentence: Sentence):
+    if _de_has_completion_blocker(sentence):
+        return (False, 'high', 'completion_blocked')
+    if not _de_has_completion_predicate(sentence):
+        return (False, 'none', None)
+    tense, _, _ = _detect_german_tense(sentence)
+    grammatical_aspect, _, _ = _detect_german_grammatical_aspect(sentence)
+    if grammatical_aspect == 'PERFECT':
+        return (True, 'high', 'bounded_perfect')
+    if tense == 'PAST':
+        return (True, 'high', 'bounded_past')
+    return (False, 'high', 'bounded_but_not_completed')
+
+def _detect_german_aspect(sentence: Sentence):
+    progressive, progressive_confidence, progressive_evidence = _detect_german_progressive(sentence)
+    if progressive:
+        return ('IN_PROGRESS', progressive_confidence, progressive_evidence)
+    completed, completion_confidence, completion_evidence = _detect_german_completion(sentence)
+    if completed:
+        return ('COMPLETED', completion_confidence, completion_evidence)
+    return ('UNMARKED', 'none', None)
+
+# Penn Treebank verb tags used by the English spaCy pipeline.
+
+_EN_MODAL_TAG = "MD"
+
+_EN_PROGRESSIVE_TAG = "VBG"
+
+_EN_PARTICIPLE_TAG = "VBN"
+
+_EN_AUX_DEPS = {
+    "aux",
+    "auxpass",
+    "aux:pass",
+    "cop",
+}
+
+# Ramm/TMV: will/shall are treated as future.
+
+_EN_FUTURE_MODALS = {
+    "will",
+    "shall",
+}
+
+# Ramm/TMV: would/should/could/might are retained as conditional.
+
+_EN_CONDITIONAL_MODALS = {
+    "would",
+    "should",
+    "could",
+    "might",
+}
+
+def _en_normalize_dep(token) -> str:
+    return (token.dep_type or '').strip().lower()
+
+def _en_normalize_lemma(token) -> str:
+    return (token.lemma or token.text or '').strip().lower()
+
+def _en_is_root_token(token, token_index: int) -> bool:
+    dep = _en_normalize_dep(token)
+    return dep in {'root', '--'} or token.head_index == token_index
+
+def _en_find_root_index(sentence: Sentence) -> Optional[int]:
+    for i, token in enumerate(sentence.tokens):
+        if _en_is_root_token(token, i):
+            return i
+    return None
+
+def _en_is_auxiliary_relation(token) -> bool:
+    return _en_normalize_dep(token) in _EN_AUX_DEPS
+
+def _en_get_main_chain_indices(sentence: Sentence) -> List[int]:
+    tokens = sentence.tokens
+    root_index = _en_find_root_index(sentence)
+    if root_index is None:
+        return []
+    chain = {root_index}
+    changed = True
+    while changed:
+        changed = False
+        for i, token in enumerate(tokens):
+            if i in chain:
+                continue
+            if token.head_index in chain and _en_is_auxiliary_relation(token):
+                chain.add(i)
+                changed = True
+    return sorted(chain)
+
+def _en_chain_tokens(sentence: Sentence):
+    return [(i, sentence.tokens[i]) for i in _en_get_main_chain_indices(sentence)]
+
+def _en_classify_modal(token) -> Optional[str]:
+    if token.pos_value != _EN_MODAL_TAG:
+        return None
+    lemma = _en_normalize_lemma(token)
+    if lemma in _EN_FUTURE_MODALS:
+        return 'FUTURE'
+    if lemma in _EN_CONDITIONAL_MODALS:
+        return 'CONDITIONAL'
+    return 'PRESENT'
+
+def _detect_english_tense(sentence: Sentence):
+    tokens = sentence.tokens
+    root_index = _en_find_root_index(sentence)
+    if root_index is None:
+        return ('UNKNOWN', 'none', None)
+    chain = _en_chain_tokens(sentence)
+    for _, token in chain:
+        modal_class = _en_classify_modal(token)
+        if modal_class == 'FUTURE':
+            return ('FUTURE', 'high', 'future_modal')
+        if modal_class == 'CONDITIONAL':
+            return ('CONDITIONAL', 'high', 'conditional_modal')
+        if modal_class == 'PRESENT':
+            return ('PRESENT', 'medium', 'present_modal')
+    for i, token in chain:
+        if i == root_index:
+            continue
+        tag = token.pos_value
+        if tag == 'VBD':
+            return ('PAST', 'high', 'finite_aux_past')
+        if tag in {'VBP', 'VBZ'}:
+            return ('PRESENT', 'high', 'finite_aux_present')
+    root = tokens[root_index]
+    if root.pos_value == 'VBD':
+        return ('PAST', 'high', 'finite_root_past')
+    if root.pos_value in {'VBP', 'VBZ'}:
+        return ('PRESENT', 'high', 'finite_root_present')
+    return ('UNKNOWN', 'none', None)
+
+def _detect_english_grammatical_aspect(sentence: Sentence):
+    tokens = sentence.tokens
+    root_index = _en_find_root_index(sentence)
+    if root_index is None:
+        return ('NONE', 'none', None)
+    chain = _en_chain_tokens(sentence)
+    root = tokens[root_index]
+    has_have_aux = False
+    has_be_aux = False
+    has_progressive_being = False
+    for i, token in chain:
+        if i == root_index:
+            continue
+        if not _en_is_auxiliary_relation(token):
+            continue
+        lemma = _en_normalize_lemma(token)
+        if lemma == 'have':
+            has_have_aux = True
+        if lemma == 'be':
+            has_be_aux = True
+            if token.pos_value == 'VBG':
+                has_progressive_being = True
+    active_progressive = root.pos_value == _EN_PROGRESSIVE_TAG and has_be_aux
+    passive_progressive = root.pos_value == _EN_PARTICIPLE_TAG and has_progressive_being
+    is_progressive = active_progressive or passive_progressive
+    is_perfect = has_have_aux
+    if is_perfect and is_progressive:
+        return ('BOTH', 'high', 'perfect_progressive')
+    if is_progressive:
+        return ('PROGRESSIVE', 'high', 'progressive')
+    if is_perfect:
+        return ('PERFECT', 'high', 'perfect')
+    return ('NONE', 'none', None)
+
+def _detect_english_aspect(sentence: Sentence):
+    grammatical_aspect, confidence, evidence = _detect_english_grammatical_aspect(sentence)
+    if grammatical_aspect == 'PROGRESSIVE':
+        return ('IN_PROGRESS', confidence, 'progressive')
+    if grammatical_aspect == 'BOTH':
+        return ('IN_PROGRESS', confidence, 'perfect_progressive')
+    if grammatical_aspect == 'PERFECT':
+        return ('COMPLETED', confidence, 'perfect')
+    return ('UNMARKED', 'none', None)
+
 # ============================================================================
-# SITUATION MODEL (SM*) — "Do verbs show causal / intentional relationships?"
-# Counts and ratios for causal and intentional verbs + particles, verb overlap
-# in meaning, and tense/aspect cohesion. Approximate:
-#   • Verb lists are curated seeds (en) + GermaNet hyponym expansion (de) — NOTE(M11).
-#   • SMCAUSlsa uses approximate LSA vectors — NOTE(M5).
-#   • SMCAUSwn is reliable for en, partial for de (GermaNet) — NOTE(H9).
-#   • SMTEMP interpretation is spec-ambiguous — NOTE(M2).
+# SITUATION MODEL (SM*) — causal, intentional, semantic, and temporal cohesion
+# approximations.
+#
+#   • EN causal/intentional verb inventories are derived from selected WordNet
+#     synsets and their hyponyms.
+#   • DE inventories use GermaNet expansion with documented seed fallbacks.
+#   • Causal and intentional particle inventories are project-specific lexical
+#     approximations.
+#   • SMCAUSlsa uses spaCy semantic vectors rather than the original TASA LSA.
+#   • SMCAUSwn uses WordNet for EN and GermaNet for DE.
+#   • SMTEMP is a language-specific dependency/morphology-based approximation
+#     of tense/aspect repetition across adjacent sentences.
 # ============================================================================
 
 # LAY: Causal verbs (cause, break, move, …) per 1,000 words.
@@ -2101,13 +4061,22 @@ def cm_smcausv(sentences: List[Sentence], lang: str) -> Optional[float]:
     causal_set = _causal_practical_verbs_intentional(lang)
     if causal_set is None:
         return None
-    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
+    words, _, _, lemmas, poses, _ = _sm_get_data(
+        sentences
+    )
+    counts = count_verbs(
+        poses,
+        words,
+        lemmas,
+        causal_set
+    )
     # FV1 fix: Use the same non-punctuation word count as DESWC to maintain
     # consistent word counting across incidence-based indices.
     total_words = _count_non_punct_tokens(sentences)
-    count_causal_verb = count_tenses["counter"]["causal_verbs"]
-    return _incidence(count_causal_verb, total_words)
+    return _incidence(
+        counts["causal_verbs"],
+        total_words
+    )
 
 # LAY: Causal verbs + causal connectives (because, in order to…) per 1,000 words.
 # ↑ Higher = more explicit causal structure. Approximate (NOTE(M11), NOTE(H10)).
@@ -2119,14 +4088,23 @@ def cm_smcausvp(sentences: List[Sentence], lang: str) -> Optional[float]:
     causal_set = _causal_practical_verbs_intentional(lang)
     if causal_set is None:
         return None
-    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
+    words, _, _, lemmas, poses, _ = _sm_get_data(
+        sentences
+    )
+    counts = count_verbs(
+        poses,
+        words,
+        lemmas,
+        causal_set
+    )
     # FV1 fix: Use the same non-punctuation word count as DESWC to maintain
     # consistent word counting across incidence-based indices.
     total_words = _count_non_punct_tokens(sentences)
-    count_causal_verb = count_tenses["counter"]["causal_verbs"]
-    count_causal_particle = count_tenses["counter"]["causal_particles"]
-    return _incidence(count_causal_verb + count_causal_particle, total_words)
+    return _incidence(
+        counts["causal_verbs"]
+        + counts["causal_particles"],
+        total_words
+    )
 
 # LAY: Intentional verbs (contact, drop, plan, want…) per 1,000 words.
 # ↑ Higher = more goal/intention language. Approximate (NOTE(M11)).
@@ -2138,13 +4116,22 @@ def cm_smintep(sentences: List[Sentence], lang: str) -> Optional[float]:
     causal_set = _causal_practical_verbs_intentional(lang)
     if causal_set is None:
         return None
-    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
+    words, _, _, lemmas, poses, _ = _sm_get_data(
+        sentences
+    )
+    counts = count_verbs(
+        poses,
+        words,
+        lemmas,
+        causal_set
+    )
     # FV1 fix: Use the same non-punctuation word count as DESWC to maintain
     # consistent word counting across incidence-based indices.
     total_words = _count_non_punct_tokens(sentences)
-    count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
-    return _incidence(count_intentional_verb, total_words)
+    return _incidence(
+        counts["intentional_verbs"],
+        total_words
+    )
 
 # LAY: Ratio of causal particles (connectives) to causal verbs.
 # ↑ Higher = causality signalled more by connectives than verbs. Approximate.
@@ -2152,12 +4139,24 @@ def cm_smcausr(sentences: List[Sentence], lang: str) -> Optional[float]:
     causal_set = _causal_practical_verbs_intentional(lang)
     if causal_set is None:
         return None
-    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
-    count_causal_verb = count_tenses["counter"]["causal_verbs"]
-    count_causal_particle = count_tenses["counter"]["causal_particles"]
-    SMCAUSr = count_causal_particle / count_causal_verb if count_causal_verb > 0 else 0
-    return np.round(SMCAUSr, 3)
+    words, _, _, lemmas, poses, _ = _sm_get_data(
+        sentences
+    )
+    counts = count_verbs(
+        poses,
+        words,
+        lemmas,
+        causal_set
+    )
+    causal_verbs = counts["causal_verbs"]
+
+    ratio = (
+        counts["causal_particles"] / causal_verbs
+        if causal_verbs > 0
+        else 0
+    )
+
+    return np.round(ratio, 3)
 
 # LAY: Ratio of intentional particles to intentional verbs.
 # ↑ Higher = intentions signalled more by particles than verbs. Approximate.
@@ -2165,12 +4164,24 @@ def cm_sminter(sentences: List[Sentence], lang: str) -> Optional[float]:
     causal_set = _causal_practical_verbs_intentional(lang)
     if causal_set is None:
         return None
-    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(poses, words, lemmas, tags, morph_tense, lang, causal_set)
-    count_intentional_particle = count_tenses["counter"]["intentional_particles"]
-    count_intentional_verb = count_tenses["counter"]["intentional_verbs"]
-    SMINTEr = count_intentional_particle / count_intentional_verb if count_intentional_verb > 0 else 0
-    return np.round(SMINTEr, 3)
+    words, _, _, lemmas, poses, _ = _sm_get_data(
+        sentences
+    )
+    counts = count_verbs(
+        poses,
+        words,
+        lemmas,
+        causal_set
+    )
+    intentional_verbs = counts["intentional_verbs"]
+
+    ratio = (
+        counts["intentional_particles"] / intentional_verbs
+        if intentional_verbs > 0
+        else 0
+    )
+
+    return np.round(ratio, 3)
 
 def get_SMCAUSlsa(poses: List[List[str]], vectors: List[List[List[Any]]]):
     all_verbs = []
@@ -2254,35 +4265,60 @@ def cm_smcauswn(sentences: List[Sentence], lang) -> Optional[float]:
     SMCAUSwn = get_SMCAUSwn(poses, lemmas, lang)
     return np.round(SMCAUSwn, 3)
 
-# LAY: How consistently tense/aspect is preserved across verbs in the text.
-# ↑ Higher = more tense stability (typically indicates narrative cohesion).
-#   Approximate: spec is ambiguous about the exact formula (NOTE(M2)).
-def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
-    # NOTE(M2): Interpretation of "temporal cohesion decreases as tense/aspect
-    # shifts are encountered" as the proportion of verbs with the dominant
-    # tense. This is a reasonable monotonic proxy: a text in a single tense
-    # scores 1.0; a text with uniformly distributed tenses scores ~1/k. An
-    # alternative would be 1 - (adjacent-transition rate). The original
-    # Coh-Metrix algorithm is not publicly specified at the formula level.
-    causal_set = _causal_practical_verbs_intentional(lang)
-    if causal_set is None:
-        return None
-    words, tags, morph_tense, lemmas, poses, _ = _sm_get_data(sentences)
-    count_tenses = count_verbs(
-        poses,
-        words,
-        lemmas,
-        tags,
-        morph_tense,
-        lang,
-        causal_set
-    )
-    tense_distribution = Counter(count_tenses["tenses"])
-    tenses = count_tenses["tenses"]
-    dominant_tense_freq = tense_distribution.most_common(1)[0][1] if tense_distribution else 0
-    SMTEMP = dominant_tense_freq / len(tenses) if len(tenses) > 0 else 0
-    return np.round(SMTEMP, 3)
+# Values excluded from tense/aspect comparisons.
+_SMTEMP_UNKNOWN_VALUES = {
+    None,
+    "",
+    "UNKNOWN",
+}
 
+def _get_sentence_temporal_state(sentence: Sentence, lang: str):
+    lang = (lang or '').strip().lower()
+    if lang == 'de':
+        tense, _, _ = _detect_german_tense(sentence)
+        aspect, _, _ = _detect_german_aspect(sentence)
+        return (tense, aspect)
+    if lang == 'en':
+        tense, _, _ = _detect_english_tense(sentence)
+        aspect, _, _ = _detect_english_aspect(sentence)
+        return (tense, aspect)
+    return ('UNKNOWN', 'UNKNOWN')
+
+def _smtemp_dimension_score(value_a, value_b):
+    if value_a in _SMTEMP_UNKNOWN_VALUES or value_b in _SMTEMP_UNKNOWN_VALUES:
+        return None
+    return 1.0 if value_a == value_b else 0.0
+
+def _smtemp_pair_score(state_a, state_b):
+    tense_a, aspect_a = state_a
+    tense_b, aspect_b = state_b
+    dimension_scores = []
+    tense_score = _smtemp_dimension_score(tense_a, tense_b)
+    if tense_score is not None:
+        dimension_scores.append(tense_score)
+    aspect_score = _smtemp_dimension_score(aspect_a, aspect_b)
+    if aspect_score is not None:
+        dimension_scores.append(aspect_score)
+    if not dimension_scores:
+        return None
+    return sum(dimension_scores) / len(dimension_scores)
+
+# LAY: Temporal cohesion based on tense/aspect repetition across adjacent sentences.
+
+def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
+    if not sentences or len(sentences) < 2:
+        return 0.0
+    lang = (lang or '').strip().lower()
+    states = [_get_sentence_temporal_state(sentence, lang) for sentence in sentences]
+    pair_scores = []
+    for state_a, state_b in zip(states, states[1:]):
+        score = _smtemp_pair_score(state_a, state_b)
+        if score is not None:
+            pair_scores.append(score)
+    if not pair_scores:
+        return 0.0
+    smtemp = sum(pair_scores) / len(pair_scores)
+    return round(smtemp, 3)
 
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
@@ -2526,6 +4562,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=12,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCNARz_wikipedia",
             label_v3="PCNARz",
             label_v2="n/a",
             description="Text Easability PC Narrativity, z score",
@@ -2545,6 +4582,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=13,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCNARp_wikipedia",
             label_v3="PCNARp",
             label_v2="n/a",
             description="Text Easability PC Narrativity, percentile",
@@ -2566,6 +4604,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Text Easability Principal Component Scores",
             label_v3="PCSYNz",
             label_v2="n/a",
+            label_ttlab="PCSYNz_wikipedia",
             description="Text Easability PC Syntactic simplicity, z score",
             value=pcsynz,
             error=pcsynz_error
@@ -2583,6 +4622,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=15,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCSYNp_wikipedia",
             label_v3="PCSYNp",
             label_v2="n/a",
             description="Text Easability PC Syntactic simplicity, percentile",
@@ -2602,6 +4642,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=16,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCNCz_wikipedia",
             label_v3="PCCNCz",
             label_v2="n/a",
             description="Text Easability PC Word concreteness, z score",
@@ -2621,6 +4662,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=17,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCNCp_wikipedia",
             label_v3="PCCNCp",
             label_v2="n/a",
             description="Text Easability PC Word concreteness, percentile",
@@ -2640,6 +4682,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=18,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCREFz_wikipedia",
             label_v3="PCREFz",
             label_v2="n/a",
             description="Text Easability PC Referential cohesion, z score",
@@ -2659,6 +4702,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=19,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCREFp_wikipedia",
             label_v3="PCREFp",
             label_v2="n/a",
             description="Text Easability PC Referential cohesion, percentile",
@@ -2678,6 +4722,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=20,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCDCz_wikipedia",
             label_v3="PCDCz",
             label_v2="n/a",
             description="Text Easability PC Deep cohesion, z score",
@@ -2697,6 +4742,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=21,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCDCp_wikipedia",
             label_v3="PCDCp",
             label_v2="n/a",
             description="Text Easability PC Deep cohesion, percentile",
@@ -2716,6 +4762,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=22,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCVERBz_wikipedia",
             label_v3="PCVERBz",
             label_v2="n/a",
             description="Text Easability PC Verb cohesion, z score",
@@ -2735,6 +4782,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=23,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCVERBp_wikipedia",
             label_v3="PCVERBp",
             label_v2="n/a",
             description="Text Easability PC Verb cohesion, percentile",
@@ -2754,6 +4802,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=24,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCONNz_wikipedia",
             label_v3="PCCONNz",
             label_v2="n/a",
             description="Text Easability PC Connectivity, z score",
@@ -2773,6 +4822,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=25,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCCONNp_wikipedia",
             label_v3="PCCONNp",
             label_v2="n/a",
             description="Text Easability PC Connectivity, percentile",
@@ -2792,6 +4842,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=26,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCTEMPz_wikipedia",
             label_v3="PCTEMPz",
             label_v2="n/a",
             description="Text Easability PC Temporality, z score",
@@ -2811,6 +4862,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=27,
             type_name="Text Easability Principal Component Scores",
+            label_ttlab="PCTEMPp_wikipedia",
             label_v3="PCTEMPp",
             label_v2="n/a",
             description="Text Easability PC Temporality, percentile",
@@ -3003,9 +5055,14 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ### Lexical Diversity
 
         try:
-            lsa_n_components = 100
             token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
-            lsa_indices = _lsa_cohesion_indices(token_vectors, token_words, tokens_vector_length, lsa_n_components)
+            lsa_indices = _lsa_cohesion_indices(
+                token_vectors,
+                token_words,
+                tokens_vector_length,
+                n_components=settings.lsa_svd_components,
+                use_truncated_svd=settings.lsa_use_truncated_svd
+            )
             lsa_error = None
         except Exception as e:
             logger.error("Error calculating LSA: %s", e)
@@ -3259,6 +5316,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=50,
             type_name="Connectives",
+            label_ttlab="CNCAll_gptlist",
             label_v3="CNCAll",
             label_v2="CONi",
             description="All connectives incidence",
@@ -3277,6 +5335,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=51,
             type_name="Connectives",
+            label_ttlab="CNCCaus_gptlist",
             label_v3="CNCCaus",
             label_v2="CONCAUSi",
             description="Causal connectives incidence",
@@ -3295,6 +5354,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=52,
             type_name="Connectives",
+            label_ttlab="CNCLogic_gptlist",
             label_v3="CNCLogic",
             label_v2="CONLOGi",
             description="Logical connectives incidence",
@@ -3313,6 +5373,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=53,
             type_name="Connectives",
+            label_ttlab="CNCADC_gptlist",
             label_v3="CNCADC",
             label_v2="CONADVCONi",
             description="Adversative and contrastive connectives incidence",
@@ -3331,6 +5392,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=54,
             type_name="Connectives",
+            label_ttlab="CNCTemp_gptlist",
             label_v3="CNCTemp",
             label_v2="CONTEMPi",
             description="Temporal connectives incidence",
@@ -3349,6 +5411,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=55,
             type_name="Connectives",
+            label_ttlab="CNCTempx_gptlist",
             label_v3="CNCTempx",
             label_v2="CONTEMPEXi",
             description="Expanded temporal connectives incidence",
@@ -3367,6 +5430,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=56,
             type_name="Connectives",
+            label_ttlab="CNCAdd_gptlist",
             label_v3="CNCAdd",
             label_v2="CONADDi",
             description="Additive connectives incidence",
@@ -3385,6 +5449,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=57,
             type_name="Connectives",
+            label_ttlab="CNCPos_gptlist",
             label_v3="CNCPos",
             label_v2="n/a",
             description="Positive connectives incidence",
@@ -3403,6 +5468,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=58,
             type_name="Connectives",
+            label_ttlab="CNCNeg_gptlist",
             label_v3="CNCNeg",
             label_v2="n/a",
             description="Negative connectives incidence",
@@ -3423,6 +5489,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=59,
             type_name="Situation Model",
+            label_ttlab="SMCAUSv_germanet",
             label_v3="SMCAUSv",
             label_v2="CAUSV",
             description="Causal verb incidence",
@@ -3441,6 +5508,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=60,
             type_name="Situation Model",
+            label_ttlab="SMCAUSvp_germanet",
             label_v3="SMCAUSvp",
             label_v2="CAUSVP",
             description="Causal verbs and causal particles incidence",
@@ -3459,6 +5527,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=61,
             type_name="Situation Model",
+            label_ttlab="SMINTEp_germanet",
             label_v3="SMINTEp",
             label_v2="INTEi",
             description="Intentional verbs incidence",
@@ -3477,6 +5546,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=62,
             type_name="Situation Model",
+            label_ttlab="SMCAUSr_germanet",
             label_v3="SMCAUSr",
             label_v2="CAUSC",
             description="Ratio of causal particles to causal verbs",
@@ -3495,6 +5565,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=63,
             type_name="Situation Model",
+            label_ttlab="SMINTEr_germanet",
             label_v3="SMINTEr",
             label_v2="INTEC",
             description="Ratio of intentional particles to intentional verbs",
@@ -3513,6 +5584,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=64,
             type_name="Situation Model",
+            label_ttlab="SMCAUSlsa_spacy",
             label_v3="SMCAUSlsa",
             label_v2="CAUSLSA",
             description="LSA verb overlap",
@@ -3531,6 +5603,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=65,
             type_name="Situation Model",
+            label_ttlab = "SMCAUSwn_germanet",
             label_v3="SMCAUSwn",
             label_v2="CAUSWN",
             description="WordNet verb overlap",
@@ -3549,6 +5622,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=66,
             type_name="Situation Model",
+            label_ttlab="SMTEMP_gptlist",
             label_v3="SMTEMP",
             label_v2="TEMPta",
             description="Temporal cohesion, tense and aspect repetition, mean",
@@ -3560,7 +5634,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # SYNLE
         try:
-            synle = cm_synle(sentences)
+            synle = cm_synle(sentences, request.language)
             synle_error = None
         except Exception as e:
             logger.error("Error calculating SYNLE: %s", e)
@@ -3674,6 +5748,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             logger.error("Error calculating SYNSTRUTt: %s", e)
             synstrutt = None
             synstrutt_error = str(e)
+        finally:
+            _clear_synstrut_caches()
         indices.append(Index(
             index=73,
             type_name="Syntactic Complexity",
@@ -3794,6 +5870,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=79,
             type_name="Syntactic Pattern Density",
+            label_ttlab="DRNEG_gptlist",
             label_v3="DRNEG",
             label_v2="DENNEGi",
             description="Negation density, incidence",
@@ -4162,6 +6239,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=95,
             type_name="Word Information",
+            label_ttlab="WRDAOAc_mrctranslate",
             label_v3="WRDAOAc",
             label_v2="WRDAacwm",
             description="Age of acquisition for content words, mean",
@@ -4181,6 +6259,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=96,
             type_name="Word Information",
+            label_ttlab="WRDFAMc_mrctranslate",
             label_v3="WRDFAMc",
             label_v2="WRDFacwm",
             description="Familiarity for content words, mean",
@@ -4200,6 +6279,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=97,
             type_name="Word Information",
+            label_ttlab="WRDCNCc_mrctranslate",
             label_v3="WRDCNCc",
             label_v2="WRDCacwm",
             description="Concreteness for content words, mean",
@@ -4219,6 +6299,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=98,
             type_name="Word Information",
+            label_ttlab="WRDIMGc_mrctranslate",
             label_v3="WRDIMGc",
             label_v2="WRDIacwm",
             description="Imagability for content words, mean",
@@ -4238,6 +6319,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=99,
             type_name="Word Information",
+            label_ttlab="WRDMEAc_mrctranslate",
             label_v3="WRDMEAc",
             label_v2="WRDMacwm",
             description="Meaningfulness, Colorado norms, content words, mean",
@@ -4256,6 +6338,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=100,
             type_name="Word Information",
+            label_ttlab="WRDPOLc_germanet",
             label_v3="WRDPOLc",
             label_v2="POLm",
             description="Polysemy for content words, mean",
@@ -4263,17 +6346,34 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             error=wrdpolc_error
         ))
 
-        # WRDHYPn
+        # Precompute hypernymy values once for WRDHYPn, WRDHYPv and WRDHYPnv.
         try:
-            wrdhypn = cm_wrdhypn(sentences, request.language)
-            wrdhypn_error = None
+            _wrdhyp = _calc_wrdhyp(
+                sentences,
+                request.language
+            )
+            _wrdhyp_error = None
         except Exception as e:
-            logger.error("Error calculating WRDHYPn: %s", e)
-            wrdhypn = None
-            wrdhypn_error = str(e)
+            logger.error(
+                "Error calculating WRDHYP indices: %s",
+                e
+            )
+
+            _wrdhyp = {
+                "WRDHYPn": None,
+                "WRDHYPv": None,
+                "WRDHYPnv": None,
+            }
+
+            _wrdhyp_error = str(e)
+
+        # WRDHYPn
+        wrdhypn = _wrdhyp["WRDHYPn"]
+        wrdhypn_error = _wrdhyp_error
         indices.append(Index(
             index=101,
             type_name="Word Information",
+            label_ttlab="WRDHYPn_germanet",
             label_v3="WRDHYPn",
             label_v2="HYNOUNaw",
             description="Hypernymy for nouns, mean",
@@ -4282,16 +6382,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         # WRDHYPv
-        try:
-            wrdhypv = cm_wrdhypv(sentences, request.language)
-            wrdhypv_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDHYPv: %s", e)
-            wrdhypv = None
-            wrdhypv_error = str(e)
+        wrdhypv = _wrdhyp["WRDHYPv"]
+        wrdhypv_error = _wrdhyp_error
         indices.append(Index(
             index=102,
             type_name="Word Information",
+            label_ttlab="WRDHYPv_germanet",
             label_v3="WRDHYPv",
             label_v2="HYVERBaw",
             description="Hypernymy for verbs, mean",
@@ -4300,16 +6396,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ))
 
         # WRDHYPnv
-        try:
-            wrdhypnv = cm_wrdhypnv(sentences, request.language)
-            wrdhypnv_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDHYPnv: %s", e)
-            wrdhypnv = None
-            wrdhypnv_error = str(e)
+        wrdhypnv = _wrdhyp["WRDHYPnv"]
+        wrdhypnv_error = _wrdhyp_error
         indices.append(Index(
             index=103,
             type_name="Word Information",
+            label_ttlab="WRDHYPnv_germanet",
             label_v3="WRDHYPnv",
             label_v2="HYPm",
             description="Hypernymy for nouns and verbs, mean",
@@ -4319,11 +6411,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         ### Readability
 
-        # NOTE(L4): RDFRE/RDFKGL formulas are spec-correct (Flesch Reading Ease /
-        # Flesch-Kincaid Grade Level). Token/syllable counts use textstat's
-        # tokenizer, not the original Charniak constituency parser, so absolute
-        # values may differ slightly from the reference Coh-Metrix output on the
-        # same text. Relative ordering is expected to be consistent.
+        # NOTE(L4): RDFRE and RDFKGL are currently calculated through textstat on the
+        # raw document text. Coh-Metrix 3.0 defines these indices from its own DESSL
+        # and DESWLsy measures. The present implementation is therefore retained as a
+        # textstat-based approximation and is not claimed to be numerically identical
+        # to the original Coh-Metrix computation. The V3 labels are retained
+        # provisionally for compatibility and may be revised in a later pass.
 
         # RDFRE
         try:
@@ -4615,5 +6708,4 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         meta=meta,
         modification_meta=modification_meta,
     )
-    print(response)
     return response
