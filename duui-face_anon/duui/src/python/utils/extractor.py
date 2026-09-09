@@ -295,6 +295,9 @@ def extract_faces(model, image, face_image_size, face_type=FaceType.WHOLE_FACE):
 
     face_images = []
     image_to_face_matrices = []
+    if preds is None:
+        return face_images, image_to_face_matrices
+
     for face_landmarks in preds:
         image_to_face_mat = get_transform_mat(
             face_landmarks, face_image_size, face_type

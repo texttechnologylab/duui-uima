@@ -4,6 +4,8 @@ import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.util.CasIOUtils;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
@@ -11,12 +13,15 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.texttechnologylab.annotation.type.Image;
+import org.texttechnologylab.annotation.type.Video;
 import org.xml.sax.SAXException;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -27,17 +32,22 @@ public class AnonTest {
     static DUUIComposer composer;
     static JCas cas;
 
-    static String url = "http://127.0.0.1:8001";
+    static String url = "http://127.0.0.1:9714";
     static String inputPath = "resources/input";
-    static String sOutputPath = "resources/output";
+    static String videoInputPath = "resources/input/videos/Trump.mp4"; // Source: https://commons.wikimedia.org/wiki/File:President_Trump_Gives_Remarks_at_Welcome_Banquet_in_China.webm
+    static String sOutputPath = "target/test-output";
     static String hf_token;
 
     @BeforeAll
-    static void beforeAll() throws Exception {
+    static void beforeAll() {
         hf_token = System.getenv("HF_TOKEN");
         if (hf_token == null) {
             throw new IllegalStateException("HF_TOKEN environment variable is not set");
         }
+    }
+
+    @BeforeEach
+    void beforeEach() throws Exception {
         composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
@@ -51,18 +61,11 @@ public class AnonTest {
         cas = JCasFactory.createJCas();
     }
 
-    @AfterAll
-    static void afterAll() throws UnknownHostException {
-        composer.shutdown();
-    }
-
     @AfterEach
-    public void afterEach() throws Exception {
-        composer.resetPipeline();
-
-
-        cas.reset();
-        
+    public void afterEach() throws UnknownHostException {
+        if (composer != null) {
+            composer.shutdown();
+        }
     }
 
 
@@ -88,27 +91,33 @@ public class AnonTest {
         }
     }
     // Helper method to save Base64 string back to an image file
-    private static void saveBase64ToImage(String base64String, String name) {
+    private static void saveBase64ToImage(String base64String, String name) throws IOException {
         LocalDateTime currentDateTime = LocalDateTime.now();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH-mm-ss");
 
-        try {
-            // Decode the Base64 string into a byte array
-            byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+        // Decode the Base64 string into a byte array
+        byte[] decodedBytes = Base64.getDecoder().decode(base64String);
 
-            // Create an image from the byte array
-            InputStream inputStream = new ByteArrayInputStream(decodedBytes);
-            BufferedImage image = ImageIO.read(inputStream);
-
-            // Save the image to the specified output file
-            File outputFile = new File(sOutputPath + "/" + currentDateTime.format(formatter) + "_" + name + ".png");
-            ImageIO.write(image, "png", outputFile);
-
-            System.out.println("Image saved as: " + outputFile.getAbsolutePath());
-
-        } catch (IOException e) {
-            e.printStackTrace();
+        // Create an image from the byte array
+        BufferedImage image;
+        try (InputStream inputStream = new ByteArrayInputStream(decodedBytes)) {
+            image = ImageIO.read(inputStream);
+            if (image == null) {
+                throw new IOException("Output is not a supported image");
+            }
         }
+
+        // Save generated test artifacts outside the input resources directory.
+        File outputFile = new File(sOutputPath + "/" + currentDateTime.format(formatter) + "_" + name + ".png");
+        File outputDirectory = outputFile.getParentFile();
+        if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
+            throw new IOException("Could not create output directory: " + outputDirectory);
+        }
+        if (!ImageIO.write(image, "png", outputFile)) {
+            throw new IOException("No PNG writer is available");
+        }
+
+        System.out.println("Image saved as: " + outputFile.getAbsolutePath());
     }
 
 
@@ -144,6 +153,27 @@ public class AnonTest {
             System.out.println(result);
         }
 
+    }
+
+    private void createVideoCas() throws IOException, UIMAException {
+        cas.setDocumentLanguage("eng");
+        cas.setDocumentText("video");
+
+        Video video = new Video(cas, 1, 4);
+        video.setSrc(Base64.getEncoder().encodeToString(
+                Files.readAllBytes(Path.of(videoInputPath))
+        ));
+        video.setFps(30.0);
+        video.setLength(1.0);
+        video.addToIndexes();
+
+        cas.createView("output");
+    }
+
+    private static void saveBase64ToVideo(String base64String, String name) throws IOException {
+        Path outputDirectory = Path.of(sOutputPath);
+        Files.createDirectories(outputDirectory);
+        Files.write(outputDirectory.resolve(name + ".mp4"), Base64.getDecoder().decode(base64String));
     }
 
 //    /*
@@ -182,8 +212,8 @@ public class AnonTest {
                         .withParameter("anon_type", "multiple_align")
                         .withParameter("vis_input", "true")
                         .withParameter("hf_token", hf_token)
-        
-                        // to write to 
+
+                        // to write to
                         .withTargetView("output")
                         .build().withTimeout(1000)
         );
@@ -262,6 +292,103 @@ public class AnonTest {
         composer.run(cas);
         readImagesInCas("blackout");
 
+    }
+
+    @ParameterizedTest(name = "video redaction: {0}")
+    @ValueSource(strings = {"blur", "pixel", "black"})
+    public void testVideoRedaction(String redactType) throws Exception {
+        int frameInterval = 5;
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withName("duui-face-anon-video-" + redactType)
+                        .withParameter("anon_type", "redact")
+                        .withParameter("redact_type", redactType)
+                        .withParameter("blur", "51")
+                        .withParameter("pixel", "10")
+                        .withParameter("frame_interval", Integer.toString(frameInterval))
+                        .withTargetView("output")
+                        .build().withTimeout(1000)
+        );
+
+        createVideoCas();
+        composer.run(cas);
+
+        List<Video> outputVideos = List.copyOf(
+                JCasUtil.select(cas.getView("output"), Video.class)
+        );
+        Assertions.assertEquals(1, outputVideos.size());
+
+        Video output = outputVideos.get(0);
+        Assertions.assertFalse(output.getSrc().isBlank());
+        Assertions.assertTrue(output.getFps() > 0.0);
+        Assertions.assertTrue(output.getFps() < 30.0);
+        Assertions.assertTrue(output.getLength() > 0.0);
+        Assertions.assertEquals(1, output.getBegin());
+        Assertions.assertEquals(4, output.getEnd());
+        saveBase64ToVideo(output.getSrc(), "video-redact-" + redactType);
+    }
+
+    @Test
+    public void testVideoAdaptiveSampling() throws Exception {
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withName("duui-face-anon-video-adaptive")
+                        .withParameter("anon_type", "redact")
+                        .withParameter("redact_type", "black")
+                        .withParameter("sampling_mode", "adaptive")
+                        .withParameter("segment_duration", "50")
+                        .withParameter("representative_frames", "60")
+                        .withTargetView("output")
+                        .build().withTimeout(1000)
+        );
+
+        createVideoCas();
+        composer.run(cas);
+
+        List<Video> outputVideos = List.copyOf(
+                JCasUtil.select(cas.getView("output"), Video.class)
+        );
+        Assertions.assertEquals(1, outputVideos.size());
+        Video output = outputVideos.get(0);
+        Assertions.assertFalse(output.getSrc().isBlank());
+        Assertions.assertTrue(output.getFps() > 0.0);
+        Assertions.assertTrue(output.getLength() > 0.0);
+        Assertions.assertEquals(1, output.getBegin());
+        Assertions.assertEquals(4, output.getEnd());
+        saveBase64ToVideo(output.getSrc(), "video-adaptive-black");
+    }
+
+    @ParameterizedTest(name = "video anonymization: {0}")
+    @ValueSource(strings = {"single_align", "multiple_align"})
+    public void testVideoAnonymization(String anonType) throws Exception {
+        int frameInterval = 30;
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withName("duui-face-anon-video-" + anonType)
+                        .withParameter("anon_type", anonType)
+                        .withParameter("hf_token", hf_token)
+                        .withParameter("inference_steps", "2")
+                        .withParameter("frame_interval", Integer.toString(frameInterval))
+                        .withTargetView("output")
+                        .build().withTimeout(1000)
+        );
+
+        createVideoCas();
+        composer.run(cas);
+
+        List<Video> outputVideos = List.copyOf(
+                JCasUtil.select(cas.getView("output"), Video.class)
+        );
+        Assertions.assertEquals(1, outputVideos.size());
+
+        Video output = outputVideos.get(0);
+        Assertions.assertFalse(output.getSrc().isBlank());
+        Assertions.assertTrue(output.getFps() > 0.0);
+        Assertions.assertTrue(output.getFps() < 30.0);
+        Assertions.assertTrue(output.getLength() > 0.0);
+        Assertions.assertEquals(1, output.getBegin());
+        Assertions.assertEquals(4, output.getEnd());
+        saveBase64ToVideo(output.getSrc(), "video-" + anonType);
     }
 //    @Test
 //    public void testMissingHfTokenFails() throws Exception {

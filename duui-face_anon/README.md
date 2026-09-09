@@ -3,14 +3,14 @@
 DUUI implementation for simple face anonymization, based on
 https://github.com/hanweikung/face_anon_simple.
 It supports:
-- single face anonymization 
+- single face anonymization
 - multiple faces anonymization
 - face redaction
   - blur
   - blackout
   - pixelate
 
-## Parameters 
+## Parameters
 
 
 
@@ -31,6 +31,10 @@ It supports:
 | no        | **height**          | the passed images height           |                                                                                                                                           | for resizing output                                                 |
 | no        | **width**           | the passed images width            |                                                                                                                                           | for resizing output                                                 |
 | no        | **vis_input**       | False                              | Boolean                                                                                                                                   | Displays input and output next to another in one image              |
+| no        | **sampling_mode**   | uniform                            | uniform<br>adaptive                                                                                                                       | video frame sampling strategy                                       |
+| no        | **frame_interval**  | 1                                  | integer >= 1                                                                                                                              | process every Nth frame in uniform mode                              |
+| no        | **segment_duration**| 10.0                               | float > 0                                                                                                                                | segment length in seconds for adaptive mode                          |
+| no        | **representative_frames** | 5                            | integer >= 1                                                                                                                              | representative frames selected per adaptive segment                 |
 
 ## How To Use
 Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
@@ -50,22 +54,22 @@ There are also two test Images provided:
 `single_person.jpg:` https://images.pexels.com/photos/31430969/pexels-photo-31430969.jpeg
 ```java
 
-    @Test
-    public void testSingleFaceSimple() throws Exception {
-        composer.add(
-                new DUUIRemoteDriver.Component("http://127.0.0.1:8001")
-                        .withParameter("anon_type", "single_align")
-                        .withParameter("hf_token", hf_token) // the anonymization WILL fail, if no hugging face token is provided!
-                        .withTargetView("output") // to easily iterate through the output images - save them in a seperate view
-                        .build().withTimeout(1000)
+@Test
+public void testSingleFaceSimple() throws Exception {
+  composer.add(
+          new DUUIRemoteDriver.Component("http://127.0.0.1:8001")
+                  .withParameter("anon_type", "single_align")
+                  .withParameter("hf_token", hf_token) // the anonymization WILL fail, if no hugging face token is provided!
+                  .withTargetView("output") // to easily iterate through the output images - save them in a seperate view
+                  .build().withTimeout(1000)
 
-        );
+  );
 
-        createCas();
-        composer.run(cas);
-        readImagesInCas("single face");
+  createCas();
+  composer.run(cas);
+  readImagesInCas("single face");
 
-    }
+}
 ```
 
 ## BibTex

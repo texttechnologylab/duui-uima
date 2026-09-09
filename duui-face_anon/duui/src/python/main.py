@@ -22,14 +22,14 @@ from diffusers import AutoencoderKL, DDPMScheduler
 from custom_referencenet.referencenet.referencenet_unet_2d_condition import (
     ReferenceNetModel,
 )
-from diffusers import UNet2DConditionModel
+from custom_referencenet.referencenet.unet_2d_condition import UNet2DConditionModel
 from custom_referencenet.referencenet.pipeline_referencenet import (
     StableDiffusionReferenceNetPipeline,
 )
 from utils.anonymize_faces_in_image import anonymize_faces_in_image
 from utils.redact_faces import redact_faces_in_image
-from utils.types import ImageType, DUUIResponse, DUUIRequest
-from cassis import load_typesystem
+from utils.types import ImageType, VideoType, DUUIResponse, DUUIRequest
+from utils.video import process_video
 
 
 
@@ -44,7 +44,7 @@ fa: Optional[face_alignment.FaceAlignment] = None
 # -- static typesystem --
 typesystem_filename = 'resources/typesystem_face_anon.xml'
 with open(typesystem_filename, 'rb') as f:
-    typesystem = load_typesystem(f)
+    typesystem = f.read()
 
 
 
@@ -129,18 +129,18 @@ def swap_faces(
         height,
         vis_input,
         generator
-    ):
+):
     """
-    
+
     :param source_image: image to be anonymized
     :param conditioning_image: face to swap with
     :param inference_steps: number of infrence steps
-    :param guidance_scale: guidance scale 
+    :param guidance_scale: guidance scale
     :param anonymization_degree: degree of anonymization
     :param width: output image width (if not vis True)
     :param height: output image height (if not vis True)
     :param vis_input: weather to visualize input-output next to another
-    :return: 
+    :return:
     """""
     # generate an image that swaps faces
     assert pipe is not None
@@ -168,7 +168,7 @@ def redact_faces(
         pixel_size,
         vis_input,
         face_type
-    )->Image:
+)->Image:
     """
 
     :param source_image: image to be redacted
@@ -299,32 +299,43 @@ app = FastAPI(
     title="duui-face_anon",
     description="Implementation of [WACV 2025] 'Face Anonymization Made Simple' for DUUI.",
     version="0.1",
-        contact={
-            "name": "Coco Sittardt, TTLab Team",
-            "url": "https://texttechnologylab.org",
-            "email": "sittardt@em.uni-frankfurt.de",
-        },
-        license_info={
-            "name": "AGPL",
-            "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
-        },
+    contact={
+        "name": "Coco Sittardt, TTLab Team",
+        "url": "https://texttechnologylab.org",
+        "email": "sittardt@em.uni-frankfurt.de",
+    },
+    license_info={
+        "name": "AGPL",
+        "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
+    },
 )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    logger.error(f"Validation error on {request.url}: {exc.errors()}")
+    errors = [
+        f"{'.'.join(str(part) for part in error['loc'])}: "
+        f"{error['msg']} ({error['type']})"
+        for error in exc.errors()
+    ]
+    logger.error("Validation error on %s: %s", request.url, errors)
     return JSONResponse(
         status_code=422,
         content=jsonable_encoder(DUUIResponse(
             output_images=[],
-            out_errors=[str(e) for e in exc.errors()],
+            out_errors=errors,
         )),
     )
 @app.get("/v1/details/input_output")
 def get_input_output()-> JSONResponse:
     json_item = {
-       "inputs" : ["org.texttechnologylab.annotation.type.Image"],
-        "outputs" : ["org.texttechnologylab.annotation.type.Image"]
+        "inputs" : [
+            "org.texttechnologylab.annotation.type.Image",
+            "org.texttechnologylab.annotation.type.Video",
+        ],
+        "outputs" : [
+            "org.texttechnologylab.annotation.type.Image",
+            "org.texttechnologylab.annotation.type.Video",
+        ]
     }
     json_compatible_item_data = jsonable_encoder(json_item)
     return JSONResponse(content=json_compatible_item_data)
@@ -355,13 +366,21 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
 
     """
-    print(request)
+    logger.info(
+        "Processing request: anon_type=%s, redact_type=%s, sampling_mode=%s, images=%d, videos=%d",
+        request.anon_type,
+        request.redact_type,
+        request.sampling_mode,
+        len(request.images),
+        len(request.videos),
+    )
     # the base selection between which anonymization is run
     anon_type = request.anon_type
     # the amount of anonymization
     anon_degree = request.anon_degree
     # input images
     images = request.images
+    videos = request.videos
     # set if the anon_type is redaction, then can choose again between blur, black or pixel
     redact_type = request.redact_type
     face_type = request.face_type
@@ -374,7 +393,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
     inference_steps = request.inference_steps
     vis_input = request.vis_input
 
-  
+
     # swap needs default settings
     if anon_type == "swap":
         inference_steps = 200
@@ -385,24 +404,31 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
 
     output_images = []
+    output_videos = []
     errors_out =[]
     try:
-        if len(images) == 0:
-            raise ValueError("No Images provided")
-        if hf_token == "None":
+        if len(images) == 0 and len(videos) == 0:
+            raise ValueError("No images or videos provided")
+        if videos and anon_type == "swap":
+            raise ValueError("Video input does not support anon_type=swap")
+        if (images or videos) and anon_type != "redact" and hf_token == "None":
             raise ValueError("Please provide a hugging face token, to access the models.")
-        if anon_type==swap and len(images) != 2:
+        if anon_type == "swap" and len(images) != 2:
             errors_out.append("To swap two faces an input of exactly two images is required.")
             raise ValueError(
                 f"You have passed a total number of {len(images)} images. To swap you need to pass exactly 2.")
-        load_pipeline(clip_model, diffusion_model, seed, hf_token)
+        requires_pipeline = anon_type != "redact" and (images or videos)
+        if requires_pipeline:
+            load_pipeline(clip_model, diffusion_model, seed, hf_token)
         # selection between the different anon types:
         # options: single_align, multiple_align, swap, redact
 
-        generator = torch.Generator(device="cuda").manual_seed(seed)
+        generator = None
+        if requires_pipeline:
+            generator = torch.Generator(device="cuda").manual_seed(seed)
 
         for img in images:
-              # these can be "None" and will then be set later in the loop, UNLESS predefined height / width is passed
+            # these can be "None" and will then be set later in the loop, UNLESS predefined height / width is passed
             height = request.height
             width = request.width
 
@@ -489,12 +515,84 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
             if anon_type == "swap":
                 break
 
+        video_face_alignment = None
+        if videos and vis_input:
+            errors_out.append("vis_input is ignored for video output.")
+        if videos and anon_type == "redact":
+            if redact_type == "blur" and blur % 2 == 0:
+                errors_out.append(
+                    f"The passed blur parameter ({blur}) was even. Setting to default 51."
+                )
+                blur = 51
+            video_face_alignment = face_alignment.FaceAlignment(
+                face_alignment.LandmarksType.TWO_D,
+                face_detector="sfd",
+            )
+
+        def process_video_frame(frame: Image.Image) -> Image.Image:
+            if anon_type == "redact":
+                return redact_faces_in_image(
+                    source_image=frame,
+                    face_image_size=frame.height,
+                    redaction_method=redact_type,
+                    blur_strength=blur,
+                    pixel_size=pixel,
+                    face_type=face_type,
+                    face_alignment_model=video_face_alignment,
+                )
+
+            max_dim = 768
+            scale = min(1.0, max_dim / max(frame.width, frame.height))
+            width = max(8, (int(frame.width * scale) // 8) * 8)
+            height = max(8, (int(frame.height * scale) // 8) * 8)
+            if frame.size != (width, height):
+                frame = frame.resize((width, height), Image.LANCZOS)
+
+            if anon_type == "single_align":
+                return single_aligned_face(
+                    source_image=frame,
+                    inference_steps=inference_steps,
+                    guidance_scale=guidance,
+                    anonymization_degree=anon_degree,
+                    height=height,
+                    width=width,
+                    vis_input=False,
+                    generator=generator,
+                )
+            if anon_type == "multiple_align":
+                return multiple_aligned_face(
+                    source_image=frame,
+                    image_size=height,
+                    inference_steps=inference_steps,
+                    guidance_scale=guidance,
+                    anonymization_degree=anon_degree,
+                    generator=generator,
+                )
+            raise ValueError(f"Unsupported video anon_type: {anon_type}")
+
+        for video in videos:
+            processed_video = process_video(
+                video_base64=video.src,
+                frame_interval=request.frame_interval,
+                process_frame=process_video_frame,
+                sampling_mode=request.sampling_mode,
+                segment_duration=request.segment_duration,
+                representative_frames=request.representative_frames,
+            )
+            output_videos.append(VideoType(
+                src=processed_video["src"],
+                length=processed_video["length"],
+                fps=processed_video["fps"],
+                begin=video.begin,
+                end=video.end,
+            ))
+
         return DUUIResponse(
             output_images=output_images,
+            output_videos=output_videos,
             out_errors = errors_out
         )
     except Exception as ex:
-        global logger
         logger.exception(ex)
         return DUUIResponse(
             output_images=[],
