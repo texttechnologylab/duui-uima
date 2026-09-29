@@ -1,12 +1,17 @@
 # Java Docker Validation
 
-Status: September 24, 2026
 
 `CohMetrixDockerValidationTest` is the Java end-to-end regression test for
 `duui-coh-metrix`. It follows the general structure of `SpaCyMultiTest` and
 uses frozen bilingual CAS files as input. This tests the production path
 through Java, DUUI, the Lua communication layer, Docker, and the Python service
 without rerunning spaCy for every test execution.
+
+The test enables official DUUI component logging at `WARN`. Coh-Metrix
+warnings and exceptions returned by DUUIlogger are therefore visible in the
+Maven console, while the two normal `INFO` records for every successful request
+remain suppressed. ANSI colors are disabled so redirected validation logs stay
+machine-readable.
 
 ## Test workflow
 
@@ -96,6 +101,8 @@ punctuation-only sentence handling introduced for Issue #272:
 - the pinned Coh-Metrix image available in the local Docker image store
 - the complete test resources under
   `src/test/resources/validation-bilingual`
+- the DUUI Core revision pinned in `pom.xml`; it contains the component-log
+  transport introduced after release `1.5.7`
 
 The optional GermaNet run additionally requires a local directory containing
 the licensed GermaNet XML files. The XML data must not be committed, copied to
@@ -192,6 +199,12 @@ mvn clean -U `
 `-U` allows Maven to refresh metadata and retrieve missing dependencies. The
 Docker image under test must already have been built from the current source
 revision.
+
+During failures, records forwarded by the Coh-Metrix container appear in this
+same console output with severity and component/document source prefixes. For
+startup failures or requests that never return, inspect the container log as
+well because request-scoped logs can only reach Java together with an HTTP
+response.
 
 The expected successful summary after adding the Issue #272 regression tests
 is:

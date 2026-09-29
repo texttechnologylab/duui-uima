@@ -10,6 +10,7 @@ import org.apache.uima.cas.Type;
 import org.apache.uima.cas.impl.XmiCasDeserializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
+import org.apache.uima.resource.metadata.TypeSystemDescription;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicContainer;
@@ -117,6 +118,7 @@ public class CohMetrixDockerValidationTest {
                     + "+ regression weights trained on TASA corpus";
 
     static DUUIComposer composer;
+    static TypeSystemDescription validationTypeSystem;
     static String mountedGermanetContainerId;
     static boolean germanetMountEnabled;
     static final Map<String, ResultSnapshot> resultCache = new HashMap<>();
@@ -128,7 +130,15 @@ public class CohMetrixDockerValidationTest {
         try {
             composer = new DUUIComposer()
                     .withSkipVerification(true)
-                    .withLuaContext(new DUUILuaContext().withJsonLibrary());
+                    .withLuaContext(new DUUILuaContext().withJsonLibrary())
+                    // Request component logs from the Python DUUIlogger. The
+                    // full regression suite prints only warnings and errors so
+                    // successful requests do not flood the Maven console.
+                    .withDebugLevel(DUUIComposer.DebugLevel.WARN)
+                    .withComponentLogging(true)
+                    .withDebugColorful(false)
+                    .withDebugSeverity(true)
+                    .withDebugSource(true);
 
             String germanetPath = trimmedSystemProperty(GERMANET_PATH_PROPERTY);
             if (germanetPath == null) {
@@ -137,6 +147,17 @@ public class CohMetrixDockerValidationTest {
             } else {
                 configureMountedGermanetComponent(germanetPath);
             }
+
+            // Instantiate the pipeline before creating any test CAS. UIMA type
+            // systems are immutable after CAS creation, so every CAS used by
+            // this test must be created with the merged component type system.
+            // This includes the concrete Coh-Metrix index subtypes returned by
+            // the component, for example DESPC, SYNLE and SMTEMP.
+            validationTypeSystem = composer.instantiate_pipeline();
+            assertNotNull(
+                    validationTypeSystem,
+                    "Could not instantiate the merged pipeline type system"
+            );
 
             cases = readManifest();
             assertFalse(cases.isEmpty(), "No validation fixtures found");
@@ -336,7 +357,7 @@ public class CohMetrixDockerValidationTest {
 
     @Test
     void emptyDocumentHasNoNumericCohMetrixResults() throws Exception {
-        JCas cas = JCasFactory.createJCas();
+        JCas cas = createValidationJCas();
         cas.setDocumentLanguage("en");
         cas.setDocumentText("");
 
@@ -505,12 +526,21 @@ public class CohMetrixDockerValidationTest {
     }
 
     private static JCas loadCas(String resource) throws Exception {
-        JCas jCas = JCasFactory.createJCas();
+        JCas jCas = createValidationJCas();
         try (InputStream raw = resource(resource);
              GZIPInputStream gzip = new GZIPInputStream(raw)) {
             XmiCasDeserializer.deserialize(gzip, jCas.getCas(), true);
         }
         return jCas;
+    }
+
+    private static JCas createValidationJCas() throws Exception {
+        if (validationTypeSystem == null) {
+            throw new IllegalStateException(
+                    "Merged pipeline type system has not been initialized"
+            );
+        }
+        return JCasFactory.createJCas(validationTypeSystem);
     }
 
     private static void removePreviousCohMetrixOutput(CAS cas) {
