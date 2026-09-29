@@ -7,9 +7,8 @@ import duui_logging
 
 from platform import python_version
 from sys import version as sys_version
-from time import perf_counter, time
+from time import time
 from typing import List, Optional, Dict, Tuple, Set, Any
-from uuid import uuid4
 
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
@@ -44,21 +43,10 @@ class Settings(BaseSettings):
 settings = Settings()
 
 _configured_log_level_name = (settings.log_level or "INFO").strip().upper()
-_configured_log_level = getattr(
-    logging,
-    _configured_log_level_name,
-    logging.INFO,
-)
+_configured_log_level = getattr(logging, _configured_log_level_name, logging.INFO)
 
-# Use the standard logging API throughout the component. DUUIlogger's stdlib
-# bridge collects these records only for requests carrying
-# ``DUUI-Log-Collect: true`` and returns them in the ``DUUI-Logs`` response
-# header. Outside such requests they still remain visible in ``docker logs``.
-logger = logging.getLogger("duui.coh_metrix")
+logger = logging.getLogger(__name__)
 logger.setLevel(_configured_log_level)
-# Propagation is required so DUUICollectHandler, installed on the root logger,
-# receives the component records. Clear legacy component-local handlers to
-# avoid printing every record twice.
 logger.propagate = True
 logger.handlers.clear()
 
@@ -68,19 +56,9 @@ duui_logging.install(
     keep_stderr=True,
 )
 
-if _configured_log_level_name not in logging.getLevelNamesMapping():
-    logger.warning(
-        "invalid_log_level configured=%r fallback=INFO",
-        settings.log_level,
-    )
-
-logger.info(
-    "component_starting name=%s version=%s python=%s log_level=%s",
-    settings.annotator_name,
-    settings.annotator_version,
-    python_version(),
-    logging.getLevelName(_configured_log_level),
-)
+logger.info("TTLab TextImager DUUI Coh-Metrix")
+logger.info("Name: %s", settings.annotator_name)
+logger.info("Version: %s", settings.annotator_version)
 
 # LSA configuration
 logger.info(
@@ -179,10 +157,6 @@ class Index(BaseModel):
     @validator('value')
     def value_must_be_finite(cls, v):
         if v is not None and (math.isinf(v) or math.isnan(v)):
-            logger.debug(
-                "normalizing_non_finite_index_value value=%r",
-                v,
-            )
             return None
         return v
 
@@ -277,20 +251,13 @@ with open(lua_communication_script_filename, 'rb') as f:
 if settings.germanet_path:
     gnp = Path(settings.germanet_path)
     if gnp.is_dir() and any(gnp.iterdir()):
-        logger.info("germanet_loading path_configured=true")
+        logger.info("Loading GermaNet from \"%s\"", settings.germanet_path)
         germanet = Germanet(settings.germanet_path)
-        logger.info("germanet_status available=true path_configured=true")
     else:
-        logger.warning(
-            "germanet_status available=false path_configured=true "
-            "reason=path_missing_or_empty"
-        )
+        logger.warning("GermaNet path defined as \"%s\", but empty or non-existing. Metrics based on GermaNet will return None", settings.germanet_path)
         germanet = None
 else:
-    logger.warning(
-        "germanet_status available=false path_configured=false "
-        "reason=not_configured"
-    )
+    logger.warning("No GermaNet path defined. Metrics based on GermaNet will return None")
     germanet = None
 
 app = FastAPI(
@@ -309,10 +276,7 @@ app = FastAPI(
     },
 )
 
-# The middleware opens a request-local buffer only when a logging-capable DUUI
-# runner asks for component logs. It is therefore transparent for direct HTTP
-# clients and older DUUI versions.
-duui_logging.add_logging(app, default_logger="duui.coh_metrix")
+duui_logging.add_logging(app, default_logger=__name__)
 
 
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
@@ -3761,8 +3725,8 @@ def _germanet_expand_verb_lemmas(orthforms) -> set:
                         of = getattr(lex, "orthform", None)
                         if of:
                             lemmas.add(of.lower())
-    except Exception:
-        logger.exception("germanet_expansion_failed")
+    except Exception as ex:
+        logger.warning("GermaNet expansion failed: %s", ex)
         return set()
     return lemmas
 
@@ -4878,11 +4842,8 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
         return None
 
     if lang == "de" and germanet is None:
-        # This is a documented availability condition, not a processing
-        # failure. The affected index returns None by design.
-        logger.debug(
-            "semantic_metric_unavailable resource=GermaNet language=de"
-        )
+        # Missing GermaNet is a documented availability condition. Returning
+        # None is the expected result and must not be logged as a failure.
         return None
 
     verbs_lemma = [
@@ -4911,11 +4872,8 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
                 }
                 for lemma in set(verbs_lemma)
             }
-    except Exception:
-        logger.exception(
-            "semantic_verb_lookup_failed language=%s",
-            lang,
-        )
+    except Exception as exc:
+        logger.warning("Semantic verb lookup failed: %s", exc)
         return None
 
     # Verbs missing from the lexical resource do not form a valid semantic
@@ -5012,44 +4970,25 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
 
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
-    request_id = uuid4().hex[:12]
-    request_started_at = perf_counter()
     modification_timestamp_seconds = int(time())
 
     indices = []
     meta = None
     modification_meta = None
 
-    # The request model has already been validated by FastAPI/Pydantic. Build
-    # the flattened annotation views once so the request log and all index
-    # families refer to the same input counts. Never log the document text.
-    lang = (request.language or "").strip().lower()
-    sentences = [
-        sentence
-        for paragraph in request.paragraphs
-        for sentence in paragraph.sentences
-    ]
-    tokens = [
-        token
-        for sentence in sentences
-        for token in sentence.tokens
-    ]
-
-    logger.info(
-        "request_started id=%s language=%s text_length=%d "
-        "paragraphs=%d sentences=%d tokens=%d",
-        request_id,
-        lang or "unset",
-        len(request.text or ""),
-        len(request.paragraphs),
-        len(sentences),
-        len(tokens),
-    )
-
     try:
         # Normalize the language once so every metric family uses the same
         # language branch for inputs such as "DE" or " de ".
+        lang = (request.language or "").strip().lower()
         textstat.set_lang(lang)
+
+        sentences = []
+        for p in request.paragraphs:
+            sentences.extend(p.sentences)
+
+        tokens = []
+        for s in sentences:
+            tokens.extend(s.tokens)
 
         # FV1 fix: Exclude punctuation for overall consistency.
         tokens_count = sum(1 for t in tokens if not t.is_punct)
@@ -5089,7 +5028,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             despc = cm_despc(request.paragraphs)
             despc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESPC", request_id)
+            logger.error("Error calculating DESPC: %s", e)
             despc = None
             despc_error = str(e)
         indices.append(Index(
@@ -5108,7 +5047,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             dessc = cm_dessc(request.paragraphs)
             dessc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESSC", request_id)
+            logger.error("Error calculating DESSC: %s", e)
             dessc = None
             dessc_error = str(e)
         indices.append(Index(
@@ -5127,7 +5066,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             deswc = cm_deswc(request.paragraphs)
             deswc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESWC", request_id)
+            logger.error("Error calculating DESWC: %s", e)
             deswc = None
             deswc_error = str(e)
         indices.append(Index(
@@ -5146,7 +5085,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             despl = cm_despl(request.paragraphs)
             despl_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESPL", request_id)
+            logger.error("Error calculating DESPL: %s", e)
             despl = None
             despl_error = str(e)
         indices.append(Index(
@@ -5165,7 +5104,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             despld = cm_despld(request.paragraphs)
             despld_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESPLd", request_id)
+            logger.error("Error calculating DESPLd: %s", e)
             despld = None
             despld_error = str(e)
         indices.append(Index(
@@ -5184,7 +5123,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             dessl = cm_dessl(request.paragraphs)
             dessl_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESSL", request_id)
+            logger.error("Error calculating DESSL: %s", e)
             dessl = None
             dessl_error = str(e)
         indices.append(Index(
@@ -5203,7 +5142,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             dessld = cm_dessld(request.paragraphs)
             dessld_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESSLd", request_id)
+            logger.error("Error calculating DESSLd: %s", e)
             dessld = None
             dessld_error = str(e)
         indices.append(Index(
@@ -5222,7 +5161,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             deswlsy = cm_deswlsy(tokens, lang)
             deswlsy_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESWLsy", request_id)
+            logger.error("Error calculating DESWLsy: %s", e)
             deswlsy = None
             deswlsy_error = str(e)
         indices.append(Index(
@@ -5241,7 +5180,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             deswlsyd = cm_deswlsyd(tokens, lang)
             deswlsyd_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESWLsyd", request_id)
+            logger.error("Error calculating DESWLsyd: %s", e)
             deswlsyd = None
             deswlsyd_error = str(e)
         indices.append(Index(
@@ -5260,7 +5199,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             deswllt = cm_deswllt(request.paragraphs)
             deswllt_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESWLlt", request_id)
+            logger.error("Error calculating DESWLlt: %s", e)
             deswllt = None
             deswllt_error = str(e)
         indices.append(Index(
@@ -5279,7 +5218,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             deswlltd = cm_deswlltd(request.paragraphs)
             deswlltd_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DESWLltd", request_id)
+            logger.error("Error calculating DESWLltd: %s", e)
             deswlltd = None
             deswlltd_error = str(e)
         indices.append(Index(
@@ -5301,7 +5240,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcnarz = None
             pcnarz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCNARz", request_id)
+            logger.error("Error calculating PCNARz: %s", e)
             pcnarz = None
             pcnarz_error = str(e)
         indices.append(Index(
@@ -5321,7 +5260,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcnarp = None
             pcnarp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCNARp", request_id)
+            logger.error("Error calculating PCNARp: %s", e)
             pcnarp = None
             pcnarp_error = str(e)
         indices.append(Index(
@@ -5341,7 +5280,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcsynz = None
             pcsynz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCSYNz", request_id)
+            logger.error("Error calculating PCSYNz: %s", e)
             pcsynz = None
             pcsynz_error = str(e)
         indices.append(Index(
@@ -5361,7 +5300,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcsynp = None
             pcsynp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCSYNp", request_id)
+            logger.error("Error calculating PCSYNp: %s", e)
             pcsynp = None
             pcsynp_error = str(e)
         indices.append(Index(
@@ -5381,7 +5320,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pccncz = None
             pccncz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCCNCz", request_id)
+            logger.error("Error calculating PCCNCz: %s", e)
             pccncz = None
             pccncz_error = str(e)
         indices.append(Index(
@@ -5401,7 +5340,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pccncp = None
             pccncp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCCNCp", request_id)
+            logger.error("Error calculating PCCNCp: %s", e)
             pccncp = None
             pccncp_error = str(e)
         indices.append(Index(
@@ -5421,7 +5360,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcrefz = None
             pcrefz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCREFz", request_id)
+            logger.error("Error calculating PCREFz: %s", e)
             pcrefz = None
             pcrefz_error = str(e)
         indices.append(Index(
@@ -5441,7 +5380,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcrefp = None
             pcrefp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCREFp", request_id)
+            logger.error("Error calculating PCREFp: %s", e)
             pcrefp = None
             pcrefp_error = str(e)
         indices.append(Index(
@@ -5461,7 +5400,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcdcz = None
             pcdcz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCDCz", request_id)
+            logger.error("Error calculating PCDCz: %s", e)
             pcdcz = None
             pcdcz_error = str(e)
         indices.append(Index(
@@ -5481,7 +5420,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcdcp = None
             pcdcp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCDCp", request_id)
+            logger.error("Error calculating PCDCp: %s", e)
             pcdcp = None
             pcdcp_error = str(e)
         indices.append(Index(
@@ -5501,7 +5440,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcverbz = None
             pcverbz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCVERBz", request_id)
+            logger.error("Error calculating PCVERBz: %s", e)
             pcverbz = None
             pcverbz_error = str(e)
         indices.append(Index(
@@ -5521,7 +5460,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcverbp = None
             pcverbp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCVERBp", request_id)
+            logger.error("Error calculating PCVERBp: %s", e)
             pcverbp = None
             pcverbp_error = str(e)
         indices.append(Index(
@@ -5541,7 +5480,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcconnz = None
             pcconnz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCCONNz", request_id)
+            logger.error("Error calculating PCCONNz: %s", e)
             pcconnz = None
             pcconnz_error = str(e)
         indices.append(Index(
@@ -5561,7 +5500,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pcconnp = None
             pcconnp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCCONNp", request_id)
+            logger.error("Error calculating PCCONNp: %s", e)
             pcconnp = None
             pcconnp_error = str(e)
         indices.append(Index(
@@ -5581,7 +5520,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pctempz = None
             pctempz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCTEMPz", request_id)
+            logger.error("Error calculating PCTEMPz: %s", e)
             pctempz = None
             pctempz_error = str(e)
         indices.append(Index(
@@ -5601,7 +5540,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             pctempp = None
             pctempp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
         except Exception as e:
-            logger.exception("index_failed id=%s index=PCTEMPp", request_id)
+            logger.error("Error calculating PCTEMPp: %s", e)
             pctempp = None
             pctempp_error = str(e)
         indices.append(Index(
@@ -5622,7 +5561,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfno1 = cm_crfno1(sentences)
             crfno1_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFNO1", request_id)
+            logger.error("Error calculating CRFNO1: %s", e)
             crfno1 = None
             crfno1_error = str(e)
         indices.append(Index(
@@ -5641,7 +5580,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfao1 = cm_crfao1(sentences)
             crfao1_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFAO1", request_id)
+            logger.error("Error calculating CRFAO1: %s", e)
             crfao1 = None
             crfao1_error = str(e)
         indices.append(Index(
@@ -5660,7 +5599,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfso1 = cm_crfso1(sentences)
             crfso1_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFSO1", request_id)
+            logger.error("Error calculating CRFSO1: %s", e)
             crfso1 = None
             crfso1_error = str(e)
         indices.append(Index(
@@ -5679,7 +5618,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfnoa = cm_crfnoa(sentences)
             crfnoa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFNOa", request_id)
+            logger.error("Error calculating CRFNOa: %s", e)
             crfnoa = None
             crfnoa_error = str(e)
         indices.append(Index(
@@ -5698,7 +5637,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfaoa = cm_crfaoa(sentences)
             crfaoa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFAOa", request_id)
+            logger.error("Error calculating CRFAOa: %s", e)
             crfaoa = None
             crfaoa_error = str(e)
         indices.append(Index(
@@ -5717,7 +5656,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfsoa = cm_crfsoa(sentences)
             crfsoa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFSOa", request_id)
+            logger.error("Error calculating CRFSOa: %s", e)
             crfsoa = None
             crfsoa_error = str(e)
         indices.append(Index(
@@ -5736,7 +5675,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfcwo1 = cm_crfcwo1(sentences)
             crfcwo1_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFCWO1", request_id)
+            logger.error("Error calculating CRFCWO1: %s", e)
             crfcwo1 = None
             crfcwo1_error = str(e)
         indices.append(Index(
@@ -5755,7 +5694,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfcwo1d = cm_crfcwo1d(sentences)
             crfcwo1d_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFCWO1d", request_id)
+            logger.error("Error calculating CRFCWO1d: %s", e)
             crfcwo1d = None
             crfcwo1d_error = str(e)
         indices.append(Index(
@@ -5774,7 +5713,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfcwoa = cm_crfcwoa(sentences)
             crfcwoa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFCWOa", request_id)
+            logger.error("Error calculating CRFCWOa: %s", e)
             crfcwoa = None
             crfcwoa_error = str(e)
         indices.append(Index(
@@ -5793,7 +5732,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             crfcwoad = cm_crfcwoad(sentences)
             crfcwoad_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CRFCWOad", request_id)
+            logger.error("Error calculating CRFCWOad: %s", e)
             crfcwoad = None
             crfcwoad_error = str(e)
         indices.append(Index(
@@ -5820,7 +5759,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             lsa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSA", request_id)
+            logger.error("Error calculating LSA: %s", e)
             lsa_indices = None
             lsa_error = str(e)
 
@@ -5829,7 +5768,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsass1 = cm_lsass1(lsa_indices)
             lsass1_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSASS1", request_id)
+            logger.error("Error calculating LSASS1: %s", e)
             lsass1 = None
             # M7 fix: guard against None + str when the outer LSA step succeeded.
             lsass1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)
@@ -5849,7 +5788,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsass1d = cm_lsass1d(lsa_indices)
             lsass1d_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSASS1d", request_id)
+            logger.error("Error calculating LSASS1d: %s", e)
             lsass1d = None
             lsass1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5868,7 +5807,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsassp = cm_lsassp(lsa_indices)
             lsassp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSASSp", request_id)
+            logger.error("Error calculating LSASSp: %s", e)
             lsassp = None
             lsassp_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5887,7 +5826,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsasspd = cm_lsasspd(lsa_indices)
             lsasspd_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSASSpd", request_id)
+            logger.error("Error calculating LSASSpd: %s", e)
             lsasspd = None
             lsasspd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5906,7 +5845,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsapp1 = cm_lsapp1(lsa_indices)
             lsapp1_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSAPP1", request_id)
+            logger.error("Error calculating LSAPP1: %s", e)
             lsapp1 = None
             lsapp1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5925,7 +5864,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsapp1d = cm_lsapp1d(lsa_indices)
             lsapp1d_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSAPP1d", request_id)
+            logger.error("Error calculating LSAPP1d: %s", e)
             lsapp1d = None
             lsapp1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5944,7 +5883,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsagn = cm_lsagn(lsa_indices)
             lsagn_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSAGN", request_id)
+            logger.error("Error calculating LSAGN: %s", e)
             lsagn = None
             lsagn_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5963,7 +5902,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             lsagnd = cm_lsagnd(lsa_indices)
             lsagnd_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LSAGNd", request_id)
+            logger.error("Error calculating LSAGNd: %s", e)
             lsagnd = None
             lsagnd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
         indices.append(Index(
@@ -5984,7 +5923,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ldttrc = cm_ldttrc(tokens)
             ldttrc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LDTTRc", request_id)
+            logger.error("Error calculating LDTTRc: %s", e)
             ldttrc = None
             ldttrc_error = str(e)
         indices.append(Index(
@@ -6003,7 +5942,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ldttra = cm_ldttra(tokens)
             ldttra_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LDTTRa", request_id)
+            logger.error("Error calculating LDTTRa: %s", e)
             ldttra = None
             ldttra_error = str(e)
         indices.append(Index(
@@ -6022,7 +5961,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ldmtlda = cm_ldmtlda(tokens)
             ldmtlda_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LDMTLDa", request_id)
+            logger.error("Error calculating LDMTLDa: %s", e)
             ldmtlda = None
             ldmtlda_error = str(e)
         indices.append(Index(
@@ -6041,7 +5980,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ldvocda = cm_ldvocda(tokens)
             ldvocda_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=LDVOCDa", request_id)
+            logger.error("Error calculating LDVOCDa: %s", e)
             ldvocda = None
             ldvocda_error = str(e)
         indices.append(Index(
@@ -6061,10 +6000,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             _cnc_counts = _count_connectives(request.text, lang, tokens_count)
         except Exception as e:
-            logger.exception(
-                "precomputation_failed id=%s step=connective_counts",
-                request_id,
-            )
+            logger.error("Error precomputing connective counts: %s", e)
             _cnc_counts = None
 
         # CNCAll
@@ -6072,7 +6008,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cncall = cm_cncall(request.text, lang, tokens_count, connectives=_cnc_counts)
             cncall_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCAll", request_id)
+            logger.error("Error calculating CNCAll: %s", e)
             cncall = None
             cncall_error = str(e)
         indices.append(Index(
@@ -6091,7 +6027,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cnccaus = cm_cnccaus(request.text, lang, tokens_count, connectives=_cnc_counts)
             cnccaus_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCCaus", request_id)
+            logger.error("Error calculating CNCCaus: %s", e)
             cnccaus = None
             cnccaus_error = str(e)
         indices.append(Index(
@@ -6110,7 +6046,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cnclogic = cm_cnclogic(request.text, lang, tokens_count, connectives=_cnc_counts)
             cnclogic_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCLogic", request_id)
+            logger.error("Error calculating CNCLogic: %s", e)
             cnclogic = None
             cnclogic_error = str(e)
         indices.append(Index(
@@ -6129,7 +6065,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cncadc = cm_cncadc(request.text, lang, tokens_count, connectives=_cnc_counts)
             cncadc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCADC", request_id)
+            logger.error("Error calculating CNCADC: %s", e)
             cncadc = None
             cncadc_error = str(e)
         indices.append(Index(
@@ -6148,7 +6084,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cnctemp = cm_cnctemp(request.text, lang, tokens_count, connectives=_cnc_counts)
             cnctemp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCTemp", request_id)
+            logger.error("Error calculating CNCTemp: %s", e)
             cnctemp = None
             cnctemp_error = str(e)
         indices.append(Index(
@@ -6167,7 +6103,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cnctempx = cm_cnctempx(request.text, lang, tokens_count, connectives=_cnc_counts)
             cnctempx_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCTempx", request_id)
+            logger.error("Error calculating CNCTempx: %s", e)
             cnctempx = None
             cnctempx_error = str(e)
         indices.append(Index(
@@ -6186,7 +6122,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cncadd = cm_cncadd(request.text, lang, tokens_count, connectives=_cnc_counts)
             cncadd_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCAdd", request_id)
+            logger.error("Error calculating CNCAdd: %s", e)
             cncadd = None
             cncadd_error = str(e)
         indices.append(Index(
@@ -6205,7 +6141,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cncpos = cm_cncpos(request.text, lang, tokens_count, connectives=_cnc_counts)
             cncpos_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCPos", request_id)
+            logger.error("Error calculating CNCPos: %s", e)
             cncpos = None
             cncpos_error = str(e)
         indices.append(Index(
@@ -6224,7 +6160,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             cncneg = cm_cncneg(request.text, lang, tokens_count, connectives=_cnc_counts)
             cncneg_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=CNCNeg", request_id)
+            logger.error("Error calculating CNCNeg: %s", e)
             cncneg = None
             cncneg_error = str(e)
         indices.append(Index(
@@ -6245,7 +6181,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smcausv = cm_smcausv(sentences, lang)
             smcausv_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMCAUSv", request_id)
+            logger.error("Error calculating SMCAUSv: %s", e)
             smcausv = None
             smcausv_error = str(e)
         indices.append(Index(
@@ -6268,7 +6204,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smcausvp = cm_smcausvp(sentences, lang)
             smcausvp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMCAUSvp", request_id)
+            logger.error("Error calculating SMCAUSvp: %s", e)
             smcausvp = None
             smcausvp_error = str(e)
         indices.append(Index(
@@ -6291,7 +6227,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smintep = cm_smintep(sentences, lang)
             smintep_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMINTEp", request_id)
+            logger.error("Error calculating SMINTEp: %s", e)
             smintep = None
             smintep_error = str(e)
         indices.append(Index(
@@ -6314,7 +6250,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smcausr = cm_smcausr(sentences, lang)
             smcausr_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMCAUSr", request_id)
+            logger.error("Error calculating SMCAUSr: %s", e)
             smcausr = None
             smcausr_error = str(e)
         indices.append(Index(
@@ -6337,7 +6273,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             sminter = cm_sminter(sentences, lang)
             sminter_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMINTEr", request_id)
+            logger.error("Error calculating SMINTEr: %s", e)
             sminter = None
             sminter_error = str(e)
         indices.append(Index(
@@ -6360,7 +6296,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smcauslsa = cm_smcauslsa(sentences)
             smcauslsa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMCAUSlsa", request_id)
+            logger.error("Error calculating SMCAUSlsa: %s", e)
             smcauslsa = None
             smcauslsa_error = str(e)
         indices.append(Index(
@@ -6379,7 +6315,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smcauswn = cm_smcauswn(sentences, lang)
             smcauswn_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMCAUSwn", request_id)
+            logger.error("Error calculating SMCAUSwn: %s", e)
             smcauswn = None
             smcauswn_error = str(e)
         indices.append(Index(
@@ -6402,7 +6338,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             smtemp = cm_smtemp(sentences, lang)
             smtemp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SMTEMP", request_id)
+            logger.error("Error calculating SMTEMP: %s", e)
             smtemp = None
             smtemp_error = str(e)
         indices.append(Index(
@@ -6423,7 +6359,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synle = cm_synle(sentences, lang)
             synle_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNLE", request_id)
+            logger.error("Error calculating SYNLE: %s", e)
             synle = None
             synle_error = str(e)
         indices.append(Index(
@@ -6442,7 +6378,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synnp = cm_synnp(sentences, request.noun_chunks, lang)
             synnp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNNP", request_id)
+            logger.error("Error calculating SYNNP: %s", e)
             synnp = None
             synnp_error = str(e)
         indices.append(Index(
@@ -6461,7 +6397,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synmedpos = cm_synmedpos(sentences)
             synmedpos_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNMEDpos", request_id)
+            logger.error("Error calculating SYNMEDpos: %s", e)
             synmedpos = None
             synmedpos_error = str(e)
         indices.append(Index(
@@ -6480,7 +6416,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synmedwrd = cm_synmedwrd(sentences)
             synmedwrd_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNMEDwrd", request_id)
+            logger.error("Error calculating SYNMEDwrd: %s", e)
             synmedwrd = None
             synmedwrd_error = str(e)
         indices.append(Index(
@@ -6499,7 +6435,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synmedlem = cm_synmedlem(sentences)
             synmedlem_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNMEDlem", request_id)
+            logger.error("Error calculating SYNMEDlem: %s", e)
             synmedlem = None
             synmedlem_error = str(e)
         indices.append(Index(
@@ -6518,7 +6454,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synstruta = cm_synstruta(sentences)
             synstruta_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNSTRUTa", request_id)
+            logger.error("Error calculating SYNSTRUTa: %s", e)
             synstruta = None
             synstruta_error = str(e)
         indices.append(Index(
@@ -6537,7 +6473,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             synstrutt = cm_synstrutt(request.paragraphs)
             synstrutt_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=SYNSTRUTt", request_id)
+            logger.error("Error calculating SYNSTRUTt: %s", e)
             synstrutt = None
             synstrutt_error = str(e)
         finally:
@@ -6559,10 +6495,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             _dr_metrics = _count_metrics(sentences, request.noun_chunks, lang)
         except Exception as e:
-            logger.exception(
-                "precomputation_failed id=%s step=syntactic_pattern_density",
-                request_id,
-            )
+            logger.error("Error precomputing DR metrics: %s", e)
             _dr_metrics = None
 
         # DRNP
@@ -6570,7 +6503,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drnp = cm_drnp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drnp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRNP", request_id)
+            logger.error("Error calculating DRNP: %s", e)
             drnp = None
             drnp_error = str(e)
         indices.append(Index(
@@ -6589,7 +6522,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drvp = cm_drvp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drvp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRVP", request_id)
+            logger.error("Error calculating DRVP: %s", e)
             drvp = None
             drvp_error = str(e)
         indices.append(Index(
@@ -6608,7 +6541,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drap = cm_drap(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drap_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRAP", request_id)
+            logger.error("Error calculating DRAP: %s", e)
             drap = None
             drap_error = str(e)
         indices.append(Index(
@@ -6627,7 +6560,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drpp = cm_drpp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drpp_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRPP", request_id)
+            logger.error("Error calculating DRPP: %s", e)
             drpp = None
             drpp_error = str(e)
         indices.append(Index(
@@ -6646,7 +6579,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drpval = cm_drpval(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drpval_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRPVAL", request_id)
+            logger.error("Error calculating DRPVAL: %s", e)
             drpval = None
             drpval_error = str(e)
         indices.append(Index(
@@ -6665,7 +6598,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drneg = cm_drneg(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drneg_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRNEG", request_id)
+            logger.error("Error calculating DRNEG: %s", e)
             drneg = None
             drneg_error = str(e)
         indices.append(Index(
@@ -6684,7 +6617,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drgerund = cm_drgerund(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drgerund_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRGERUND", request_id)
+            logger.error("Error calculating DRGERUND: %s", e)
             drgerund = None
             drgerund_error = str(e)
         indices.append(Index(
@@ -6703,7 +6636,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             drinf = cm_drinf(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
             drinf_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=DRINF", request_id)
+            logger.error("Error calculating DRINF: %s", e)
             drinf = None
             drinf_error = str(e)
         indices.append(Index(
@@ -6723,10 +6656,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             _wrd_counts = _wrd_precompute(sentences)
         except Exception as e:
-            logger.exception(
-                "precomputation_failed id=%s step=word_information_counts",
-                request_id,
-            )
+            logger.error("Error precomputing WRD counts: %s", e)
             _wrd_counts = None
 
         # WRDNOUN
@@ -6734,7 +6664,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdnoun = cm_wrdnoun(sentences, counts=_wrd_counts)
             wrdnoun_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDNOUN", request_id)
+            logger.error("Error calculating WRDNOUN: %s", e)
             wrdnoun = None
             wrdnoun_error = str(e)
         indices.append(Index(
@@ -6753,7 +6683,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdverb = cm_wrdverb(sentences, counts=_wrd_counts)
             wrdverb_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDVERB", request_id)
+            logger.error("Error calculating WRDVERB: %s", e)
             wrdverb = None
             wrdverb_error = str(e)
         indices.append(Index(
@@ -6772,7 +6702,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdadj = cm_wrdadj(sentences, counts=_wrd_counts)
             wrdadj_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDADJ", request_id)
+            logger.error("Error calculating WRDADJ: %s", e)
             wrdadj = None
             wrdadj_error = str(e)
         indices.append(Index(
@@ -6791,7 +6721,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdadv = cm_wrdadv(sentences, counts=_wrd_counts)
             wrdadv_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDADV", request_id)
+            logger.error("Error calculating WRDADV: %s", e)
             wrdadv = None
             wrdadv_error = str(e)
         indices.append(Index(
@@ -6810,7 +6740,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdpro = cm_wrdpro(sentences, counts=_wrd_counts)
             wrdpro_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPRO", request_id)
+            logger.error("Error calculating WRDPRO: %s", e)
             wrdpro = None
             wrdpro_error = str(e)
         indices.append(Index(
@@ -6829,7 +6759,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdprp1s = cm_wrdprp1s(sentences, counts=_wrd_counts)
             wrdprp1s_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPRP1s", request_id)
+            logger.error("Error calculating WRDPRP1s: %s", e)
             wrdprp1s = None
             wrdprp1s_error = str(e)
         indices.append(Index(
@@ -6848,7 +6778,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdprp1p = cm_wrdprp1p(sentences, counts=_wrd_counts)
             wrdprp1p_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPRP1p", request_id)
+            logger.error("Error calculating WRDPRP1p: %s", e)
             wrdprp1p = None
             wrdprp1p_error = str(e)
         indices.append(Index(
@@ -6867,7 +6797,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdprp2 = cm_wrdprp2(sentences, counts=_wrd_counts)
             wrdprp2_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPRP2", request_id)
+            logger.error("Error calculating WRDPRP2: %s", e)
             wrdprp2 = None
             wrdprp2_error = str(e)
         indices.append(Index(
@@ -6886,7 +6816,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdprp3s = cm_wrdprp3s(sentences, counts=_wrd_counts)
             wrdprp3s_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPRP3s", request_id)
+            logger.error("Error calculating WRDPRP3s: %s", e)
             wrdprp3s = None
             wrdprp3s_error = str(e)
         indices.append(Index(
@@ -6905,7 +6835,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdprp3p = cm_wrdprp3p(sentences, counts=_wrd_counts)
             wrdprp3p_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPRP3p", request_id)
+            logger.error("Error calculating WRDPRP3p: %s", e)
             wrdprp3p = None
             wrdprp3p_error = str(e)
         indices.append(Index(
@@ -6925,7 +6855,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfrqc = None
             wrdfrqc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFRQc", request_id)
+            logger.error("Error calculating WRDFRQc: %s", e)
             wrdfrqc = None
             wrdfrqc_error = str(e)
         indices.append(Index(
@@ -6945,7 +6875,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfrqa = None
             wrdfrqa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFRQa", request_id)
+            logger.error("Error calculating WRDFRQa: %s", e)
             wrdfrqa = None
             wrdfrqa_error = str(e)
         indices.append(Index(
@@ -6965,7 +6895,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfrqmc = None
             wrdfrqmc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFRQmc", request_id)
+            logger.error("Error calculating WRDFRQmc: %s", e)
             wrdfrqmc = None
             wrdfrqmc_error = str(e)
         indices.append(Index(
@@ -6984,7 +6914,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfrqc = cm_wrdfrqc(sentences, lang, "wiki-20220301-sample10000")
             wrdfrqc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFRQc_wiki10000", request_id)
+            logger.error("Error calculating WRDFRQc_wiki10000: %s", e)
             wrdfrqc = None
             wrdfrqc_error = str(e)
         indices.append(Index(
@@ -7004,7 +6934,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfrqa = cm_wrdfrqa(tokens, lang, "wiki-20220301-sample10000")
             wrdfrqa_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFRQa_wiki10000", request_id)
+            logger.error("Error calculating WRDFRQa_wiki10000: %s", e)
             wrdfrqa = None
             wrdfrqa_error = str(e)
         indices.append(Index(
@@ -7024,7 +6954,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfrqmc = cm_wrdfrqmc(sentences, lang, "wiki-20220301-sample10000")
             wrdfrqmc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFRQmc_wiki10000", request_id)
+            logger.error("Error calculating WRDFRQmc_wiki10000: %s", e)
             wrdfrqmc = None
             wrdfrqmc_error = str(e)
         indices.append(Index(
@@ -7043,10 +6973,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         try:
             _mrc_dict = _load_mrc_database(lang)
         except Exception as e:
-            logger.exception(
-                "precomputation_failed id=%s step=mrc_dictionary",
-                request_id,
-            )
+            logger.error("Error precomputing MRC dict: %s", e)
             _mrc_dict = None
 
         # WRDAOAc
@@ -7055,7 +6982,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdaoac = cm_wrdaoac(sentences, lang, mrc_dict=_mrc_dict)
             wrdaoac_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDAOAc", request_id)
+            logger.error("Error calculating WRDAOAc: %s", e)
             wrdaoac = None
             wrdaoac_error = str(e)
         indices.append(Index(
@@ -7075,7 +7002,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdfamc = cm_wrdfamc(sentences, lang, mrc_dict=_mrc_dict)
             wrdfamc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDFAMc", request_id)
+            logger.error("Error calculating WRDFAMc: %s", e)
             wrdfamc = None
             wrdfamc_error = str(e)
         indices.append(Index(
@@ -7095,7 +7022,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdcncc = cm_wrdcncc(sentences, lang, mrc_dict=_mrc_dict)
             wrdcncc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDCNCc", request_id)
+            logger.error("Error calculating WRDCNCc: %s", e)
             wrdcncc = None
             wrdcncc_error = str(e)
         indices.append(Index(
@@ -7115,7 +7042,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdimgc = cm_wrdimgc(sentences, lang, mrc_dict=_mrc_dict)
             wrdimgc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDIMGc", request_id)
+            logger.error("Error calculating WRDIMGc: %s", e)
             wrdimgc = None
             wrdimgc_error = str(e)
         indices.append(Index(
@@ -7135,7 +7062,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdmeac = cm_wrdmeac(sentences, lang, mrc_dict=_mrc_dict)
             wrdmeac_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDMEAc", request_id)
+            logger.error("Error calculating WRDMEAc: %s", e)
             wrdmeac = None
             wrdmeac_error = str(e)
         indices.append(Index(
@@ -7154,7 +7081,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             wrdpolc = cm_wrdpolc(sentences, lang)
             wrdpolc_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=WRDPOLc", request_id)
+            logger.error("Error calculating WRDPOLc: %s", e)
             wrdpolc = None
             wrdpolc_error = str(e)
         indices.append(Index(
@@ -7180,9 +7107,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             _wrdhyp_error = None
         except Exception as e:
-            logger.exception(
-                "index_group_failed id=%s indices=WRDHYPn,WRDHYPv,WRDHYPnv",
-                request_id,
+            logger.error(
+                "Error calculating WRDHYP indices: %s",
+                e
             )
 
             _wrdhyp = {
@@ -7264,7 +7191,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdfre_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDFRE", request_id)
+            logger.error("Error calculating RDFRE: %s", e)
             rdfre = None
             rdfre_error = str(e)
         indices.append(Index(
@@ -7286,7 +7213,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdfkgl_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDFKGL", request_id)
+            logger.error("Error calculating RDFKGL: %s", e)
             rdfkgl = None
             rdfkgl_error = str(e)
         indices.append(Index(
@@ -7308,7 +7235,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdfog_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDFOG", request_id)
+            logger.error("Error calculating RDFOG: %s", e)
             rdfog = None
             rdfog_error = str(e)
         indices.append(Index(
@@ -7328,7 +7255,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdsmog_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDSMOG", request_id)
+            logger.error("Error calculating RDSMOG: %s", e)
             rdsmog = None
             rdsmog_error = str(e)
         indices.append(Index(
@@ -7348,7 +7275,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdari_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDARI", request_id)
+            logger.error("Error calculating RDARI: %s", e)
             rdari = None
             rdari_error = str(e)
         indices.append(Index(
@@ -7368,7 +7295,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdcli_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDCLI", request_id)
+            logger.error("Error calculating RDCLI: %s", e)
             rdcli = None
             rdcli_error = str(e)
         indices.append(Index(
@@ -7388,7 +7315,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdlw_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDLW", request_id)
+            logger.error("Error calculating RDLW: %s", e)
             rdlw = None
             rdlw_error = str(e)
         indices.append(Index(
@@ -7408,7 +7335,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rddcrs_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDDCRS", request_id)
+            logger.error("Error calculating RDDCRS: %s", e)
             rddcrs = None
             rddcrs_error = str(e)
         indices.append(Index(
@@ -7428,7 +7355,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdspache_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDSPACHE", request_id)
+            logger.error("Error calculating RDSPACHE: %s", e)
             rdspache = None
             rdspache_error = str(e)
         indices.append(Index(
@@ -7448,7 +7375,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdwstf_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDWSTF1", request_id)
+            logger.error("Error calculating RDWSTF1: %s", e)
             rdwstf = None
             rdwstf_error = str(e)
         indices.append(Index(
@@ -7468,7 +7395,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdwstf_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDWSTF2", request_id)
+            logger.error("Error calculating RDWSTF2: %s", e)
             rdwstf = None
             rdwstf_error = str(e)
         indices.append(Index(
@@ -7488,7 +7415,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdwstf_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDWSTF3", request_id)
+            logger.error("Error calculating RDWSTF3: %s", e)
             rdwstf = None
             rdwstf_error = str(e)
         indices.append(Index(
@@ -7508,7 +7435,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             )
             rdwstf_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDWSTF4", request_id)
+            logger.error("Error calculating RDWSTF4: %s", e)
             rdwstf = None
             rdwstf_error = str(e)
         indices.append(Index(
@@ -7525,7 +7452,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
             rdl2_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDL2", request_id)
+            logger.error("Error calculating RDL2: %s", e)
             rdl2 = None
             rdl2_error = str(e)
         indices.append(Index(
@@ -7544,7 +7471,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
             rdl2_error = None
         except Exception as e:
-            logger.exception("index_failed id=%s index=RDL2", request_id)
+            logger.error("Error calculating RDL2: %s", e)
             rdl2 = None
             rdl2_error = str(e)
         indices.append(Index(
@@ -7571,69 +7498,18 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             comment=f"{settings.annotator_name} ({settings.annotator_version})"
         )
 
-    except Exception:
-        duration_seconds = perf_counter() - request_started_at
-        logger.exception(
-            "request_failed id=%s language=%s duration_seconds=%.3f",
-            request_id,
-            lang or "unset",
-            duration_seconds,
-        )
+    except Exception as ex:
+        logger.exception(ex)
 
-        # Do not turn a request-wide failure into a superficially successful
-        # HTTP 200 response containing partial indices and empty metadata.
-        # Re-raising lets FastAPI/Uvicorn return an error to the DUUI runner.
-        raise
+    logger.debug(meta)
+    logger.debug(modification_meta)
 
-    logger.debug(
-        "request_metadata id=%s annotation_meta=%r modification_meta=%r",
-        request_id,
-        meta,
-        modification_meta,
-    )
+    duration = int(time()) - modification_timestamp_seconds
+    logger.info("Processed in %d seconds", duration)
 
-    duration_seconds = perf_counter() - request_started_at
-    expected_unavailable_indices = [
-        index.label_ttlab or index.label_v3 or str(index.index)
-        for index in indices
-        if index.error and index.error.startswith("Not implemented:")
-    ]
-    failed_indices = [
-        index.label_ttlab or index.label_v3 or str(index.index)
-        for index in indices
-        if index.error and not index.error.startswith("Not implemented:")
-    ]
-
-    if expected_unavailable_indices:
-        logger.debug(
-            "request_expected_unavailable_indices id=%s count=%d indices=%s",
-            request_id,
-            len(expected_unavailable_indices),
-            ",".join(expected_unavailable_indices),
-        )
-
-    if failed_indices:
-        logger.warning(
-            "request_completed_with_errors id=%s language=%s "
-            "duration_seconds=%.3f indices=%d failed_indices=%d failures=%s",
-            request_id,
-            lang or "unset",
-            duration_seconds,
-            len(indices),
-            len(failed_indices),
-            ",".join(failed_indices),
-        )
-    else:
-        logger.info(
-            "request_completed id=%s language=%s duration_seconds=%.3f indices=%d",
-            request_id,
-            lang or "unset",
-            duration_seconds,
-            len(indices),
-        )
-
-    return TextImagerResponse(
+    response = TextImagerResponse(
         indices=indices,
         meta=meta,
         modification_meta=modification_meta,
     )
+    return response
