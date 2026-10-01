@@ -11,6 +11,9 @@ from yt_dlp import YoutubeDL
 import magic
 import os
 import re
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 
 class AudioToken(BaseModel):
     """
@@ -68,6 +71,9 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 # Load the Lua communication script
 communication = "communication.lua"
@@ -129,126 +135,129 @@ AUDIO_PATH = "./youtube_audios"
 @app.post("/v1/process")
 def post_process(request: DUUIRequest) -> DUUIResponse:
 
-    if(not os.path.isdir(AUDIO_PATH)):
-        os.mkdir(AUDIO_PATH)
+    try:
+        if(not os.path.isdir(AUDIO_PATH)):
+            os.mkdir(AUDIO_PATH)
 
-    transcription_token = []
+        transcription_token = []
 
-    # Download video
-    transcription = None
-    if(request.link.startswith("https://www.youtube.com/watch") or request.link.startswith("https://youtu.be/")):
-        download_result = download_youtube(request.link, request.with_youtube_transcription, request.transcription_language, request.with_cookies)
-        video = download_result[0]
-        transcription = download_result[1]
-    else:  # Not a YouTube video
+        # Download video
+        transcription = None
+        if(request.link.startswith("https://www.youtube.com/watch") or request.link.startswith("https://youtu.be/")):
+            download_result = download_youtube(request.link, request.with_youtube_transcription, request.transcription_language, request.with_cookies)
+            video = download_result[0]
+            transcription = download_result[1]
+        else:  # Not a YouTube video
+            return DUUIResponse(
+                encoded_video=request.link,
+                youtube_audio_token=transcription_token
+            )
+
+        try:
+            with open(video, "rb") as f:
+                video_data = f.read()
+            encoded = base64.b64encode(video_data).decode("utf-8")
+        except Exception as e:
+            log_error("COULD NOT OPEN AUDIO FILE: " + str(e))
+
+        # Get transcription
+        if transcription is None:
+            if request.with_youtube_transcription:
+                log_warn("Video does not contain any kind of subtitles")
+        else:
+            p = re.compile("([0-9])+:([0-9])+:([0-9])+\\.([0-9])+ --> ([0-9])+:([0-9])+:([0-9])+\\.([0-9])+")
+
+            with open(transcription, 'r', encoding='UTF-8') as f:
+                    is_auto_generated = "</c>" in f.read()
+
+            with open(transcription, 'r', encoding='UTF-8') as f:
+                start = 0
+                end = 0
+                text = ""
+                found_first = False
+                show_block = False
+                current_char = 0
+
+                while line := f.readline():
+                    matched = p.search(line.rstrip())
+                    if matched is not None:
+                        if text and show_block:
+                            transcription_token.append(AudioToken(
+                                timeStart=float(start),
+                                timeEnd=float(end),
+                                text=text,
+                                begin=current_char,
+                                end=current_char + len(text)
+                            ))
+                            current_char += len(text) + 1
+
+                        text = ""
+                        found_first = True
+                        show_block = False
+                        timestamps = matched.group().split("-->")
+                        start = timestamps[0].strip().split(":")
+                        start = float("{:.2f}".format(float(start[2]) + float(start[1]) * 60 + float(start[0]) * 3600))
+                        end = timestamps[1].strip().split(":")
+                        end = float("{:.2f}".format(float(end[2]) + float(end[1]) * 60 + float(end[0]) * 3600))
+                    elif found_first:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        if is_auto_generated and "<c>" in line and "</c>" in line:
+                            show_block = True
+                            words = line.split("<c>")
+                            line_text = ""
+                            first_word = True
+                            for word in words:
+                                if first_word:
+                                    line_text += word.split(" ")[0] + " "
+                                    first_word = False
+                                else:
+                                    line_text += word.split("</c>")[0]
+
+                            text = line_text
+                        elif not is_auto_generated:
+                            show_block = True
+
+                            line_text = line.strip()
+
+                            if not text:
+                                text = line_text
+                            else:
+                                text += " " + line_text
+                        elif is_auto_generated:
+                            continue
+
+
+
+                if text:
+                    transcription_token.append(AudioToken(
+                        timeStart=float(start),
+                        timeEnd=float(end),
+                        text=text,
+                        begin=current_char,
+                        end=current_char + len(text)
+                    ))
+
+        mimetype = magic.from_file(video, mime=True)
+        log_info(mimetype)
+
+        for file in os.listdir():
+            if file.endswith(".mp4"):
+                os.remove(file)
+            if file.endswith(".json"):
+                os.remove(file)
+            if file.endswith(".vtt"):
+                os.remove(file)
+
         return DUUIResponse(
-            encoded_video=request.link,
+            encoded_video=encoded,
+            mimetype_video=mimetype,
             youtube_audio_token=transcription_token
         )
-
-    try:
-        with open(video, "rb") as f:
-            video_data = f.read()
-        encoded = base64.b64encode(video_data).decode("utf-8")
     except Exception as e:
-        print("COULD NOT OPEN AUDIO FILE: " + str(e))
-
-    # Get transcription
-    if transcription is None:
-        if request.with_youtube_transcription:
-            print("Video does not contain any kind of subtitles")
-    else:
-        p = re.compile("([0-9])+:([0-9])+:([0-9])+\\.([0-9])+ --> ([0-9])+:([0-9])+:([0-9])+\\.([0-9])+")
-
-        with open(transcription, 'r', encoding='UTF-8') as f:
-                is_auto_generated = "</c>" in f.read()
-
-        with open(transcription, 'r', encoding='UTF-8') as f:
-            start = 0
-            end = 0
-            text = ""
-            found_first = False
-            show_block = False
-            current_char = 0
-
-            while line := f.readline():
-                matched = p.search(line.rstrip())
-                if matched is not None:
-                    if text and show_block:
-                        transcription_token.append(AudioToken(
-                            timeStart=float(start),
-                            timeEnd=float(end),
-                            text=text,
-                            begin=current_char,
-                            end=current_char + len(text)
-                        ))
-                        current_char += len(text) + 1
-
-                    text = ""
-                    found_first = True
-                    show_block = False
-                    timestamps = matched.group().split("-->")
-                    start = timestamps[0].strip().split(":")
-                    start = float("{:.2f}".format(float(start[2]) + float(start[1]) * 60 + float(start[0]) * 3600))
-                    end = timestamps[1].strip().split(":")
-                    end = float("{:.2f}".format(float(end[2]) + float(end[1]) * 60 + float(end[0]) * 3600))
-                elif found_first:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    if is_auto_generated and "<c>" in line and "</c>" in line:
-                        show_block = True
-                        words = line.split("<c>")
-                        line_text = ""
-                        first_word = True
-                        for word in words:
-                            if first_word:
-                                line_text += word.split(" ")[0] + " "
-                                first_word = False
-                            else:
-                                line_text += word.split("</c>")[0]
-
-                        text = line_text
-                    elif not is_auto_generated:
-                        show_block = True
-
-                        line_text = line.strip()
-
-                        if not text:
-                            text = line_text
-                        else:
-                            text += " " + line_text
-                    elif is_auto_generated:
-                        continue
-
-
-
-            if text:
-                transcription_token.append(AudioToken(
-                    timeStart=float(start),
-                    timeEnd=float(end),
-                    text=text,
-                    begin=current_char,
-                    end=current_char + len(text)
-                ))
-
-    mimetype = magic.from_file(video, mime=True)
-    print(mimetype)
-
-    for file in os.listdir():
-        if file.endswith(".mp4"):
-            os.remove(file)
-        if file.endswith(".json"):
-            os.remove(file)
-        if file.endswith(".vtt"):
-            os.remove(file)
-
-    return DUUIResponse(
-        encoded_video=encoded,
-        mimetype_video=mimetype,
-        youtube_audio_token=transcription_token
-    )
+        log_error(str(e))
 
 
 def download_youtube(link: str, download_trans: bool, transcription_lang: str, cookies: str):
@@ -332,10 +341,10 @@ def download_youtube(link: str, download_trans: bool, transcription_lang: str, c
             file.write(cookies)
 
         if os.path.exists("./cookies.txt"):
-            print("Cookies found")
+            log_info("Cookies found")
             ydl_opts["cookiefile"] = "./cookies.txt"
 
-    print(ydl_opts)
+    log_info(ydl_opts)
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(link, download=True)
 
