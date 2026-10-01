@@ -6,12 +6,13 @@ EXPOSE 9714
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install ffmpeg -y
 
-RUN pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-deps torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cpu
 
 COPY ./requirements.txt ./requirements.txt
-RUN pip install --no-deps -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./src/main/docker/python/model_preloader.py ./model_preloader.py
+ENV TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 RUN python -u ./model_preloader.py
 
 COPY ./src/main/docker/python/typesystem.xml ./typesystem.xml
