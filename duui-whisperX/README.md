@@ -2,6 +2,37 @@
 
 WhisperX: https://github.com/m-bain/whisperX
 
+
+# HoToUse
+For using **WhisperX** as a DUUI image it is necessary to use the Docker Unified UIMA Interface.
+
+## Use as Stand-Alone-Image
+```bash
+docker run docker.texttechnologylab.org/duui-whisperx:latest
+```
+or the CUDA variant:
+```bash
+docker run docker.texttechnologylab.org/duui-whisperx-cuda:latest
+```
+
+## Run with a specific port
+```bash
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-whisperx:latest
+```
+or the CUDA variant:
+```bash
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-whisperx-cuda:latest
+```
+
+## Run within DUUI
+```java
+composer.add(new DUUIDockerDriver.
+    Component("texttechnologylab.org/duui-whisperx:latest")  // or texttechnologylab.org/duui-whisperx-cuda:latest
+    .withParameter("withTranscription", "true")
+    //.withParameter("cookies", "/* cookies-file */") // not nessesary
+    .withScale(iWorkers)
+    .withImageFetching());
+
 #### Input/Output:
 
 input: Audio/Video file in form of a Base64 string inside the SOFA
