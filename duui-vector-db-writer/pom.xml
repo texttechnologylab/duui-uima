@@ -11,7 +11,7 @@
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <ttlab.duui.version>1.5.3</ttlab.duui.version>
+        <ttlab.duui.version>1.5.5</ttlab.duui.version>
         <ttlab.typesystem.version>6d3c940044383742a3c47a78a9dc30e4b246f43d</ttlab.typesystem.version>
     </properties>
 
