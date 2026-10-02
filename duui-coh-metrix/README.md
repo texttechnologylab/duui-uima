@@ -182,10 +182,34 @@ docker run --rm -p 1000:9714 \
 
 ### Run within DUUI
 
-```
+```java
+DUUIComposer composer = new DUUIComposer()
+    .withDebugLevel(DUUIComposer.DebugLevel.INFO)
+    .withComponentLogging(true)
+    .withDebugSeverity(true)
+    .withDebugSource(true);
+
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:latest")
 );
+```
+
+### Component logging
+
+The Python service uses the official
+[DUUIlogger](https://github.com/texttechnologylab/DUUIlogger). If component
+logging is enabled in a logging-capable DUUI Core, request logs are returned
+with the `/v1/process` response and are printed directly in the Java runner's
+console. `INFO` shows request start/completion messages; `WARN` limits the
+output to warnings and errors. `withDebugColorful(false)` is recommended for
+CI logs and redirected files.
+
+The transport is request/response based: Java receives the records after the
+component response has arrived. Startup messages and logs from a process that
+hangs or exits before sending its response remain available through Docker:
+
+```bash
+docker logs --timestamps --follow duui-coh-metrix-pipeline
 ```
 
 ## Cite

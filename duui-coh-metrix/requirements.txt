@@ -1,4 +1,5 @@
 annotated-types==0.7.0
+annotated-doc==0.0.5
 anyio==4.9.0
 attrs==25.3.0
 click==8.2.1
@@ -8,7 +9,7 @@ cycler==0.12.1
 defusedxml==0.7.1
 deprecation==2.1.0
 dkpro-cassis==0.10.1
-fastapi==0.115.12
+fastapi==0.141.1
 fastenum==1.1.2
 fonttools==4.58.4
 germanetpy==0.2.5
@@ -31,9 +32,9 @@ packaging==25.0
 pandas==2.3.0
 pillow==11.3.0
 pluggy==1.6.0
-pydantic==2.11.5
+pydantic==2.13.4
 pydantic-settings==2.9.1
-pydantic_core==2.33.2
+pydantic_core==2.46.4
 Pygments==2.19.2
 pyparsing==3.2.3
 pyphen==0.17.2
@@ -57,9 +58,10 @@ git+https://github.com/felixvoll/textstat.git@v0.7.12-post2#egg=textstat
 threadpoolctl==3.6.0
 toposort==1.10
 tqdm==4.67.1
-typing-inspection==0.4.1
-typing_extensions==4.14.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
 tzdata==2025.2
 uvicorn==0.34.3
 wheel==0.45.1
 zipp==3.23.0
+git+https://github.com/texttechnologylab/DUUIlogger.git@0e0a9974097f9dd8009857f38b7fb5f647a7bfb2#egg=duui-logging
