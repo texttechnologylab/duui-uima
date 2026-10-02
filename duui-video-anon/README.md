@@ -3,7 +3,8 @@
 DUUI component for anonymizing faces and voices in MP4 or WebM videos. It combines
 [`duui-face_anon`](../duui-face_anon) and
 [`duui-speaker-anonymization`](../duui-speaker-anonymization). Each request to
-`duui-video-anon` runs an internal Java `DUUIComposer` with four stages:
+`duui-video-anon` coordinates four stages in Python. Java `DUUIComposer`
+instances call only the face and speaker services:
 
 1. Anonymize faces in the video.
 2. Extract its audio as a WAV file.
@@ -32,6 +33,9 @@ the running services. `MAX_MEDIA_BYTES` defaults to 500 MiB.
 The runner sets face sampling to `uniform` with `frame_interval=1` to keep the
 video timeline aligned with the audio. See the face component's README for its
 additional model settings.
+
+Both service URLs are required HTTP(S) URLs. The video service validates them
+at startup and exits immediately if either is missing or malformed.
 
 ## How To Use
 
@@ -76,9 +80,10 @@ composer.add(new DUUIRemoteDriver.Component("http://anduin.hucompute.org:9715")
 | Input | `_InitialView` | Base64 MP4 or WebM in `org.texttechnologylab.annotation.type.Video.src` |
 | Output | `output` | Base64 MP4 in a `Video` annotation |
 
-The internal pipeline uses `face_anonymized`, `extracted_audio`, and
-`anonymized_audio` CAS views. Some speaker images write the WAV to
-`opf_anonymized_audio`; the mux stage accepts both.
+Python passes the face result to `extract_audio()` and the speaker result to
+`mux_audio()` directly. The Java speaker stage accepts either the
+`anonymized_audio` or `opf_anonymized_audio` CAS view, since some speaker images
+write to the latter.
 
 The component extracts the first audio stream as a 16 kHz mono WAV. It maps only
 the face-anonymized video and new audio into the output, pads or trims the new
@@ -90,6 +95,17 @@ Media is Base64 encoded throughout the pipeline, so the composer and services
 need enough memory for the video and audio data.
 
 ## Tests
+
+Run the local pipeline orchestration tests with:
+
+```bash
+python3 -m pip install -r requirements-test.txt
+python3 -m unittest discover -s src/test/python
+```
+
+The concurrency test sends two `/v1/process` requests through the ASGI app
+while limiting its worker thread pool to two tokens. Both requests must finish
+without calling the video service from inside the pipeline.
 
 The Java integration test sends `src/test/resources/videos/hope.webm` to the
 single video component and saves `target/test-output/video-anonymized.mp4`.

@@ -13,7 +13,7 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.annotation.type.Video;
 
-/** Runs the four remote DUUI stages for a single video document. */
+/** Runs one remote DUUI stage; Python handles the local media stages. */
 public final class VideoAnonPipeline {
     private VideoAnonPipeline() { }
 
@@ -22,12 +22,29 @@ public final class VideoAnonPipeline {
         return value == null || value.isBlank() ? defaultValue : value;
     }
 
-    public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("Usage: VideoAnonPipeline input.mp4|input.webm output.mp4");
+    private static String requiredUrl(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " must be set");
         }
-        Path input = Path.of(args[0]);
-        Path output = Path.of(args[1]);
+        return value;
+    }
+
+    public static void main(String[] args) throws Exception {
+        if (args.length != 3 || !List.of("face", "speaker").contains(args[0])) {
+            throw new IllegalArgumentException(
+                    "Usage: VideoAnonPipeline face|speaker input.mp4|input.wav output.mp4|output.wav");
+        }
+        Path input = Path.of(args[1]);
+        Path output = Path.of(args[2]);
+        if (args[0].equals("face")) {
+            runFace(input, output);
+        } else {
+            runSpeaker(input, output);
+        }
+    }
+
+    private static void runFace(Path input, Path output) throws Exception {
         String mode = setting("DUUI_FACE_MODE", "redact");
         if (!List.of("redact", "single_align", "multiple_align").contains(mode)) {
             throw new IllegalArgumentException("DUUI_FACE_MODE must be redact, single_align, or multiple_align");
@@ -37,12 +54,17 @@ public final class VideoAnonPipeline {
             throw new IllegalArgumentException("HF_TOKEN is required for generative face anonymization");
         }
 
-        DUUIComposer composer = createComposer(
-                setting("DUUI_FACE_ANON_URL", "http://127.0.0.1:9714"),
-                setting("DUUI_VIDEO_ANON_URL", "http://127.0.0.1:9715"),
-                setting("DUUI_SPEAKER_ANON_URL", "http://127.0.0.1:9716"),
-                mode, setting("DUUI_REDACT_TYPE", "black"), token,
-                setting("DUUI_LANGUAGE", "en"));
+        String faceUrl = requiredUrl("DUUI_FACE_ANON_URL");
+        DUUIComposer composer = newComposer();
+        composer.add(new DUUIRemoteDriver.Component(faceUrl)
+                .withName("face-anonymization")
+                .withParameter("anon_type", mode)
+                .withParameter("redact_type", setting("DUUI_REDACT_TYPE", "black"))
+                .withParameter("hf_token", token)
+                .withParameter("sampling_mode", "uniform")
+                .withParameter("frame_interval", "1")
+                .withTargetView("face_anonymized")
+                .build().withTimeout(3600));
         try {
             JCas cas = JCasFactory.createJCas();
             cas.setDocumentText("video");
@@ -54,10 +76,10 @@ public final class VideoAnonPipeline {
             video.addToIndexes();
 
             composer.run(cas);
-            List<Video> videos = List.copyOf(JCasUtil.select(cas.getView("output"), Video.class));
+            List<Video> videos = List.copyOf(JCasUtil.select(cas.getView("face_anonymized"), Video.class));
             if (videos.size() != 1 || videos.get(0).getSrc() == null
                     || videos.get(0).getSrc().isBlank()) {
-                throw new IllegalStateException("Pipeline produced no anonymized video");
+                throw new IllegalStateException("Face stage produced no video");
             }
             Files.write(output, Base64.getDecoder().decode(videos.get(0).getSrc()));
         } finally {
@@ -65,44 +87,45 @@ public final class VideoAnonPipeline {
         }
     }
 
-    static DUUIComposer createComposer(String faceUrl, String bridgeUrl, String speakerUrl,
-                                       String mode, String redactType, String token,
-                                       String language) throws Exception {
+    private static void runSpeaker(Path input, Path output) throws Exception {
+        String speakerUrl = requiredUrl("DUUI_SPEAKER_ANON_URL");
+        DUUIComposer composer = newComposer();
+        composer.add(new DUUIRemoteDriver.Component(speakerUrl)
+                .withName("speaker-anonymization")
+                .withParameter("language", setting("DUUI_LANGUAGE", "en"))
+                .withTargetView("anonymized_audio")
+                .build().withTimeout(3600));
+        try {
+            JCas cas = JCasFactory.createJCas();
+            cas.setDocumentLanguage(setting("DUUI_LANGUAGE", "en"));
+            cas.setSofaDataString(Base64.getEncoder().encodeToString(Files.readAllBytes(input)), "audio/wav");
+            composer.run(cas);
+
+            String audio = null;
+            for (String viewName : List.of("anonymized_audio", "opf_anonymized_audio")) {
+                try {
+                    audio = cas.getView(viewName).getSofaDataString();
+                } catch (Exception ignored) {
+                    // Older speaker images write to a fixed output view.
+                }
+                if (audio != null) {
+                    break;
+                }
+            }
+            if (audio == null) {
+                throw new IllegalStateException("Speaker stage produced no audio view");
+            }
+            Files.write(output, Base64.getDecoder().decode(audio));
+        } finally {
+            composer.shutdown();
+        }
+    }
+
+    private static DUUIComposer newComposer() throws Exception {
         DUUIComposer composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
         composer.addDriver(new DUUIRemoteDriver());
-        composer.add(new DUUIRemoteDriver.Component(faceUrl)
-                    .withName("face-anonymization")
-                    .withParameter("anon_type", mode)
-                    .withParameter("redact_type", redactType)
-                    .withParameter("hf_token", token)
-                    .withParameter("sampling_mode", "uniform")
-                    .withParameter("frame_interval", "1")
-                    .withTargetView("face_anonymized")
-                    .build().withTimeout(3600));
-
-        composer.add(new DUUIRemoteDriver.Component(bridgeUrl)
-                    .withName("extract-audio")
-                    .withParameter("operation", "extract")
-                    .withSourceView("face_anonymized")
-                    .withTargetView("extracted_audio")
-                    .build().withTimeout(3600));
-
-        composer.add(new DUUIRemoteDriver.Component(speakerUrl)
-                    .withName("speaker-anonymization")
-                    .withParameter("language", language)
-                    .withSourceView("extracted_audio")
-                    .withTargetView("anonymized_audio")
-                    .build().withTimeout(3600));
-
-        composer.add(new DUUIRemoteDriver.Component(bridgeUrl)
-                    .withName("mux-anonymized-audio")
-                    .withParameter("operation", "mux")
-                    .withParameter("audio_view", "anonymized_audio")
-                    .withSourceView("face_anonymized")
-                    .withTargetView("output")
-                    .build().withTimeout(3600));
         return composer;
     }
 

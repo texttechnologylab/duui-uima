@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -8,11 +9,20 @@ from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from media import extract_audio, mux_audio
-from pipeline import run_pipeline
+from pipeline import required_service_urls, run_pipeline
 
 
 ROOT = Path(__file__).parent
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    required_service_urls()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     docs_url="/api",
     redoc_url=None,
     title="DUUI Video Anonymization",
