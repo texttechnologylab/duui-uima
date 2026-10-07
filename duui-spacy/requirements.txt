@@ -48,3 +48,4 @@ urllib3==2.7.0
 uvicorn==0.23.2
 wasabi==1.1.2
 weasel==0.3.3
+duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger
