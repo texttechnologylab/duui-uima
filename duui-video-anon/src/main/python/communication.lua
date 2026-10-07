@@ -22,6 +22,10 @@ function serialize(inputCas, outputStream, parameters)
     if not videos:hasNext() then error("No Video in source view") end
     local video = videos:next()
     if videos:hasNext() then error("Expected exactly one Video per CAS") end
+    local src = video:getSrc()
+    if src == nil or tostring(src):match("^%s*$") then
+        error("Video.src must contain non-empty Base64-encoded video data")
+    end
 
     local audio = nil
     if operation == "mux" then
@@ -44,7 +48,7 @@ function serialize(inputCas, outputStream, parameters)
     outputStream:write(json.encode({
         operation = operation,
         video = {
-            src = video:getSrc(),
+            src = src,
             length = video:getLength(),
             fps = video:getFps(),
             mimetype = video:getMimetype(),
