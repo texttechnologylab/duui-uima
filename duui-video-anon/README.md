@@ -112,6 +112,11 @@ fails. Resynthesized speech can differ from the source video in word timing.
 Media is Base64 encoded throughout the pipeline, so the composer and services
 need enough memory for the video and audio data.
 
+Processing errors return JSON with a `detail` field. Validation errors and
+handled media-tool failures return HTTP 422. Unexpected processing failures
+return HTTP 500 with `{"detail": "Internal media processing error"}`; the
+traceback is logged and included in `DUUI-Logs` when collection is enabled.
+
 ## Tests
 
 Run the local pipeline orchestration tests with:

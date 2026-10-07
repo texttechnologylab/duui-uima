@@ -136,6 +136,6 @@ async def process(raw_request: Request) -> dict:
     except (ValueError, RuntimeError) as exc:
         log_error(f"{request.operation} request failed")
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception:
+    except Exception as exc:
         log_error(f"Unexpected failure in {request.operation} request")
-        raise
+        raise HTTPException(status_code=500, detail="Internal media processing error") from exc

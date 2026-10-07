@@ -13,6 +13,7 @@ from duui_logging import log_info
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "main" / "python"))
 import app  # noqa: E402
+import media  # noqa: E402
 import pipeline  # noqa: E402
 
 
@@ -185,6 +186,68 @@ class RequestLoggingTest(unittest.IsolatedAsyncioTestCase):
         error = next(record for record in records if record["level"] == "ERROR")
         self.assertEqual(error["message"], "extract request failed")
         self.assertIn("RuntimeError: Media tool failed", error["stacktrace"])
+
+
+class ProcessingErrorsTest(unittest.IsolatedAsyncioTestCase):
+    async def post(self, operation, collect=True):
+        headers = {"DUUI-Log-Collect": "true"} if collect else {}
+        # Keep ASGITransport's default exception propagation so an unhandled
+        # exception fails the test instead of silently becoming a plain-text 500.
+        transport = httpx.ASGITransport(app=app.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.post("/v1/process", headers=headers, json={
+                "operation": operation, "video": {"src": "dmlkZW8="}, "audio": "YXVkaW8=",
+            })
+
+    async def test_unexpected_worker_failures_return_json_and_collected_tracebacks(self):
+        failures = (
+            (OSError, "private filesystem detail"),
+            (FileNotFoundError, "private missing output path"),
+            (TypeError, "private unexpected FFprobe field"),
+        )
+        for operation, worker in (("extract", "extract_audio"),
+                                  ("pipeline", "run_pipeline"), ("mux", "mux_audio")):
+            for error_type, message in failures:
+                failure = error_type(message)
+                with self.subTest(operation=operation, failure=type(failure).__name__):
+                    with patch.object(app, worker, side_effect=failure):
+                        response = await self.post(operation)
+                    self.assertEqual(response.status_code, 500)
+                    self.assertEqual(response.headers["content-type"], "application/json")
+                    self.assertEqual(response.json(), {"detail": "Internal media processing error"})
+                    self.assertNotIn("private", response.text)
+                    records = json.loads(response.headers["DUUI-Logs"])
+                    error = next(record for record in records if record["level"] == "ERROR")
+                    self.assertEqual(error["message"], f"Unexpected failure in {operation} request")
+                    self.assertIn(f"{type(failure).__name__}: {failure}", error["stacktrace"])
+
+    async def test_unexpected_failure_without_log_collection_returns_json(self):
+        with patch.object(app, "extract_audio", side_effect=OSError("disk failure")):
+            response = await self.post("extract", collect=False)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "Internal media processing error"})
+        self.assertNotIn("DUUI-Logs", response.headers)
+
+    async def test_malformed_ffprobe_output_returns_structured_error(self):
+        for output, status in ((b"not JSON", 422), (b"[]", 500),
+                               (b'{"streams": [null]}', 500), (b"\xff", 422)):
+            with self.subTest(output=output), patch.object(media, "run", return_value=output):
+                response = await self.post("extract")
+            self.assertEqual(response.status_code, status)
+            self.assertIsInstance(response.json()["detail"], str)
+            records = json.loads(response.headers["DUUI-Logs"])
+            self.assertTrue(any(record["level"] == "ERROR" and record["stacktrace"]
+                                for record in records))
+
+    async def test_missing_extracted_output_returns_structured_error(self):
+        with patch.object(media, "probe", return_value={"has_audio": True}), \
+                patch.object(media, "run", return_value=b""):
+            response = await self.post("extract")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "Internal media processing error"})
+        records = json.loads(response.headers["DUUI-Logs"])
+        self.assertTrue(any("FileNotFoundError" in (record.get("stacktrace") or "")
+                            for record in records))
 
 
 class StartupConfigurationTest(unittest.IsolatedAsyncioTestCase):
