@@ -67,9 +67,7 @@ public final class VideoAnonPipeline {
                 .build().withTimeout(3600));
         try {
             JCas cas = JCasFactory.createJCas();
-            cas.setDocumentText("video");
-            cas.setDocumentLanguage(setting("DUUI_LANGUAGE", "en"));
-            Video video = new Video(cas, 0, 5);
+            Video video = new Video(cas, 0, 0);
             video.setSrc(Base64.getEncoder().encodeToString(Files.readAllBytes(input)));
             video.setMimetype(input.getFileName().toString().toLowerCase().endsWith(".webm")
                     ? "video/webm" : "video/mp4");
@@ -97,7 +95,6 @@ public final class VideoAnonPipeline {
                 .build().withTimeout(3600));
         try {
             JCas cas = JCasFactory.createJCas();
-            cas.setDocumentLanguage(setting("DUUI_LANGUAGE", "en"));
             cas.setSofaDataString(Base64.getEncoder().encodeToString(Files.readAllBytes(input)), "audio/wav");
             composer.run(cas);
 
