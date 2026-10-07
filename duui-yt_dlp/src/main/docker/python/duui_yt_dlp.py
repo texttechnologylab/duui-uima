@@ -1,3 +1,7 @@
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
+
 from typing import List
 import uvicorn
 from cassis import *
@@ -68,6 +72,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 # Load the Lua communication script
 communication = "communication.lua"
@@ -151,12 +157,12 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             video_data = f.read()
         encoded = base64.b64encode(video_data).decode("utf-8")
     except Exception as e:
-        print("COULD NOT OPEN AUDIO FILE: " + str(e))
+        log_error("COULD NOT OPEN AUDIO FILE: " + str(e))
 
     # Get transcription
     if transcription is None:
         if request.with_youtube_transcription:
-            print("Video does not contain any kind of subtitles")
+            log_info("Video does not contain any kind of subtitles")
     else:
         p = re.compile("([0-9])+:([0-9])+:([0-9])+\\.([0-9])+ --> ([0-9])+:([0-9])+:([0-9])+\\.([0-9])+")
 
@@ -222,8 +228,6 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                     elif is_auto_generated:
                         continue
 
-
-
             if text:
                 transcription_token.append(AudioToken(
                     timeStart=float(start),
@@ -234,7 +238,7 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 ))
 
     mimetype = magic.from_file(video, mime=True)
-    print(mimetype)
+    log_info(mimetype)
 
     for file in os.listdir():
         if file.endswith(".mp4"):
@@ -332,10 +336,10 @@ def download_youtube(link: str, download_trans: bool, transcription_lang: str, c
             file.write(cookies)
 
         if os.path.exists("./cookies.txt"):
-            print("Cookies found")
+            log_info("Cookies found")
             ydl_opts["cookiefile"] = "./cookies.txt"
 
-    print(ydl_opts)
+    log_info(str(ydl_opts))
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(link, download=True)
 

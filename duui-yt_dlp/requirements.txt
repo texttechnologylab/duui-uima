@@ -1,6 +1,7 @@
 uvicorn==0.29.0
 dkpro-cassis==0.9.1
-fastapi==0.110.2
+fastapi==0.141.1
 pydantic-settings==2.0.3
 yt-dlp[default]
 python-magic
+duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger
