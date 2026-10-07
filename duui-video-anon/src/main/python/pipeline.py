@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from duui_logging import log_info
+
 from media import decode_media, extract_audio, mux_audio, probe
 
 
@@ -37,6 +39,7 @@ def required_service_urls() -> dict[str, str]:
 
 def run_java_stage(stage: str, input_path: Path, output_path: Path,
                    environment: dict[str, str], root: Path) -> None:
+    log_info(f"Starting DUUI {stage} stage")
     command = [
         "java", "--add-opens", "java.base/java.util=ALL-UNNAMED",
         "-cp", JAVA_CLASSPATH, RUNNER_CLASS,
@@ -57,6 +60,7 @@ def run_java_stage(stage: str, input_path: Path, output_path: Path,
         raise RuntimeError("Java 21 is required by duui-video-anon") from exc
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"DUUI {stage} stage timed out") from exc
+    log_info(f"Completed DUUI {stage} stage")
 
 
 def run_pipeline(video_b64: str, mimetype: str | None,
@@ -95,5 +99,7 @@ def run_pipeline(video_b64: str, mimetype: str | None,
             speaker_path = root / "anonymized.wav"
             run_java_stage("speaker", audio_path, speaker_path, environment, root)
             anonymized_audio = base64.b64encode(speaker_path.read_bytes()).decode("ascii")
+        else:
+            log_info("Skipping speaker stage for silent video")
 
         return mux_audio(face_video, anonymized_audio)

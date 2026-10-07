@@ -12,6 +12,8 @@ import tempfile
 from fractions import Fraction
 from pathlib import Path
 
+from duui_logging import log_info
+
 
 MAX_MEDIA_BYTES = int(os.getenv("MAX_MEDIA_BYTES", str(500 * 1024 * 1024)))
 
@@ -66,6 +68,7 @@ def probe(path: Path) -> dict:
 
 def extract_audio(video_b64: str) -> str:
     """Return the full audio track as a mono 16 kHz WAV for speaker anonymization."""
+    log_info("Starting audio extraction")
     data = decode_media(video_b64, "video")
     with tempfile.TemporaryDirectory() as directory:
         video_path = Path(directory) / "video.mp4"
@@ -73,17 +76,20 @@ def extract_audio(video_b64: str) -> str:
         video_path.write_bytes(data)
         info = probe(video_path)
         if not info["has_audio"]:
+            log_info("Video has no audio track")
             return ""
         run([
             "ffmpeg", "-nostdin", "-v", "error", "-i", str(video_path),
             "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000",
             "-c:a", "pcm_s16le", "-y", str(audio_path)
         ])
+        log_info("Completed audio extraction")
         return base64.b64encode(audio_path.read_bytes()).decode("ascii")
 
 
 def mux_audio(video_b64: str, audio_b64: str) -> tuple[str, float, float]:
     """Replace the video's audio; never carry its original audio into the output."""
+    log_info("Starting audio muxing")
     video_data = decode_media(video_b64, "video")
     with tempfile.TemporaryDirectory() as directory:
         video_path = Path(directory) / "video.mp4"
@@ -92,6 +98,7 @@ def mux_audio(video_b64: str, audio_b64: str) -> tuple[str, float, float]:
         if not audio_b64:
             if info["has_audio"]:
                 raise ValueError("Anonymized audio is empty for a video with an audio track")
+            log_info("Keeping silent video without audio muxing")
             return video_b64, info["length"], info["fps"]
 
         audio_path = Path(directory) / "voice.wav"
@@ -107,5 +114,6 @@ def mux_audio(video_b64: str, audio_b64: str) -> tuple[str, float, float]:
         output_info = probe(output_path)
         if not output_info["has_audio"]:
             raise ValueError("Muxed video has no anonymized audio")
+        log_info("Completed audio muxing")
         return (base64.b64encode(output_path.read_bytes()).decode("ascii"),
                 output_info["length"], output_info["fps"])

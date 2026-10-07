@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -7,6 +8,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel, Field, ValidationError
+import duui_logging
+from duui_logging import log_error, log_info, log_warn
 
 from media import extract_audio, mux_audio
 from pipeline import required_service_urls, run_pipeline
@@ -17,8 +20,16 @@ ROOT = Path(__file__).parent
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    required_service_urls()
-    yield
+    try:
+        required_service_urls()
+    except RuntimeError:
+        log_error("Video anonymization service configuration is invalid")
+        raise
+    log_info("Video anonymization service started")
+    try:
+        yield
+    finally:
+        log_info("Video anonymization service stopped")
 
 
 app = FastAPI(
@@ -39,6 +50,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+duui_logging.add_logging(app, default_logger="duui-video-anon")
+duui_logging.install(level=logging.INFO)
 
 
 class Video(BaseModel):
@@ -95,14 +108,18 @@ async def process(raw_request: Request) -> dict:
             data["options"] = {}
         request = ProcessRequest.model_validate(data)
     except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+        log_warn("Invalid DUUI media request")
         raise HTTPException(status_code=422, detail="Invalid DUUI media request") from exc
+    log_info(f"Starting {request.operation} request")
     try:
         if request.operation == "extract":
             audio = await run_in_threadpool(extract_audio, request.video.src)
+            log_info("Completed extract request")
             return {"operation": "extract", "audio": audio}
         if request.operation == "pipeline":
             src, length, fps = await run_in_threadpool(
                 run_pipeline, request.video.src, request.video.mimetype, request.options)
+            log_info("Completed pipeline request")
             return {"operation": "pipeline", "video": {
                 "src": src, "length": length, "fps": fps,
                 "begin": request.video.begin, "end": request.video.end
@@ -111,9 +128,14 @@ async def process(raw_request: Request) -> dict:
             raise ValueError("Mux requires anonymized audio")
         src, length, fps = await run_in_threadpool(
             mux_audio, request.video.src, request.audio)
+        log_info("Completed mux request")
         return {"operation": "mux", "video": {
             "src": src, "length": length, "fps": fps,
             "begin": request.video.begin, "end": request.video.end
         }}
     except (ValueError, RuntimeError) as exc:
+        log_error(f"{request.operation} request failed")
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception:
+        log_error(f"Unexpected failure in {request.operation} request")
+        raise

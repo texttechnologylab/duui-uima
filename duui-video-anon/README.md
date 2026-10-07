@@ -58,6 +58,24 @@ The component exposes the standard DUUI `/v1/typesystem`,
 `/v1/communication_layer`, `/v1/documentation`, and `/v1/process` endpoints.
 Its health endpoint is `/v1/health`.
 
+### Logging
+
+The component uses [DUUIlogger](https://github.com/texttechnologylab/DUUIlogger)
+for structured request, processing stage, and error logs. Logs appear in the
+container console as processing runs. To collect them in an external DUUI
+composer, enable a debug level:
+
+```java
+composer.withDebugLevel(DUUIComposer.DebugLevel.INFO);
+```
+
+A DUUI driver with component logging support sends `DUUI-Log-Collect: true`.
+The component then returns that request's logs in the `DUUI-Logs` response
+header when processing finishes, including logs from its Python worker thread.
+The header is capped at 16,000 bytes by DUUIlogger. Requests without collection
+still log to the console. Media payloads and request options are not included
+in progress messages.
+
 ### Use within DUUI
 
 Add only this component to an external `DUUIComposer` with a JSON Lua context.

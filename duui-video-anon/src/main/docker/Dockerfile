@@ -7,7 +7,7 @@ RUN mvn -q -DskipTests package dependency:copy-dependencies \
 
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install --yes --no-install-recommends ffmpeg openjdk-21-jre-headless \
+RUN apt-get update && apt-get install --yes --no-install-recommends ffmpeg git openjdk-21-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
