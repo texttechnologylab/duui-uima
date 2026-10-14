@@ -32,6 +32,7 @@ composer.add(new DUUIDockerDriver.
     //.withParameter("cookies", "/* cookies-file */") // not nessesary
     .withScale(iWorkers)
     .withImageFetching());
+```
 
 #### Input/Output:
 

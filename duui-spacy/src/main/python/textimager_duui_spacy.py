@@ -1,3 +1,4 @@
+import duui_logging
 import logging
 from functools import lru_cache
 from platform import python_version
@@ -7,7 +8,6 @@ from time import time
 from typing import List, Optional, Union, Tuple
 from urllib.parse import urlparse
 
-import benepar
 import spacy
 from cassis import load_typesystem
 from cassis.cas import Utf16CodepointOffsetConverter
@@ -107,58 +107,58 @@ BENEPAR_MODELS = {
 # TODO test accurate models
 SPACY_MODELS = {
     "efficiency": {
-        # "ca": "ca_core_news_sm",    # Catalan
-        # "zh": "zh_core_web_sm",     # Chinese
-        # "hr": "hr_core_news_sm",    # Croatian
-        # "da": "da_core_news_sm",    # Danish
-        # "nl": "nl_core_news_sm",    # Dutch
+        "ca": "ca_core_news_sm",    # Catalan
+        "zh": "zh_core_web_sm",     # Chinese
+        "hr": "hr_core_news_sm",    # Croatian
+        "da": "da_core_news_sm",    # Danish
+        "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
-        # "fi": "fi_core_news_sm",    # Finnish
+        "fi": "fi_core_news_sm",    # Finnish
         "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
-        # "el": "el_core_news_sm",    # Greek
-        # "it": "it_core_news_sm",    # Italian
-        # "ja": "ja_core_news_sm",    # Japanese
-        # "ko": "ko_core_news_sm",    # Korean
-        # "lt": "lt_core_news_sm",    # Lithuanian
-        # "mk": "mk_core_news_sm",    # Macedonian
-        # "nb": "nb_core_news_sm",    # Norwegian Bokmal
-        # "pl": "pl_core_news_sm",    # Polish
-        # "pt": "pt_core_news_sm",    # Portugese
-        # "ro": "ro_core_news_sm",    # Romanian
-        # "ru": "ru_core_news_sm",    # Russian
-        # "sl": "sl_core_news_sm",    # Slovenian
-        # "es": "es_core_news_sm",    # Spanish
-        # "sv": "sv_core_news_sm",    # Swedish
-        # "uk": "uk_core_news_sm",    # Ukrainian
-        # "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+        "el": "el_core_news_sm",    # Greek
+        "it": "it_core_news_sm",    # Italian
+        "ja": "ja_core_news_sm",    # Japanese
+        "ko": "ko_core_news_sm",    # Korean
+        "lt": "lt_core_news_sm",    # Lithuanian
+        "mk": "mk_core_news_sm",    # Macedonian
+        "nb": "nb_core_news_sm",    # Norwegian Bokmal
+        "pl": "pl_core_news_sm",    # Polish
+        "pt": "pt_core_news_sm",    # Portugese
+        "ro": "ro_core_news_sm",    # Romanian
+        "ru": "ru_core_news_sm",    # Russian
+        "sl": "sl_core_news_sm",    # Slovenian
+        "es": "es_core_news_sm",    # Spanish
+        "sv": "sv_core_news_sm",    # Swedish
+        "uk": "uk_core_news_sm",    # Ukrainian
+        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
     "accuracy": {
-        # "ca": "ca_core_news_trf",
-        # "zh": "zh_core_web_trf",
-        # "hr": "hr_core_news_lg",
-        # "da": "da_core_news_trf",
-        # "nl": "nl_core_news_lg",
+        "ca": "ca_core_news_trf",
+        "zh": "zh_core_web_trf",
+        "hr": "hr_core_news_lg",
+        "da": "da_core_news_trf",
+        "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
-        # "fi": "fi_core_news_lg",
+        "fi": "fi_core_news_lg",
         "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
-        # "el": "el_core_news_lg",
-        # "it": "it_core_news_lg",
-        # "ja": "ja_core_news_trf",
-        # "ko": "ko_core_news_lg",
-        # "lt": "lt_core_news_lg",
-        # "mk": "mk_core_news_lg",
-        # "nb": "nb_core_news_lg",
-        # "pl": "pl_core_news_lg",
-        # "pt": "pt_core_news_lg",
-        # "ro": "ro_core_news_lg",
-        # "ru": "ru_core_news_lg",
-        # "sl": "sl_core_news_trf",
-        # "es": "es_dep_news_trf",
-        # "sv": "sv_core_news_lg",
-        # "uk": "uk_core_news_trf",
-        # "xx": "xx_ent_wiki_sm",
+        "el": "el_core_news_lg",
+        "it": "it_core_news_lg",
+        "ja": "ja_core_news_trf",
+        "ko": "ko_core_news_lg",
+        "lt": "lt_core_news_lg",
+        "mk": "mk_core_news_lg",
+        "nb": "nb_core_news_lg",
+        "pl": "pl_core_news_lg",
+        "pt": "pt_core_news_lg",
+        "ro": "ro_core_news_lg",
+        "ru": "ru_core_news_lg",
+        "sl": "sl_core_news_trf",
+        "es": "es_dep_news_trf",
+        "sv": "sv_core_news_lg",
+        "uk": "uk_core_news_trf",
+        "xx": "xx_ent_wiki_sm",
     }
 }
 
@@ -439,6 +439,8 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
 
     logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
     if use_benepar:
+        # imported lazily, as benepar is not installed in the single model images
+        import benepar
         # TODO check for model availability
         bnepar_model = BENEPAR_MODELS[model_lang]
         logger.info("benepar model: %s (based on lang %s)", bnepar_model, model_lang)
@@ -513,6 +515,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 
 # Return Lua communication script
