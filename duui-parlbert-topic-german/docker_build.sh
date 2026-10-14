@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export ANNOTATOR_NAME=parlbert-topic-german
-export ANNOTATOR_VERSION=0.1
+export ANNOTATOR_NAME=duui-parlbert-topic-german
+export ANNOTATOR_VERSION=1.0.1
 
 export LOG_LEVEL=INFO
 
