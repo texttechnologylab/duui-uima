@@ -68,15 +68,28 @@ function deserialize(inputCas, inputStream)
                 entireText = entireText .. " " .. sent["text"]
             end
 
-            local audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.DiarizedAudioToken", inputCas)
+            -- Check if DiarizedAudioToken exists, use AudioToken otherwise
+            local exists, classOrError = pcall(
+                luajava.bindClass,
+                "org.texttechnologylab.annotation.type.DiarizedAudioToken"
+            )
+
+            local audioToken
+
+            if exists then
+                audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.DiarizedAudioToken", inputCas)
+                if sent["speaker"] ~= nil then
+                    audioToken:setSpeakerId(sent["speaker"])
+                end
+            else
+                audioToken = luajava.newInstance("org.texttechnologylab.annotation.type.AudioToken", inputCas)
+            end
+
             audioToken:setBegin(sent["begin"])
             audioToken:setEnd(sent["end"])
             audioToken:setTimeStart(sent["timeStart"])
             audioToken:setTimeEnd(sent["timeEnd"])
             audioToken:setValue(sent["text"])
-            if sent["speaker"] ~= nil then
-                audioToken:setSpeakerId(sent["speaker"])
-            end
             audioToken:addToIndexes()
 
             local meta = results["meta"]

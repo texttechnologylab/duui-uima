@@ -1,6 +1,8 @@
 import torch
 import whisperx
-
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 
 # NOTE: the diarization model can not be preloaded, as it requires a Hugging Face token
 
@@ -19,7 +21,7 @@ SUPPORTED_LANGUAGES = [
 
 # TODO only cpu detected on docker build
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print("Device:", device)
+log_info(f"Device: {device}")
 
 compute_type = "float16" if torch.cuda.is_available() else "int8"
 
@@ -40,4 +42,4 @@ for model_name in SUPPORTED_MODELS:
             device=device,
             model_dir=MODEL_DIR
         )
-        print(f"Model {model_name} with language {language} loaded successfully.")
+        log_info(f"Model {model_name} with language {language} loaded successfully.")
