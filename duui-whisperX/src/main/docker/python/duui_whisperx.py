@@ -1,5 +1,7 @@
 import base64
 import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 from functools import lru_cache
 from platform import python_version
 from sys import version as sys_version
@@ -173,6 +175,8 @@ app = FastAPI(
     },
 )
 
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 # Get input / output of the annotator
 @app.get("/v1/details/input_output")
