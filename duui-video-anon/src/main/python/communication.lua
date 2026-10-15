@@ -77,6 +77,7 @@ function deserialize(inputCas, inputStream)
         video:setSrc(data["src"])
         video:setLength(data["length"])
         video:setFps(data["fps"])
+        -- Successful video outputs are always MP4, including for WebM input.
         video:setMimetype("video/mp4")
         video:setBegin(data["begin"])
         video:setEnd(data["end"])

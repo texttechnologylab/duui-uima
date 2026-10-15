@@ -96,7 +96,10 @@ composer.add(new DUUIRemoteDriver.Component("http://anduin.hucompute.org:9715")
 | Direction | CAS view | Data |
 |---|---|---|
 | Input | `_InitialView` | Base64 MP4 or WebM in `org.texttechnologylab.annotation.type.Video.src` |
-| Output | `output` | Base64 MP4 in a `Video` annotation |
+| Output | `output` | Base64 MP4 in a `Video` annotation with `mimetype="video/mp4"` |
+
+Every successful video output is MP4 (`video/mp4`), regardless of whether the
+input is MP4 or WebM. The input container format is not preserved.
 
 Python passes the face result to `extract_audio()` and the speaker result to
 `mux_audio()` directly. The Java speaker stage accepts either the
