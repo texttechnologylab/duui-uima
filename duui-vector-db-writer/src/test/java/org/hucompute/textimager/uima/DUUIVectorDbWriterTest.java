@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Erwartet einen laufenden Container (ohne weitere Konfiguration, alle
  * Verbindungsdaten kommen als DUUI-Parameter):
  *   docker run --rm -p 9714:9714 --add-host=host.docker.internal:host-gateway \
- *     docker.texttechnologylab.org/duui-vector-db-writer:0.0.2
+ *     docker.texttechnologylab.org/duui-vector-db-writer:latest
  * sowie eine aus dem Container erreichbare Postgres-Instanz mit installierter
  * pgvector-Extension (CREATE EXTENSION vector;) und eine Qdrant-Instanz.
  * Wegwerf-Instanzen mit passenden Defaults: src/test/bash/test_dbs.sh start
