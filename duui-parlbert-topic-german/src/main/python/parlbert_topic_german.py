@@ -1,4 +1,7 @@
 from typing import List, Optional
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 
 from fastapi import FastAPI, Response
 from fastapi.openapi.utils import get_openapi
@@ -66,7 +69,7 @@ def analyse_part(text, iBegin, iEnd):
     except RuntimeError as e:
         # To catch the following exception: RuntimeError: The size of tensor a (28206) must match the size of tensor b (512) at non-singleton dimension 1
         # That occurs when the text is too big.
-        print(f"RuntimeError: Skipping the part of speech from index {iBegin} to {iEnd}.")
+        log_error(f"RuntimeError: Skipping the part of speech from index {iBegin} to {iEnd}.")
 
     return analyzed_labels
 
@@ -91,6 +94,8 @@ app = FastAPI(
     docs_url="/api",
     redoc_url=None,
 )
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 # Get input and output of the annotator
 @app.get("/v1/details/input_output")

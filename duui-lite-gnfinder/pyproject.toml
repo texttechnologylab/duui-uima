@@ -9,4 +9,8 @@ dependencies = [
     "fastapi[standard]>=0.115.12",
     "httpx>=0.28.1",
     "uvicorn>=0.34.2",
+    "duui-logging",
 ]
+
+[tool.uv.sources]
+duui-logging = { git = "https://github.com/texttechnologylab/DUUIlogger" }

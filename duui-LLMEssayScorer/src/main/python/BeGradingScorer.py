@@ -1,3 +1,4 @@
+from duui_logging import log_error
 from EssayScorer import OpenAIProcessing
 import json
 
@@ -79,7 +80,7 @@ class BeGradingScorer:
                 output_score = output_code.split("Score:")[-1].strip()
             output_score = float(output_score)
         except Exception as e:
-            print(f"Error parsing score: {e}")
+            log_error(f"Error parsing score: {e}")
         output_llm_code["score"] = output_score
         output_llm_code["reason"] = reason.strip()
         return output_llm_code

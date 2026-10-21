@@ -75,7 +75,7 @@ composer.run(cas);
 DUUIDockerDriver docker_driver = new DUUIDockerDriver();
 composer.addDriver(docker_driver);
 composer.add(
-        new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-vector-db-writer:0.0.2")
+        new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-vector-db-writer:latest")
                 .withParameter("db_backend", "postgres")
                 .withParameter("pg_connection_string", "postgresql://<host>:<port>/<db>")
                 .withParameter("pg_user", "<user>")

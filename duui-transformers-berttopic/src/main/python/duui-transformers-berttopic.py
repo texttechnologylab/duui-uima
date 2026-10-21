@@ -14,6 +14,8 @@ from functools import lru_cache
 from starlette.responses import PlainTextResponse
 import pandas as pd
 from collections import defaultdict as dd
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 
 class Config(BaseSettings):
     # Name of this annotator
@@ -141,8 +143,8 @@ def process_selection(model_name, selection):
         len_i = len(t)
         begin.append(begin_i)
         end.append(end_i)
-        results_out.append(t)
         len_results.append(len_i)
+        results_out.append(t)
         factors.append(p)
         words.append(w)
         words_prob.append(wp)
@@ -203,6 +205,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 # Load the Lua communication script
 lua_communication_script_filename = "duui-transformers-berttopic.lua"

@@ -1,5 +1,9 @@
 from typing import List, Optional
-from pydantic import BaseSettings, BaseModel
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 
 
 # Settings
@@ -11,10 +15,9 @@ class Settings(BaseSettings):
     annotator_version: str
 
     # Log level
-    log_level: Optional[str]
+    log_level: Optional[str] = None
 
-    class Config:
-        env_prefix = 'textimager_duui_vader_sentiment_'
+    model_config = SettingsConfigDict(env_prefix='textimager_duui_vader_sentiment_')
 
 
 # Capabilities
@@ -35,19 +38,19 @@ class TextImagerDocumentation(BaseModel):
     version: str
 
     # Annotator implementation language (Python, Java, ...)
-    implementation_lang: Optional[str]
+    implementation_lang: Optional[str] = None
 
     # Optional map of additional meta data
-    meta: Optional[dict]
+    meta: Optional[dict] = None
 
     # Docker container id, if any
-    docker_container_id: Optional[str]
+    docker_container_id: Optional[str] = None
 
     # Optional map of supported parameters
-    parameters: Optional[dict]
+    parameters: Optional[dict] = None
 
     # Capabilities of this annotator
     capability: TextImagerCapability
 
     # Analysis engine XML, if available
-    implementation_specific: Optional[str]
+    implementation_specific: Optional[str] = None
