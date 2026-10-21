@@ -18,6 +18,8 @@ from AESMTSScorer import Vanilla_OpenAI, MTS_OpenAI
 import json
 import time
 import torch
+import duui_logging
+from duui_logging import log_error
 model_lock = Lock()
 
 class UimaSentence(BaseModel):
@@ -254,7 +256,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(content_info["score"])
                         reasons.append(content_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing content info: {e}")
+                        log_error(f"Error processing content info: {e}")
                         results_out.append("LLMAESSlow-ContentScore")
                         factors.append(-1.0)
                         reasons.append("Error processing content info")
@@ -265,7 +267,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(language_info["score"])
                         reasons.append(language_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing language info: {e}")
+                        log_error(f"Error processing language info: {e}")
                         results_out.append("LLMAESSlow-LanguageScore")
                         factors.append(-1.0)
                         reasons.append("Error processing language info")
@@ -276,7 +278,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(structure_info["score"])
                         reasons.append(structure_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing structure info: {e}")
+                        log_error(f"Error processing structure info: {e}")
                         results_out.append("LLMAESSlow-StructureScore")
                         factors.append(-1.0)
                         reasons.append("Error processing structure info")
@@ -287,7 +289,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(overall_info["score"])
                         reasons.append(overall_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing overall info: {e}")
+                        log_error(f"Error processing overall info: {e}")
                         results_out.append("LLMAESSlow-OverallScore")
                         factors.append(-1.0)
                         reasons.append("Error processing overall info")
@@ -358,7 +360,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(content_info["score"])
                         reasons.append(content_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing content info: {e}")
+                        log_error(f"Error processing content info: {e}")
                         results_out.append("LLMAESS-ContentScore")
                         factors.append(-1.0)
                         reasons.append("Error processing content info")
@@ -369,7 +371,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(language_info["score"])
                         reasons.append(language_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing language info: {e}")
+                        log_error(f"Error processing language info: {e}")
                         results_out.append("LLMAESS-LanguageScore")
                         factors.append(-1.0)
                         reasons.append("Error processing language info")
@@ -380,7 +382,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                         factors.append(structure_info["score"])
                         reasons.append(structure_info["reason"])
                     except Exception as e:
-                        logger.error(f"Error processing structure info: {e}")
+                        log_error(f"Error processing structure info: {e}")
                         results_out.append("LLMAESS-StructureScore")
                         factors.append(-1.0)
                         reasons.append("Error processing structure info")
@@ -398,7 +400,7 @@ def process_selection(request, model_name: str) -> Dict[str, Union[List[int], Li
                             factors.append(overall_score)
                             reasons.append("Overall score computed from content, language, and structure scores")
                         except Exception as e:
-                            logger.error(f"Error processing overall info: {e}")
+                            log_error(f"Error processing overall info: {e}")
                             results_out.append("LLMAESS-OverallScore")
                             factors.append(-1.0)
                             reasons.append("Error processing overall info")
@@ -848,6 +850,11 @@ app = FastAPI(
     },
 )
 
+# Return logs to the DUUI composer and forward stdlib logging (incl. libraries) as well.
+# 128 KB header cap: room for chatty openai/httpcore DEBUG logs, well below Java 25's 384 KB limit
+duui_logging.add_logging(app, max_bytes=128_000)
+duui_logging.install(level=logging.INFO)
+
 with open(lua_communication_script_filename, 'rb') as f:
     lua_communication_script = f.read().decode("utf-8")
 logger.debug("Lua communication script:")
@@ -932,7 +939,7 @@ def post_process(request: DUUIRequest):
         reasons.extend(processed_sentences["reasons"])
         nameLLMModel.extend(processed_sentences["nameLLMModel"])
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Processing failed with model {settings.model_name}: {ex}")
     return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, values=values, keys=keys, definitions=definitions, answer_ids=answer_ids, question_ids=question_ids, scene_ids=scene_ids, model_source=settings.model_source, model_name=settings.model_name, model_version=settings.model_version, model_lang=settings.model_lang, contents=contents, responses=responses, additional=additional, reasons=reasons,llmUsed=llm_used, NameModel=nameLLMModel)
 
 @lru_cache_with_size

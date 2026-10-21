@@ -1,6 +1,7 @@
 prettytable==3.16.0
 dkpro-cassis==0.10.1
-fastapi==0.115.12
+duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger
+fastapi==0.141.1
 uvicorn[standard]==0.34.3
 pydantic-settings==2.9.1
 accelerate==1.8.1

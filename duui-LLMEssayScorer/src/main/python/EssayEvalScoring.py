@@ -1,3 +1,4 @@
+from duui_logging import log_error
 from run_text import score_essays, load_prompt
 import json_repair
 from EssayScorer import OpenAIProcessing
@@ -167,7 +168,7 @@ class EssayEvalScoring:
             else:
                 explanation = "No explanation provided."
         except Exception as e:
-            print(f"Error parsing JSON output: {e}")
+            log_error(f"Error parsing JSON output: {e}")
             score = -1
             explanation = "Failed to parse JSON output from the model response."
         output_scoring["score"] = score
