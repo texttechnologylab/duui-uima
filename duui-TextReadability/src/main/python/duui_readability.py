@@ -9,6 +9,8 @@ from functools import lru_cache
 from threading import Lock
 from starlette.responses import PlainTextResponse
 from Readability import ReadabilityMetricsTextStat, ReadabilityMetricsDiversity, ReadabilityCompute
+import duui_logging
+from duui_logging import log_info, log_error
 model_lock = Lock()
 
 class Settings(BaseSettings):
@@ -118,6 +120,9 @@ def process_selection(model_name, request):
         # Readability metrics with diversity
         readability_metrics = ReadabilityMetricsDiversity()
         results = readability_metrics.compute_diversity(request.text, request.params)
+        results_out.append([])
+        factors.append([])
+        group_name.append("Diversity Scores")
         for key, value in results.items():
             results_out[0].append(key)
             factors[0].append(value)
@@ -140,7 +145,7 @@ def process_selection(model_name, request):
         begin = request.begin
         end = request.end
     else:
-        logger.error("Model %s not supported", model_name)
+        # Logged with traceback by post_process
         raise ValueError(f"Model {model_name} not supported")
     output["begin"] = begin
     output["end"] = end
@@ -197,6 +202,10 @@ app = FastAPI(
     },
 )
 
+# Return logs to the DUUI composer and forward stdlib logging (incl. libraries) as well
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
+
 with open(lua_communication_script_filename, 'rb') as f:
     lua_communication_script = f.read().decode("utf-8")
 logger.debug("Lua communication script:")
@@ -236,7 +245,7 @@ def post_process(request: DUUIRequest):
     modification_timestamp_seconds = int(time())
     begin = 0
     end = 0
-    len_results = 0
+    len_results = []
     results = []
     factors = []
     group_name = []
@@ -265,8 +274,9 @@ def post_process(request: DUUIRequest):
         factors = output["factors"]
         len_results = output["len_results"]
         group_name = output["group_name"]
+        log_info(f"Computed {sum(len_results)} measures in {len(group_name)} group(s) with {settings.model_name}")
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Processing failed with model {settings.model_name}: {type(ex).__name__}: {ex}")
     return DUUIResponse(meta=meta, modification_meta=modification_meta, begin=begin, end=end, results=results,
                         len_results=len_results, factors=factors, model_name=settings.model_name,
                         model_version=model_version, model_source=model_source, model_lang=model_lang, group_name=group_name)
