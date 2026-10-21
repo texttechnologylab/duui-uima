@@ -68,6 +68,7 @@ class LLMResult(BaseModel):
     meta: str  # json string
     prompt_ref: int   # internal cas annotation id
     message_ref: int   # internal cas annotation id
+    thinking: Optional[str] = None  # the model's reasoning, only if requested ("reasoning": true in llm_args)
 
 
 class TextImagerRequest(BaseModel):
@@ -235,6 +236,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     # NOTE that we always encode the content as json, as we expect for all "Langchain" messages
                     message.content = json.dumps(llm_content)
 
+                    # the reasoning, if the model produced one and it was requested ("reasoning": true in
+                    # llm_args), is returned by langchain-ollama in additional_kwargs; like the content it
+                    # is stored in its own feature and removed here, so it is not stored twice
+                    llm_thinking = llm_result["data"].get("additional_kwargs", {}).pop("reasoning_content", None)
+
                     # add results to output
                     del llm_result["data"]["content"]
                     llm_result = {
@@ -248,7 +254,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     llm_results.append(LLMResult(
                         meta=json.dumps(llm_result),
                         prompt_ref=prompt.ref,
-                        message_ref=message.ref
+                        message_ref=message.ref,
+                        thinking=llm_thinking
                     ))
 
                 # if set, extract this messages content into the context
