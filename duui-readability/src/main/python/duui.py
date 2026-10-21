@@ -12,6 +12,9 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
+import duui_logging
+from duui_logging import log_info, log_warn, log_error
+
 
 class Settings(BaseSettings):
     annotator_name: str
@@ -129,6 +132,10 @@ app = FastAPI(
     },
 )
 
+# Return logs to the DUUI composer and forward stdlib logging (incl. libraries) as well
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
+
 
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
 def get_communication_layer() -> str:
@@ -183,7 +190,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     results = []
     r = readability.Readability(request.text)
     if r._statistics.num_words < 100:
-        logger.error("Text has less than 100 words, readability analysis might not be generated")
+        log_warn(f"Text has {r._statistics.num_words} words, less than the 100 required, readability analysis might not be generated")
 
     try:
         rr = r.flesch_kincaid()
@@ -198,7 +205,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating flesch_kincaid: {ex}")
         results.append(TextImagerCategory(
             value="flesch_kincaid",
             score=None,
@@ -223,7 +230,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating flesch: {ex}")
         results.append(TextImagerCategory(
             value="flesch",
             score=None,
@@ -247,7 +254,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating gunning_fog: {ex}")
         results.append(TextImagerCategory(
             value="gunning_fog",
             score=None,
@@ -271,7 +278,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating coleman_liau: {ex}")
         results.append(TextImagerCategory(
             value="coleman_liau",
             score=None,
@@ -295,7 +302,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating dale_chall: {ex}")
         results.append(TextImagerCategory(
             value="dale_chall",
             score=None,
@@ -320,7 +327,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating ari: {ex}")
         results.append(TextImagerCategory(
             value="ari",
             score=None,
@@ -344,7 +351,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating linsear_write: {ex}")
         results.append(TextImagerCategory(
             value="linsear_write",
             score=None,
@@ -368,7 +375,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating smog: {ex}")
         results.append(TextImagerCategory(
             value="smog",
             score=None,
@@ -392,7 +399,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             end=request.end
         ))
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Error calculating spache: {ex}")
         results.append(TextImagerCategory(
             value="spache",
             score=None,
@@ -419,7 +426,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     logger.debug(modification_meta)
 
     duration = int(time()) - modification_timestamp_seconds
-    logger.info("Processed in %d seconds", duration)
+    failed = sum(1 for result in results if result.score is None)
+    if failed:
+        log_warn(f"Processed {len(results)} metrics in {duration} seconds, {failed} failed")
+    else:
+        log_info(f"Processed {len(results)} metrics in {duration} seconds")
 
     return TextImagerResponse(
         results=results,
