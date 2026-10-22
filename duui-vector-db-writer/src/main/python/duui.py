@@ -24,6 +24,9 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models as qmodels
 from qdrant_client.http.exceptions import UnexpectedResponse
 
+import duui_logging
+from duui_logging import log_info, log_error
+
 
 class Settings(BaseSettings):
     annotator_name: str
@@ -205,6 +208,10 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+# Return logs to the DUUI composer and forward stdlib logging (incl. libraries) as well
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
@@ -830,18 +837,18 @@ def post_process(request: ProcessRequest = Depends(get_process_request)) -> Proc
                 written=written,
                 tables=tables,
             )
-        logger.info(response.modification_meta.comment)
+        log_info(response.modification_meta.comment)
         return response
 
     except ValueError as ex:
         status_code = 400
         message = str(ex)
+        log_error(message, withException=False)
     except Exception as ex:
-        logger.exception(ex)
         status_code = 500
         message = f"{backend} write failed: {ex}"
+        log_error(message)
 
-    logger.error(message)
     if request.fail_on_error:
         raise HTTPException(status_code=status_code, detail=message)
     return build_response("error", f"Error: {message}", now)

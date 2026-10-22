@@ -8,7 +8,7 @@ For using parlbert-topic-german as a DUUI image it is necessary to use the [Dock
 
 To use this parser, you can add the docker image like this as a DUUI Component.
 ```java
-composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/parlbert-topic-german:latest")
+composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-parlbert-topic-german:latest")
         .withScale(iWorkers)
         .build());
 ```
@@ -21,12 +21,12 @@ You can find a complete example in src/test/java/ParlbertTopicGermanTest.java
 
 ## Use as Stand-Alone-Image
 ```
-docker run docker.texttechnologylab.org/parlbert-topic-german:latest
+docker run docker.texttechnologylab.org/duui-parlbert-topic-german:latest
 ```
 
 ## Run with a specific port
 ```
-docker run -p 1000:9714 docker.texttechnologylab.org/parlbert-topic-german:latest
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-parlbert-topic-german:latest
 ```
 
 

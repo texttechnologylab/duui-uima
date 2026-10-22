@@ -1,3 +1,7 @@
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
+
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -13,5 +17,5 @@ class TextImagerRequest(BaseModel):
 
 class TextImagerResponse(BaseModel):
     selections: List[SentimentSelection]
-    meta: Optional[UimaAnnotationMeta]
-    modification_meta: Optional[UimaDocumentModification]
+    meta: Optional[UimaAnnotationMeta] = None
+    modification_meta: Optional[UimaDocumentModification] = None
