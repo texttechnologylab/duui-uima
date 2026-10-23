@@ -4,7 +4,6 @@ import base64
 from collections import OrderedDict
 from io import BytesIO
 import logging
-import os
 import threading
 import time
 from typing import Optional, Dict, List
@@ -41,12 +40,6 @@ from utils.video import process_video
 # --- duui communication classes
 logger: Optional[logging.Logger] = None
 device: Optional[torch.device] = None
-
-# Unload a model after it has not been used for this many seconds (env: MODEL_TTL_SECONDS).
-# Tracked per model; 0 or less disables unloading.
-MODEL_TTL_SECONDS = int(os.environ.get("MODEL_TTL_SECONDS", "1800"))
-# Maximum number of models kept loaded at once (env: MODEL_CACHE_SIZE).
-MODEL_CACHE_SIZE = int(os.environ.get("MODEL_CACHE_SIZE", "2"))
 
 # -- static typesystem --
 typesystem_filename = 'resources/typesystem_face_anon.xml'
@@ -251,50 +244,55 @@ def init():
 
 
 class _PipelineCache:
-    """LRU cache of loaded pipelines that also unloads entries idle longer than ``ttl`` seconds."""
+    """LRU cache of loaded pipelines that also unloads entries idle longer than their ``ttl`` seconds.
 
-    def __init__(self, ttl: int, maxsize: int) -> None:
-        self.ttl = ttl
-        self.maxsize = max(1, maxsize)
-        self._entries: OrderedDict[tuple, list] = OrderedDict()  # key -> [pipeline, last_used]
+    ``ttl`` and ``maxsize`` come from the request (DUUI parameters ``model_ttl_seconds`` and
+    ``model_cache_size``); the values of the latest request using a model apply to it.
+    """
+
+    def __init__(self) -> None:
+        self._entries: OrderedDict[tuple, list] = OrderedDict()  # key -> [pipeline, last_used, ttl]
         self._lock = threading.RLock()
         self._sweeper: Optional[threading.Thread] = None
 
-    def get(self, key: tuple, loader):
+    def get(self, key: tuple, loader, ttl: int, maxsize: int):
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
-                entry = [loader(), 0.0]
+                entry = [loader(), 0.0, ttl]
                 self._entries[key] = entry
-                while len(self._entries) > self.maxsize:
-                    old_key, _ = self._entries.popitem(last=False)
-                    logger.info("Unloading pipeline (cache full): %s", old_key)
-                    self._release()
-                self._start_sweeper()
+            while len(self._entries) > max(1, maxsize):
+                old_key, _ = self._entries.popitem(last=False)
+                logger.info("Unloading pipeline (cache full): %s", old_key)
+                self._release()
             entry[1] = time.monotonic()
+            entry[2] = ttl
             self._entries.move_to_end(key)
+            self._start_sweeper()
             return entry[0]
 
     def evict_expired(self) -> None:
-        if self.ttl <= 0:
-            return
         now = time.monotonic()
         with self._lock:
-            expired = [k for k, (_, last_used) in self._entries.items() if now - last_used > self.ttl]
+            expired = [k for k, (_, last_used, ttl) in self._entries.items() if 0 < ttl < now - last_used]
             for key in expired:
+                logger.info("Unloading pipeline (idle > %ds): %s", self._entries[key][2], key)
                 del self._entries[key]
-                logger.info("Unloading pipeline (idle > %ds): %s", self.ttl, key)
             if expired:
                 self._release()
 
+    def _next_interval(self) -> int:
+        with self._lock:
+            ttls = [ttl for _, _, ttl in self._entries.values() if ttl > 0]
+        return min(60, max(1, min(ttls) // 2)) if ttls else 60
+
     def _start_sweeper(self) -> None:
-        if self.ttl <= 0 or self._sweeper is not None:
+        if self._sweeper is not None:
             return
-        interval = min(60, max(1, self.ttl // 2))
 
         def run() -> None:
             while True:
-                time.sleep(interval)
+                time.sleep(self._next_interval())
                 try:
                     self.evict_expired()
                 except Exception:
@@ -310,10 +308,10 @@ class _PipelineCache:
             torch.cuda.empty_cache()
 
 
-_pipelines = _PipelineCache(ttl=MODEL_TTL_SECONDS, maxsize=MODEL_CACHE_SIZE)
+_pipelines = _PipelineCache()
 
 
-def load_pipeline(clip_model, diffusion_model, token):
+def load_pipeline(clip_model, diffusion_model, token, ttl, maxsize):
     """Return a cached ``(pipe, fa)`` tuple for the given models, loading it if needed."""
     def load():
         logger.info("Loading pipeline: clip_model=%s diffusion_model=%s", clip_model, diffusion_model)
@@ -357,7 +355,7 @@ def load_pipeline(clip_model, diffusion_model, token):
         pipe = pipe.to("cuda")
         return pipe, fa
 
-    return _pipelines.get((clip_model, diffusion_model), load)
+    return _pipelines.get((clip_model, diffusion_model), load, ttl=ttl, maxsize=maxsize)
 
 
 # === the container
@@ -492,7 +490,10 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
         requires_pipeline = anon_type != "redact" and (images or videos)
         pipe = fa = generator = None
         if requires_pipeline:
-            pipe, fa = load_pipeline(clip_model, diffusion_model, hf_token)
+            pipe, fa = load_pipeline(
+                clip_model, diffusion_model, hf_token,
+                ttl=request.model_ttl_seconds, maxsize=request.model_cache_size,
+            )
             generator = torch.Generator(device="cuda").manual_seed(seed)
         # selection between the different anon types:
         # options: single_align, multiple_align, swap, redact

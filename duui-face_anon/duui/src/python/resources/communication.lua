@@ -39,6 +39,9 @@ function serialize(inputCas, outputStream, parameters)
     local sampling_mode = parameters["sampling_mode"] if parameters["sampling_mode"]==nil then sampling_mode = "uniform" end
     local segment_duration = parameters["segment_duration"] if parameters["segment_duration"]==nil then segment_duration = 10.0 end
     local representative_frames = parameters["representative_frames"] if parameters["representative_frames"]==nil then representative_frames = 5 end
+    -- model cache: unload a model after it has been idle for model_ttl_seconds (0 disables), keep at most model_cache_size loaded
+    local model_ttl_seconds = parameters["model_ttl_seconds"] if parameters["model_ttl_seconds"]==nil then model_ttl_seconds = 1800 end
+    local model_cache_size = parameters["model_cache_size"] if parameters["model_cache_size"]==nil then model_cache_size = 2 end
 
 
     --print(anon_type..redact_type..blur..pixel..diffusion_model..clip_model..seed..guidance..inference_steps..anon_degree..vis_input..height..width)
@@ -99,7 +102,9 @@ function serialize(inputCas, outputStream, parameters)
         vis_input = vis_input,
         height =height,
         width = width,
-        hf_token=hf_token
+        hf_token=hf_token,
+        model_ttl_seconds = model_ttl_seconds,
+        model_cache_size = model_cache_size
     }))
     
 end
