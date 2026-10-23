@@ -1,4 +1,5 @@
 #adapted from https://github.com/Xiaochr/LLM-AES/blob/main/inference_slow_module.py
+from duui_logging import log_error
 import json
 from EssayScorer import OpenAIProcessing
 from LLMAESDataset import *
@@ -280,7 +281,7 @@ class ScoreSlowStudent:
             output_llm_aes["structure_info"] = structure_info
             output_llm_aes["overall_info"] = overall_info
         except Exception as e:
-            print(f"Error parsing JSON: {e}")
+            log_error(f"Error parsing JSON: {e}")
             output_llm_aes["error"] = "Failed to parse JSON from response"
         return output_llm_aes
 
@@ -361,7 +362,7 @@ class ScoreStudent:
                 "name": "TotalScore"
             }
         except Exception as e:
-            print(f"Error processing the output: {e}")
+            log_error(f"Error processing the output: {e}")
         #norubrics
         try:
             content_score = output_result.split("**Content ")[1].strip().split("/")[0].strip().split("\n")[0].strip()
@@ -400,5 +401,5 @@ class ScoreStudent:
                 "name": "TotalScore"
             }
         except Exception as e:
-            print(f"Error processing the output without rubrics: {e}")
+            log_error(f"Error processing the output without rubrics: {e}")
         return output_llm_aes

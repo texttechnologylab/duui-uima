@@ -16,6 +16,8 @@ from .duui.reqres import TextImagerResponse, TextImagerRequest
 from .duui.sentiment import SentimentSentence, SentimentSelection
 from .duui.service import Settings, TextImagerDocumentation, TextImagerCapability
 from .duui.uima import *
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
 
 # TODO get from source?
 VADER_EN_VERSION = "3.3.2"
@@ -66,11 +68,12 @@ app = FastAPI(
     },
 )
 
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
 def get_communication_layer() -> str:
     return lua_communication_script
-
 
 @app.get("/v1/documentation")
 def get_documentation() -> TextImagerDocumentation:
@@ -100,7 +103,6 @@ def get_documentation() -> TextImagerDocumentation:
 
     return documentation
 
-
 @app.get("/v1/typesystem")
 def get_typesystem() -> Response:
     xml = typesystem.to_xml()
@@ -110,7 +112,6 @@ def get_typesystem() -> Response:
         content=xml_content,
         media_type="application/xml"
     )
-
 
 def load_analyzer(lang: str):
     with model_lock:
@@ -135,7 +136,6 @@ def load_analyzer(lang: str):
         analyzer_cache[lang] = analyzer, model_name, model_version
         return analyzer, model_name, model_version
 
-
 def fix_unicode_problems(text):
     # fix emoji in python string and prevent json error on response
     # File "/usr/local/lib/python3.8/site-packages/starlette/responses.py", line 190, in render
@@ -154,101 +154,103 @@ def fix_unicode_problems(text):
 
     return clean_text
 
-
 @app.post("/v1/process")
 def process(request: TextImagerRequest) -> TextImagerResponse:
-    processed_selections = []
+    try:
+        processed_selections = []
 
-    dt = datetime.now()
-    modification_timestamp_seconds = int(time())
+        dt = datetime.now()
+        modification_timestamp_seconds = int(time())
 
-    logger.debug("Received:")
-    logger.debug(request)
+        logger.debug("Received:")
+        logger.debug(request)
 
-    analyzer, model_name, model_version = load_analyzer(request.lang)
+        analyzer, model_name, model_version = load_analyzer(request.lang)
 
-    for selection in request.selections:
-        processed_sentences = []
+        for selection in request.selections:
+            processed_sentences = []
 
-        for sentence in selection.sentences:
-            try:
-                vs = analyzer.polarity_scores(
-                    fix_unicode_problems(sentence.text)
-                )
+            for sentence in selection.sentences:
+                try:
+                    vs = analyzer.polarity_scores(
+                        fix_unicode_problems(sentence.text)
+                    )
+
+                    processed_sentences.append(SentimentSentence(
+                        # remove text content due to unicode problems
+                        sentence=UimaSentence(
+                            text="",
+                            begin=sentence.begin,
+                            end=sentence.end
+                        ),
+                        compound=vs["compound"],
+                        pos=vs["pos"],
+                        neu=vs["neu"],
+                        neg=vs["neg"],
+                    ))
+                except Exception as ex:
+                    logger.error("Error while processing sentence \"%s\": %s", sentence.text, ex)
+
+            # compute avg for this selection, if >1
+            if len(processed_sentences) > 1:
+                begin = 0
+                end = request.doc_len
+
+                compounds = 0
+                poss = 0
+                neus = 0
+                negs = 0
+                for sentence in processed_sentences:
+                    compounds += sentence.compound
+                    poss += sentence.pos
+                    neus += sentence.neu
+                    negs += sentence.neg
+
+                compound = compounds / len(processed_sentences)
+                pos = poss / len(processed_sentences)
+                neu = neus / len(processed_sentences)
+                neg = negs / len(processed_sentences)
 
                 processed_sentences.append(SentimentSentence(
-                    # remove text content due to unicode problems
                     sentence=UimaSentence(
                         text="",
-                        begin=sentence.begin,
-                        end=sentence.end
-                    ),
-                    compound=vs["compound"],
-                    pos=vs["pos"],
-                    neu=vs["neu"],
-                    neg=vs["neg"],
+                        begin=begin,
+                        end=end),
+                    compound=compound,
+                    pos=pos,
+                    neu=neu,
+                    neg=neg,
                 ))
-            except Exception as ex:
-                logger.error("Error while processing sentence \"%s\": %s", sentence.text, ex)
 
-        # compute avg for this selection, if >1
-        if len(processed_sentences) > 1:
-            begin = 0
-            end = request.doc_len
-
-            compounds = 0
-            poss = 0
-            neus = 0
-            negs = 0
-            for sentence in processed_sentences:
-                compounds += sentence.compound
-                poss += sentence.pos
-                neus += sentence.neu
-                negs += sentence.neg
-
-            compound = compounds / len(processed_sentences)
-            pos = poss / len(processed_sentences)
-            neu = neus / len(processed_sentences)
-            neg = negs / len(processed_sentences)
-
-            processed_sentences.append(SentimentSentence(
-                sentence=UimaSentence(
-                    text="",
-                    begin=begin,
-                    end=end),
-                compound=compound,
-                pos=pos,
-                neu=neu,
-                neg=neg,
+            processed_selections.append(SentimentSelection(
+                selection=selection.selection,
+                sentences=processed_sentences
             ))
 
-        processed_selections.append(SentimentSelection(
-            selection=selection.selection,
-            sentences=processed_sentences
-        ))
+        meta = UimaAnnotationMeta(
+            name=settings.annotator_name,
+            version=settings.annotator_version,
+            modelName=model_name,
+            modelVersion=model_version,
+        )
 
-    meta = UimaAnnotationMeta(
-        name=settings.annotator_name,
-        version=settings.annotator_version,
-        modelName=model_name,
-        modelVersion=model_version,
-    )
+        modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version})"
+        modification_meta = UimaDocumentModification(
+            user="TextImager",
+            timestamp=modification_timestamp_seconds,
+            comment=modification_meta_comment
+        )
 
-    modification_meta_comment = f"{settings.annotator_name} ({settings.annotator_version})"
-    modification_meta = UimaDocumentModification(
-        user="TextImager",
-        timestamp=modification_timestamp_seconds,
-        comment=modification_meta_comment
-    )
+        logger.debug(processed_selections)
 
-    logger.debug(processed_selections)
+        dte = datetime.now()
+        log_info(f"{dte} Finished processing")
+        log_info(f"Time elapsed {dte-dt}")
 
-    dte = datetime.now()
-    print(dte, 'Finished processing', flush=True)
-    print('Time elapsed', f'{dte-dt}', flush=True)
-
-    return TextImagerResponse(
-        selections=processed_selections,
-        meta=meta,
-        modification_meta=modification_meta
-    )
+        return TextImagerResponse(
+            selections=processed_selections,
+            meta=meta,
+            modification_meta=modification_meta
+        )
+    except:
+        log_error("Error:")

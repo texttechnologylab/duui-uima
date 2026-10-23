@@ -1,3 +1,4 @@
+from duui_logging import log_error
 import pandas as pd
 from EssayScorer import OpenAIProcessing
 
@@ -64,7 +65,7 @@ class Vanilla_OpenAI:
             score_text = ''.join(filter(str.isdigit, score_text))
             score = float(score_text)
         except Exception as e:
-            print(f"Error parsing score output: {e}")
+            log_error(f"Error parsing score output: {e}")
             score = -1
 
 
@@ -181,7 +182,7 @@ class MTS_OpenAI:
             score_text = ''.join(filter(str.isdigit, score_text))
             score = float(score_text)
         except Exception as e:
-            print(f"Error parsing score output: {e}")
+            log_error(f"Error parsing score output: {e}")
             score = -1
 
         #

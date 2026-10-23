@@ -7,6 +7,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Final
 
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
+
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response, status
@@ -81,7 +84,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 #####
 
