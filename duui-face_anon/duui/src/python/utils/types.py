@@ -60,6 +60,10 @@ class DUUIRequest(BaseModel):
     height: Optional[int] = None
     width: Optional[int] = None
     hf_token: str
+    # unload a model after it has been idle this many seconds; 0 disables unloading
+    model_ttl_seconds: int = 1800
+    # maximum number of models kept loaded at once
+    model_cache_size: int = Field(default=2, ge=1)
 
 class DUUIResponse(BaseModel):
     output_images: List[ImageType] = Field(default_factory=list)
