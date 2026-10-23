@@ -36,6 +36,15 @@ It supports:
 | no        | **segment_duration**| 10.0                               | float > 0                                                                                                                                | segment length in seconds for adaptive mode                          |
 | no        | **representative_frames** | 5                            | integer >= 1                                                                                                                              | representative frames selected per adaptive segment                 |
 
+## Service settings (environment variables)
+
+| Variable | Default | Description |
+|---|---|---|
+| `MODEL_TTL_SECONDS` | `1800` | Unload a loaded model after it has not been used for this many seconds (default 30 min). The timer is per model: each model is unloaded independently once it has been idle this long. The service keeps running and reloads the model on the next request. `0` disables unloading |
+| `MODEL_CACHE_SIZE` | `2` | Maximum number of models (per `clip_model`/`diffusion_model` combination) kept loaded at once; the least recently used one is unloaded when the limit is exceeded |
+
+Example: `docker run -e MODEL_TTL_SECONDS=600 -p 9714:9714 docker.texttechnologylab.org/duui-face-anon-simple`
+
 ## How To Use
 Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
 
