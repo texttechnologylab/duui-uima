@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from contextlib import contextmanager
@@ -47,7 +48,10 @@ logger.info("Version: %s", settings.annotator_version)
 # Er reichert den CAS nicht mit neuen fachlichen Annotationen an, sondern nur
 # mit einem Protokolleintrag (DocumentModification) -- reines Sink-Tool.
 TEXTIMAGER_ANNOTATOR_INPUT_TYPES = [
-    "org.texttechnologylab.uima.type.Embedding"
+    "org.texttechnologylab.uima.type.Embedding",
+    "de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData",
+    "de.tudarmstadt.ukp.dkpro.core.api.metadata.type.MetaDataStringField",
+    "org.texttechnologylab.annotation.AnnotationComment",
 ]
 
 TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = [
@@ -71,12 +75,21 @@ QDRANT_MAX_NAME_LENGTH = 255
 
 AGGREGATIONS = ("MEAN", "MIN", "MAX")
 
+# Erlaubte Keys im JSON-Objekt qdrant_payload_whitelist, jeweils eine Liste
+# von Annotation-Keys, die in den Payload uebernommen werden.
+PAYLOAD_WHITELIST_KEYS = ("metadata_string_fields", "annotation_comments")
+
 
 class EmbeddingIn(BaseModel):
     begin: int
     end: int
     vector: List[float]
     model_name: str
+
+
+class KeyValueIn(BaseModel):
+    key: str
+    value: Optional[str] = None
 
 
 class ProcessRequest(BaseModel):
@@ -86,6 +99,14 @@ class ProcessRequest(BaseModel):
     target_table_prefix: Optional[str] = None
     qdrant_distance: Optional[str] = None
     embeddings: List[EmbeddingIn]
+
+    # Zusaetzlicher Payload (aktuell nur Qdrant): alle Felder der
+    # DocumentMetaData sowie die laut qdrant_payload_whitelist ausgewaehlten
+    # MetaDataStringField-/AnnotationComment-Eintraege (Filterung im Lua-Skript).
+    document_metadata: Dict[str, Any] = {}
+    metadata_fields: List[KeyValueIn] = []
+    annotation_comments: List[KeyValueIn] = []
+    qdrant_payload_whitelist: Optional[str] = None
 
     # Verbindungsdaten kommen wie bei allen DUUI-Tools ausschliesslich als
     # Parameter (withParameter), nicht ueber Env-Variablen des Containers.
@@ -119,7 +140,7 @@ class ProcessRequest(BaseModel):
     @field_validator(
         "target_table", "qdrant_distance",
         "pg_connection_string", "pg_host", "pg_port", "pg_database", "pg_user", "pg_password",
-        "qdrant_url", "qdrant_host", "qdrant_port", "qdrant_api_key",
+        "qdrant_url", "qdrant_host", "qdrant_port", "qdrant_api_key", "qdrant_payload_whitelist",
         mode="before",
     )
     @classmethod
@@ -176,6 +197,8 @@ PARAMETER_DOCUMENTATION = {
     "qdrant_port": "Qdrant port, default 6333",
     "qdrant_api_key": "Qdrant API key",
     "qdrant_distance": "cosine (default), euclid, dot or manhattan",
+    "qdrant_payload_whitelist": "JSON object {\"metadata_string_fields\": [keys], \"annotation_comments\": [keys]}: "
+                                "MetaDataStringField/AnnotationComment entries with these keys are added to the payload",
 }
 
 
@@ -758,10 +781,30 @@ def _point_id(doc_id: str, model_name: str, begin: int, end: int, agg: str) -> s
     return str(uuid.uuid5(uuid.NAMESPACE_URL, key))
 
 
+def _group_key_values(items: List[KeyValueIn]) -> Dict[str, Any]:
+    # Ein Wert pro Key bleibt ein Skalar, mehrere werden eine Liste (CAS-Reihenfolge).
+    grouped: Dict[str, List[Optional[str]]] = {}
+    for item in items:
+        grouped.setdefault(item.key, []).append(item.value)
+    return {key: values[0] if len(values) == 1 else values for key, values in grouped.items()}
+
+
+def build_document_payload(request: ProcessRequest) -> Dict[str, Any]:
+    """Payload-Teil, der fuer alle Punkte eines Dokuments gleich ist, nach
+    Herkunft verschachtelt; leere Teile fehlen."""
+    parts = {
+        "document": {key: value for key, value in request.document_metadata.items() if value is not None},
+        "metadata": _group_key_values(request.metadata_fields),
+        "comments": _group_key_values(request.annotation_comments),
+    }
+    return {name: part for name, part in parts.items() if part}
+
+
 def write_qdrant(request: ProcessRequest, batches: List[ModelBatch]) -> Tuple[int, List[str]]:
     distance = resolve_qdrant_distance(request.qdrant_distance)
     config = resolve_qdrant_config(request)
     client = get_qdrant_client(config)
+    document_payload = build_document_payload(request)
 
     written = 0
     for batch in batches:
@@ -771,7 +814,8 @@ def write_qdrant(request: ProcessRequest, batches: List[ModelBatch]) -> Tuple[in
                 id=_point_id(request.doc_id, batch.model_name, begin, end, agg),
                 vector=vector.tolist(),
                 payload={"id": request.doc_id, "model": batch.model_name,
-                         "begin_offset": begin, "end_offset": end, "agg": agg},
+                         "begin_offset": begin, "end_offset": end, "agg": agg,
+                         **document_payload},
             )
             for begin, end, agg, vector in batch.entries()
         ]
@@ -788,6 +832,28 @@ WRITERS = {
     "postgres": write_postgres,
     "qdrant": write_qdrant,
 }
+
+
+def validate_payload_whitelist(request: ProcessRequest) -> None:
+    """Gefiltert wird bereits im Lua-Skript; hier wird nur geprueft, dass die
+    Whitelist gueltig ist und das Backend sie unterstuetzt."""
+    raw = request.qdrant_payload_whitelist
+    if raw is None:
+        return
+    if request.db_backend != "qdrant":
+        raise ValueError(f"qdrant_payload_whitelist is not supported for {request.db_backend} yet")
+    try:
+        whitelist = json.loads(raw)
+    except json.JSONDecodeError:
+        raise ValueError("qdrant_payload_whitelist is not valid JSON") from None
+    if not isinstance(whitelist, dict):
+        raise ValueError("qdrant_payload_whitelist must be a JSON object")
+    unknown = sorted(set(whitelist) - set(PAYLOAD_WHITELIST_KEYS))
+    if unknown:
+        raise ValueError(f"qdrant_payload_whitelist has unknown keys {unknown}, expected {list(PAYLOAD_WHITELIST_KEYS)}")
+    for name, keys in whitelist.items():
+        if not isinstance(keys, list) or not all(isinstance(key, str) for key in keys):
+            raise ValueError(f"qdrant_payload_whitelist.{name} must be a list of strings")
 
 
 def build_response(status: str, message: str, timestamp: int, written: int = 0,
@@ -815,6 +881,7 @@ def post_process(request: ProcessRequest = Depends(get_process_request)) -> Proc
         writer = WRITERS.get(backend)
         if writer is None:
             raise ValueError(f"Unknown db_backend \"{backend}\", expected one of {SUPPORTED_BACKENDS}")
+        validate_payload_whitelist(request)
 
         if not request.embeddings:
             response = build_response("ok", "No embeddings in document, nothing written", now)

@@ -96,5 +96,44 @@
                 </featureDescription>
             </features>
         </typeDescription>
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.AnnotationComment</name>
+            <description/>
+            <supertypeName>uima.cas.AnnotationBase</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>reference</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.TOP</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>value</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>key</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>de.tudarmstadt.ukp.dkpro.core.api.metadata.type.MetaDataStringField</name>
+            <description>A general purpose annotation to store document-wide information in the form of arbitrary key-value string pairs.</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>key</name>
+                    <description>Name of a metadata field.</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>value</name>
+                    <description>The field value.</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
     </types>
 </typeSystemDescription>

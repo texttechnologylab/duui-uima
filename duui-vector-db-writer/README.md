@@ -124,6 +124,7 @@ Qdrant (`db_backend=qdrant`):
 | `qdrant_port` | nein | Default `6333` |
 | `qdrant_api_key` | nein | API-Key |
 | `qdrant_distance` | nein | `cosine` (Default), `euclid`, `dot` oder `manhattan` — siehe [Collection-Schema (Qdrant)](#collection-schema-qdrant) für die Erklärung, wann welches Maß sinnvoll ist |
+| `qdrant_payload_whitelist` | nein | JSON-Objekt mit den Keys von `MetaDataStringField`- und `AnnotationComment`-Annotationen, die zusätzlich in den Payload kommen, siehe [Zusätzlicher Payload](#zusätzlicher-payload). Bei `db_backend=postgres` (noch) nicht unterstützt → Fehler |
 
 **Hinweis:** Als Parameter übergebene Passwörter/API-Keys stehen im Klartext
 in der Composer-Konfiguration und können je nach Setup von DUUI mitgespeichert
@@ -208,10 +209,38 @@ Gleiches Datenmodell wie bei Postgres, nur als Payload statt als Spalten:
     "model": "<Modellname>",
     "begin_offset": 0,
     "end_offset": 42,
-    "agg": "NONE"
+    "agg": "NONE",
+    "document": { "documentId": "…", "documentTitle": "…", "documentUri": "…", "…": "…" },
+    "metadata": { "source": "azure", "tag": ["a", "b"] },
+    "comments": { "rating": "5" }
   }
 }
 ```
+
+### Zusätzlicher Payload
+
+Jeder Punkt eines Dokuments (Sätze und MEAN/MIN/MAX) bekommt zusätzlich:
+
+| Feld | Inhalt |
+| --- | --- |
+| `document` | Immer: alle gesetzten Felder der `DocumentMetaData` (`documentId`, `documentTitle`, `documentUri`, `collectionId`, `documentBaseUri`, `isLastSegment`, `language`) |
+| `metadata` | `MetaDataStringField`-Annotationen, deren `key` in `qdrant_payload_whitelist.metadata_string_fields` steht |
+| `comments` | `AnnotationComment`-Annotationen, deren `key` in `qdrant_payload_whitelist.annotation_comments` steht — dokumentweit, unabhängig davon, worauf `reference` zeigt |
+
+Kommt ein Key mehrfach vor, wird der Wert eine Liste (in CAS-Reihenfolge),
+sonst bleibt er ein einzelner String. Leere Teile fehlen im Payload. Gefiltert
+wird bereits im Lua-Skript, nicht gewhitelistete Annotationen werden gar nicht
+erst an den Service geschickt.
+
+```java
+.withParameter("qdrant_payload_whitelist", new JSONObject()
+        .put("metadata_string_fields", new JSONArray(List.of("source", "tag")))
+        .put("annotation_comments", new JSONArray(List.of("rating")))
+        .toString())
+```
+
+Beide Keys sind optional. In Qdrant lässt sich danach filtern, z.B.
+`{"key": "metadata.source", "match": {"value": "azure"}}`.
 
 Distanzmetrik ist per `qdrant_distance` wählbar:
 
@@ -255,6 +284,8 @@ Images sind per `PG_PORT`/`QDRANT_PORT`/`PG_IMAGE`/`QDRANT_IMAGE` bzw.
 ```java
 org.texttechnologylab.uima.type.Embedding
 de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData   // Pflicht (documentId), sonst schlägt das Dokument fehl
+de.tudarmstadt.ukp.dkpro.core.api.metadata.type.MetaDataStringField   // optional, nur mit qdrant_payload_whitelist
+org.texttechnologylab.annotation.AnnotationComment   // optional, nur mit qdrant_payload_whitelist
 ```
 
 ## UIMA output

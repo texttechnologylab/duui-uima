@@ -1,19 +1,26 @@
 package org.hucompute.textimager.uima;
 
 import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
+import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.MetaDataStringField;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.FloatArray;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
+import org.texttechnologylab.annotation.AnnotationComment;
 import org.texttechnologylab.annotation.DocumentModification;
 import org.texttechnologylab.annotation.MetaData;
 import org.texttechnologylab.uima.type.Embedding;
 
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +49,8 @@ public class DUUIVectorDbWriterTest {
     private static final String PG_PASSWORD = config("pg.password", "PG_PASSWORD", "duui");
     private static final String QDRANT_HOST = config("qdrant.host", "QDRANT_HOST", "host.docker.internal");
     private static final String QDRANT_PORT = config("qdrant.port", "QDRANT_PORT", "6333");
+    // Qdrant aus Sicht der Test-JVM (nicht des Writer-Containers), um Payloads zu pruefen.
+    private static final String QDRANT_REST_URL = config("qdrant.rest", "QDRANT_REST", "http://localhost:6333");
 
     @Test
     public void testWriteEmbeddingsPostgres() throws Exception {
@@ -151,6 +160,79 @@ public class DUUIVectorDbWriterTest {
     @Test
     public void testMultipleModelsQdrant() throws Exception {
         runMultiModelTest("qdrant");
+    }
+
+    /**
+     * Zusaetzlicher Payload in Qdrant: alle DocumentMetaData-Felder, nur
+     * gewhitelistete MetaDataStringField-/AnnotationComment-Keys, mehrfache
+     * Keys als Liste. Geprueft direkt per Qdrant-REST.
+     */
+    @Test
+    public void testQdrantPayload() throws Exception {
+        String collection = "test_emb_payload";
+        String docId = "payload-doc";
+
+        Map<String, String> parameters = connection("qdrant");
+        parameters.put("target_table", collection);
+        parameters.put("qdrant_payload_whitelist", new JSONObject()
+                .put("metadata_string_fields", new JSONArray(List.of("source", "tag")))
+                .put("annotation_comments", new JSONArray(List.of("rating")))
+                .toString());
+
+        String comment = write(parameters, jCas -> {
+            DocumentMetaData.get(jCas).setDocumentTitle("Payload Test");
+            addMetaDataStringField(jCas, "source", "unit-test");
+            addMetaDataStringField(jCas, "tag", "a");
+            addMetaDataStringField(jCas, "tag", "b");
+            addMetaDataStringField(jCas, "secret", "not whitelisted");
+            addAnnotationComment(jCas, "rating", "5");
+            addAnnotationComment(jCas, "other", "not whitelisted");
+
+            MetaData model = addModel(jCas, "test-model");
+            addEmbedding(jCas, model, 0, 18, new float[]{0.1f, 0.2f, 0.3f});
+        }, docId);
+        assert comment.contains(", Wrote") : "Schreibvorgang war nicht erfolgreich: " + comment;
+
+        JSONObject payload = qdrantPayload(collection, docId);
+        System.out.println("Payload: " + payload);
+
+        JSONObject document = payload.getJSONObject("document");
+        assert document.getString("documentId").equals(docId) : "documentId fehlt: " + payload;
+        assert document.getString("documentTitle").equals("Payload Test") : "documentTitle fehlt: " + payload;
+
+        JSONObject metadata = payload.getJSONObject("metadata");
+        assert metadata.get("source").equals("unit-test") : "Einzelwert soll Skalar sein: " + payload;
+        assert metadata.getJSONArray("tag").length() == 2 : "Mehrfacher Key soll Liste sein: " + payload;
+        assert !metadata.has("secret") : "Nicht gewhitelisteter Key im Payload: " + payload;
+
+        JSONObject comments = payload.getJSONObject("comments");
+        assert comments.get("rating").equals("5") : "AnnotationComment fehlt: " + payload;
+        assert !comments.has("other") : "Nicht gewhitelisteter Key im Payload: " + payload;
+    }
+
+    /** Payload-Whitelist gibt es (noch) nur fuer Qdrant. */
+    @Test
+    public void testPayloadWhitelistNotSupportedPostgres() throws Exception {
+        Map<String, String> parameters = connection("postgres");
+        parameters.put("target_table_prefix", "test_emb");
+        parameters.put("qdrant_payload_whitelist", new JSONObject()
+                .put("metadata_string_fields", new JSONArray(List.of("source")))
+                .toString());
+        parameters.put("fail_on_error", "false");
+
+        String comment = writeSingle(parameters, "whitelist-postgres-doc");
+        assert comment.contains("not supported for postgres") : "Unerwartete Antwort: " + comment;
+    }
+
+    /** Ungueltiges JSON in der Whitelist laesst das Dokument fehlschlagen (Lua-Skript). */
+    @Test
+    public void testPayloadWhitelistInvalidJson() {
+        Map<String, String> parameters = connection("qdrant");
+        parameters.put("target_table_prefix", "test_emb");
+        parameters.put("qdrant_payload_whitelist", "{not json");
+        parameters.put("fail_on_error", "false");
+
+        assertThrows(Exception.class, () -> writeSingle(parameters, "whitelist-invalid-doc"));
     }
 
     /**
@@ -372,6 +454,40 @@ public class DUUIVectorDbWriterTest {
             value = System.getenv(env);
         }
         return value != null ? value : defaultValue;
+    }
+
+    /** Payload des NONE-Punkts eines Dokuments, direkt per Qdrant-REST gelesen. */
+    private static JSONObject qdrantPayload(String collection, String docId) throws Exception {
+        JSONObject query = new JSONObject()
+                .put("filter", new JSONObject().put("must", new JSONArray()
+                        .put(new JSONObject().put("key", "id").put("match", new JSONObject().put("value", docId)))
+                        .put(new JSONObject().put("key", "agg").put("match", new JSONObject().put("value", "NONE")))))
+                .put("limit", 1)
+                .put("with_payload", true);
+        HttpRequest request = HttpRequest.newBuilder(URI.create(QDRANT_REST_URL + "/collections/" + collection + "/points/scroll"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(query.toString()))
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+        assert response.statusCode() == 200 : "Qdrant-Abfrage fehlgeschlagen: " + response.body();
+
+        JSONArray points = new JSONObject(response.body()).getJSONObject("result").getJSONArray("points");
+        assert points.length() == 1 : "Kein Punkt fuer Dokument " + docId + " gefunden";
+        return points.getJSONObject(0).getJSONObject("payload");
+    }
+
+    private static void addMetaDataStringField(JCas jCas, String key, String value) {
+        MetaDataStringField field = new MetaDataStringField(jCas);
+        field.setKey(key);
+        field.setValue(value);
+        field.addToIndexes();
+    }
+
+    private static void addAnnotationComment(JCas jCas, String key, String value) {
+        AnnotationComment comment = new AnnotationComment(jCas);
+        comment.setKey(key);
+        comment.setValue(value);
+        comment.addToIndexes();
     }
 
     private static MetaData addModel(JCas jCas, String modelName) {
