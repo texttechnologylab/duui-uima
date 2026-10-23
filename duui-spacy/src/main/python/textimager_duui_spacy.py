@@ -97,8 +97,8 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings
 # benepar models
 # TODO configurable
 BENEPAR_MODELS = {
-    "en": "benepar_en3",
-    "de": "benepar_de2",
+    # "en": "benepar_en3",
+    # "de": "benepar_de2",
 }
 
 # spaCy models
@@ -107,58 +107,64 @@ BENEPAR_MODELS = {
 # TODO test accurate models
 SPACY_MODELS = {
     "efficiency": {
-        "ca": "ca_core_news_sm",    # Catalan
-        "zh": "zh_core_web_sm",     # Chinese
-        "hr": "hr_core_news_sm",    # Croatian
-        "da": "da_core_news_sm",    # Danish
-        "nl": "nl_core_news_sm",    # Dutch
+        # "ca": "ca_core_news_sm",    # Catalan
+        # "zh": "zh_core_web_sm",     # Chinese
+        # "hr": "hr_core_news_sm",    # Croatian
+        # "da": "da_core_news_sm",    # Danish
+        # "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
-        "fi": "fi_core_news_sm",    # Finnish
-        "fr": "fr_core_news_sm",    # French
+        # "fi": "fi_core_news_sm",    # Finnish
+        # "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
-        "el": "el_core_news_sm",    # Greek
-        "it": "it_core_news_sm",    # Italian
-        "ja": "ja_core_news_sm",    # Japanese
-        "ko": "ko_core_news_sm",    # Korean
-        "lt": "lt_core_news_sm",    # Lithuanian
-        "mk": "mk_core_news_sm",    # Macedonian
-        "nb": "nb_core_news_sm",    # Norwegian Bokmal
-        "pl": "pl_core_news_sm",    # Polish
-        "pt": "pt_core_news_sm",    # Portugese
-        "ro": "ro_core_news_sm",    # Romanian
-        "ru": "ru_core_news_sm",    # Russian
-        "sl": "sl_core_news_sm",    # Slovenian
-        "es": "es_core_news_sm",    # Spanish
-        "sv": "sv_core_news_sm",    # Swedish
-        "uk": "uk_core_news_sm",    # Ukrainian
+        # "el": "el_core_news_sm",    # Greek
+        # "it": "it_core_news_sm",    # Italian
+        # "ja": "ja_core_news_sm",    # Japanese
+        # "ko": "ko_core_news_sm",    # Korean
+        # "lt": "lt_core_news_sm",    # Lithuanian
+        # "mk": "mk_core_news_sm",    # Macedonian
+        # "nb": "nb_core_news_sm",    # Norwegian Bokmal
+        # "pl": "pl_core_news_sm",    # Polish
+        # "pt": "pt_core_news_sm",    # Portugese
+        # "ro": "ro_core_news_sm",    # Romanian
+        # "ru": "ru_core_news_sm",    # Russian
+        # "sl": "sl_core_news_sm",    # Slovenian
+        # "es": "es_core_news_sm",    # Spanish
+        # "sv": "sv_core_news_sm",    # Swedish
+        # "uk": "uk_core_news_sm",    # Ukrainian
         "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
     "accuracy": {
-        "ca": "ca_core_news_trf",
-        "zh": "zh_core_web_trf",
-        "hr": "hr_core_news_lg",
-        "da": "da_core_news_trf",
-        "nl": "nl_core_news_lg",
+        # "ca": "ca_core_news_trf",
+        # "zh": "zh_core_web_trf",
+        # "hr": "hr_core_news_lg",
+        # "da": "da_core_news_trf",
+        # "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
-        "fi": "fi_core_news_lg",
-        "fr": "fr_dep_news_trf",
+        # "fi": "fi_core_news_lg",
+        # "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
-        "el": "el_core_news_lg",
-        "it": "it_core_news_lg",
-        "ja": "ja_core_news_trf",
-        "ko": "ko_core_news_lg",
-        "lt": "lt_core_news_lg",
-        "mk": "mk_core_news_lg",
-        "nb": "nb_core_news_lg",
-        "pl": "pl_core_news_lg",
-        "pt": "pt_core_news_lg",
-        "ro": "ro_core_news_lg",
-        "ru": "ru_core_news_lg",
-        "sl": "sl_core_news_trf",
-        "es": "es_dep_news_trf",
-        "sv": "sv_core_news_lg",
-        "uk": "uk_core_news_trf",
-        "xx": "xx_ent_wiki_sm",
+        # "el": "el_core_news_lg",
+        # "it": "it_core_news_lg",
+        # "ja": "ja_core_news_trf",
+        # "ko": "ko_core_news_lg",
+        # "lt": "lt_core_news_lg",
+        # "mk": "mk_core_news_lg",
+        # "nb": "nb_core_news_lg",
+        # "pl": "pl_core_news_lg",
+        # "pt": "pt_core_news_lg",
+        # "ro": "ro_core_news_lg",
+        # "ru": "ru_core_news_lg",
+        # "sl": "sl_core_news_trf",
+        # "es": "es_dep_news_trf",
+        # "sv": "sv_core_news_lg",
+        # "uk": "uk_core_news_trf",
+        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+    },
+    "large": {
+        "en": "en_core_web_lg",
+        "de": "de_core_news_lg",
+        # "fr": "fr_core_news_lg",
+        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     }
 }
 
