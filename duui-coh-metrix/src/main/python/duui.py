@@ -3,6 +3,7 @@ import logging
 import pyphen
 import textstat
 import math
+import duui_logging
 
 from platform import python_version
 from sys import version as sys_version
@@ -41,8 +42,20 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-logging.basicConfig(level=settings.log_level)
+_configured_log_level_name = (settings.log_level or "INFO").strip().upper()
+_configured_log_level = getattr(logging, _configured_log_level_name, logging.INFO)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(_configured_log_level)
+logger.propagate = True
+logger.handlers.clear()
+
+duui_logging.install(
+    level=_configured_log_level,
+    capture_warnings=True,
+    keep_stderr=True,
+)
+
 logger.info("TTLab TextImager DUUI Coh-Metrix")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
@@ -144,7 +157,6 @@ class Index(BaseModel):
     @validator('value')
     def value_must_be_finite(cls, v):
         if v is not None and (math.isinf(v) or math.isnan(v)):
-            print("Validating value:", v)
             return None
         return v
 
@@ -263,6 +275,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+duui_logging.add_logging(app, default_logger=__name__)
 
 
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
@@ -441,14 +455,20 @@ def _syllables_count(tokens: List[Token], lang: str) -> List[int]:
 def cm_deswlsy(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, mean
     # FV1 fix: exclude punctuation to keep consistency
-    return np.mean(_syllables_count(tokens, lang))
+    syllable_counts = _syllables_count(tokens, lang)
+    if not syllable_counts:
+        return None
+    return np.mean(syllable_counts)
 
 # LAY: How uneven is the syllable count across words?
 # ↑ Higher = mix of short and long words. Reliable.
 def cm_deswlsyd(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, standard deviation
     # FV1 fix: exclude punctuation to keep consistency
-    return np.std(_syllables_count(tokens, lang))
+    syllable_counts = _syllables_count(tokens, lang)
+    if not syllable_counts:
+        return None
+    return np.std(syllable_counts)
 
 # LAY: On average, how many letters per word?
 # ↑ Higher = longer words. Reliable.
@@ -461,6 +481,8 @@ def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
+    if not text_letters:
+        return None
     return np.mean(text_letters)
 
 # LAY: How uneven is the letter count across words?
@@ -474,6 +496,8 @@ def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
+    if not text_letters:
+        return None
     return np.std(text_letters)
 
 ud_noun_pos = {"NOUN", "PROPN"}
@@ -643,7 +667,11 @@ def cm_crfno1(sentences: List[Sentence]) -> Optional[float]:
         noun_overlap = _noun_overlap(current_sentence, previous_sentence)
         if noun_overlap is not None:
             noun_overlap_per_sentence.append(min(1, noun_overlap))
-    return np.mean(noun_overlap_per_sentence)
+    return (
+        np.mean(noun_overlap_per_sentence)
+        if noun_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do any two sentences in the text share at least one noun?
 # ↑ Higher = noun recurrence across the whole text. Reliable.
@@ -659,7 +687,11 @@ def cm_crfnoa(sentences: List[Sentence]) -> Optional[float]:
             noun_overlap = _noun_overlap(sentence_a, sentence_b)
             if noun_overlap is not None:
                 noun_overlap_per_sentence.append(min(1, noun_overlap))
-    return np.mean(noun_overlap_per_sentence)
+    return (
+        np.mean(noun_overlap_per_sentence)
+        if noun_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do adjacent sentences share a noun or pronoun (an "argument")?
 # ↑ Higher = same entities referred to across neighbours. Reliable.
@@ -674,7 +706,11 @@ def cm_crfao1(sentences: List[Sentence]) -> Optional[float]:
         argument_overlap = _argument_overlap(current_sentence, previous_sentence)
         if argument_overlap is not None:
             argument_overlap_per_sentence.append(min(1, argument_overlap))
-    return np.mean(argument_overlap_per_sentence)
+    return (
+        np.mean(argument_overlap_per_sentence)
+        if argument_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do any two sentences share a noun or pronoun?
 # ↑ Higher = entity recurrence throughout text. Reliable.
@@ -690,7 +726,11 @@ def cm_crfaoa(sentences: List[Sentence]) -> Optional[float]:
             argument_overlap = _argument_overlap(sentence_a, sentence_b)
             if argument_overlap is not None:
                 argument_overlap_per_sentence.append(min(1, argument_overlap))
-    return np.mean(argument_overlap_per_sentence)
+    return (
+        np.mean(argument_overlap_per_sentence)
+        if argument_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do adjacent sentences share a word stem (e.g. "running"/"runs")?
 # ↑ Higher = same word families recur. Reliable.
@@ -705,7 +745,11 @@ def cm_crfso1(sentences: List[Sentence]) -> Optional[float]:
         stem_overlap = _stem_overlap(current_sentence, previous_sentence)
         if stem_overlap is not None:
             stem_overlap_per_sentence.append(min(1, stem_overlap))
-    return np.mean(stem_overlap_per_sentence)
+    return (
+        np.mean(stem_overlap_per_sentence)
+        if stem_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do any two sentences share a word stem?
 # ↑ Higher = word-family recurrence throughout text. Reliable.
@@ -723,7 +767,11 @@ def cm_crfsoa(sentences: List[Sentence]) -> Optional[float]:
             stem_overlap = _stem_overlap(current_sentence,previous_sentence)
             if stem_overlap is not None:
                 stem_overlap_per_sentence.append(min(1, stem_overlap))
-    return np.mean(stem_overlap_per_sentence)
+    return (
+        np.mean(stem_overlap_per_sentence)
+        if stem_overlap_per_sentence
+        else None
+    )
 
 # LAY: What share of content words is shared between adjacent sentences? (mean)
 # ↑ Higher = tighter local cohesion. Reliable.
@@ -862,7 +910,13 @@ def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
     if not tokens_alpha:
         return None
     lex = LexicalRichness(tokens_alpha, preprocessor=None, tokenizer=None)
-    return lex.vocd()
+    # lexicalrichness 0.5.1 samples 50 tokens by default and requires the
+    # document to contain strictly more tokens than the requested sample.
+    # Insufficient input is an undefined index, not a calculation error.
+    vocd_sample_tokens = 50
+    if lex.words <= vocd_sample_tokens:
+        return None
+    return lex.vocd(ntokens=vocd_sample_tokens)
 
 # ============================================================================
 # SYNTACTIC COMPLEXITY (SYN*) — "How complex and consistent is sentence structure?"
@@ -4788,7 +4842,8 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
         return None
 
     if lang == "de" and germanet is None:
-        logger.warning("GermaNet not available")
+        # Missing GermaNet is a documented availability condition. Returning
+        # None is the expected result and must not be logged as a failure.
         return None
 
     verbs_lemma = [
