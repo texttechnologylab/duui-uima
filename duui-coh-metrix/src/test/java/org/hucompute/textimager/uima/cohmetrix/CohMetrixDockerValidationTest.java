@@ -64,7 +64,7 @@ public class CohMetrixDockerValidationTest {
 //    static final String DOCKER_IMAGE =
 //            "duui-coh-metrix:review-fixes-20260909";
     static final String DOCKER_IMAGE =
-            "docker.texttechnologylab.org/duui-coh-metrix:0.1.1";
+            "docker.texttechnologylab.org/duui-coh-metrix:0.1.2";
 
     /**
      * Optional host path to the licensed GermaNet XML directory.
