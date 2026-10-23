@@ -14,20 +14,20 @@ COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
 
 # TODO include in requirements.txt
-RUN pip install "benepar"
+#RUN pip install "benepar"
 
 # languages/models
 # - efficiency
 RUN python -m spacy download "en_core_web_sm"
 RUN python -m spacy download "de_core_news_sm"
-RUN #python -m spacy download "xx_ent_wiki_sm"
+RUN python -m spacy download "xx_ent_wiki_sm"
 #RUN python -m spacy download "ca_core_news_sm"
 #RUN python -m spacy download "zh_core_web_sm"
 #RUN python -m spacy download "hr_core_news_sm"
 #RUN python -m spacy download "da_core_news_sm"
 #RUN python -m spacy download "nl_core_news_sm"
 #RUN python -m spacy download "fi_core_news_sm"
-RUN python -m spacy download "fr_core_news_sm"
+#RUN python -m spacy download "fr_core_news_sm"
 #RUN python -m spacy download "el_core_news_sm"
 #RUN python -m spacy download "it_core_news_sm"
 #RUN python -m spacy download "ja_core_news_sm"
@@ -43,17 +43,20 @@ RUN python -m spacy download "fr_core_news_sm"
 #RUN python -m spacy download "es_core_news_sm"
 #RUN python -m spacy download "sv_core_news_sm"
 #RUN python -m spacy download "uk_core_news_sm"
+# - large
+RUN python -m spacy download "en_core_web_lg"
+RUN python -m spacy download "de_core_news_lg"
+#RUN python -m spacy download "fr_core_news_lg"
 # - accuracy
 RUN python -m spacy download "en_core_web_trf"
 RUN python -m spacy download "de_dep_news_trf"
-RUN #python -m spacy download "xx_ent_wiki_sm"
 #RUN python -m spacy download "ca_core_news_trf"
 #RUN python -m spacy download "zh_core_web_trf"
 #RUN python -m spacy download "hr_core_news_lg"
 #RUN python -m spacy download "da_core_news_trf"
 #RUN python -m spacy download "nl_core_news_lg"
 #RUN python -m spacy download "fi_core_news_lg"
-RUN python -m spacy download "fr_dep_news_trf"
+#RUN python -m spacy download "fr_dep_news_trf"
 #RUN python -m spacy download "el_core_news_lg"
 #RUN python -m spacy download "it_core_news_lg"
 #RUN python -m spacy download "ja_core_news_trf"
@@ -71,9 +74,9 @@ RUN python -m spacy download "fr_dep_news_trf"
 #RUN python -m spacy download "uk_core_news_trf"
 
 # benepar models
-RUN python -c "import benepar; benepar.download('benepar_en3')"
+#RUN python -c "import benepar; benepar.download('benepar_en3')"
 #RUN python -c "import benepar; benepar.download('benepar_en3_large')"
-RUN python -c "import benepar; benepar.download('benepar_de2')"
+#RUN python -c "import benepar; benepar.download('benepar_de2')"
 
 # meta data
 ARG TEXTIMAGER_SPACY_ANNOTATOR_NAME="textimager-duui-spacy"
