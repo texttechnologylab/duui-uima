@@ -25,6 +25,7 @@ from germanetpy.germanet import Germanet
 from germanetpy.synset import WordCategory
 from pathlib import Path
 from functools import lru_cache
+from contextvars import ContextVar
 
 import numpy as np
 
@@ -526,12 +527,26 @@ ud_stem_content_pos = {"NOUN","PROPN","VERB","ADJ","ADV","PRON",}
 
 # speed: the overlap indices over all sentence pairs (CRF*a) recomputed each sentence's annotation check
 # and word sets once per pair (1.4 million pairs on a page of 1,668 sentences). They are now computed once per sentence and request,
-# with the same expressions as before; post_process clears the cache. The entry keeps the sentence itself, so a reused id() cannot hit.
-_SENTENCE_FEATURES: Dict[int, Tuple[Any, dict]] = {}
+# with the same expressions as before. The entry keeps the sentence itself, so a reused id() cannot hit.
+#
+# One cache per request. A single module-level dict, cleared at the start of each request, was shared by concurrent requests:
+# uvicorn runs one process (Dockerfile: --workers 1), but post_process is a plain `def`, so FastAPI runs every request in its
+# thread pool, and DUUI sends documents in parallel (withWorkers(n) on one container). With one shared dict:
+#   1. values stay correct: the key is id(sentence) and the entry holds the sentence object, so its id cannot be reused by another
+#      request's sentence while the entry exists, and the features depend on that sentence only;
+#   2. no crash: single dict operations are atomic under the GIL (and locked internally in free-threaded Python);
+#   3. lost speed: a request starting while another runs cleared that one's cache, which then recomputed the features; long
+#      documents, where the cache matters most, were the most likely to lose it;
+#   4. memory: the last request's sentences stayed referenced until the next request began.
+# Fix: the cache lives in a ContextVar. post_process sets a fresh dict at its start and resets the variable in `finally`, so every
+# request has its own cache (each runs in its own thread and context), no request clears another's, and the sentences are released
+# when the request ends. Outside a request (functions called directly) the features are computed without caching.
+_SENTENCE_FEATURES: ContextVar[Optional[Dict[int, Tuple[Any, dict]]]] = ContextVar("_SENTENCE_FEATURES", default=None)
 
 
 def _sentence_features(sentence: Sentence) -> dict:
-    hit = _SENTENCE_FEATURES.get(id(sentence))
+    cache = _SENTENCE_FEATURES.get()
+    hit = cache.get(id(sentence)) if cache is not None else None
     if hit is not None and hit[0] is sentence:
         return hit[1]
     tokens = sentence.tokens
@@ -550,7 +565,8 @@ def _sentence_features(sentence: Sentence) -> dict:
         "content_words": content_words,
         "content_word_set": set(content_words),
     }
-    _SENTENCE_FEATURES[id(sentence)] = (sentence, f)
+    if cache is not None:
+        cache[id(sentence)] = (sentence, f)
     return f
 
 
@@ -4996,11 +5012,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     meta = None
     modification_meta = None
 
+    sentence_features_token = _SENTENCE_FEATURES.set({})  # this request's own cache (see _sentence_features)
     try:
         # Normalize the language once so every metric family uses the same
         # language branch for inputs such as "DE" or " de ".
         lang = (request.language or "").strip().lower()
-        _SENTENCE_FEATURES.clear()
         textstat.set_lang(lang)
 
         sentences = []
@@ -7521,6 +7537,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
     except Exception as ex:
         logger.exception(ex)
+    finally:
+        _SENTENCE_FEATURES.reset(sentence_features_token)  # release this request's sentences
 
     logger.debug(meta)
     logger.debug(modification_meta)
