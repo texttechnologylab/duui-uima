@@ -66,7 +66,8 @@ than assigned an artificial frequency of zero.
 
 These resources replace the non-public CELEX data used by the original
 Coh-Metrix implementation. Consequently, the corresponding TTLab indices use
-the `_wiki10000` label suffix and their absolute values are not directly
+the `_wiki` label suffix (`_enwiki10000` / `_dewiki10000` internally, see
+[Index labels](#index-labels)) and their absolute values are not directly
 comparable with CELEX-based Coh-Metrix output.
 
 ### WordNet and NLTK
@@ -86,9 +87,11 @@ Without GermaNet:
   lists where this fallback is supported.
 - GermaNet-dependent polysemy, hypernymy, and semantic verb-overlap results are
   `None`.
-- German `SMTEMP` remains computable from unambiguous spaCy tense/aspect
-  annotations, but returns `None` when a construction requires GermaNet to
-  determine the relevant lexical verb.
+- German `SMTEMP` is computed from spaCy tense/aspect annotations. GermaNet is
+  only needed for `am`/`beim` progressive constructions whose noun spaCy does
+  not tag as a verb, to decide whether the noun is a nominalized verb. Without
+  GermaNet, the sentence pairs that contain such a sentence are excluded; the
+  index is `None` only if no valid pair remains.
 
 English lexical-semantic indices use WordNet instead and do not require the
 GermaNet mount.
@@ -121,16 +124,91 @@ single-purpose WSTF testcase is required.
 
 ## Index labels
 
-Every output index has a `label_ttlab` value. If an implementation uses the
-same operationalization as the Coh-Metrix 3.0 index, `label_ttlab` equals
-`label_v3`. A suffix identifies an alternative data source or implementation,
-for example `_spacy`, `_textstat`, `_wiki10000`, or `_mrctranslate`.
+Every index record carries four labels. Follow the rules below when adding or
+changing an index.
 
-For lexical-semantic indices, the label identifies the language-specific
-resource:
+| Field (Python / UIMA)              | Meaning                                                                                                                                                       | Unique per output |
+|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|
+| `label_v3` / `labelV3`             | Original Coh-Metrix 3.0 label from `docs/coh-metrix-30-indices.md`. Identifies *what* is measured. `None` for project-only indices.                           | No, see rule 5    |
+| `label_v2` / `labelV2`             | Coh-Metrix 2.0 label from the same table; `n/a` where the table has none. `None` for project-only indices.                                                   | No, see rule 5    |
+| `label_ttlab` / `labelTTLab`       | Public TTLab label for use in analyses: the V3 label, plus a suffix only where the English implementation deviates from the original. Identical for all languages. | Yes               |
+| `label_internal` / `labelInternal` | Internal TTLab label: V3 label plus the concrete resource suffix for this language; no suffix where the original resource is used. May differ between languages.  | Yes               |
 
-- German: `_germanet`
-- English: `_wordnet`
+### Rules
+
+1. **When an implementation deviates.** Ask: *if our NLP preprocessing were
+   perfect, would we reproduce the original Coh-Metrix value?*
+   - No, because we use a different corpus, lexicon, word list, embedding
+     model, formula or library: it deviates and gets a suffix.
+   - Yes, and the only differences come from preprocessing (sentence
+     boundaries, tokens, lemmas, POS, morphology, dependencies, noun chunks,
+     Pyphen syllable counts): no suffix.
+
+   For `label_ttlab` the test is applied to the English implementation
+   (rule 2); for `label_internal` it is applied to each language's own
+   implementation.
+2. **The public label follows the English implementation.** Coh-Metrix is
+   defined on English, so `label_ttlab` gets a suffix only if the English
+   implementation deviates from the original. Another language that uses its
+   counterpart of the English resource measures the same concept and keeps
+   the same public label; its concrete resource appears only in
+   `label_internal`. This includes translated resources, because they are
+   built on the same data. `label_ttlab` is therefore identical for all
+   languages. Examples:
+   - `WRDPOLc` (public): internally `WRDPOLc` for English (Princeton WordNet,
+     as in the original) and `WRDPOLc_germanet` for German.
+   - `WRDAOAc` (public): internally `WRDAOAc` for English (original MRC
+     database) and `WRDAOAc_mrctranslate` for German (MRC translated with
+     DeepL).
+   - `WRDFRQc_wiki` (public): English deviates (Wikipedia instead of CELEX);
+     internally `WRDFRQc_enwiki10000` for English and `WRDFRQc_dewiki10000`
+     for German.
+3. **Derived indices inherit deviations.** An index computed from other
+   indices carries the suffixes of its inputs. Example: `RDL2` uses
+   `WRDFRQmc`, so it carries the Wikipedia suffix.
+4. **The internal label names what was actually used at runtime.** If a
+   resource is unavailable and a fallback is used, `label_internal` names the
+   fallback, not the intended resource; `label_ttlab` stays aligned. Example:
+   without GermaNet, the German causal/intentional verb inventories use seed
+   lists, so `label_internal` uses `_seedlist` instead of `_germanet`.
+5. **V3 and V2 labels repeat only for genuine variants.** If the original
+   definition is ambiguous, all variants keep the V3/V2 label and `index`
+   number and are told apart by a variant suffix in `label_ttlab` and
+   `label_internal`. Example: the RDL2 formula only says `SYNSTRUT`, so both
+   `RDL2_synstruta_*` and `RDL2_synstrutt_*` have V3 `RDL2`.
+6. **No placeholders.** If the original resource is unavailable, emit only the
+   substitute, under the original V3 label. Never emit a record that is always
+   `None` just to occupy the original label. Example: there is no CELEX
+   `WRDFRQc`, only `WRDFRQc_wiki`.
+7. **Project-only indices** (no Coh-Metrix equivalent) have `label_v3` and
+   `label_v2` set to `None`, an `index` of 1001 or above, and always a suffix.
+   Example: `RDFOG_textstat`.
+8. **Suffix order:** `<V3 label>_<variant>_<resource>`, for example
+   `RDL2_synstruta_wiki`.
+9. **UIMA type.** The CAS type is `org.texttechnologylab.uima.type.cohmetrix.<label_v3>`,
+   or `<label_ttlab>` for project-only indices. Language variants and rule-5
+   variants share one type and are distinguished by `labelTTLab`. A new
+   project-only index needs a matching type in `TypeSystem.xml`.
+
+### Suffixes
+
+Public suffixes describe how the English implementation deviates from the
+original and are the same for all languages; internal suffixes name the
+concrete resource per language.
+
+| Public (`label_ttlab`) | English implementation (original)              | Internal EN      | Internal DE          |
+|------------------------|------------------------------------------------|------------------|----------------------|
+| *(none)*               | Princeton WordNet (same)                       | *(none)*         | `_germanet`          |
+| *(none)*               | MRC database (same)                            | *(none)*         | `_mrctranslate`      |
+| `_wiki`                | Wikipedia sample (CELEX)                       | `_enwiki10000`   | `_dewiki10000`       |
+| `_spacy`               | spaCy vectors (TASA LSA space)                 | `_spacy`         | `_spacy`             |
+| `_textstat`            | textstat library (Coh-Metrix formulas)         | `_textstat`      | `_textstat`          |
+| `_gptlist`             | GPT-generated word lists (Coh-Metrix lists)    | `_gptlist`       | `_gptlist`           |
+
+Adding a language changes only internal labels, as long as its resources are
+counterparts of the English ones. Example: a French wordnet keeps the public
+label `WRDPOLc` and gets the internal label `WRDPOLc_<resource name>`. A new
+public suffix is only needed when the English implementation changes.
 
 ## Validation
 

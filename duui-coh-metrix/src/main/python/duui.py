@@ -13,7 +13,7 @@ from typing import List, Optional, Dict, Tuple, Set, Any
 from cassis import load_typesystem
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, model_validator, validator
 from pydantic_settings import BaseSettings
 from lexicalrichness import LexicalRichness
 from lexical_diversity import lex_div as ld
@@ -144,23 +144,21 @@ class DocumentModification(BaseModel):
     comment: str
 
 
-# Index labels. Every index carries three names:
-#   label_v3     the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g. LSASS1
-#   label_v2     the Coh-Metrix 2.x label, e.g. LSAassa; None for indices that are not part of Coh-Metrix
-#   label_ttlab  the technical TTLab name: the v3 label plus the resource that replaces the original one
-#                (_spacy, _germanet, _gptlist, _wiki10000, _mrctranslate, _textstat, _wikipedia, ...), e.g. LSASS1_spacy
-# Only label_ttlab is unique (WRDFRQc / WRDFRQa / WRDFRQmc and RDL2 occur twice under their v3 label, with the same index
-# number), so it is the key for storing and joining results. A display name for tables and figures can be derived as:
-#   1. the index has a v3 label used once: the v3 label                      LSASS1_spacy      -> LSASS1
-#   2. the v3 label belongs to two indices: the v3 label and the variant     WRDFRQc           -> WRDFRQc · CELEX
-#      (the part of label_ttlab after the v3 label; CELEX where there is      WRDFRQc_wiki10000 -> WRDFRQc · wiki10000
-#      none)                                                                  RDL2_synstrutt    -> RDL2 · synstrutt
-#   3. the index has no v3 label (the textstat additions 1001-1011): label_ttlab without the suffix   RDFOG_textstat -> RDFOG
-# with label_ttlab shown beside it as the secondary name wherever the two differ.
+# Index labels (full rules: README.md, "Index labels"):
+#   label_v3        the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g. WRDPOLc;
+#                   None for project-only indices (1001+)
+#   label_v2        the Coh-Metrix 2.x label, e.g. POLm; "n/a" where Coh-Metrix has none, None for project-only indices
+#   label_ttlab     the public TTLab label and unique key: the v3 label, plus a suffix only where the English
+#                   implementation deviates from the original (WRDFRQc_wiki, LSASS1_spacy); the same for all languages
+#   label_internal  the v3 label plus the concrete resource used for this language (WRDPOLc_germanet,
+#                   WRDFRQc_dewiki10000); no suffix where the original resource is used. Defaults to label_ttlab.
+# label_v3 and the index number repeat only for variants of an ambiguous original definition (RDL2_synstruta_wiki,
+# RDL2_synstrutt_wiki).
 class Index(BaseModel):
     index: int
     type_name: str
     label_ttlab: Optional[str] = None
+    label_internal: Optional[str] = None
     label_v3: Optional[str] = None
     label_v2: Optional[str] = None
     description: str
@@ -173,6 +171,12 @@ class Index(BaseModel):
         if v is not None and (math.isinf(v) or math.isnan(v)):
             return None
         return v
+
+    @model_validator(mode="after")
+    def label_internal_defaults_to_label_ttlab(self):
+        if self.label_internal is None:
+            self.label_internal = self.label_ttlab
+        return self
 
 
 class TextImagerResponse(BaseModel):
@@ -2177,8 +2181,8 @@ def _wrd_precompute(
 #       resources and should be interpreted accordingly.
 #   (c) Polysemy & hypernymy via WordNet (en) / GermaNet (de). Values are
 #       not directly comparable across languages. NOTE(H9).
-#   (d) CELEX word-frequency indices are stubbed None; Wikipedia-sample
-#       alternatives WRDFRQ*_wiki10000 are emitted. NOTE(L9).
+#   (d) CELEX is not available; the word-frequency indices WRDFRQ*_wiki use
+#       a Wikipedia sample instead. NOTE(L9).
 # ============================================================================
 
 # LAY: How many nouns per 1,000 words?
@@ -3088,8 +3092,11 @@ def _project_onto_hyperplane(v, basis):
 def _lsa_given_new_for_vectors(vectors):
     # speed: _project_onto_hyperplane took the SVD of all preceding vectors at every sentence (a d x i
     # matrix, so quadratic work over a text). The left singular vectors and singular values of [v_0 .. v_{i-1}] are those of
-    # [U S | v_{i-1}] with U, S from the step before (the same B B^T), a d x (d + 1) matrix at most; all singular directions are
-    # carried on, and the rank cut-off is the original's (max(d, i) * eps * largest singular value).
+    # [U S | v_{i-1}] with U, S from the step before (the same B B^T), a d x (d + 1) matrix at most; the rank cut-off is the
+    # original's (max(d, i) * eps * largest singular value).
+    # Only the singular directions above the cut-off are carried on: carrying the near-zero ones as well made the SVD fail to
+    # converge on texts with repeated sentences (rank < d), e.g. boilerplate lines. If it still fails, the step falls back to the
+    # original SVD of all preceding vectors.
     results = []
     carried = None
     for i in range(len(vectors)):
@@ -3100,10 +3107,13 @@ def _lsa_given_new_for_vectors(vectors):
         else:
             previous = np.asarray(vectors[i - 1], dtype=float)[:, None]
             stacked = previous if carried is None else np.hstack([carried, previous])
-            U, singular_values, _ = np.linalg.svd(stacked, full_matrices=False)
-            carried = U * singular_values
+            try:
+                U, singular_values, _ = np.linalg.svd(stacked, full_matrices=False)
+            except np.linalg.LinAlgError:
+                U, singular_values, _ = np.linalg.svd(np.asarray(vectors[:i], dtype=float).T, full_matrices=False)
             tolerance = max(len(current_vec), i) * np.finfo(singular_values.dtype).eps * singular_values[0]
             rank = np.sum(singular_values > tolerance)
+            carried = U[:, :rank] * singular_values[:rank]
             if rank == 0:
                 p, perp = np.zeros_like(current_vec), current_vec
             else:
@@ -3409,17 +3419,16 @@ all_word_frequencies_map = {
 # original CELEX reference corpus (17.9M words, paywalled). Absolute
 # frequency values and their logs differ from the reference Coh-Metrix
 # output; rank-ordering among content words is expected to be broadly
-# similar. The standard V3 WRDFRQc/a/mc outputs are stubbed (None) on
-# purpose (see L6); the Wikipedia-backed alternatives are exposed with a
-# `label_ttlab` suffix.
+# similar. The indices keep their V3 labels WRDFRQc/a/mc, with the public
+# label suffix _wiki (internally _enwiki10000 / _dewiki10000).
 # ============================================================================
 # WORD FREQUENCY (WRDFRQ*) & L2 READABILITY (RDL2)
 # Approximate: the original Coh-Metrix uses the CELEX lexical database, which
 # is paywalled. This implementation uses a 10,000-article Wikipedia sample
-# (NOTE(L9)). Standard outputs WRDFRQc/a/mc remain None; the _wiki10000
-# suffix variants are emitted instead. RDL2 is the "L2 Readability" composite
+# (NOTE(L9)), labelled WRDFRQ*_wiki. RDL2 is the "L2 Readability" composite
 # formula (Crossley et al. 2008) and is emitted twice — using SYNSTRUTa and
-# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)).
+# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)). Both
+# use the Wikipedia WRDFRQmc: RDL2_synstruta_wiki / RDL2_synstrutt_wiki.
 # ============================================================================
 
 # LAY: Average frequency of content words in everyday text.
@@ -3779,6 +3788,9 @@ _DE_INTENTIONAL_SEED = {"beabsichtigen", "planen", "wollen", "vorhaben", "kontak
 
 _de_causal_verbs_expanded = _germanet_expand_verb_lemmas({"verursachen", "bewirken", "ausl\u00f6sen"})
 _de_intentional_verbs_expanded = _germanet_expand_verb_lemmas({"beabsichtigen", "planen"})
+# Resource actually used for the DE inventories, for label_internal (README "Index labels", rule 4).
+_de_causal_verbs_source = "germanet" if _de_causal_verbs_expanded else "seedlist"
+_de_intentional_verbs_source = "germanet" if _de_intentional_verbs_expanded else "seedlist"
 if not _de_causal_verbs_expanded:
     _de_causal_verbs_expanded = set(_DE_CAUSAL_SEED)
     logger.info("DE causal verbs: using %d hardcoded seeds (GermaNet expansion unavailable)",
@@ -6224,11 +6236,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=59,
             type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSv_germanet"
-                if lang == "de"
-                else "SMCAUSv_wordnet"
-            ),
+            label_ttlab="SMCAUSv_wordnet",
+            label_internal=f"SMCAUSv_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSv_wordnet",
             label_v3="SMCAUSv",
             label_v2="CAUSV",
             description="Causal verb incidence",
@@ -6247,11 +6256,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=60,
             type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSvp_germanet"
-                if lang == "de"
-                else "SMCAUSvp_wordnet"
-            ),
+            label_ttlab="SMCAUSvp_wordnet",
+            label_internal=f"SMCAUSvp_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSvp_wordnet",
             label_v3="SMCAUSvp",
             label_v2="CAUSVP",
             description="Causal verbs and causal particles incidence",
@@ -6270,11 +6276,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=61,
             type_name="Situation Model",
-            label_ttlab=(
-                "SMINTEp_germanet"
-                if lang == "de"
-                else "SMINTEp_wordnet"
-            ),
+            label_ttlab="SMINTEp_wordnet",
+            label_internal=f"SMINTEp_{_de_intentional_verbs_source}" if lang == "de" else "SMINTEp_wordnet",
             label_v3="SMINTEp",
             label_v2="INTEi",
             description="Intentional verbs incidence",
@@ -6293,11 +6296,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=62,
             type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSr_germanet"
-                if lang == "de"
-                else "SMCAUSr_wordnet"
-            ),
+            label_ttlab="SMCAUSr_wordnet",
+            label_internal=f"SMCAUSr_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSr_wordnet",
             label_v3="SMCAUSr",
             label_v2="CAUSC",
             description="Ratio of causal particles to causal verbs",
@@ -6316,11 +6316,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=63,
             type_name="Situation Model",
-            label_ttlab=(
-                "SMINTEr_germanet"
-                if lang == "de"
-                else "SMINTEr_wordnet"
-            ),
+            label_ttlab="SMINTEr_wordnet",
+            label_internal=f"SMINTEr_{_de_intentional_verbs_source}" if lang == "de" else "SMINTEr_wordnet",
             label_v3="SMINTEr",
             label_v2="INTEC",
             description="Ratio of intentional particles to intentional verbs",
@@ -6358,11 +6355,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=65,
             type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSwn_germanet"
-                if lang == "de"
-                else "SMCAUSwn_wordnet"
-            ),
+            label_ttlab="SMCAUSwn",
+            label_internal="SMCAUSwn_germanet" if lang == "de" else "SMCAUSwn",
             label_v3="SMCAUSwn",
             label_v2="CAUSWN",
             description="WordNet verb overlap",
@@ -6888,66 +6882,6 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # WRDFRQc
         try:
-            # wrdfrqc = cm_wrdfrqc(sentences, lang, "celex")
-            wrdfrqc = None
-            wrdfrqc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQc: %s", e)
-            wrdfrqc = None
-            wrdfrqc_error = str(e)
-        indices.append(Index(
-            index=92,
-            type_name="Word Information",
-            label_ttlab='WRDFRQc',
-            label_v3="WRDFRQc",
-            label_v2="FRCLacwm",
-            description="CELEX word frequency for content words, mean",
-            value=wrdfrqc,
-            error=wrdfrqc_error
-        ))
-
-        # WRDFRQa
-        try:
-            # wrdfrqa = cm_wrdfrqa(tokens, lang, "celex")
-            wrdfrqa = None
-            wrdfrqa_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQa: %s", e)
-            wrdfrqa = None
-            wrdfrqa_error = str(e)
-        indices.append(Index(
-            index=93,
-            type_name="Word Information",
-            label_ttlab='WRDFRQa',
-            label_v3="WRDFRQa",
-            label_v2="FRCLaewm",
-            description="CELEX Log frequency for all words, mean",
-            value=wrdfrqa,
-            error=wrdfrqa_error
-        ))
-
-        # WRDFRQmc
-        try:
-            # wrdfrqmc = cm_wrdfrqmc(sentences, lang, "celex")
-            wrdfrqmc = None
-            wrdfrqmc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQmc: %s", e)
-            wrdfrqmc = None
-            wrdfrqmc_error = str(e)
-        indices.append(Index(
-            index=94,
-            type_name="Word Information",
-            label_ttlab='WRDFRQmc',
-            label_v3="WRDFRQmc",
-            label_v2="FRCLmcsm",
-            description="CELEX Log minimum frequency for content words, mean",
-            value=wrdfrqmc,
-            error=wrdfrqmc_error
-        ))
-
-        # WRDFRQc
-        try:
             wrdfrqc = cm_wrdfrqc(sentences, lang, "wiki-20220301-sample10000")
             wrdfrqc_error = None
         except Exception as e:
@@ -6957,11 +6891,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=92,
             type_name="Word Information",
-            label_ttlab="WRDFRQc_wiki10000",
+            label_ttlab="WRDFRQc_wiki",
+            label_internal=f"WRDFRQc_{lang}wiki10000",
             label_v3="WRDFRQc",
             label_v2="FRCLacwm",
             description="Wikipedia word frequency for content words, mean",
-            version="wiki-20220301-sample10000",
             value=wrdfrqc,
             error=wrdfrqc_error
         ))
@@ -6977,11 +6911,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=93,
             type_name="Word Information",
-            label_ttlab="WRDFRQa_wiki10000",
+            label_ttlab="WRDFRQa_wiki",
+            label_internal=f"WRDFRQa_{lang}wiki10000",
             label_v3="WRDFRQa",
             label_v2="FRCLaewm",
             description="Wikipedia Log frequency for all words, mean",
-            version="wiki-20220301-sample10000",
             value=wrdfrqa,
             error=wrdfrqa_error
         ))
@@ -6997,11 +6931,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=94,
             type_name="Word Information",
-            label_ttlab="WRDFRQmc_wiki10000",
+            label_ttlab="WRDFRQmc_wiki",
+            label_internal=f"WRDFRQmc_{lang}wiki10000",
             label_v3="WRDFRQmc",
             label_v2="FRCLmcsm",
             description="Wikipedia Log minimum frequency for content words, mean",
-            version="wiki-20220301-sample10000",
             value=wrdfrqmc,
             error=wrdfrqmc_error
         ))
@@ -7025,7 +6959,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=95,
             type_name="Word Information",
-            label_ttlab="WRDAOAc_mrctranslate",
+            label_ttlab="WRDAOAc",
+            label_internal="WRDAOAc_mrctranslate" if lang == "de" else "WRDAOAc",
             label_v3="WRDAOAc",
             label_v2="WRDAacwm",
             description="Age of acquisition for content words, mean",
@@ -7045,7 +6980,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=96,
             type_name="Word Information",
-            label_ttlab="WRDFAMc_mrctranslate",
+            label_ttlab="WRDFAMc",
+            label_internal="WRDFAMc_mrctranslate" if lang == "de" else "WRDFAMc",
             label_v3="WRDFAMc",
             label_v2="WRDFacwm",
             description="Familiarity for content words, mean",
@@ -7065,7 +7001,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=97,
             type_name="Word Information",
-            label_ttlab="WRDCNCc_mrctranslate",
+            label_ttlab="WRDCNCc",
+            label_internal="WRDCNCc_mrctranslate" if lang == "de" else "WRDCNCc",
             label_v3="WRDCNCc",
             label_v2="WRDCacwm",
             description="Concreteness for content words, mean",
@@ -7085,7 +7022,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=98,
             type_name="Word Information",
-            label_ttlab="WRDIMGc_mrctranslate",
+            label_ttlab="WRDIMGc",
+            label_internal="WRDIMGc_mrctranslate" if lang == "de" else "WRDIMGc",
             label_v3="WRDIMGc",
             label_v2="WRDIacwm",
             description="Imagability for content words, mean",
@@ -7105,7 +7043,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=99,
             type_name="Word Information",
-            label_ttlab="WRDMEAc_mrctranslate",
+            label_ttlab="WRDMEAc",
+            label_internal="WRDMEAc_mrctranslate" if lang == "de" else "WRDMEAc",
             label_v3="WRDMEAc",
             label_v2="WRDMacwm",
             description="Meaningfulness, Colorado norms, content words, mean",
@@ -7124,11 +7063,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=100,
             type_name="Word Information",
-            label_ttlab=(
-                "WRDPOLc_germanet"
-                if lang == "de"
-                else "WRDPOLc_wordnet"
-            ),
+            label_ttlab="WRDPOLc",
+            label_internal="WRDPOLc_germanet" if lang == "de" else "WRDPOLc",
             label_v3="WRDPOLc",
             label_v2="POLm",
             description="Polysemy for content words, mean",
@@ -7163,11 +7099,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=101,
             type_name="Word Information",
-            label_ttlab=(
-                "WRDHYPn_germanet"
-                if lang == "de"
-                else "WRDHYPn_wordnet"
-            ),
+            label_ttlab="WRDHYPn",
+            label_internal="WRDHYPn_germanet" if lang == "de" else "WRDHYPn",
             label_v3="WRDHYPn",
             label_v2="HYNOUNaw",
             description="Hypernymy for nouns, mean",
@@ -7181,11 +7114,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=102,
             type_name="Word Information",
-            label_ttlab=(
-                "WRDHYPv_germanet"
-                if lang == "de"
-                else "WRDHYPv_wordnet"
-            ),
+            label_ttlab="WRDHYPv",
+            label_internal="WRDHYPv_germanet" if lang == "de" else "WRDHYPv",
             label_v3="WRDHYPv",
             label_v2="HYVERBaw",
             description="Hypernymy for verbs, mean",
@@ -7199,11 +7129,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=103,
             type_name="Word Information",
-            label_ttlab=(
-                "WRDHYPnv_germanet"
-                if lang == "de"
-                else "WRDHYPnv_wordnet"
-            ),
+            label_ttlab="WRDHYPnv",
+            label_internal="WRDHYPnv_germanet" if lang == "de" else "WRDHYPnv",
             label_v3="WRDHYPnv",
             label_v2="HYPm",
             description="Hypernymy for nouns and verbs, mean",
@@ -7495,7 +7422,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=106,
             type_name="Readability",
-            label_ttlab="RDL2_synstruta",
+            label_ttlab="RDL2_synstruta_wiki",
+            label_internal=f"RDL2_synstruta_{lang}wiki10000",
             label_v3="RDL2",
             label_v2="L2",
             description="Coh-Metrix L2 Readability",
@@ -7514,7 +7442,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=106,
             type_name="Readability",
-            label_ttlab="RDL2_synstrutt",
+            label_ttlab="RDL2_synstrutt_wiki",
+            label_internal=f"RDL2_synstrutt_{lang}wiki10000",
             label_v3="RDL2",
             label_v2="L2",
             description="Coh-Metrix L2 Readability",

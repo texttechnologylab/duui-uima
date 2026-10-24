@@ -567,6 +567,8 @@ public class CohMetrixDockerValidationTest {
         Type indexType = requireType(cas, INDEX_TYPE);
         Feature labelV3 = requireFeature(indexType, "labelV3");
         Feature labelTTLab = requireFeature(indexType, "labelTTLab");
+        // labelInternal was added after 0.1.2; older images do not have it.
+        Feature labelInternal = indexType.getFeatureByBaseName("labelInternal");
         Feature valueFeature = requireFeature(indexType, "value");
         Feature errorFeature = indexType.getFeatureByBaseName("error");
 
@@ -576,10 +578,12 @@ public class CohMetrixDockerValidationTest {
         for (FeatureStructure index : indexed(cas, indexType)) {
             String v3 = index.getStringValue(labelV3);
             String ttlab = index.getStringValue(labelTTLab);
+            String internal = labelInternal == null ? null : index.getStringValue(labelInternal);
             double value = index.getDoubleValue(valueFeature);
             String error = errorFeature == null ? null : index.getStringValue(errorFeature);
 
             putLabel(values, errors, ttlab, value, error, false);
+            putLabel(values, errors, internal, value, error, false);
             putLabel(values, errors, v3, value, error, true);
         }
 
