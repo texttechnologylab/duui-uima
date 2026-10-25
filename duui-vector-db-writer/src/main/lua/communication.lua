@@ -2,6 +2,8 @@ StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 Embedding = luajava.bindClass("org.texttechnologylab.uima.type.Embedding")
 DocumentMetaData = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData")
+MetaDataStringField = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.metadata.type.MetaDataStringField")
+AnnotationComment = luajava.bindClass("org.texttechnologylab.annotation.AnnotationComment")
 
 DUUI_DEFAULT_DOCUMENT_ID = "UIMA-Document"
 
@@ -24,17 +26,63 @@ PASSTHROUGH_PARAMETERS = {
     "qdrant_host",
     "qdrant_port",
     "qdrant_api_key",
-    "qdrant_distance"
+    "qdrant_distance",
+    "qdrant_payload_whitelist"
 }
+
+-- Alle Felder der DocumentMetaData; nil-Werte fehlen im JSON automatisch.
+function document_metadata_of(meta)
+    return {
+        documentId = meta:getDocumentId(),
+        documentTitle = meta:getDocumentTitle(),
+        documentUri = meta:getDocumentUri(),
+        collectionId = meta:getCollectionId(),
+        documentBaseUri = meta:getDocumentBaseUri(),
+        isLastSegment = meta:getIsLastSegment(),
+        language = meta:getLanguage()
+    }
+end
+
+-- Liste von Keys -> Set fuer schnelles Nachschlagen. Kein Array: leeres Set,
+-- die verstaendliche Fehlermeldung dazu kommt vom Service.
+function key_set(keys)
+    local set = {}
+    if type(keys) == "table" then
+        for _, key in ipairs(keys) do
+            set[key] = true
+        end
+    end
+    return set
+end
+
+-- Alle Annotationen des Typs (key/value-Features) mit Key aus der Whitelist,
+-- in CAS-Reihenfolge, als Liste von {key, value}.
+function whitelisted_key_values(inputCas, annotation_class, allowed)
+    local result = {}
+    local count = 1
+    local it = JCasUtil:select(inputCas, annotation_class):iterator()
+    while it:hasNext() do
+        local anno = it:next()
+        local key = anno:getKey()
+        if key ~= nil and allowed[key] then
+            result[count] = { key = key, value = anno:getValue() }
+            count = count + 1
+        end
+    end
+    return result
+end
 
 function serialize(inputCas, outputStream, parameters)
     -- Die Dokument-ID ist Teil des Primaerschluessels; ohne sie wuerden sich
     -- Dokumente gegenseitig ueberschreiben. Wie DocumentMetaData.get() in
     -- DKPro schlaegt das Dokument deshalb fehl, statt einen Platzhalter zu nehmen.
     local doc_id = nil
+    local document_metadata = nil
     local meta_it = JCasUtil:select(inputCas, DocumentMetaData):iterator()
     if meta_it:hasNext() then
-        doc_id = meta_it:next():getDocumentId()
+        local meta = meta_it:next()
+        doc_id = meta:getDocumentId()
+        document_metadata = document_metadata_of(meta)
     end
     if doc_id == nil or doc_id == "" then
         error("duui-vector-db-writer: CAS has no DocumentMetaData with a documentId")
@@ -83,10 +131,26 @@ function serialize(inputCas, outputStream, parameters)
 
     local request = {
         doc_id = doc_id,
-        embeddings = embeddings
+        embeddings = embeddings,
+        document_metadata = document_metadata
     }
     for _, name in ipairs(PASSTHROUGH_PARAMETERS) do
         request[name] = parameters[name]
+    end
+
+    -- Nur Annotationen mit Key aus der Whitelist werden mitgeschickt, damit
+    -- (moeglicherweise viele) andere AnnotationComments gar nicht erst
+    -- uebertragen werden. Gueltigkeit der Whitelist prueft der Service.
+    local whitelist_json = parameters["qdrant_payload_whitelist"]
+    if whitelist_json ~= nil and whitelist_json ~= "" then
+        local ok, whitelist = pcall(json.decode, whitelist_json)
+        if not ok or type(whitelist) ~= "table" then
+            error("duui-vector-db-writer: qdrant_payload_whitelist is not valid JSON: " .. tostring(whitelist_json))
+        end
+        request["metadata_fields"] = whitelisted_key_values(
+                inputCas, MetaDataStringField, key_set(whitelist["metadata_string_fields"]))
+        request["annotation_comments"] = whitelisted_key_values(
+                inputCas, AnnotationComment, key_set(whitelist["annotation_comments"]))
     end
 
     outputStream:write(json.encode(request))

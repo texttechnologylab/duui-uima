@@ -9,6 +9,54 @@ Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.typ
 Paragraph = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph")
 Dependency = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency")
 
+COHMETRIX_TYPE_PREFIX = "org.texttechnologylab.uima.type.cohmetrix."
+
+-- The concrete UIMA type follows the stable Coh-Metrix 3 label. Project-only
+-- indices without a V3 label use their TTLab label instead.
+function resolveIndexTypeName(index)
+    local label = index["label_v3"]
+
+    if label == nil
+        or label == ""
+        or string.lower(label) == "n/a"
+        or label == "-"
+    then
+        label = index["label_ttlab"]
+    end
+
+    if label == nil or label == "" then
+        error("Cannot resolve Coh-Metrix UIMA type: both label_v3 and label_ttlab are missing")
+    end
+
+    -- All generated type names are based on labels and must be valid UIMA
+    -- short names. Reject malformed labels instead of silently writing the
+    -- annotation as the generic Index type.
+    if string.match(label, "^[A-Za-z_][A-Za-z0-9_]*$") == nil then
+        error("Invalid Coh-Metrix UIMA type label: " .. tostring(label))
+    end
+
+    return COHMETRIX_TYPE_PREFIX .. label
+end
+
+function requireFeature(index_type, feature_name)
+    local feature = index_type:getFeatureByBaseName(feature_name)
+    if feature == nil then
+        error(
+            "Coh-Metrix UIMA type "
+            .. index_type:getName()
+            .. " does not provide inherited feature "
+            .. feature_name
+        )
+    end
+    return feature
+end
+
+function setOptionalStringFeature(feature_structure, feature, value)
+    if value ~= nil then
+        feature_structure:setStringValue(feature, value)
+    end
+end
+
 function serialize(inputCas, outputStream, parameters)
     local paragraphs = {}
     local paragraphs_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Paragraph)):listIterator()
@@ -179,27 +227,52 @@ function deserialize(inputCas, inputStream)
         modification_anno:setComment(modification_meta["comment"])
         modification_anno:addToIndexes()
 
+        local cas = inputCas:getCas()
+        local type_system = cas:getTypeSystem()
+
         for i, index in ipairs(results["indices"]) do
-            local index_anno = luajava.newInstance("org.texttechnologylab.uima.type.cohmetrix.Index", inputCas)
-            index_anno:setBegin(0)
-            index_anno:setEnd(doc_len)
-            index_anno:setIndex(index["index"])
-            index_anno:setTypeName(index["type_name"])
-            index_anno:setLabelTTLab(index["label_ttlab"])
-            index_anno:setLabelV3(index["label_v3"])
-            index_anno:setLabelV2(index["label_v2"])
-            index_anno:setDescription(index["description"])
+            local index_type_name = resolveIndexTypeName(index)
+            local index_type = type_system:getType(index_type_name)
+
+            if index_type == nil then
+                error(
+                    "Coh-Metrix UIMA type is missing from TypeSystem.xml: "
+                    .. index_type_name
+                )
+            end
+
+            -- Create the subtype dynamically through the CAS API. This avoids
+            -- requiring one generated Java/JCas class for every Coh-Metrix
+            -- index while retaining all features inherited from Index.
+            local index_anno = cas:createAnnotation(index_type, 0, doc_len)
+
+            local index_feature = requireFeature(index_type, "index")
+            local type_name_feature = requireFeature(index_type, "typeName")
+            local label_ttlab_feature = requireFeature(index_type, "labelTTLab")
+            local label_v3_feature = requireFeature(index_type, "labelV3")
+            local label_v2_feature = requireFeature(index_type, "labelV2")
+            local description_feature = requireFeature(index_type, "description")
+            local value_feature = requireFeature(index_type, "value")
+            local error_feature = requireFeature(index_type, "error")
+            local version_feature = requireFeature(index_type, "version")
+
+            index_anno:setIntValue(index_feature, index["index"])
+            setOptionalStringFeature(index_anno, type_name_feature, index["type_name"])
+            setOptionalStringFeature(index_anno, label_ttlab_feature, index["label_ttlab"])
+            setOptionalStringFeature(index_anno, label_v3_feature, index["label_v3"])
+            setOptionalStringFeature(index_anno, label_v2_feature, index["label_v2"])
+            setOptionalStringFeature(index_anno, description_feature, index["description"])
             -- UIMA's primitive double feature cannot represent JSON null.
             -- Preserve "not computable" as NaN so it cannot silently become
             -- the valid, calculated result 0.0 in the CAS.
             if index["value"] == nil then
-                index_anno:setValue(Double.NaN)
+                index_anno:setDoubleValue(value_feature, Double.NaN)
             else
-                index_anno:setValue(index["value"])
+                index_anno:setDoubleValue(value_feature, index["value"])
             end
-            index_anno:setError(index["error"])
-            index_anno:setVersion(index["version"])
-            index_anno:addToIndexes()
+            setOptionalStringFeature(index_anno, error_feature, index["error"])
+            setOptionalStringFeature(index_anno, version_feature, index["version"])
+            cas:addFsToIndexes(index_anno)
 
             local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)
             meta_anno:setReference(index_anno)
