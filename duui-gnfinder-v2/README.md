@@ -68,7 +68,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 }
 
 @misc{Abrami:2022,
-  author         = {Abrami, Giuseppe},
+  author         = {Abrami, Giuseppe and Bundan, Daniel and Mehler, Alexander},
   title          = {GNfinder as DUUI-Komponent},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/edit/main/duui-GNFinder}
