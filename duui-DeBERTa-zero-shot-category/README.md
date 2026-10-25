@@ -64,7 +64,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Abrami:et:al:2023,
+@misc{Klebe:et:al:2023,
   author         = {Klebe, Max and Bundan, Daniel and Giuseppe  and Mehler, Alexander},
   title          = {DeBERTa-zero-shot-category as DUUI-Komponent},
   year           = {2023},
