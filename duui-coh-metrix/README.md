@@ -189,6 +189,11 @@ changing an index.
    or `<label_ttlab>` for project-only indices. Language variants and rule-5
    variants share one type and are distinguished by `labelTTLab`. A new
    project-only index needs a matching type in `TypeSystem.xml`.
+10. **Suffixes name the kind of resource, not the tool or vendor.** Examples:
+    `_llmlist` for a word list generated with an LLM (not the model name),
+    `_mrctranslate` for a translated resource (not the translation service),
+    `_textstat` for the library (not the language-specific formula it uses
+    internally, such as Amstad's Flesch variant for German).
 
 ### Suffixes
 
@@ -203,12 +208,29 @@ concrete resource per language.
 | `_wiki`                | Wikipedia sample (CELEX)                       | `_enwiki10000`   | `_dewiki10000`       |
 | `_spacy`               | spaCy vectors (TASA LSA space)                 | `_spacy`         | `_spacy`             |
 | `_textstat`            | textstat library (Coh-Metrix formulas)         | `_textstat`      | `_textstat`          |
-| `_gptlist`             | GPT-generated word lists (Coh-Metrix lists)    | `_gptlist`       | `_gptlist`           |
+| `_llmlist`             | LLM-generated word lists (Coh-Metrix lists)    | `_llmlist`       | `_llmlist`           |
 
 Adding a language changes only internal labels, as long as its resources are
 counterparts of the English ones. Example: a French wordnet keeps the public
 label `WRDPOLc` and gets the internal label `WRDPOLc_<resource name>`. A new
 public suffix is only needed when the English implementation changes.
+
+### Index version
+
+Every index sets `version` explicitly in its `Index(...)` call, starting at
+`"1.0"`. It versions the computation of that one index, independent of the
+image version in the annotation metadata, so results can be compared index by
+index across releases. Bump it in the same change that alters the value for
+the same input:
+
+- minor (`1.0` -> `1.1`): values change, the meaning stays, e.g. a bug fix,
+  changed `None`/edge-case handling, an updated word list or a new resource
+  version (Wikipedia sample, MRC translation, spaCy model);
+- major (`1.x` -> `2.0`): the meaning changes, e.g. a different formula,
+  unit or resource type, usually together with a label change.
+
+Label renames and refactorings or speedups with identical results do not
+change the version.
 
 ## Validation
 

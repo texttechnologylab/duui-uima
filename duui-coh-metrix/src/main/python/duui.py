@@ -154,6 +154,8 @@ class DocumentModification(BaseModel):
 #                   WRDFRQc_dewiki10000); no suffix where the original resource is used. Defaults to label_ttlab.
 # label_v3 and the index number repeat only for variants of an ambiguous original definition (RDL2_synstruta_wiki,
 # RDL2_synstrutt_wiki).
+# version: the version of the index computation, set explicitly for every index; bump it when the value for the same
+# input changes (README.md, "Index version").
 class Index(BaseModel):
     index: int
     type_name: str
@@ -5087,6 +5089,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESPC",
             label_v2="READNP",
             description="Paragraph count, number of paragraphs",
+            version="1.0",
             value=despc,
             error=despc_error
         ))
@@ -5106,6 +5109,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESSC",
             label_v2="READNS",
             description="Sentence count, number of sentences",
+            version="1.0",
             value=dessc,
             error=dessc_error
         ))
@@ -5125,6 +5129,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESWC",
             label_v2="READNW",
             description="Word count, number of words",
+            version="1.0",
             value=deswc,
             error=deswc_error
         ))
@@ -5144,6 +5149,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESPL",
             label_v2="READAPL",
             description="Paragraph length, number of sentences, mean",
+            version="1.0",
             value=despl,
             error=despl_error
         ))
@@ -5163,6 +5169,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESPLd",
             label_v2="n/a",
             description="Paragraph length, number of sentences, standard deviation",
+            version="1.0",
             value=despld,
             error=despld_error
         ))
@@ -5182,6 +5189,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESSL",
             label_v2="READASL",
             description="Sentence length, number of words, mean",
+            version="1.0",
             value=dessl,
             error=dessl_error
         ))
@@ -5201,6 +5209,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESSLd",
             label_v2="n/a",
             description="Sentence length, number of words, standard deviation",
+            version="1.0",
             value=dessld,
             error=dessld_error
         ))
@@ -5220,6 +5229,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESWLsy",
             label_v2="READASW",
             description="Word length, number of syllables, mean",
+            version="1.0",
             value=deswlsy,
             error=deswlsy_error
         ))
@@ -5239,6 +5249,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESWLsyd",
             label_v2="n/a",
             description="Word length, number of syllables, standard deviation",
+            version="1.0",
             value=deswlsyd,
             error=deswlsyd_error
         ))
@@ -5258,6 +5269,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESWLlt",
             label_v2="n/a",
             description="Word length, number of letters, mean",
+            version="1.0",
             value=deswllt,
             error=deswllt_error
         ))
@@ -5277,6 +5289,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DESWLltd",
             label_v2="n/a",
             description="Word length, number of letters, standard deviation",
+            version="1.0",
             value=deswlltd,
             error=deswlltd_error
         ))
@@ -5299,6 +5312,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCNARz",
             label_v2="n/a",
             description="Text Easability PC Narrativity, z score",
+            version="1.0",
             value=pcnarz,
             error=pcnarz_error
         ))
@@ -5319,6 +5333,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCNARp",
             label_v2="n/a",
             description="Text Easability PC Narrativity, percentile",
+            version="1.0",
             value=pcnarp,
             error=pcnarp_error
         ))
@@ -5339,6 +5354,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v2="n/a",
             label_ttlab="PCSYNz_wikipedia",
             description="Text Easability PC Syntactic simplicity, z score",
+            version="1.0",
             value=pcsynz,
             error=pcsynz_error
         ))
@@ -5359,6 +5375,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCSYNp",
             label_v2="n/a",
             description="Text Easability PC Syntactic simplicity, percentile",
+            version="1.0",
             value=pcsynp,
             error=pcsynp_error
         ))
@@ -5379,6 +5396,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCCNCz",
             label_v2="n/a",
             description="Text Easability PC Word concreteness, z score",
+            version="1.0",
             value=pccncz,
             error=pccncz_error
         ))
@@ -5399,6 +5417,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCCNCp",
             label_v2="n/a",
             description="Text Easability PC Word concreteness, percentile",
+            version="1.0",
             value=pccncp,
             error=pccncp_error
         ))
@@ -5419,6 +5438,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCREFz",
             label_v2="n/a",
             description="Text Easability PC Referential cohesion, z score",
+            version="1.0",
             value=pcrefz,
             error=pcrefz_error
         ))
@@ -5439,6 +5459,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCREFp",
             label_v2="n/a",
             description="Text Easability PC Referential cohesion, percentile",
+            version="1.0",
             value=pcrefp,
             error=pcrefp_error
         ))
@@ -5459,6 +5480,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCDCz",
             label_v2="n/a",
             description="Text Easability PC Deep cohesion, z score",
+            version="1.0",
             value=pcdcz,
             error=pcdcz_error
         ))
@@ -5479,6 +5501,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCDCp",
             label_v2="n/a",
             description="Text Easability PC Deep cohesion, percentile",
+            version="1.0",
             value=pcdcp,
             error=pcdcp_error
         ))
@@ -5499,6 +5522,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCVERBz",
             label_v2="n/a",
             description="Text Easability PC Verb cohesion, z score",
+            version="1.0",
             value=pcverbz,
             error=pcverbz_error
         ))
@@ -5519,6 +5543,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCVERBp",
             label_v2="n/a",
             description="Text Easability PC Verb cohesion, percentile",
+            version="1.0",
             value=pcverbp,
             error=pcverbp_error
         ))
@@ -5539,6 +5564,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCCONNz",
             label_v2="n/a",
             description="Text Easability PC Connectivity, z score",
+            version="1.0",
             value=pcconnz,
             error=pcconnz_error
         ))
@@ -5559,6 +5585,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCCONNp",
             label_v2="n/a",
             description="Text Easability PC Connectivity, percentile",
+            version="1.0",
             value=pcconnp,
             error=pcconnp_error
         ))
@@ -5579,6 +5606,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCTEMPz",
             label_v2="n/a",
             description="Text Easability PC Temporality, z score",
+            version="1.0",
             value=pctempz,
             error=pctempz_error
         ))
@@ -5599,6 +5627,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="PCTEMPp",
             label_v2="n/a",
             description="Text Easability PC Temporality, percentile",
+            version="1.0",
             value=pctempp,
             error=pctempp_error
         ))
@@ -5620,6 +5649,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFNO1",
             label_v2="CRFBN1um",
             description="Noun overlap, adjacent sentences, binary, mean",
+            version="1.0",
             value=crfno1,
             error=crfno1_error
         ))
@@ -5639,6 +5669,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFAO1",
             label_v2="CRFBA1um",
             description="Argument overlap, adjacent sentences, binary, mean",
+            version="1.0",
             value=crfao1,
             error=crfao1_error
         ))
@@ -5658,6 +5689,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFSO1",
             label_v2="CRFBS1um",
             description="Stem overlap, adjacent sentences, binary, mean",
+            version="1.0",
             value=crfso1,
             error=crfso1_error
         ))
@@ -5677,6 +5709,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFNOa",
             label_v2="CRFBNaum",
             description="Noun overlap, all sentences, binary, mean",
+            version="1.0",
             value=crfnoa,
             error=crfnoa_error
         ))
@@ -5696,6 +5729,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFAOa",
             label_v2="CRFBAaum",
             description="Argument overlap, all sentences, binary, mean",
+            version="1.0",
             value=crfaoa,
             error=crfaoa_error
         ))
@@ -5715,6 +5749,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFSOa",
             label_v2="CRFBSaum",
             description="Stem overlap, all sentences, binary, mean",
+            version="1.0",
             value=crfsoa,
             error=crfsoa_error
         ))
@@ -5734,6 +5769,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFCWO1",
             label_v2="CRFPC1um",
             description="Content word overlap, adjacent sentences, proportional, mean",
+            version="1.0",
             value=crfcwo1,
             error=crfcwo1_error
         ))
@@ -5753,6 +5789,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFCWO1d",
             label_v2="n/a",
             description="Content word overlap, adjacent sentences, proportional, standard deviation",
+            version="1.0",
             value=crfcwo1d,
             error=crfcwo1d_error
         ))
@@ -5772,6 +5809,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFCWOa",
             label_v2="CRFPCaum",
             description="Content word overlap, all sentences, proportional, mean",
+            version="1.0",
             value=crfcwoa,
             error=crfcwoa_error
         ))
@@ -5791,6 +5829,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="CRFCWOad",
             label_v2="n/a",
             description="Content word overlap, all sentences, proportional, standard deviation",
+            version="1.0",
             value=crfcwoad,
             error=crfcwoad_error
         ))
@@ -5828,6 +5867,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSASS1",
             label_v2="LSAassa",
             description="LSA overlap, adjacent sentences, mean",
+            version="1.0",
             value=lsass1,
             error=lsass1_error
         ))
@@ -5847,6 +5887,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSASS1d",
             label_v2="LSAassd",
             description="LSA overlap, adjacent sentences, standard deviation",
+            version="1.0",
             value=lsass1d,
             error=lsass1d_error
         ))
@@ -5866,6 +5907,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSASSp",
             label_v2="LSApssa",
             description="LSA overlap, all sentences in paragraph, mean",
+            version="1.0",
             value=lsassp,
             error=lsassp_error
         ))
@@ -5885,6 +5927,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSASSpd",
             label_v2="LSApssd",
             description="LSA overlap, all sentences in paragraph, standard deviation",
+            version="1.0",
             value=lsasspd,
             error=lsasspd_error
         ))
@@ -5904,6 +5947,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSAPP1",
             label_v2="LSAppa",
             description="LSA overlap, adjacent paragraphs, mean",
+            version="1.0",
             value=lsapp1,
             error=lsapp1_error
         ))
@@ -5923,6 +5967,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSAPP1d",
             label_v2="LSAppd",
             description="LSA overlap, adjacent paragraphs, standard deviation",
+            version="1.0",
             value=lsapp1d,
             error=lsapp1d_error
         ))
@@ -5942,6 +5987,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSAGN",
             label_v2="LSAGN",
             description="LSA given/new, sentences, mean",
+            version="1.0",
             value=lsagn,
             error=lsagn_error
         ))
@@ -5961,6 +6007,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LSAGNd",
             label_v2="n/a",
             description="LSA given/new, sentences, standard deviation",
+            version="1.0",
             value=lsagnd,
             error=lsagnd_error
         ))
@@ -5982,6 +6029,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LDTTRc",
             label_v2="TYPTOKc",
             description="Lexical diversity, type-token ratio, content word lemmas",
+            version="1.0",
             value=ldttrc,
             error=ldttrc_error
         ))
@@ -6001,6 +6049,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LDTTRa",
             label_v2="n/a",
             description="Lexical diversity, type-token ratio, all words",
+            version="1.0",
             value=ldttra,
             error=ldttra_error
         ))
@@ -6020,6 +6069,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LDMTLDa",
             label_v2="LEXDIVTD",
             description="Lexical diversity, MTLD, all words",
+            version="1.0",
             value=ldmtlda,
             error=ldmtlda_error
         ))
@@ -6039,6 +6089,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="LDVOCDa",
             label_v2="LEXDIVVD",
             description="Lexical diversity, VOCD, all words",
+            version="1.0",
             value=ldvocda,
             error=ldvocda_error
         ))
@@ -6063,10 +6114,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=50,
             type_name="Connectives",
-            label_ttlab="CNCAll_gptlist",
+            label_ttlab="CNCAll_llmlist",
             label_v3="CNCAll",
             label_v2="CONi",
             description="All connectives incidence",
+            version="1.0",
             value=cncall,
             error=cncall_error
         ))
@@ -6082,10 +6134,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=51,
             type_name="Connectives",
-            label_ttlab="CNCCaus_gptlist",
+            label_ttlab="CNCCaus_llmlist",
             label_v3="CNCCaus",
             label_v2="CONCAUSi",
             description="Causal connectives incidence",
+            version="1.0",
             value=cnccaus,
             error=cnccaus_error
         ))
@@ -6101,10 +6154,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=52,
             type_name="Connectives",
-            label_ttlab="CNCLogic_gptlist",
+            label_ttlab="CNCLogic_llmlist",
             label_v3="CNCLogic",
             label_v2="CONLOGi",
             description="Logical connectives incidence",
+            version="1.0",
             value=cnclogic,
             error=cnclogic_error
         ))
@@ -6120,10 +6174,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=53,
             type_name="Connectives",
-            label_ttlab="CNCADC_gptlist",
+            label_ttlab="CNCADC_llmlist",
             label_v3="CNCADC",
             label_v2="CONADVCONi",
             description="Adversative and contrastive connectives incidence",
+            version="1.0",
             value=cncadc,
             error=cncadc_error
         ))
@@ -6139,10 +6194,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=54,
             type_name="Connectives",
-            label_ttlab="CNCTemp_gptlist",
+            label_ttlab="CNCTemp_llmlist",
             label_v3="CNCTemp",
             label_v2="CONTEMPi",
             description="Temporal connectives incidence",
+            version="1.0",
             value=cnctemp,
             error=cnctemp_error
         ))
@@ -6158,10 +6214,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=55,
             type_name="Connectives",
-            label_ttlab="CNCTempx_gptlist",
+            label_ttlab="CNCTempx_llmlist",
             label_v3="CNCTempx",
             label_v2="CONTEMPEXi",
             description="Expanded temporal connectives incidence",
+            version="1.0",
             value=cnctempx,
             error=cnctempx_error
         ))
@@ -6177,10 +6234,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=56,
             type_name="Connectives",
-            label_ttlab="CNCAdd_gptlist",
+            label_ttlab="CNCAdd_llmlist",
             label_v3="CNCAdd",
             label_v2="CONADDi",
             description="Additive connectives incidence",
+            version="1.0",
             value=cncadd,
             error=cncadd_error
         ))
@@ -6196,10 +6254,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=57,
             type_name="Connectives",
-            label_ttlab="CNCPos_gptlist",
+            label_ttlab="CNCPos_llmlist",
             label_v3="CNCPos",
             label_v2="n/a",
             description="Positive connectives incidence",
+            version="1.0",
             value=cncpos,
             error=cncpos_error
         ))
@@ -6215,10 +6274,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=58,
             type_name="Connectives",
-            label_ttlab="CNCNeg_gptlist",
+            label_ttlab="CNCNeg_llmlist",
             label_v3="CNCNeg",
             label_v2="n/a",
             description="Negative connectives incidence",
+            version="1.0",
             value=cncneg,
             error=cncneg_error
         ))
@@ -6241,6 +6301,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SMCAUSv",
             label_v2="CAUSV",
             description="Causal verb incidence",
+            version="1.0",
             value=smcausv,
             error=smcausv_error
         ))
@@ -6261,6 +6322,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SMCAUSvp",
             label_v2="CAUSVP",
             description="Causal verbs and causal particles incidence",
+            version="1.0",
             value=smcausvp,
             error=smcausvp_error
         ))
@@ -6281,6 +6343,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SMINTEp",
             label_v2="INTEi",
             description="Intentional verbs incidence",
+            version="1.0",
             value=smintep,
             error=smintep_error
         ))
@@ -6301,6 +6364,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SMCAUSr",
             label_v2="CAUSC",
             description="Ratio of causal particles to causal verbs",
+            version="1.0",
             value=smcausr,
             error=smcausr_error
         ))
@@ -6316,11 +6380,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=63,
             type_name="Situation Model",
-            label_ttlab="SMINTEr_wordnet",
-            label_internal=f"SMINTEr_{_de_intentional_verbs_source}" if lang == "de" else "SMINTEr_wordnet",
+            label_ttlab="SMINTEr_llmlist",
+            label_internal=f"SMINTEr_{_de_intentional_verbs_source}_llmlist" if lang == "de" else "SMINTEr_llmlist",
             label_v3="SMINTEr",
             label_v2="INTEC",
             description="Ratio of intentional particles to intentional verbs",
+            version="1.0",
             value=sminter,
             error=sminter_error
         ))
@@ -6340,6 +6405,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SMCAUSlsa",
             label_v2="CAUSLSA",
             description="LSA verb overlap",
+            version="1.0",
             value=smcauslsa,
             error=smcauslsa_error
         ))
@@ -6360,6 +6426,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SMCAUSwn",
             label_v2="CAUSWN",
             description="WordNet verb overlap",
+            version="1.0",
             value=smcauswn,
             error=smcauswn_error
         ))
@@ -6375,10 +6442,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=66,
             type_name="Situation Model",
-            label_ttlab="SMTEMP_gptlist",
+            label_ttlab="SMTEMP_llmlist",
             label_v3="SMTEMP",
             label_v2="TEMPta",
             description="Temporal cohesion, tense and aspect repetition, mean",
+            version="1.0",
             value=smtemp,
             error=smtemp_error
         ))
@@ -6400,6 +6468,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNLE",
             label_v2="SYNLE",
             description="Left embeddedness, words before main verb, mean",
+            version="1.0",
             value=synle,
             error=synle_error
         ))
@@ -6419,6 +6488,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNNP",
             label_v2="SYNNP",
             description="Number of modifiers per noun phrase, mean",
+            version="1.0",
             value=synnp,
             error=synnp_error
         ))
@@ -6438,6 +6508,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNMEDpos",
             label_v2="MEDwtm",
             description="Minimal Edit Distance, part of speech",
+            version="1.0",
             value=synmedpos,
             error=synmedpos_error
         ))
@@ -6457,6 +6528,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNMEDwrd",
             label_v2="MEDawm",
             description="Minimal Edit Distance, all words",
+            version="1.0",
             value=synmedwrd,
             error=synmedwrd_error
         ))
@@ -6476,6 +6548,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNMEDlem",
             label_v2="MEDalm",
             description="Minimal Edit Distance, lemmas",
+            version="1.0",
             value=synmedlem,
             error=synmedlem_error
         ))
@@ -6495,6 +6568,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNSTRUTa",
             label_v2="STRUTa",
             description="Sentence syntax similarity, adjacent sentences, mean",
+            version="1.0",
             value=synstruta,
             error=synstruta_error
         ))
@@ -6516,6 +6590,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="SYNSTRUTt",
             label_v2="STRUTt",
             description="Sentence syntax similarity, all combinations, across paragraphs, mean",
+            version="1.0",
             value=synstrutt,
             error=synstrutt_error
         ))
@@ -6544,6 +6619,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRNP",
             label_v2="n/a",
             description="Noun phrase density, incidence",
+            version="1.0",
             value=drnp,
             error=drnp_error
         ))
@@ -6563,6 +6639,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRVP",
             label_v2="n/a",
             description="Verb phrase density, incidence",
+            version="1.0",
             value=drvp,
             error=drvp_error
         ))
@@ -6582,6 +6659,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRAP",
             label_v2="n/a",
             description="Adverbial phrase density, incidence",
+            version="1.0",
             value=drap,
             error=drap_error
         ))
@@ -6601,6 +6679,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRPP",
             label_v2="n/a",
             description="Preposition phrase density, incidence",
+            version="1.0",
             value=drpp,
             error=drpp_error
         ))
@@ -6620,6 +6699,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRPVAL",
             label_v2="AGLSPSVi",
             description="Agentless passive voice density, incidence",
+            version="1.0",
             value=drpval,
             error=drpval_error
         ))
@@ -6635,10 +6715,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         indices.append(Index(
             index=79,
             type_name="Syntactic Pattern Density",
-            label_ttlab="DRNEG_gptlist",
+            label_ttlab="DRNEG_llmlist",
             label_v3="DRNEG",
             label_v2="DENNEGi",
             description="Negation density, incidence",
+            version="1.0",
             value=drneg,
             error=drneg_error
         ))
@@ -6658,6 +6739,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRGERUND",
             label_v2="GERUNDi",
             description="Gerund density, incidence",
+            version="1.0",
             value=drgerund,
             error=drgerund_error
         ))
@@ -6677,6 +6759,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="DRINF",
             label_v2="INFi",
             description="Infinitive density, incidence",
+            version="1.0",
             value=drinf,
             error=drinf_error
         ))
@@ -6705,6 +6788,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDNOUN",
             label_v2="NOUNi",
             description="Noun incidence",
+            version="1.0",
             value=wrdnoun,
             error=wrdnoun_error
         ))
@@ -6724,6 +6808,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDVERB",
             label_v2="VERBi",
             description="Verb incidence",
+            version="1.0",
             value=wrdverb,
             error=wrdverb_error
         ))
@@ -6743,6 +6828,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDADJ",
             label_v2="ADJi",
             description="Adjective incidence",
+            version="1.0",
             value=wrdadj,
             error=wrdadj_error
         ))
@@ -6762,6 +6848,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDADV",
             label_v2="ADVi",
             description="Adverb incidence",
+            version="1.0",
             value=wrdadv,
             error=wrdadv_error
         ))
@@ -6781,6 +6868,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPRO",
             label_v2="DENPRPi",
             description="Pronoun incidence",
+            version="1.0",
             value=wrdpro,
             error=wrdpro_error
         ))
@@ -6800,6 +6888,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPRP1s",
             label_v2="n/a",
             description="First-person singular pronoun incidence",
+            version="1.0",
             value=wrdprp1s,
             error=wrdprp1s_error
         ))
@@ -6819,6 +6908,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPRP1p",
             label_v2="n/a",
             description="First-person plural pronoun incidence",
+            version="1.0",
             value=wrdprp1p,
             error=wrdprp1p_error
         ))
@@ -6838,6 +6928,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPRP2",
             label_v2="PRO2i",
             description="Second-person pronoun incidence",
+            version="1.0",
             value=wrdprp2,
             error=wrdprp2_error
         ))
@@ -6857,6 +6948,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPRP3s",
             label_v2="n/a",
             description="Third-person singular pronoun incidence",
+            version="1.0",
             value=wrdprp3s,
             error=wrdprp3s_error
         ))
@@ -6876,6 +6968,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPRP3p",
             label_v2="n/a",
             description="Third-person plural pronoun incidence",
+            version="1.0",
             value=wrdprp3p,
             error=wrdprp3p_error
         ))
@@ -6896,6 +6989,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDFRQc",
             label_v2="FRCLacwm",
             description="Wikipedia word frequency for content words, mean",
+            version="1.0",
             value=wrdfrqc,
             error=wrdfrqc_error
         ))
@@ -6916,6 +7010,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDFRQa",
             label_v2="FRCLaewm",
             description="Wikipedia Log frequency for all words, mean",
+            version="1.0",
             value=wrdfrqa,
             error=wrdfrqa_error
         ))
@@ -6936,6 +7031,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDFRQmc",
             label_v2="FRCLmcsm",
             description="Wikipedia Log minimum frequency for content words, mean",
+            version="1.0",
             value=wrdfrqmc,
             error=wrdfrqmc_error
         ))
@@ -6964,6 +7060,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDAOAc",
             label_v2="WRDAacwm",
             description="Age of acquisition for content words, mean",
+            version="1.0",
             value=wrdaoac,
             error=wrdaoac_error
         ))
@@ -6985,6 +7082,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDFAMc",
             label_v2="WRDFacwm",
             description="Familiarity for content words, mean",
+            version="1.0",
             value=wrdfamc,
             error=wrdfamc_error
         ))
@@ -7006,6 +7104,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDCNCc",
             label_v2="WRDCacwm",
             description="Concreteness for content words, mean",
+            version="1.0",
             value=wrdcncc,
             error=wrdcncc_error
         ))
@@ -7027,6 +7126,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDIMGc",
             label_v2="WRDIacwm",
             description="Imagability for content words, mean",
+            version="1.0",
             value=wrdimgc,
             error=wrdimgc_error
         ))
@@ -7048,6 +7148,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDMEAc",
             label_v2="WRDMacwm",
             description="Meaningfulness, Colorado norms, content words, mean",
+            version="1.0",
             value=wrdmeac,
             error=wrdmeac_error
         ))
@@ -7068,6 +7169,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDPOLc",
             label_v2="POLm",
             description="Polysemy for content words, mean",
+            version="1.0",
             value=wrdpolc,
             error=wrdpolc_error
         ))
@@ -7104,6 +7206,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDHYPn",
             label_v2="HYNOUNaw",
             description="Hypernymy for nouns, mean",
+            version="1.0",
             value=wrdhypn,
             error=wrdhypn_error
         ))
@@ -7119,6 +7222,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDHYPv",
             label_v2="HYVERBaw",
             description="Hypernymy for verbs, mean",
+            version="1.0",
             value=wrdhypv,
             error=wrdhypv_error
         ))
@@ -7134,6 +7238,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="WRDHYPnv",
             label_v2="HYPm",
             description="Hypernymy for nouns and verbs, mean",
+            version="1.0",
             value=wrdhypnv,
             error=wrdhypnv_error
         ))
@@ -7165,6 +7270,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="RDFRE",
             label_v2="READFRE",
             description="Flesch Reading Ease",
+            version="1.0",
             value=rdfre,
             error=rdfre_error
         ))
@@ -7187,6 +7293,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="RDFKGL",
             label_v2="READFKGL",
             description="Flesch–Kincaid Grade Level",
+            version="1.0",
             value=rdfkgl,
             error=rdfkgl_error
         ))
@@ -7207,6 +7314,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDFOG_textstat",
             description="Gunning Fog Index",
+            version="1.0",
             value=rdfog,
             error=rdfog_error
         ))
@@ -7227,6 +7335,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDSMOG_textstat",
             description="SMOG Grade",
+            version="1.0",
             value=rdsmog,
             error=rdsmog_error
         ))
@@ -7247,6 +7356,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDARI_textstat",
             description="Automated Readability Index",
+            version="1.0",
             value=rdari,
             error=rdari_error
         ))
@@ -7267,6 +7377,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDCLI_textstat",
             description="Coleman–Liau Index",
+            version="1.0",
             value=rdcli,
             error=rdcli_error
         ))
@@ -7287,6 +7398,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDLW_textstat",
             description="Linsear Write Formula",
+            version="1.0",
             value=rdlw,
             error=rdlw_error
         ))
@@ -7307,6 +7419,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDDCRS_textstat",
             description="Dale-Chall Readability Score",
+            version="1.0",
             value=rddcrs,
             error=rddcrs_error
         ))
@@ -7327,6 +7440,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDSPACHE_textstat",
             description="Spache Readability Formula",
+            version="1.0",
             value=rdspache,
             error=rdspache_error
         ))
@@ -7347,6 +7461,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDWSTF1_textstat",
             description="Wiener Sachtextformel 1",
+            version="1.0",
             value=rdwstf,
             error=rdwstf_error
         ))
@@ -7367,6 +7482,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDWSTF2_textstat",
             description="Wiener Sachtextformel 2",
+            version="1.0",
             value=rdwstf,
             error=rdwstf_error
         ))
@@ -7387,6 +7503,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDWSTF3_textstat",
             description="Wiener Sachtextformel 3",
+            version="1.0",
             value=rdwstf,
             error=rdwstf_error
         ))
@@ -7407,6 +7524,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             type_name="Readability",
             label_ttlab="RDWSTF4_textstat",
             description="Wiener Sachtextformel 4",
+            version="1.0",
             value=rdwstf,
             error=rdwstf_error
         ))
@@ -7427,6 +7545,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="RDL2",
             label_v2="L2",
             description="Coh-Metrix L2 Readability",
+            version="1.0",
             value=rdl2,
             error=rdl2_error
         ))
@@ -7447,6 +7566,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             label_v3="RDL2",
             label_v2="L2",
             description="Coh-Metrix L2 Readability",
+            version="1.0",
             value=rdl2,
             error=rdl2_error
         ))
