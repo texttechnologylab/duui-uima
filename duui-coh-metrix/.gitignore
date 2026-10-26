@@ -17,3 +17,7 @@ replay_pid*.log
 # Build-time and licensed resources
 src/main/resources/mrc_psycholinguistic_database.csv
 src/main/resources/germanet/
+
+# Text Easability reference corpus data (CLEAR, see README)
+clear_corpus/
+

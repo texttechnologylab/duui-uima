@@ -103,6 +103,48 @@ dictionaries bundled with `pyphen==0.17.2`. Differences between Pyphen
 hyphenation and human syllabification are treated as a known external-resource
 limitation.
 
+### Text Easability reference corpus
+
+The Text Easability components (`PC*`, indices 12-27) are a first test and
+only available for English. The original components (Graesser, McNamara &
+Kulikowich, 2011) come from a PCA on the non-public TASA corpus. Here the
+English reference corpus is the
+[CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus)
+(Crossley et al., 2022): 4,724 excerpts, PCA with Varimax rotation on the
+available published input measures (`easability/pca_input_measures.csv`),
+components named and oriented (higher = easier) by marker measures
+(`easability/components.csv`). The z score is relative to CLEAR (mean 0,
+SD 1); the percentile is the share of CLEAR excerpts with a lower z. An
+input value that is also undefined in some CLEAR excerpts (e.g. causal
+cohesion without causal verbs) counts as the CLEAR mean; if any other input is
+undefined (empty document, single sentence), the components are `None`. The
+model is `src/main/resources/easability/text_easability_en.json`; the scripts
+and open questions are in `easability/`.
+
+The corpus file is not part of this repository: place `CLEAR_corpus_final.csv`
+from the CLEAR repository in `clear_corpus/` and run `ClearCorpusCohMetrixTest`
+(CLEAR reader -> spaCy -> Coh-Metrix -> XMI) to recreate the processed corpus.
+The PCA scripts in `easability/` use the dependencies in `requirements-dev.txt`
+(Python 3.12):
+
+```bash
+python easability/extract_indices.py clear_corpus/xmi_en clear_corpus/indices_en.csv
+python easability/pca.py clear_corpus/indices_en.csv easability/results/clear_en_pca \
+    --model src/main/resources/easability/text_easability_en.json --language en \
+    --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, 4724 excerpts" \
+    --label-suffix _clear
+```
+
+`pca.py` writes the model and, to `easability/results/clear_en_pca/`, a
+readable summary (`report.md`: comparison with the published components,
+loadings, marker scores, validation against the CLEAR difficulty ratings) and
+the underlying tables, including the component scores of every CLEAR excerpt
+(`scores.csv`, by excerpt ID).
+
+`ClearCorpusTextEasabilityTest` processes every 100th excerpt again and checks
+that the component's z scores equal the PCA scores, and that selecting only
+some PC indices (`include_indices`) gives the same values.
+
 ## Result semantics
 
 `0.0` is emitted only when an actual calculation was possible and its result
@@ -207,6 +249,7 @@ concrete resource per language.
 | *(none)*               | Princeton WordNet (same)                       | *(none)*         | `_germanet`          |
 | *(none)*               | MRC database (same)                            | *(none)*         | `_mrctranslate`      |
 | `_wiki`                | Wikipedia sample (CELEX)                       | `_enwiki10000`   | `_dewiki10000`       |
+| `_clear`               | CLEAR corpus (TASA)                            | `_clear`         | `_cleartranslate`    |
 | `_spacy`               | spaCy vectors (TASA LSA space)                 | `_spacy`         | `_spacy`             |
 | `_textstat`            | textstat library (Coh-Metrix formulas)         | `_textstat`      | `_textstat`          |
 | `_llmlist`             | LLM-generated word lists (Coh-Metrix lists)    | `_llmlist`       | `_llmlist`           |
@@ -332,7 +375,7 @@ level, it is excluded. An empty `include_indices` means `*`. Examples:
 | `*,DESWC`         | `Descriptive`          | all except Descriptive, but with DESWC  |
 | `DESWC`           | `Descriptive`          | only DESWC                              |
 
-Indices computed from other indices (`RDL2`)
+Indices computed from other indices (`RDL2`, the Text Easability components)
 compute their inputs as well, but the inputs are only output if they are
 selected themselves. Unknown names are logged as a warning and ignored; for an
 internal label the warning names the public label to use. If

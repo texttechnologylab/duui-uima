@@ -30,20 +30,12 @@ Details and current labels: `docs/label-open-questions.md`.
   `docs/coh-metrix-30-indices.md`, which is not committed; the paper PDFs and
   Markdown copies may not be publishable.
 
-## Text Easability (in development, not committed)
+## Text Easability (English first test committed, German in development)
 
 Full list: `easability/OPEN_QUESTIONS.md`, section "Index labels".
 
-- Decide the PC label names before committing: `_clear` only, or rule 3
-  (inherit the input suffixes)? Internal suffix for the German model:
-  `_cleartranslate` does not fit if the German reference corpus is not a
-  translation of CLEAR.
-- Commit together: the PC label rename `_wikipedia` -> `_clear`,
-  `cm_text_easability` and its loop in `post_process`, the README section and
-  `_clear` suffix row, `.gitignore`, `pom.xml`, the Dockerfile, and the
-  validation test changes.
-- Rerun the CLEAR pipeline before the next PCA: the processed XMIs carry the
-  old labels.
+- German model (translated CLEAR, internal suffix `_cleartranslate`) and its
+  tests in `CohMetrixDockerValidationTest`.
 - Three components do not replicate (Syntactic simplicity, Verb cohesion,
   Temporality): set them to NaN or change the assignment.
 - `SMINTEp` probably undercounts intentional verbs (none in 71% of the CLEAR
@@ -61,10 +53,11 @@ Full list: `easability/OPEN_QUESTIONS.md`, section "Index labels".
 
 ## Tests and data
 
-- `CohMetrixDockerValidationTest` pins the image `duui-coh-metrix:0.1.2`; it
-  fails on the new labels until a new image is built and the version is
-  updated. Its "intentionally unimplemented" PC check must be replaced once
-  Text Easability is committed.
+- `CohMetrixDockerValidationTest`, `ClearCorpusCohMetrixTest` and
+  `ClearCorpusTextEasabilityTest` use the local build
+  `duui-coh-metrix:easability-dev` of the working tree; replace it with the
+  released image (and the spaCy remote URL with its Docker image) when the
+  image is released.
 - Old labels in existing results: `paper_eval/results` (`_gptlist`,
   `_wiki10000`, ...) and the paper evaluation data in Postgres. Rename or
   recompute before comparing with new results.

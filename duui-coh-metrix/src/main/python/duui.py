@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 import pyphen
 import textstat
@@ -193,22 +194,22 @@ INDEX_CATALOG: List[Tuple[int, str, str, Optional[str]]] = [
     (9, "Descriptive", "DESWLsyd", "DESWLsyd"),
     (10, "Descriptive", "DESWLlt", "DESWLlt"),
     (11, "Descriptive", "DESWLltd", "DESWLltd"),
-    (12, "Text Easability Principal Component Scores", "PCNARz_wikipedia", "PCNARz"),
-    (13, "Text Easability Principal Component Scores", "PCNARp_wikipedia", "PCNARp"),
-    (14, "Text Easability Principal Component Scores", "PCSYNz_wikipedia", "PCSYNz"),
-    (15, "Text Easability Principal Component Scores", "PCSYNp_wikipedia", "PCSYNp"),
-    (16, "Text Easability Principal Component Scores", "PCCNCz_wikipedia", "PCCNCz"),
-    (17, "Text Easability Principal Component Scores", "PCCNCp_wikipedia", "PCCNCp"),
-    (18, "Text Easability Principal Component Scores", "PCREFz_wikipedia", "PCREFz"),
-    (19, "Text Easability Principal Component Scores", "PCREFp_wikipedia", "PCREFp"),
-    (20, "Text Easability Principal Component Scores", "PCDCz_wikipedia", "PCDCz"),
-    (21, "Text Easability Principal Component Scores", "PCDCp_wikipedia", "PCDCp"),
-    (22, "Text Easability Principal Component Scores", "PCVERBz_wikipedia", "PCVERBz"),
-    (23, "Text Easability Principal Component Scores", "PCVERBp_wikipedia", "PCVERBp"),
-    (24, "Text Easability Principal Component Scores", "PCCONNz_wikipedia", "PCCONNz"),
-    (25, "Text Easability Principal Component Scores", "PCCONNp_wikipedia", "PCCONNp"),
-    (26, "Text Easability Principal Component Scores", "PCTEMPz_wikipedia", "PCTEMPz"),
-    (27, "Text Easability Principal Component Scores", "PCTEMPp_wikipedia", "PCTEMPp"),
+    (12, "Text Easability Principal Component Scores", "PCNARz_clear", "PCNARz"),
+    (13, "Text Easability Principal Component Scores", "PCNARp_clear", "PCNARp"),
+    (14, "Text Easability Principal Component Scores", "PCSYNz_clear", "PCSYNz"),
+    (15, "Text Easability Principal Component Scores", "PCSYNp_clear", "PCSYNp"),
+    (16, "Text Easability Principal Component Scores", "PCCNCz_clear", "PCCNCz"),
+    (17, "Text Easability Principal Component Scores", "PCCNCp_clear", "PCCNCp"),
+    (18, "Text Easability Principal Component Scores", "PCREFz_clear", "PCREFz"),
+    (19, "Text Easability Principal Component Scores", "PCREFp_clear", "PCREFp"),
+    (20, "Text Easability Principal Component Scores", "PCDCz_clear", "PCDCz"),
+    (21, "Text Easability Principal Component Scores", "PCDCp_clear", "PCDCp"),
+    (22, "Text Easability Principal Component Scores", "PCVERBz_clear", "PCVERBz"),
+    (23, "Text Easability Principal Component Scores", "PCVERBp_clear", "PCVERBp"),
+    (24, "Text Easability Principal Component Scores", "PCCONNz_clear", "PCCONNz"),
+    (25, "Text Easability Principal Component Scores", "PCCONNp_clear", "PCCONNp"),
+    (26, "Text Easability Principal Component Scores", "PCTEMPz_clear", "PCTEMPz"),
+    (27, "Text Easability Principal Component Scores", "PCTEMPp_clear", "PCTEMPp"),
     (28, "Referential Cohesion", "CRFNO1", "CRFNO1"),
     (29, "Referential Cohesion", "CRFAO1", "CRFAO1"),
     (30, "Referential Cohesion", "CRFSO1", "CRFSO1"),
@@ -303,7 +304,7 @@ INDEX_CATALOG: List[Tuple[int, str, str, Optional[str]]] = [
 ]
 
 # Indices computed from other indices: label_ttlab -> labels of the inputs. The inputs are computed when the derived
-# index is selected, but only output if they are selected themselves.
+# index is selected, but only output if they are selected themselves. Text Easability adds its inputs per language.
 INDEX_REQUIRES: Dict[str, Tuple[str, ...]] = {
     "RDL2_synstruta_wiki": ("CRFCWO1", "SYNSTRUTa", "WRDFRQmc_wiki"),
     "RDL2_synstrutt_wiki": ("CRFCWO1", "SYNSTRUTt", "WRDFRQmc_wiki"),
@@ -5231,6 +5232,79 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
     smtemp = sum(pair_scores) / len(pair_scores)
     return round(smtemp, 3)
 
+# ============================================================================
+# TEXT EASABILITY (PC*) — "How easy is the text on eight dimensions?"
+# Principal component scores (Graesser, McNamara & Kulikowich 2011) relative
+# to a reference corpus. The original components come from the non-public
+# TASA corpus; the models here are computed by easability/pca.py on an openly
+# available reference corpus (English: CLEAR), one model file per language.
+# z = standardized input indices @ component weights (mean 0, SD 1 in the
+# reference corpus); percentile = share of reference texts with a lower z.
+# ============================================================================
+
+TEXT_EASABILITY_TYPE_NAME = "Text Easability Principal Component Scores"
+
+
+def _load_text_easability_models(directory: str) -> Dict[str, Dict[str, Any]]:
+    models = {}
+    for path in sorted(Path(directory).glob("text_easability_*.json")):
+        with open(path, encoding="utf-8") as f:
+            model = json.load(f)
+        models[model["language"]] = model
+        logger.info("Loaded Text Easability model for \"%s\" from \"%s\"", model["language"], path)
+    return models
+
+
+text_easability_models = _load_text_easability_models("src/main/resources/easability")
+
+
+def _text_easability_requires(lang: str) -> Dict[str, Tuple[str, ...]]:
+    # All PC indices are computed together from the input indices of the language's model (see INDEX_REQUIRES).
+    model = text_easability_models.get(lang)
+    if model is None:
+        return {}
+    inputs = tuple(label for measure in model["inputs"] for label in measure["labels_ttlab"])
+    return {
+        label_ttlab: inputs
+        for _, type_name, label_ttlab, _ in INDEX_CATALOG
+        if type_name == TEXT_EASABILITY_TYPE_NAME
+    }
+
+# LAY: Eight ease dimensions (narrativity, syntactic simplicity, word concreteness, referential/deep/verb
+# cohesion, connectivity, temporality) as z score and percentile relative to the reference corpus.
+# ↑ Higher = easier text on that dimension. Approximate: not the TASA reference corpus. None if an input is
+# undefined that is always defined in the reference corpus (empty document, single sentence).
+def cm_text_easability(indices: List[Index], lang: str) -> Optional[Dict[str, float]]:
+    # Computed from the other indices, so it must run after all of them. A
+    # missing input index value counts as the reference mean (standardized 0)
+    # only if the input is missing in the reference corpus as well (e.g. causal
+    # cohesion without causal verbs); any other missing input (e.g. empty
+    # document, no sentence pair) makes the components undefined: None.
+    model = text_easability_models.get(lang)
+    if model is None:
+        raise ValueError(f"No Text Easability model for language \"{lang}\"")
+    values = {index.label_ttlab: index.value for index in indices}
+    standardized = []
+    for measure in model["inputs"]:
+        unknown = [label for label in measure["labels_ttlab"] if label not in values]
+        if unknown:
+            raise KeyError(f"Text Easability input index not found: {', '.join(unknown)}")
+        parts = [values[label] for label in measure["labels_ttlab"]]
+        if any(part is None or math.isnan(part) for part in parts):
+            if measure["missing_documents"] == 0:
+                return None
+            standardized.append(0.0)
+        else:
+            standardized.append((sum(parts) - measure["mean"]) / measure["scale"])
+    standardized = np.asarray(standardized)
+    results = {}
+    for component in model["components"]:
+        z = float(standardized @ np.asarray(component["weights"]))
+        quantiles = component["percentile_quantiles"]
+        results[component["label_v3_z"]] = z
+        results[component["label_v3_p"]] = float(np.interp(z, quantiles, np.linspace(0, 100, len(quantiles))))
+    return results
+
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
@@ -5248,6 +5322,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # output: the selected indices; compute: these plus the inputs of selected derived indices
         index_requires = dict(INDEX_REQUIRES)
+        index_requires.update(_text_easability_requires(lang))
         output, compute = _resolve_index_selection(request.include_indices, request.exclude_indices, index_requires)
         compute_groups = {type_name for _, type_name, label_ttlab, _ in INDEX_CATALOG if label_ttlab in compute}
 
@@ -5538,7 +5613,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ### Text Easability Principal Component Scores
 
         # PCNARz
-        if "PCNARz_wikipedia" in compute:
+        if "PCNARz_clear" in compute:
             try:
                 #pcnarz = cm_pcnarz(sentences)
                 pcnarz = None
@@ -5550,8 +5625,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=12,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCNARz_wikipedia",
-                label_internal="PCNARz_wikipedia",
+                label_ttlab="PCNARz_clear",
+                label_internal="PCNARz_clear",
                 label_v3="PCNARz",
                 label_v2="n/a",
                 description="Text Easability PC Narrativity, z score",
@@ -5561,7 +5636,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCNARp
-        if "PCNARp_wikipedia" in compute:
+        if "PCNARp_clear" in compute:
             try:
                 #pcnarp = cm_pcnarp(sentences)
                 pcnarp = None
@@ -5573,8 +5648,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=13,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCNARp_wikipedia",
-                label_internal="PCNARp_wikipedia",
+                label_ttlab="PCNARp_clear",
+                label_internal="PCNARp_clear",
                 label_v3="PCNARp",
                 label_v2="n/a",
                 description="Text Easability PC Narrativity, percentile",
@@ -5584,7 +5659,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCSYNz
-        if "PCSYNz_wikipedia" in compute:
+        if "PCSYNz_clear" in compute:
             try:
                 #pcsynz = cm_pcsynz(sentences)
                 pcsynz = None
@@ -5598,8 +5673,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 type_name="Text Easability Principal Component Scores",
                 label_v3="PCSYNz",
                 label_v2="n/a",
-                label_ttlab="PCSYNz_wikipedia",
-                label_internal="PCSYNz_wikipedia",
+                label_ttlab="PCSYNz_clear",
+                label_internal="PCSYNz_clear",
                 description="Text Easability PC Syntactic simplicity, z score",
                 version="1.0",
                 value=pcsynz,
@@ -5607,7 +5682,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCSYNp
-        if "PCSYNp_wikipedia" in compute:
+        if "PCSYNp_clear" in compute:
             try:
                 #pcsynp = cm_pcsynp(sentences)
                 pcsynp = None
@@ -5619,8 +5694,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=15,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCSYNp_wikipedia",
-                label_internal="PCSYNp_wikipedia",
+                label_ttlab="PCSYNp_clear",
+                label_internal="PCSYNp_clear",
                 label_v3="PCSYNp",
                 label_v2="n/a",
                 description="Text Easability PC Syntactic simplicity, percentile",
@@ -5630,7 +5705,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCNCz
-        if "PCCNCz_wikipedia" in compute:
+        if "PCCNCz_clear" in compute:
             try:
                 #pccncz = cm_pccncz(sentences)
                 pccncz = None
@@ -5642,8 +5717,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=16,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCNCz_wikipedia",
-                label_internal="PCCNCz_wikipedia",
+                label_ttlab="PCCNCz_clear",
+                label_internal="PCCNCz_clear",
                 label_v3="PCCNCz",
                 label_v2="n/a",
                 description="Text Easability PC Word concreteness, z score",
@@ -5653,7 +5728,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCNCp
-        if "PCCNCp_wikipedia" in compute:
+        if "PCCNCp_clear" in compute:
             try:
                 #pccncp = cm_pccncp(sentences)
                 pccncp = None
@@ -5665,8 +5740,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=17,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCNCp_wikipedia",
-                label_internal="PCCNCp_wikipedia",
+                label_ttlab="PCCNCp_clear",
+                label_internal="PCCNCp_clear",
                 label_v3="PCCNCp",
                 label_v2="n/a",
                 description="Text Easability PC Word concreteness, percentile",
@@ -5676,7 +5751,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCREFz
-        if "PCREFz_wikipedia" in compute:
+        if "PCREFz_clear" in compute:
             try:
                 #pcrefz = cm_pcrefz(sentences)
                 pcrefz = None
@@ -5688,8 +5763,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=18,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCREFz_wikipedia",
-                label_internal="PCREFz_wikipedia",
+                label_ttlab="PCREFz_clear",
+                label_internal="PCREFz_clear",
                 label_v3="PCREFz",
                 label_v2="n/a",
                 description="Text Easability PC Referential cohesion, z score",
@@ -5699,7 +5774,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCREFp
-        if "PCREFp_wikipedia" in compute:
+        if "PCREFp_clear" in compute:
             try:
                 #pcrefp = cm_pcrefp(sentences)
                 pcrefp = None
@@ -5711,8 +5786,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=19,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCREFp_wikipedia",
-                label_internal="PCREFp_wikipedia",
+                label_ttlab="PCREFp_clear",
+                label_internal="PCREFp_clear",
                 label_v3="PCREFp",
                 label_v2="n/a",
                 description="Text Easability PC Referential cohesion, percentile",
@@ -5722,7 +5797,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCDCz
-        if "PCDCz_wikipedia" in compute:
+        if "PCDCz_clear" in compute:
             try:
                 #pcdcz = cm_pcdcz(sentences)
                 pcdcz = None
@@ -5734,8 +5809,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=20,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCDCz_wikipedia",
-                label_internal="PCDCz_wikipedia",
+                label_ttlab="PCDCz_clear",
+                label_internal="PCDCz_clear",
                 label_v3="PCDCz",
                 label_v2="n/a",
                 description="Text Easability PC Deep cohesion, z score",
@@ -5745,7 +5820,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCDCp
-        if "PCDCp_wikipedia" in compute:
+        if "PCDCp_clear" in compute:
             try:
                 #pcdcp = cm_pcdcp(sentences)
                 pcdcp = None
@@ -5757,8 +5832,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=21,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCDCp_wikipedia",
-                label_internal="PCDCp_wikipedia",
+                label_ttlab="PCDCp_clear",
+                label_internal="PCDCp_clear",
                 label_v3="PCDCp",
                 label_v2="n/a",
                 description="Text Easability PC Deep cohesion, percentile",
@@ -5768,7 +5843,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCVERBz
-        if "PCVERBz_wikipedia" in compute:
+        if "PCVERBz_clear" in compute:
             try:
                 #pcverbz = cm_pcverbz(sentences)
                 pcverbz = None
@@ -5780,8 +5855,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=22,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCVERBz_wikipedia",
-                label_internal="PCVERBz_wikipedia",
+                label_ttlab="PCVERBz_clear",
+                label_internal="PCVERBz_clear",
                 label_v3="PCVERBz",
                 label_v2="n/a",
                 description="Text Easability PC Verb cohesion, z score",
@@ -5791,7 +5866,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCVERBp
-        if "PCVERBp_wikipedia" in compute:
+        if "PCVERBp_clear" in compute:
             try:
                 #pcverbp = cm_pcverbp(sentences)
                 pcverbp = None
@@ -5803,8 +5878,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=23,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCVERBp_wikipedia",
-                label_internal="PCVERBp_wikipedia",
+                label_ttlab="PCVERBp_clear",
+                label_internal="PCVERBp_clear",
                 label_v3="PCVERBp",
                 label_v2="n/a",
                 description="Text Easability PC Verb cohesion, percentile",
@@ -5814,7 +5889,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCONNz
-        if "PCCONNz_wikipedia" in compute:
+        if "PCCONNz_clear" in compute:
             try:
                 #pcconnz = cm_pcconnz(sentences)
                 pcconnz = None
@@ -5826,8 +5901,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=24,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCONNz_wikipedia",
-                label_internal="PCCONNz_wikipedia",
+                label_ttlab="PCCONNz_clear",
+                label_internal="PCCONNz_clear",
                 label_v3="PCCONNz",
                 label_v2="n/a",
                 description="Text Easability PC Connectivity, z score",
@@ -5837,7 +5912,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCONNp
-        if "PCCONNp_wikipedia" in compute:
+        if "PCCONNp_clear" in compute:
             try:
                 #pcconnp = cm_pcconnp(sentences)
                 pcconnp = None
@@ -5849,8 +5924,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=25,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCONNp_wikipedia",
-                label_internal="PCCONNp_wikipedia",
+                label_ttlab="PCCONNp_clear",
+                label_internal="PCCONNp_clear",
                 label_v3="PCCONNp",
                 label_v2="n/a",
                 description="Text Easability PC Connectivity, percentile",
@@ -5860,7 +5935,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCTEMPz
-        if "PCTEMPz_wikipedia" in compute:
+        if "PCTEMPz_clear" in compute:
             try:
                 #pctempz = cm_pctempz(sentences)
                 pctempz = None
@@ -5872,8 +5947,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=26,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCTEMPz_wikipedia",
-                label_internal="PCTEMPz_wikipedia",
+                label_ttlab="PCTEMPz_clear",
+                label_internal="PCTEMPz_clear",
                 label_v3="PCTEMPz",
                 label_v2="n/a",
                 description="Text Easability PC Temporality, z score",
@@ -5883,7 +5958,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCTEMPp
-        if "PCTEMPp_wikipedia" in compute:
+        if "PCTEMPp_clear" in compute:
             try:
                 #pctempp = cm_pctempp(sentences)
                 pctempp = None
@@ -5895,8 +5970,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=27,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCTEMPp_wikipedia",
-                label_internal="PCTEMPp_wikipedia",
+                label_ttlab="PCTEMPp_clear",
+                label_internal="PCTEMPp_clear",
                 label_v3="PCTEMPp",
                 label_v2="n/a",
                 description="Text Easability PC Temporality, percentile",
@@ -8010,6 +8085,24 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 value=rdl2,
                 error=rdl2_error
             ))
+
+        ### Text Easability Principal Component Scores (indices 12-27, from the indices above)
+        if TEXT_EASABILITY_TYPE_NAME in compute_groups:
+            try:
+                text_easability = cm_text_easability(indices, lang)
+                text_easability_error = None
+            except Exception as e:
+                logger.error("Error calculating Text Easability components: %s", e)
+                text_easability = {}
+                text_easability_error = str(e)
+            for index in indices:
+                if index.type_name == TEXT_EASABILITY_TYPE_NAME:
+                    # None: undefined for this document (see cm_text_easability)
+                    index.value = text_easability.get(index.label_v3) if text_easability is not None else None
+                    index.error = text_easability_error
+                    # the public label (_clear) is fixed; the model names this language's reference corpus
+                    if lang in text_easability_models:
+                        index.label_internal = index.label_v3 + text_easability_models[lang]["label_suffix"]
 
         # drop the inputs of derived indices that were computed but not selected
         indices = [index for index in indices if index.label_ttlab in output]
