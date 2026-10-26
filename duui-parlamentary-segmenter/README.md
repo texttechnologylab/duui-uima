@@ -62,7 +62,7 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
 }
 
 @misc{Liebald:Abrami:2025,
-  author         = {Liebald, Marius and Abrami, Giuseppe},
+  author         = {Liebald, Marius and Abrami, Giuseppe and Mehler, Alexander},
   title          = {parliamentary-segmenter as DUUI-Komponent},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/duui-parliamentary-segmenter}

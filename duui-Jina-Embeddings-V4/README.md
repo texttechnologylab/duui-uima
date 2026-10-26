@@ -65,8 +65,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bundan:2025,
-  author         = {Bundan, Daniel}
+@misc{Bundan:et:al:2025,
+  author         = {Bundan, Daniel and Abrami, Giuseppe and Mehler, Alexander}
   title          = {Jina Embeddings V4 as DUUI-Komponent},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Jina-Embeddings-V4}
