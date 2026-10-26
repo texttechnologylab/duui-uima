@@ -125,14 +125,15 @@ single-purpose WSTF testcase is required.
 ## Index labels
 
 Every index record carries four labels. Follow the rules below when adding or
-changing an index.
+changing an index. `label_ttlab` and `label_internal` are required and set
+explicitly in every `Index(...)` call.
 
 | Field (Python / UIMA)              | Meaning                                                                                                                                                       | Unique per output |
 |------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|
 | `label_v3` / `labelV3`             | Original Coh-Metrix 3.0 label from `docs/coh-metrix-30-indices.md`. Identifies *what* is measured. `None` for project-only indices.                           | No, see rule 5    |
 | `label_v2` / `labelV2`             | Coh-Metrix 2.0 label from the same table; `n/a` where the table has none. `None` for project-only indices.                                                   | No, see rule 5    |
 | `label_ttlab` / `labelTTLab`       | Public TTLab label for use in analyses: the V3 label, plus a suffix only where the English implementation deviates from the original. Identical for all languages. | Yes               |
-| `label_internal` / `labelInternal` | Internal TTLab label: V3 label plus the concrete resource suffix for this language; no suffix where the original resource is used. May differ between languages.  | Yes               |
+| `label_internal` / `labelInternal` | Internal TTLab label: V3 label plus the concrete resource suffix for this language; no suffix where the original resource is used. May differ between languages. Always set, also where it equals `label_ttlab`, so either label can be used on its own. | Yes               |
 
 ### Rules
 
