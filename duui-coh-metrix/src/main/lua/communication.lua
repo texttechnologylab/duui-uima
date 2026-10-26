@@ -208,6 +208,9 @@ function serialize(inputCas, outputStream, parameters)
         language = inputCas:getDocumentLanguage(),
         paragraphs = paragraphs,
         noun_chunks = noun_chunks,
+        -- optional, comma-separated index names (README, "Selecting indices")
+        include_indices = parameters["include_indices"],
+        exclude_indices = parameters["exclude_indices"],
     }))
 end
 

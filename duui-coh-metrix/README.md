@@ -294,6 +294,52 @@ composer.add(
 );
 ```
 
+### Selecting indices
+
+By default all indices are computed. Two optional parameters select a subset;
+indices that are not selected are neither computed nor output:
+
+```java
+new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:latest")
+    .withParameter("include_indices", "Descriptive,LSA")
+    .withParameter("exclude_indices", "DESPC,LSAGN,LSAGNd")
+```
+
+Both take a comma-separated list of names, matched case-insensitively:
+
+- `*`: all indices;
+- an index group (the `type_name`, e.g. `Descriptive`, `LSA`, `Word Information`);
+- a single index, by its public label `label_ttlab` (`LSAGN_spacy`) or its V3
+  label (`LSAGN`). The V3 label `RDL2` selects both RDL2 variants.
+
+Only these language-independent names are accepted, so the same parameters
+select the same indices in a mixed-language corpus: `exclude_indices=WRDPOLc`
+removes polysemy for English (WordNet) and German (GermaNet). Internal labels
+such as `WRDPOLc_germanet` are not accepted. `GET /v1/indices` lists all
+indices with their group, public and V3 label.
+
+For each index, the most specific matching name decides: a single index beats
+its group, a group beats `*`. If an index is named in both lists on the same
+level, it is excluded. An empty `include_indices` means `*`. Examples:
+
+| `include_indices` | `exclude_indices`      | Result                                  |
+|-------------------|------------------------|-----------------------------------------|
+|                   |                        | all indices                             |
+| `Descriptive`     | `DESPC,DESSC`          | Descriptive without DESPC and DESSC     |
+|                   | `LSA`                  | all indices except LSA                  |
+| `DESWC,LSAGN`     |                        | only DESWC and LSAGN                    |
+| `*,DESWC`         | `Descriptive`          | all except Descriptive, but with DESWC  |
+| `DESWC`           | `Descriptive`          | only DESWC                              |
+
+Indices computed from other indices (`RDL2`)
+compute their inputs as well, but the inputs are only output if they are
+selected themselves. Unknown names are logged as a warning and ignored; for an
+internal label the warning names the public label to use. If
+`include_indices` contains only unknown names, nothing is computed.
+
+Skipping indices also skips their shared preprocessing, e.g. the LSA vectors,
+connective counts or hypernymy lookups.
+
 ### Component logging
 
 The Python service uses the official
