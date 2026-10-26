@@ -1,18 +1,16 @@
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=duui-transformers-emotion&message=0.2.0&color=blue&#41;]&#40;https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list&#41;)
-
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=Python&message=3.10&color=green&#41;]&#40;&#41;)
-
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=Transformers&message=4.41.2&color=yellow&#41;]&#40;&#41;)
-
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=Torch&message=2.3.0&color=red&#41;]&#40;&#41;)
+[![Version](https://img.shields.io/static/v1?label=duui-image-to-text&message=0.2.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-image-to-text/tags/list)
+[![Python](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
+[![Transformers](https://img.shields.io/static/v1?label=Transformers&message=4.48.2&color=yellow)]()
+[![Torch](https://img.shields.io/static/v1?label=Torch&message=2.6.0&color=red)]()
 
 # Image To Text
 
-DUUI implementation for selected Hugging-Face-based [Image-to-Text](https://huggingface.co/models?pipeline_tag=image-to-text) models,
+DUUI implementation for selected Hugging-Face-based [Image-to-Text](https://huggingface.co/models?pipeline_tag=image-to-text) models.
 
-| Name                                                  | Revision                                 | Task      |
-|-------------------------------------------------------|------------------------------------------|-----------|
-| microsoft/kosmos-2-patch14-224   | e91cfbcb4ce051b6a55bfb5f96165a3bbf5eb82c | Grounding |
+| Name                                                  | Revision                                 | Lang  | Task      |
+|-------------------------------------------------------|------------------------------------------|-------|-----------|
+| microsoft/kosmos-2-patch14-224                        | e91cfbcb4ce051b6a55bfb5f96165a3bbf5eb82c | en    | Grounding |
+| microsoft/Phi-4-multimodal-instruct                   | 0af439b3adb8c23fda473c4f86001dbf9a226021 | multi | Image-to-Text |
 
 # How To Use
 
@@ -20,13 +18,11 @@ For using duui-image-to-text as a DUUI image it is necessary to use the [Docker 
 
 ## Start Docker container
 
-[//]: # (```)
+```
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-image-to-text:latest
+```
 
-[//]: # (docker run -p 9714:9714 docker.texttechnologylab.org/duui-transformers-emotion:latest)
-
-[//]: # (```)
-
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-image-to-text/tags/list
 
 ## Run within DUUI
 
@@ -36,7 +32,7 @@ composer.add(
 
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-image-to-text:latest")
 
-        .withParameter("model_name", "MilaNLProc/xlm-emo-t")
+        .withParameter("model_name", "microsoft/kosmos-2-patch14-224")
 
         .withParameter("prompt", "<grounding>An image of")
 
@@ -87,9 +83,9 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bagci:2024,
-  author         = {Abusaleh, Ali},
-  title          = {Image-to-Text as {DUUI} component},
+@misc{Abusaleh:et:al:2025:ImageToText,
+  author         = {Abusaleh, Ali and Mehler, Alexander},
+  title          = {Image-to-Text as {DUUI} Component},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-image-to-text}
 }
