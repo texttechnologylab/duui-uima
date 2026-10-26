@@ -26,8 +26,20 @@ composer.add(
 
 | Name | Description | Default |
 |---|---|---|
-| `use_existing_tokens` | If `"true"`, read existing `SpacyToken` annotations as input instead of raw text | `false` |
-| `use_existing_sentences` | If `"true"` (requires `use_existing_tokens`), also read existing `Sentence` annotations to set sentence boundaries | `false` |
+| `use_existing_tokens` | If `"true"`, read existing `Token` annotations (exactly this type, not its subtypes such as `SpacyToken`) as input instead of raw text | `false` |
+| `use_existing_sentences` | If `"true"` (requires `use_existing_tokens`), also read existing `Sentence` annotations to set sentence boundaries; spaCy then writes no sentences | `false` |
+
+### Pretokenized input
+
+With `use_existing_tokens`, spaCy processes the given tokens unchanged and writes a **new `SpacyToken` for each of them**
+(same begin/end) with all features (lemma, POS, morphology, vector, flags such as `is_alpha`, `is_punct`), as without
+pretokenization. All other annotations (dependencies, named entities, noun chunks, sentences) begin and end at token
+boundaries of the given tokens. The given `Token`s are not changed: annotations that existed before are not merged back
+from a DUUI segment, so changes to them would be lost with a segmentation strategy. Afterwards the CAS contains both the
+`Token` and the `SpacyToken` for every token; remove the plain tokens if needed (e.g. with `duui-remove-annotations`).
+
+With `use_existing_sentences`, the parser keeps the given sentence boundaries (checked with spaCy 3.7.2,
+`de_core_news_lg` and `en_core_web_lg`).
 
 # Cite
 

@@ -197,6 +197,9 @@ class TextImagerRequest(BaseModel):
     tokens: Optional[List[str]] = None
     spaces: Optional[List[bool]] = None
     sent_starts: Optional[List[bool]] = None
+    # CAS offsets of the pre-tokenized tokens, all annotations are written relative to these
+    token_begins: Optional[List[int]] = None
+    token_ends: Optional[List[int]] = None
     # The texts language
     lang: str
     parameters: Optional[dict] = None
@@ -694,7 +697,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         has_sentences = request.sent_starts is not None and len(request.sent_starts) > 0
 
         logger.info("Input is pretokenized: %s", "yes" if is_pretokenized else "no")
-        if not is_pretokenized:
+        if is_pretokenized:
+            if request.token_begins is None or request.token_ends is None \
+                    or len(request.token_begins) != len(request.tokens) or len(request.token_ends) != len(request.tokens):
+                raise Exception("Pretokenized input needs the CAS offsets of all tokens (token_begins, token_ends)")
+        else:
             # TODO add splitting for pretokenized texts?
             #  or remove completely -> should better be solved by DUUI segmentation
             logger.debug("spaCy max size: %d", nlp.max_length)
@@ -827,20 +834,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             else:
                 write_types = set(TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES)
 
-            # dont write tokens if pretokenized
-            if is_pretokenized:
-                write_types.discard(UIMA_TYPE_TOKEN)
-                if has_sentences:
-                    write_types.discard(UIMA_TYPE_SENTENCE)
+            # Pretokenized: new SpacyTokens are written for the given tokens, but no sentences if they were given
+            if is_pretokenized and has_sentences:
+                write_types.discard(UIMA_TYPE_SENTENCE)
 
             # TODO test splitting in multiple texts
             for doc_meta, doc in zip(texts_meta, docs):
-                # generate utf16 converter for each doc on the fly if using pretokenized data
-                if is_pretokenized:
-                    utf16_converter = Utf16CodepointOffsetConverter()
-                    utf16_converter.create_offset_mapping(doc.text)
-                    doc_meta["utf16_converter"] = utf16_converter
-
                 if "utf16_converter" in doc_meta:
                     utf16_converter = doc_meta["utf16_converter"]
                 else:
@@ -853,6 +852,25 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 # Get starting position of this sentence
                 doc_begin = doc_meta["begin"]
 
+                # CAS offsets of tokens and spans: pretokenized input keeps the offsets of the given tokens (the
+                # doc text is rebuilt from the tokens with single spaces and does not match the CAS text), every
+                # span is mapped via its first and last token
+                if is_pretokenized:
+                    if len(doc) != len(request.tokens):
+                        raise Exception(f"spaCy changed the number of pretokenized tokens: {len(request.tokens)} -> {len(doc)}")
+
+                    def token_offsets(tok):
+                        return request.token_begins[tok.i], request.token_ends[tok.i]
+
+                    def span_offsets(span):
+                        return request.token_begins[span.start], request.token_ends[span.end - 1]
+                else:
+                    def token_offsets(tok):
+                        return utf16_to_ext(doc_begin+tok.idx), utf16_to_ext(doc_begin+tok.idx+len(tok))
+
+                    def span_offsets(span):
+                        return utf16_to_ext(doc_begin+span.start_char), utf16_to_ext(doc_begin+span.end_char)
+
                 # Sentences
                 logger.debug("Writing Sentences...")
                 try:
@@ -860,9 +878,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     # or if no sentencizer is requested
                     # TODO add_pipe("sentencizer") seems to work, check later!
                     for sent in doc.sents:
+                        sent_begin, sent_end = span_offsets(sent)
                         sentences.append(Sentence(
-                            begin=utf16_to_ext(doc_begin+sent.start_char),
-                            end=utf16_to_ext(doc_begin+sent.end_char),
+                            begin=sent_begin,
+                            end=sent_end,
                             write_sentence=UIMA_TYPE_SENTENCE in write_types,
                         ))
                 except Exception as ex:
@@ -926,9 +945,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                                 morph_details["transitivity"] = feat_value
 
                         # Create token data
+                        cas_token_begin, cas_token_end = token_offsets(token)
                         current_token = Token(
-                            begin=utf16_to_ext(doc_begin+token_begin),
-                            end=utf16_to_ext(doc_begin+token_end),
+                            begin=cas_token_begin,
+                            end=cas_token_end,
 
                             # Token
                             ind=token_ind,
@@ -1012,8 +1032,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                             # Create dependency
                             current_dep = Dependency(
-                                begin=utf16_to_ext(doc_begin+token_begin),
-                                end=utf16_to_ext(doc_begin+token_end),
+                                begin=uima_token.begin,
+                                end=uima_token.end,
                                 type=token.dep_.upper(),
                                 flavor="basic",
                                 dependent_ind=uima_token.ind,
@@ -1030,9 +1050,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 logger.debug("Writing Named entities...")
                 try:
                     for ent in doc.ents:
+                        ent_begin, ent_end = span_offsets(ent)
                         entities.append(Entity(
-                            begin=utf16_to_ext(doc_begin+ent.start_char),
-                            end=utf16_to_ext(doc_begin+ent.end_char),
+                            begin=ent_begin,
+                            end=ent_end,
                             value=ent.label_,
                             write_entity=UIMA_TYPE_NAMED_ENTITY in write_types
                         ))
@@ -1043,9 +1064,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 logger.debug("Writing Noun phrases...")
                 try:
                     for chunk in doc.noun_chunks:
+                        chunk_begin, chunk_end = span_offsets(chunk)
                         noun_chunks.append(Span(
-                            begin=utf16_to_ext(doc_begin+chunk.start_char),
-                            end=utf16_to_ext(doc_begin+chunk.end_char)
+                            begin=chunk_begin,
+                            end=chunk_end
                         ))
                 except Exception as ex:
                     logger.exception("Error accessing noun phrases: %s", ex)
