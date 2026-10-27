@@ -35,6 +35,8 @@ It supports:
 | no        | **frame_interval**  | 1                                  | integer >= 1                                                                                                                              | process every Nth frame in uniform mode                              |
 | no        | **segment_duration**| 10.0                               | float > 0                                                                                                                                | segment length in seconds for adaptive mode                          |
 | no        | **representative_frames** | 5                            | integer >= 1                                                                                                                              | representative frames selected per adaptive segment                 |
+| no        | **model_ttl_seconds** | 1800                             | integer, `0` disables                                                                                                                     | unload a loaded model after it has been idle this many seconds (per model); it is reloaded on the next request |
+| no        | **model_cache_size** | 2                                 | integer >= 1                                                                                                                              | maximum number of models (per `clip_model`/`diffusion_model` combination) kept loaded; the least recently used one is unloaded |
 
 ## How To Use
 Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
