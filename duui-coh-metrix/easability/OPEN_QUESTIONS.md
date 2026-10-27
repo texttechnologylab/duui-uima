@@ -38,6 +38,27 @@ instead of TASA. Validation (`validation.csv`, Spearman with the Lexile band vs.
 Narrativity −.48 (−.69), Syntactic simplicity −.18 (−.47), Word concreteness −.14 (−.23), Referential cohesion
 .21 (.03), Deep cohesion .06 (.11).
 
+## German model (2026-10-27): CLEAR translated with Kolibri-1 Q4_K_M
+
+`results/clear_de_kolibri-1-q4km_pca/` (4669 of 4724 excerpts: the reader skips 2 truncated translations and 54
+paragraph mismatches, see `docs/todo.md`; GermaNet V180; 58.5% variance explained). Comparison with English:
+`results/clear_en_vs_de_kolibri-1-q4km/report.md`.
+
+- **Carried over**: Narrativity (congruence of the loadings .88, correlation of the scores of the same excerpts
+  .90), Word concreteness (.94, .71), Referential cohesion (.97, .71), Connectivity (.97, .87). Validation similar
+  to English (r Lexile: Narrativity −.53, Word concreteness −.18, Referential cohesion +.18).
+- **Syntactic simplicity and Verb cohesion are swapped between the languages**: the same two components exist in
+  both (sentence-to-sentence similarity: MED, LSA given/new, SYNSTRUTa; sentence length with LSA overlap), but
+  the marker assignment names them differently: English Syntactic simplicity = German Verb cohesion (congruence
+  .93), English Verb cohesion = German Syntactic simplicity (.90). In German, Syntactic simplicity is the
+  sentence-length component (r Lexile −.49, published −.47), which matches the original; in English it is not
+  (see above). So PCSYN and PCVERB are not comparable across languages until the assignment is fixed, e.g. by
+  assigning Syntactic simplicity by words per sentence in both languages.
+- **Temporality** has the opposite sign (congruence −.79): it is the word frequency component in both, and its
+  marker score is about 0, so the orientation is arbitrary.
+- **Deep cohesion** differs (congruence .64, r .30).
+- Missing inputs: causal cohesion undefined in 20.3% (English 16.8%).
+
 ## Index labels (change from another session)
 
 The new label scheme (README, "Index labels") is committed (a8dd58b), but without Text Easability. In that commit the

@@ -34,10 +34,12 @@ Details and current labels: `docs/label-open-questions.md`.
 
 Full list: `easability/OPEN_QUESTIONS.md`, section "Index labels".
 
-- German model (translated CLEAR, internal suffix `_cleartranslate`) and its
-  tests in `CohMetrixDockerValidationTest`.
+- German model from the first translation (Kolibri-1 Q4_K_M) done; redo
+  pipeline, PCA and comparison when the translation changes.
 - Three components do not replicate (Syntactic simplicity, Verb cohesion,
-  Temporality): set them to NaN or change the assignment.
+  Temporality): set them to NaN or change the assignment. Syntactic simplicity
+  and Verb cohesion are named the other way round in English and German, and
+  Temporality has the opposite sign (`easability/OPEN_QUESTIONS.md`).
 - `SMINTEp` probably undercounts intentional verbs (none in 71% of the CLEAR
   excerpts).
 

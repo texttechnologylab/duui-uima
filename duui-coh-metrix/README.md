@@ -105,10 +105,9 @@ limitation.
 
 ### Text Easability reference corpus
 
-The Text Easability components (`PC*`, indices 12-27) are a first test and
-only available for English. The original components (Graesser, McNamara &
-Kulikowich, 2011) come from a PCA on the non-public TASA corpus. Here the
-English reference corpus is the
+The Text Easability components (`PC*`, indices 12-27) are a first test. The
+original components (Graesser, McNamara & Kulikowich, 2011) come from a PCA
+on the non-public TASA corpus. Here the English reference corpus is the
 [CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus)
 (Crossley et al., 2022): 4,724 excerpts, PCA with Varimax rotation on the
 available published input measures (`easability/pca_input_measures.csv`),
@@ -120,6 +119,15 @@ cohesion without causal verbs) counts as the CLEAR mean; if any other input is
 undefined (empty document, single sentence), the components are `None`. The
 model is `src/main/resources/easability/text_easability_en.json`; the scripts
 and open questions are in `easability/`.
+
+The German reference corpus is CLEAR translated into German
+(`translation_eval/translate_clear.py`; first version Kolibri-1 Q4_K_M, 4,669
+of 4,724 excerpts without truncated translations and paragraph mismatches),
+with its own PCA and model (`text_easability_de.json`, internal label suffix
+`_cleartranslate`). The German inputs include GermaNet indices (polysemy, verb
+overlap), so without GermaNet the German components are `None`.
+`easability/compare_models.py` compares the English and German components
+(congruence of the loadings, correlation of the scores of the same excerpts).
 
 The corpus file is not part of this repository: place `CLEAR_corpus_final.csv`
 from the CLEAR repository in `clear_corpus/` and run `ClearCorpusCohMetrixTest`
@@ -141,9 +149,30 @@ loadings, marker scores, validation against the CLEAR difficulty ratings) and
 the underlying tables, including the component scores of every CLEAR excerpt
 (`scores.csv`, by excerpt ID).
 
+German: place the translation in `clear_corpus/` (default
+`translation_kolibri-1-q4km/`, other versions with `-Dclear.translation=...`)
+and give the GermaNet XML directory (it must be readable by the Docker daemon;
+copy it from a network mount to a local directory):
+
+```bash
+mvn test -Dtest='ClearCorpusCohMetrixTest#runPipelineGermanTranslation' \
+    -Dcohmetrix.germanet.path=/path/to/GN_V180_XML
+python easability/extract_indices.py clear_corpus/xmi_de_kolibri-1-q4km \
+    clear_corpus/indices_de_kolibri-1-q4km.csv
+python easability/pca.py clear_corpus/indices_de_kolibri-1-q4km.csv \
+    easability/results/clear_de_kolibri-1-q4km_pca \
+    --model src/main/resources/easability/text_easability_de.json --language de \
+    --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, translated into German with Kolibri-1 Q4_K_M (translation_kolibri-1-q4km), 4669 of 4724 excerpts (without truncated translations and paragraph mismatches)" \
+    --label-suffix _cleartranslate
+python easability/compare_models.py easability/results/clear_en_pca \
+    easability/results/clear_de_kolibri-1-q4km_pca \
+    easability/results/clear_en_vs_de_kolibri-1-q4km --name-a EN --name-b DE
+```
+
 `ClearCorpusTextEasabilityTest` processes every 100th excerpt again and checks
 that the component's z scores equal the PCA scores, and that selecting only
-some PC indices (`include_indices`) gives the same values.
+some PC indices (`include_indices`) gives the same values (German: with
+`-Dcohmetrix.germanet.path`).
 
 ## Result semantics
 

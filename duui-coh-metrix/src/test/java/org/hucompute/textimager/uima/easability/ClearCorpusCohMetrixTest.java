@@ -6,9 +6,11 @@ import org.dkpro.core.io.xmi.XmiWriter;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIPipelineComponent;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIUIMADriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.io.DUUIAsynchronousProcessor;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.io.DUUICollectionReader;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.segmentation.DUUISegmentationStrategyByAnnotation;
 
@@ -18,13 +20,16 @@ import java.nio.file.Paths;
 import static org.apache.uima.fit.factory.AnalysisEngineFactory.createEngineDescription;
 
 /**
- * English CLEAR corpus (see {@link DUUIClearCorpusReader}) -> spaCy, run on each paragraph separately ->
- * Coh-Metrix -> one gzipped XMI per excerpt, named by the corpus' excerpt ID. Basis for the Text Easability
- * reference corpus.
+ * CLEAR corpus -> spaCy, run on each paragraph separately -> Coh-Metrix -> one gzipped XMI per excerpt, named by the
+ * corpus' excerpt ID. Basis for the Text Easability reference corpora: English from the original corpus
+ * ({@link DUUIClearCorpusReader}), German from its translation ({@link DUUIClearTranslationReader}).
  *
- * <p>The paragraphs come from the reader (one per excerpt line), so no Syntok step. spaCy is segmented by paragraph
- * so that its sentences cannot cross a paragraph boundary: Coh-Metrix assigns sentences to paragraphs with
- * {@code selectCovered} and drops sentences that are not completely inside a paragraph.
+ * <p>The paragraphs come from the readers, so no Syntok step. spaCy is segmented by paragraph so that its sentences
+ * cannot cross a paragraph boundary: Coh-Metrix assigns sentences to paragraphs with {@code selectCovered} and drops
+ * sentences that are not completely inside a paragraph.
+ *
+ * <p>German needs GermaNet ({@link GermanetCohMetrixContainer}): without it the polysemy and verb overlap inputs are
+ * undefined for every excerpt.
  */
 public class ClearCorpusCohMetrixTest {
 
@@ -33,14 +38,55 @@ public class ClearCorpusCohMetrixTest {
     // TODO replace with the released image; local build of the working tree (labels of a8dd58b/94c461c)
     private static final String COHMETRIX_IMAGE = "duui-coh-metrix:easability-dev";
 
+    private static final Path CLEAR_CSV = Paths.get("clear_corpus/CLEAR_corpus_final.csv");
+
+    /** Translation directory (translation_eval/translate_clear.py output), default kolibri-1-q4km. */
+    private static final String TRANSLATION_PROPERTY = "clear.translation";
+    private static final String DEFAULT_TRANSLATION = "clear_corpus/translation_kolibri-1-q4km";
+
+    // Without the PC indices: the reference corpus is the input of the PCA, so it must not depend on an earlier
+    // model (easability/pca.py)
+    private static final String EXCLUDE_INDICES = "Text Easability Principal Component Scores";
+
     @Test
     public void runPipeline() throws Exception {
-        Path sourceLocation = Paths.get("clear_corpus/CLEAR_corpus_final.csv");
-        Path targetLocation = Paths.get("clear_corpus/xmi_en");
+        DUUIPipelineComponent cohMetrix = new DUUIDockerDriver.Component(COHMETRIX_IMAGE)
+                .withParameter("exclude_indices", EXCLUDE_INDICES)
+                .withScale(1)
+                .build()
+                .withTimeout(500L);
+        run(new DUUIClearCorpusReader(CLEAR_CSV, "en"), cohMetrix, Paths.get("clear_corpus/xmi_en"));
+    }
 
-        DUUIAsynchronousProcessor processor = new DUUIAsynchronousProcessor(
-                new DUUIClearCorpusReader(sourceLocation, "en")
-        );
+    /** Output: {@code clear_corpus/xmi_de_<translation directory without "translation_">}. */
+    @Test
+    public void runPipelineGermanTranslation() throws Exception {
+        Path translation = translationDirectory();
+        try (GermanetCohMetrixContainer container = new GermanetCohMetrixContainer(COHMETRIX_IMAGE)) {
+            DUUIPipelineComponent cohMetrix = new DUUIRemoteDriver.Component(container.url())
+                    .withParameter("exclude_indices", EXCLUDE_INDICES)
+                    .withScale(1)
+                    .build()
+                    .withTimeout(500L);
+            run(new DUUIClearTranslationReader(translation, CLEAR_CSV, "de"), cohMetrix,
+                    germanXmiLocation(translation));
+        }
+    }
+
+    /** {@value #TRANSLATION_PROPERTY}, default {@value #DEFAULT_TRANSLATION}. */
+    static Path translationDirectory() {
+        return Paths.get(System.getProperty(TRANSLATION_PROPERTY, DEFAULT_TRANSLATION));
+    }
+
+    /** {@code clear_corpus/xmi_de_<translation directory without "translation_">}. */
+    static Path germanXmiLocation(Path translation) {
+        return Paths.get("clear_corpus/xmi_de_"
+                + translation.getFileName().toString().replaceFirst("^translation_", ""));
+    }
+
+    private static void run(DUUICollectionReader reader, DUUIPipelineComponent cohMetrix, Path target)
+            throws Exception {
+        DUUIAsynchronousProcessor processor = new DUUIAsynchronousProcessor(reader);
 
         DUUIComposer composer = new DUUIComposer()
                 .withWorkers(1)
@@ -64,16 +110,10 @@ public class ClearCorpusCohMetrixTest {
                 .build()
                 .withTimeout(1000L));
 
-        // Without the PC indices: the reference corpus is the input of the PCA, so it must not depend on an earlier
-        // model (easability/pca.py)
-        composer.add(new DUUIDockerDriver.Component(COHMETRIX_IMAGE)
-                .withParameter("exclude_indices", "Text Easability Principal Component Scores")
-                .withScale(1)
-                .build()
-                .withTimeout(500L));
+        composer.add(cohMetrix);
 
         composer.add(new DUUIUIMADriver.Component(createEngineDescription(XmiWriter.class,
-                XmiWriter.PARAM_TARGET_LOCATION, targetLocation.toString(),
+                XmiWriter.PARAM_TARGET_LOCATION, target.toString(),
                 XmiWriter.PARAM_USE_DOCUMENT_ID, true,
                 XmiWriter.PARAM_PRETTY_PRINT, true,
                 XmiWriter.PARAM_OVERWRITE, false,
@@ -82,5 +122,6 @@ public class ClearCorpusCohMetrixTest {
         )).build());
 
         composer.run(processor, "clear-corpus-cohmetrix");
+        composer.shutdown();
     }
 }

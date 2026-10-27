@@ -14,6 +14,8 @@ import org.apache.uima.resource.metadata.TypeSystemDescription;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIPipelineComponent;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 
 import java.io.InputStream;
@@ -39,14 +41,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code easability/pca.py}): every 100th CLEAR excerpt of {@link ClearCorpusCohMetrixTest}'s output is processed
  * again (previous Coh-Metrix output removed), and its z scores must equal the PCA's component scores. A second run
  * with only {@link #SELECTED} in {@code include_indices} must output only these, with the same values.
+ *
+ * <p>German: the translated corpus ({@link ClearCorpusCohMetrixTest#translationDirectory()}), with GermaNet
+ * ({@link GermanetCohMetrixContainer}) as for the reference corpus.
  */
 public class ClearCorpusTextEasabilityTest {
 
     // TODO replace with the released image
     private static final String COHMETRIX_IMAGE = "duui-coh-metrix:easability-dev";
 
-    private static final Path XMI_LOCATION = Paths.get("clear_corpus/xmi_en");
-    private static final Path SCORES = Paths.get("easability/results/clear_en_pca/scores.csv");
     private static final int SAMPLE_STEP = 100;
     private static final double TOLERANCE = 1e-6;
 
@@ -58,15 +61,33 @@ public class ClearCorpusTextEasabilityTest {
 
     @Test
     public void componentScoresMatchPca() throws Exception {
+        check(Paths.get("clear_corpus/xmi_en"), Paths.get("easability/results/clear_en_pca/scores.csv"),
+                "_clear", COHMETRIX_IMAGE, false);
+    }
+
+    @Test
+    public void germanComponentScoresMatchPca() throws Exception {
+        Path translation = ClearCorpusCohMetrixTest.translationDirectory();
+        String name = translation.getFileName().toString().replaceFirst("^translation_", "");
+        try (GermanetCohMetrixContainer container = new GermanetCohMetrixContainer(COHMETRIX_IMAGE)) {
+            check(ClearCorpusCohMetrixTest.germanXmiLocation(translation),
+                    Paths.get("easability/results/clear_de_" + name + "_pca/scores.csv"),
+                    "_cleartranslate", container.url(), true);
+        }
+    }
+
+    /** component: a Docker image, or the URL of a running component if remote. */
+    private static void check(Path xmiLocation, Path scoresFile, String internalSuffix, String component,
+                              boolean remote) throws Exception {
         List<CSVRecord> scores;
-        try (Reader in = Files.newBufferedReader(SCORES, StandardCharsets.UTF_8);
+        try (Reader in = Files.newBufferedReader(scoresFile, StandardCharsets.UTF_8);
              CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(in)) {
             scores = parser.getRecords();
         }
 
-        DUUIComposer composer = composer(null);
+        DUUIComposer composer = composer(component, remote, null);
         // only some PC indices selected: their inputs are computed, but not output
-        DUUIComposer selectedComposer = composer(String.join(",", SELECTED));
+        DUUIComposer selectedComposer = composer(component, remote, String.join(",", SELECTED));
 
         try {
             // the CAS needs the type system of the components (Coh-Metrix index types)
@@ -77,13 +98,13 @@ public class ClearCorpusTextEasabilityTest {
                 CSVRecord expected = scores.get(i);
                 String id = expected.get("document_id");
 
-                JCas jCas = load(typeSystem, id);
+                JCas jCas = load(typeSystem, xmiLocation, id);
                 composer.run(jCas);
 
                 Map<String, FeatureStructure> components = components(jCas.getCas());
                 assertEquals(16, components.size(), id);
 
-                JCas selectedJCas = load(typeSystem, id);
+                JCas selectedJCas = load(typeSystem, xmiLocation, id);
                 selectedComposer.run(selectedJCas);
                 assertEquals(SELECTED.size(), indexed(selectedJCas.getCas(),
                         selectedJCas.getTypeSystem().getType(INDEX_TYPE)).size(), id + " output indices");
@@ -101,6 +122,7 @@ public class ClearCorpusTextEasabilityTest {
                     FeatureStructure p = components.get(percentileLabel);
                     assertNull(string(z, "error"), id + " " + header);
                     assertEquals(header + LABEL_SUFFIX, string(z, "labelTTLab"), id);
+                    assertEquals(header + internalSuffix, string(z, "labelInternal"), id);
                     assertEquals(Double.parseDouble(expected.get(header)), value(z), TOLERANCE, id + " " + header);
                     assertTrue(value(p) >= 0 && value(p) <= 100, id + " " + percentileLabel);
                 }
@@ -113,23 +135,34 @@ public class ClearCorpusTextEasabilityTest {
         }
     }
 
-    private static DUUIComposer composer(String includeIndices) throws Exception {
+    private static DUUIComposer composer(String component, boolean remote, String includeIndices) throws Exception {
         DUUIComposer composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
-        composer.addDriver(new DUUIDockerDriver());
-        DUUIDockerDriver.Component component = new DUUIDockerDriver.Component(COHMETRIX_IMAGE).withScale(1);
-        if (includeIndices != null) {
-            component.withParameter("include_indices", includeIndices);
+        DUUIPipelineComponent pipelineComponent;
+        if (remote) {
+            composer.addDriver(new DUUIRemoteDriver());
+            DUUIRemoteDriver.Component remoteComponent = new DUUIRemoteDriver.Component(component).withScale(1);
+            if (includeIndices != null) {
+                remoteComponent.withParameter("include_indices", includeIndices);
+            }
+            pipelineComponent = remoteComponent.build();
+        } else {
+            composer.addDriver(new DUUIDockerDriver());
+            DUUIDockerDriver.Component dockerComponent = new DUUIDockerDriver.Component(component).withScale(1);
+            if (includeIndices != null) {
+                dockerComponent.withParameter("include_indices", includeIndices);
+            }
+            pipelineComponent = dockerComponent.build();
         }
-        composer.add(component.build().withTimeout(500L));
+        composer.add(pipelineComponent.withTimeout(500L));
         return composer;
     }
 
     /** The processed excerpt without its previous Coh-Metrix output. */
-    private static JCas load(TypeSystemDescription typeSystem, String id) throws Exception {
+    private static JCas load(TypeSystemDescription typeSystem, Path xmiLocation, String id) throws Exception {
         JCas jCas = JCasFactory.createJCas(typeSystem);
-        try (InputStream in = new GZIPInputStream(Files.newInputStream(XMI_LOCATION.resolve(id + ".xmi.gz")))) {
+        try (InputStream in = new GZIPInputStream(Files.newInputStream(xmiLocation.resolve(id + ".xmi.gz")))) {
             XmiCasDeserializer.deserialize(in, jCas.getCas(), true);
         }
         removePreviousCohMetrixOutput(jCas.getCas());

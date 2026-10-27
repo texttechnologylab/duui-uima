@@ -5237,7 +5237,8 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
 # Principal component scores (Graesser, McNamara & Kulikowich 2011) relative
 # to a reference corpus. The original components come from the non-public
 # TASA corpus; the models here are computed by easability/pca.py on an openly
-# available reference corpus (English: CLEAR), one model file per language.
+# available reference corpus (English: CLEAR, German: CLEAR translated), one
+# model file per language.
 # z = standardized input indices @ component weights (mean 0, SD 1 in the
 # reference corpus); percentile = share of reference texts with a lower z.
 # ============================================================================

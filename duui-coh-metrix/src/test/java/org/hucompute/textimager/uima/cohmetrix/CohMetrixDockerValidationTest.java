@@ -105,12 +105,12 @@ public class CohMetrixDockerValidationTest {
     );
 
     /**
-     * English Text Easability model (easability/pca.py), also baked into the
-     * image. The PC scores are recomputed from the component's own input
-     * indices; the public label suffix is the same for all languages.
+     * Text Easability models (easability/pca.py, text_easability_<language>.json),
+     * also baked into the image. The PC scores are recomputed from the
+     * component's own input indices; the public label suffix is the same for
+     * all languages, the internal one is the model's label_suffix.
      */
-    static final Path TEXT_EASABILITY_MODEL_EN =
-            Path.of("src/main/resources/easability/text_easability_en.json");
+    static final Path TEXT_EASABILITY_MODELS = Path.of("src/main/resources/easability");
     static final String TEXT_EASABILITY_SUFFIX = "_clear";
     static final double TEXT_EASABILITY_TOLERANCE = 1e-9;
 
@@ -354,14 +354,23 @@ public class CohMetrixDockerValidationTest {
 
     @Test
     void emptyDocumentHasNoNumericCohMetrixResults() throws Exception {
+        assertEmptyDocumentHasNoNumericResults("en");
+    }
+
+    @Test
+    void emptyGermanDocumentHasNoNumericCohMetrixResults() throws Exception {
+        assertEmptyDocumentHasNoNumericResults("de");
+    }
+
+    private static void assertEmptyDocumentHasNoNumericResults(String language) throws Exception {
         JCas cas = createValidationJCas();
-        cas.setDocumentLanguage("en");
+        cas.setDocumentLanguage(language);
         cas.setDocumentText("");
 
         ResultSnapshot result = run(cas);
         assertFalse(result.values().isEmpty(), "Docker component returned no indices");
         // the Text Easability components are computed from the other indices, so they are undefined as well
-        textEasabilityModel().getJSONArray("components").forEach(component -> {
+        textEasabilityModel(language).getJSONArray("components").forEach(component -> {
             for (String key : List.of("label_v3_z", "label_v3_p")) {
                 String label = ((JSONObject) component).getString(key);
                 assertTrue(result.values().containsKey(label + TEXT_EASABILITY_SUFFIX),
@@ -375,19 +384,35 @@ public class CohMetrixDockerValidationTest {
         });
     }
 
+    @TestFactory
+    Stream<DynamicNode> textEasabilityEnglish() {
+        return textEasability("en");
+    }
+
     /**
-     * Text Easability (PC*) on every English fixture, recomputed from the
-     * component's input indices and the model: an undefined input that is
+     * Without the GermaNet mount ({@value #GERMANET_PATH_PROPERTY}) the
+     * GermaNet inputs (polysemy, verb overlap) are undefined, so all German
+     * PC indices must be NaN.
+     */
+    @TestFactory
+    Stream<DynamicNode> textEasabilityGerman() {
+        return textEasability("de");
+    }
+
+    /**
+     * Text Easability (PC*) on every fixture of the language, recomputed from
+     * the component's input indices and the model: an undefined input that is
      * never undefined in the reference corpus makes all components NaN
      * (e.g. single sentence: no sentence pair); otherwise undefined inputs
      * count as the reference mean (standardized 0), z = standardized inputs
-     * times the weights, and the percentile is in [0, 100].
+     * times the weights, and the percentile is in [0, 100]. The internal label
+     * carries the model's suffix.
      */
-    @TestFactory
-    Stream<DynamicNode> textEasabilityEnglish() {
-        JSONObject model = textEasabilityModel();
+    private static Stream<DynamicNode> textEasability(String language) {
+        JSONObject model = textEasabilityModel(language);
+        String internalSuffix = model.getString("label_suffix");
         return cases.stream()
-                .filter(testCase -> testCase.suite().endsWith("_en"))
+                .filter(testCase -> testCase.suite().endsWith("_" + language))
                 .map(testCase -> DynamicTest.dynamicTest(testCase.displayName(), () -> {
                     ResultSnapshot result = resultFor(testCase);
 
@@ -412,6 +437,9 @@ public class CohMetrixDockerValidationTest {
                         String pLabel = component.getString("label_v3_p") + TEXT_EASABILITY_SUFFIX;
                         double z = requireCleanResult(result, zLabel);
                         double p = requireCleanResult(result, pLabel);
+                        String internal = component.getString("label_v3_z") + internalSuffix;
+                        assertTrue(result.values().containsKey(internal),
+                                () -> "Docker output has no internal label " + internal);
                         if (!defined) {
                             assertTrue(Double.isNaN(z), () -> zLabel + " has an undefined input and must be NaN, but was " + z);
                             assertTrue(Double.isNaN(p), () -> pLabel + " has an undefined input and must be NaN, but was " + p);
@@ -681,11 +709,12 @@ public class CohMetrixDockerValidationTest {
         return actual;
     }
 
-    private static JSONObject textEasabilityModel() {
+    private static JSONObject textEasabilityModel(String language) {
+        Path path = TEXT_EASABILITY_MODELS.resolve("text_easability_" + language + ".json");
         try {
-            return new JSONObject(Files.readString(TEXT_EASABILITY_MODEL_EN, StandardCharsets.UTF_8));
+            return new JSONObject(Files.readString(path, StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new IllegalStateException("Could not read " + TEXT_EASABILITY_MODEL_EN, e);
+            throw new IllegalStateException("Could not read " + path, e);
         }
     }
 
