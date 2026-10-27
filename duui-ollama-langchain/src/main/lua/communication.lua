@@ -93,6 +93,15 @@ function deserialize(inputCas, inputStream)
             llm_anno:setPrompt(prompt_anno)
             local msg_anno = inputCas:getLowLevelCas():ll_getFSForRef(llm_result["message_ref"])
             llm_anno:setMessage(msg_anno)
+            -- the reasoning, only if one was returned (requested via "reasoning": true in llm_args);
+            -- set through the generic feature API and only if the feature exists, so a caller whose
+            -- JCas class / type system predates the "thinking" feature keeps working unchanged
+            if llm_result["thinking"] ~= nil then
+                local thinking_feature = llm_anno:getType():getFeatureByBaseName("thinking")
+                if thinking_feature ~= nil then
+                    llm_anno:setStringValue(thinking_feature, llm_result["thinking"])
+                end
+            end
             llm_anno:addToIndexes()
 
             local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)

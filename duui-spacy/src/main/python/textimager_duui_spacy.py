@@ -1,3 +1,4 @@
+import duui_logging
 import logging
 from functools import lru_cache
 from platform import python_version
@@ -7,7 +8,6 @@ from time import time
 from typing import List, Optional, Union, Tuple
 from urllib.parse import urlparse
 
-import benepar
 import spacy
 from cassis import load_typesystem
 from cassis.cas import Utf16CodepointOffsetConverter
@@ -97,8 +97,8 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings
 # benepar models
 # TODO configurable
 BENEPAR_MODELS = {
-    "en": "benepar_en3",
-    "de": "benepar_de2",
+    # "en": "benepar_en3",
+    # "de": "benepar_de2",
 }
 
 # spaCy models
@@ -114,7 +114,7 @@ SPACY_MODELS = {
         # "nl": "nl_core_news_sm",    # Dutch
         "en": "en_core_web_sm",     # English
         # "fi": "fi_core_news_sm",    # Finnish
-        "fr": "fr_core_news_sm",    # French
+        # "fr": "fr_core_news_sm",    # French
         "de": "de_core_news_sm",    # German
         # "el": "el_core_news_sm",    # Greek
         # "it": "it_core_news_sm",    # Italian
@@ -131,7 +131,7 @@ SPACY_MODELS = {
         # "es": "es_core_news_sm",    # Spanish
         # "sv": "sv_core_news_sm",    # Swedish
         # "uk": "uk_core_news_sm",    # Ukrainian
-        # "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
     "accuracy": {
         # "ca": "ca_core_news_trf",
@@ -141,7 +141,7 @@ SPACY_MODELS = {
         # "nl": "nl_core_news_lg",
         "en": "en_core_web_trf",
         # "fi": "fi_core_news_lg",
-        "fr": "fr_dep_news_trf",
+        # "fr": "fr_dep_news_trf",
         "de": "de_dep_news_trf",
         # "el": "el_core_news_lg",
         # "it": "it_core_news_lg",
@@ -158,7 +158,13 @@ SPACY_MODELS = {
         # "es": "es_dep_news_trf",
         # "sv": "sv_core_news_lg",
         # "uk": "uk_core_news_trf",
-        # "xx": "xx_ent_wiki_sm",
+        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+    },
+    "large": {
+        "en": "en_core_web_lg",
+        "de": "de_core_news_lg",
+        # "fr": "fr_core_news_lg",
+        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     }
 }
 
@@ -439,6 +445,8 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
 
     logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
     if use_benepar:
+        # imported lazily, as benepar is not installed in the single model images
+        import benepar
         # TODO check for model availability
         bnepar_model = BENEPAR_MODELS[model_lang]
         logger.info("benepar model: %s (based on lang %s)", bnepar_model, model_lang)
@@ -513,6 +521,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 
 # Return Lua communication script

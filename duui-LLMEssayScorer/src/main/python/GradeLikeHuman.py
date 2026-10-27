@@ -1,3 +1,4 @@
+from duui_logging import log_error
 from EssayScorer import OpenAIProcessing
 import json
 import json_repair
@@ -31,7 +32,7 @@ class GradingLikeHumanScorer:
             output_extraction["Scoring"] =  {"score": scoring_score, "confidence": scoring_confidence}
             output_extraction["Reflection"] =  {"score": reflection_score, "confidence": reflection_confidence}
         except Exception as e:
-            print(f"Error: {e}")
+            log_error(f"Error parsing extraction output: {e}")
             output_extraction["Scoring"] = {"score": -1, "confidence": "N/A"}
             output_extraction["Reflection"] = {"score": -1, "confidence": "N/A"}
         output_messages = {

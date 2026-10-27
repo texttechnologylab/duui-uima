@@ -1,3 +1,7 @@
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
+
 from typing import List, Dict
 from pydantic import BaseModel
 
@@ -16,8 +20,7 @@ class SentimentSentence(BaseModel):
 
     # Info from GerVADER:
     # The 'pos', 'neu', and 'neg' scores are ratios for proportions of text that fall in each category (so these
-    # should all add up to be 1... or close to it with float operation).  These are the most useful metrics if
-    # you want multidimensional measures of sentiment for a given sentence.
+    # should all add up to be 1... or close to it with float operation).  These are the most useful metrics if you want multidimensional measures of sentiment for a given sentence.
     pos: float
     neu: float
     neg: float

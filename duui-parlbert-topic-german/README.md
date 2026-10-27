@@ -8,7 +8,7 @@ For using parlbert-topic-german as a DUUI image it is necessary to use the [Dock
 
 To use this parser, you can add the docker image like this as a DUUI Component.
 ```java
-composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/parlbert-topic-german:latest")
+composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-parlbert-topic-german:latest")
         .withScale(iWorkers)
         .build());
 ```
@@ -21,12 +21,12 @@ You can find a complete example in src/test/java/ParlbertTopicGermanTest.java
 
 ## Use as Stand-Alone-Image
 ```
-docker run docker.texttechnologylab.org/parlbert-topic-german:latest
+docker run docker.texttechnologylab.org/duui-parlbert-topic-german:latest
 ```
 
 ## Run with a specific port
 ```
-docker run -p 1000:9714 docker.texttechnologylab.org/parlbert-topic-german:latest
+docker run -p 1000:9714 docker.texttechnologylab.org/duui-parlbert-topic-german:latest
 ```
 
 
@@ -39,17 +39,21 @@ A. Leonhardt, G. Abrami, D. Baumartz, and A. Mehler, “Unlocking the Heterogene
 # BibTeX
 ```
 @inproceedings{Leonhardt:et:al:2023,
-  title = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
-  author = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel and Mehler, Alexander},
-  year = {2023},
+  title     = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
+  author    = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel
+               and Mehler, Alexander},
+  editor    = {Bouamor, Houda and Pino, Juan and Bali, Kalika},
   booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year      = {2023},
+  address   = {Singapore},
   publisher = {Association for Computational Linguistics},
-  pages = {1--15},
-  note = {accepted}
+  url       = {https://aclanthology.org/2023.findings-emnlp.29},
+  pages     = {385--399},
+  pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 
 @misc{Klebe:2022,
-  author         = {Klebe, Max},
+  author         = {Klebe, Max and Abrami, Giuseppe and Mehler, Alexander},
   title          = {DUUI-Component for parlbert-topic-german},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/edit/main/duui-parlbert-topic-german}

@@ -1,8 +1,9 @@
-fastapi==0.139.0
+fastapi==0.141.1
 uvicorn==0.50.2
 pydantic==2.13.4
 pydantic-settings==2.14.2
 dkpro-cassis==0.11.1
+duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger
 psycopg2-binary==2.9.10
 pgvector==0.3.6
 numpy==2.5.1

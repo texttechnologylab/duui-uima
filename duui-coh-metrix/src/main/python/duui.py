@@ -3,6 +3,7 @@ import logging
 import pyphen
 import textstat
 import math
+import duui_logging
 
 from platform import python_version
 from sys import version as sys_version
@@ -24,6 +25,7 @@ from germanetpy.germanet import Germanet
 from germanetpy.synset import WordCategory
 from pathlib import Path
 from functools import lru_cache
+from contextvars import ContextVar
 
 import numpy as np
 
@@ -41,8 +43,20 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-logging.basicConfig(level=settings.log_level)
+_configured_log_level_name = (settings.log_level or "INFO").strip().upper()
+_configured_log_level = getattr(logging, _configured_log_level_name, logging.INFO)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(_configured_log_level)
+logger.propagate = True
+logger.handlers.clear()
+
+duui_logging.install(
+    level=_configured_log_level,
+    capture_warnings=True,
+    keep_stderr=True,
+)
+
 logger.info("TTLab TextImager DUUI Coh-Metrix")
 logger.info("Name: %s", settings.annotator_name)
 logger.info("Version: %s", settings.annotator_version)
@@ -130,6 +144,19 @@ class DocumentModification(BaseModel):
     comment: str
 
 
+# Index labels. Every index carries three names:
+#   label_v3     the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g. LSASS1
+#   label_v2     the Coh-Metrix 2.x label, e.g. LSAassa; None for indices that are not part of Coh-Metrix
+#   label_ttlab  the technical TTLab name: the v3 label plus the resource that replaces the original one
+#                (_spacy, _germanet, _gptlist, _wiki10000, _mrctranslate, _textstat, _wikipedia, ...), e.g. LSASS1_spacy
+# Only label_ttlab is unique (WRDFRQc / WRDFRQa / WRDFRQmc and RDL2 occur twice under their v3 label, with the same index
+# number), so it is the key for storing and joining results. A display name for tables and figures can be derived as:
+#   1. the index has a v3 label used once: the v3 label                      LSASS1_spacy      -> LSASS1
+#   2. the v3 label belongs to two indices: the v3 label and the variant     WRDFRQc           -> WRDFRQc · CELEX
+#      (the part of label_ttlab after the v3 label; CELEX where there is      WRDFRQc_wiki10000 -> WRDFRQc · wiki10000
+#      none)                                                                  RDL2_synstrutt    -> RDL2 · synstrutt
+#   3. the index has no v3 label (the textstat additions 1001-1011): label_ttlab without the suffix   RDFOG_textstat -> RDFOG
+# with label_ttlab shown beside it as the secondary name wherever the two differ.
 class Index(BaseModel):
     index: int
     type_name: str
@@ -144,7 +171,6 @@ class Index(BaseModel):
     @validator('value')
     def value_must_be_finite(cls, v):
         if v is not None and (math.isinf(v) or math.isnan(v)):
-            print("Validating value:", v)
             return None
         return v
 
@@ -263,6 +289,8 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+duui_logging.add_logging(app, default_logger=__name__)
 
 
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
@@ -441,14 +469,20 @@ def _syllables_count(tokens: List[Token], lang: str) -> List[int]:
 def cm_deswlsy(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, mean
     # FV1 fix: exclude punctuation to keep consistency
-    return np.mean(_syllables_count(tokens, lang))
+    syllable_counts = _syllables_count(tokens, lang)
+    if not syllable_counts:
+        return None
+    return np.mean(syllable_counts)
 
 # LAY: How uneven is the syllable count across words?
 # ↑ Higher = mix of short and long words. Reliable.
 def cm_deswlsyd(tokens: List[Token], lang: str) -> Optional[float]:
     # Word length, number of syllables, standard deviation
     # FV1 fix: exclude punctuation to keep consistency
-    return np.std(_syllables_count(tokens, lang))
+    syllable_counts = _syllables_count(tokens, lang)
+    if not syllable_counts:
+        return None
+    return np.std(syllable_counts)
 
 # LAY: On average, how many letters per word?
 # ↑ Higher = longer words. Reliable.
@@ -461,6 +495,8 @@ def cm_deswllt(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
+    if not text_letters:
+        return None
     return np.mean(text_letters)
 
 # LAY: How uneven is the letter count across words?
@@ -474,6 +510,8 @@ def cm_deswlltd(paragraphs: List[Paragraph]) -> Optional[float]:
             for t in s.tokens:
                 if not t.is_punct:
                     text_letters.append(len(''.join(c for c in t.text if c.isalpha())))
+    if not text_letters:
+        return None
     return np.std(text_letters)
 
 ud_noun_pos = {"NOUN", "PROPN"}
@@ -487,52 +525,65 @@ ud_content_pos = {"NOUN","PROPN", "VERB", "ADJ", "ADV"}
 # including pronouns and proper nouns.
 ud_stem_content_pos = {"NOUN","PROPN","VERB","ADJ","ADV","PRON",}
 
+# speed: the overlap indices over all sentence pairs (CRF*a) recomputed each sentence's annotation check
+# and word sets once per pair (1.4 million pairs on a page of 1,668 sentences). They are now computed once per sentence and request,
+# with the same expressions as before. The entry keeps the sentence itself, so a reused id() cannot hit.
+#
+# One cache per request. A single module-level dict, cleared at the start of each request, was shared by concurrent requests:
+# uvicorn runs one process (Dockerfile: --workers 1), but post_process is a plain `def`, so FastAPI runs every request in its
+# thread pool, and DUUI sends documents in parallel (withWorkers(n) on one container). With one shared dict:
+#   1. values stay correct: the key is id(sentence) and the entry holds the sentence object, so its id cannot be reused by another
+#      request's sentence while the entry exists, and the features depend on that sentence only;
+#   2. no crash: single dict operations are atomic under the GIL (and locked internally in free-threaded Python);
+#   3. lost speed: a request starting while another runs cleared that one's cache, which then recomputed the features; long
+#      documents, where the cache matters most, were the most likely to lose it;
+#   4. memory: the last request's sentences stayed referenced until the next request began.
+# Fix: the cache lives in a ContextVar. post_process sets a fresh dict at its start and resets the variable in `finally`, so every
+# request has its own cache (each runs in its own thread and context), no request clears another's, and the sentences are released
+# when the request ends. Outside a request (functions called directly) the features are computed without caching.
+_SENTENCE_FEATURES: ContextVar[Optional[Dict[int, Tuple[Any, dict]]]] = ContextVar("_SENTENCE_FEATURES", default=None)
+
+
+def _sentence_features(sentence: Sentence) -> dict:
+    cache = _SENTENCE_FEATURES.get()
+    hit = cache.get(id(sentence)) if cache is not None else None
+    if hit is not None and hit[0] is sentence:
+        return hit[1]
+    tokens = sentence.tokens
+    non_punct = _non_punct_tokens(sentence)
+    content_words = [t.text.lower() for t in tokens if t.pos_coarse in ud_stem_content_pos and t.is_alpha]
+    f = {
+        "pos_complete": _has_complete_pos_annotations(sentence),
+        "noun_texts": set([t.text for t in tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos]),
+        "noun_lemmas_usable": not any(t.pos_coarse in ud_noun_pos and not _has_usable_lemma(t) for t in non_punct),
+        "noun_lemmas": {t.lemma for t in tokens if t.pos_coarse in ud_noun_pos and t.lemma and t.lemma != "--"},
+        "pronouns": {t.text.lower() for t in tokens if t.pos_coarse in ud_pronouns_pos},
+        "content_lemmas_usable": not any(t.pos_coarse in ud_content_pos.union(ud_noun_pos) and not _has_usable_lemma(t)
+                                         for t in non_punct),
+        "stem_nouns": {t.lemma.lower() for t in tokens if t.pos_coarse in ud_noun_pos and t.lemma},
+        "stem_contents": {t.lemma.lower() for t in tokens if t.pos_coarse in ud_content_pos and t.lemma},
+        "content_words": content_words,
+        "content_word_set": set(content_words),
+    }
+    if cache is not None:
+        cache[id(sentence)] = (sentence, f)
+    return f
+
+
 def _noun_overlap(sentence_a: Sentence, sentence_b: Sentence) -> Optional[int]:
-    if not all(_has_complete_pos_annotations(sentence)
-               for sentence in (sentence_a, sentence_b)):
+    fa, fb = _sentence_features(sentence_a), _sentence_features(sentence_b)
+    if not (fa["pos_complete"] and fb["pos_complete"]):
         return None
-    nouns_a = set([t.text for t in sentence_a.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
-    nouns_b = set([t.text for t in sentence_b.tokens if t.pos_coarse and t.pos_coarse in ud_noun_pos])
-    return len(nouns_a.intersection(nouns_b))
+    return len(fa["noun_texts"].intersection(fb["noun_texts"]))
 
 def _argument_overlap(sentence_a: Sentence, sentence_b: Sentence) -> Optional[int]:
-    if not all(_has_complete_pos_annotations(sentence)
-               for sentence in (sentence_a, sentence_b)):
+    fa, fb = _sentence_features(sentence_a), _sentence_features(sentence_b)
+    if not (fa["pos_complete"] and fb["pos_complete"]):
         return None
-    if any(
-        token.pos_coarse in ud_noun_pos and not _has_usable_lemma(token)
-        for sentence in (sentence_a, sentence_b)
-        for token in _non_punct_tokens(sentence)
-    ):
+    if not (fa["noun_lemmas_usable"] and fb["noun_lemmas_usable"]):
         return None
-    nouns_a = {
-        t.lemma
-        for t in sentence_a.tokens
-        if t.pos_coarse in ud_noun_pos
-        and t.lemma
-        and t.lemma != "--"
-    }
-    nouns_b = {
-        t.lemma
-        for t in sentence_b.tokens
-        if t.pos_coarse in ud_noun_pos
-        and t.lemma
-        and t.lemma != "--"
-    }
-    noun_overlap = len(nouns_a.intersection(nouns_b))
-
-    pronouns_a = {
-        t.text.lower()
-        for t in sentence_a.tokens
-        if t.pos_coarse in ud_pronouns_pos
-    }
-
-    pronouns_b = {
-        t.text.lower()
-        for t in sentence_b.tokens
-        if t.pos_coarse in ud_pronouns_pos
-    }
-    pronoun_overlap = len(pronouns_a.intersection(pronouns_b))
+    noun_overlap = len(fa["noun_lemmas"].intersection(fb["noun_lemmas"]))
+    pronoun_overlap = len(fa["pronouns"].intersection(fb["pronouns"]))
 
     return noun_overlap + pronoun_overlap
 
@@ -543,48 +594,16 @@ def _stem_overlap(
     sentence_nouns: Sentence,
     sentence_contents: Sentence
 ) -> Optional[int]:
-    if not all(_has_complete_pos_annotations(sentence)
-               for sentence in (sentence_nouns, sentence_contents)):
+    fn, fc = _sentence_features(sentence_nouns), _sentence_features(sentence_contents)
+    if not (fn["pos_complete"] and fc["pos_complete"]):
         return None
-    if any(
-        token.pos_coarse in ud_content_pos.union(ud_noun_pos)
-        and not _has_usable_lemma(token)
-        for sentence in (sentence_nouns, sentence_contents)
-        for token in _non_punct_tokens(sentence)
-    ):
+    if not (fn["content_lemmas_usable"] and fc["content_lemmas_usable"]):
         return None
-    nouns = {
-        token.lemma.lower()
-        for token in sentence_nouns.tokens
-        if token.pos_coarse in ud_noun_pos
-        and token.lemma
-    }
-
-    content_words = {
-        token.lemma.lower()
-        for token in sentence_contents.tokens
-        if token.pos_coarse in ud_content_pos
-        and token.lemma
-    }
-
     noun_content_overlap = len(
-        nouns.intersection(content_words)
+        fn["stem_nouns"].intersection(fc["stem_contents"])
     )
-
-    pronouns_a = {
-        token.text.lower()
-        for token in sentence_nouns.tokens
-        if token.pos_coarse in ud_pronouns_pos
-    }
-
-    pronouns_b = {
-        token.text.lower()
-        for token in sentence_contents.tokens
-        if token.pos_coarse in ud_pronouns_pos
-    }
-
     pronoun_overlap = len(
-        pronouns_a.intersection(pronouns_b)
+        fn["pronouns"].intersection(fc["pronouns"])
     )
 
     return noun_content_overlap + pronoun_overlap
@@ -595,22 +614,11 @@ def _word_overlap(
     current_sentence: Sentence,
     previous_sentence: Sentence
 ) -> Optional[float]:
-    if not all(_has_complete_pos_annotations(sentence)
-               for sentence in (current_sentence, previous_sentence)):
+    fc, fp = _sentence_features(current_sentence), _sentence_features(previous_sentence)
+    if not (fc["pos_complete"] and fp["pos_complete"]):
         return None
-    current_content_words = [
-        token.text.lower()
-        for token in current_sentence.tokens
-        if token.pos_coarse in ud_stem_content_pos
-        and token.is_alpha
-    ]
-
-    previous_content_words = {
-        token.text.lower()
-        for token in previous_sentence.tokens
-        if token.pos_coarse in ud_stem_content_pos
-        and token.is_alpha
-    }
+    current_content_words = fc["content_words"]
+    previous_content_words = fp["content_word_set"]
 
     if not current_content_words:
         return None
@@ -623,6 +631,59 @@ def _word_overlap(
     # FV3 Fix: Normalize overlap by the number of content words in the
     # current sentence instead of using the union of both sentences.
     return overlap / len(current_content_words)
+
+# speed: the indices over all sentence pairs (CRFNOa, CRFAOa, CRFSOa, CRFCWOa, CRFCWOad) computed
+# as sparse products of sentence x word matrices, one earlier sentence a at a time against all sentences b, so the values come in
+# the order of the original loops (a outer, b > a inner). A pair counts under the same checks as in _noun_overlap,
+# _argument_overlap, _stem_overlap and _word_overlap; the overlaps are exact counts (sums of 1.0), and the word-overlap share is
+# the same division.
+def _word_matrices(families: List[List[Any]], counts: List[bool]):
+    """one sparse sentence x word matrix per family of per-sentence word collections, over one shared vocabulary; an entry is 1.0
+    per distinct word, or (counts=True) the number of times the word occurs"""
+    from collections import Counter
+    from scipy.sparse import csr_matrix
+    vocab: Dict[str, int] = {}
+    parts = []
+    for family, count in zip(families, counts):
+        indptr, idx, data = [0], [], []
+        for words in family:
+            items = Counter(words).items() if count else ((w, 1) for w in set(words))
+            for w, k in items:
+                idx.append(vocab.setdefault(w, len(vocab)))
+                data.append(float(k))
+            indptr.append(len(idx))
+        parts.append((data, idx, indptr))
+    shape = (len(families[0]), max(1, len(vocab)))
+    return [csr_matrix((np.asarray(d, dtype=np.float64), np.asarray(i, dtype=np.int64), np.asarray(p, dtype=np.int64)), shape=shape)
+            for d, i, p in parts]
+
+
+def _pair_rows(earlier, later, block: int = 256):
+    """for every sentence a, in order: the dense vector over all sentences b of earlier[a] . later[b]"""
+    later_t = later.T.tocsc()
+    for a0 in range(0, earlier.shape[0], block):
+        products = (earlier[a0:a0 + block] @ later_t).toarray()
+        for k in range(products.shape[0]):
+            yield a0 + k, products[k]
+
+
+def _joined(parts: list):
+    return np.concatenate(parts) if parts else np.array([])
+
+
+def _word_overlap_all_pairs(sentences: List[Sentence]):
+    """_word_overlap(current b, previous a) for all pairs a < b, in loop order, without the pairs it returns None for"""
+    feats = [_sentence_features(s) for s in sentences]
+    ok = np.array([f["pos_complete"] for f in feats], dtype=bool)
+    n_words = np.array([len(f["content_words"]) for f in feats], dtype=np.float64)
+    keep = ok & (n_words > 0)
+    previous, current = _word_matrices([[f["content_word_set"] for f in feats], [f["content_words"] for f in feats]], [False, True])
+    values = []
+    for a, row in _pair_rows(previous, current):
+        if ok[a]:
+            sel = keep[a + 1:]
+            values.append(row[a + 1:][sel] / n_words[a + 1:][sel])
+    return _joined(values)
 
 # ============================================================================
 # REFERENTIAL COHESION (CRF*) — "Do sentences keep talking about the same things?"
@@ -643,23 +704,30 @@ def cm_crfno1(sentences: List[Sentence]) -> Optional[float]:
         noun_overlap = _noun_overlap(current_sentence, previous_sentence)
         if noun_overlap is not None:
             noun_overlap_per_sentence.append(min(1, noun_overlap))
-    return np.mean(noun_overlap_per_sentence)
+    return (
+        np.mean(noun_overlap_per_sentence)
+        if noun_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do any two sentences in the text share at least one noun?
 # ↑ Higher = noun recurrence across the whole text. Reliable.
 def cm_crfnoa(sentences: List[Sentence]) -> Optional[float]:
     # Noun overlap, all sentences, binary, mean
+    # speed: _noun_overlap for all pairs a < b at once (see _pair_rows)
+    feats = [_sentence_features(s) for s in sentences]
+    ok = np.array([f["pos_complete"] for f in feats], dtype=bool)
+    (nouns,) = _word_matrices([[f["noun_texts"] for f in feats]], [False])
     noun_overlap_per_sentence = []
-    for sinda in range(len(sentences)):
-        for sindb in range(len(sentences)):
-            if sindb <= sinda:
-                continue
-            sentence_a = sentences[sinda]
-            sentence_b = sentences[sindb]
-            noun_overlap = _noun_overlap(sentence_a, sentence_b)
-            if noun_overlap is not None:
-                noun_overlap_per_sentence.append(min(1, noun_overlap))
-    return np.mean(noun_overlap_per_sentence)
+    for a, row in _pair_rows(nouns, nouns):
+        if ok[a]:
+            noun_overlap_per_sentence.append(np.minimum(1, row[a + 1:][ok[a + 1:]]))
+    noun_overlap_per_sentence = _joined(noun_overlap_per_sentence)
+    return (
+        np.mean(noun_overlap_per_sentence)
+        if noun_overlap_per_sentence.size
+        else None
+    )
 
 # LAY: Do adjacent sentences share a noun or pronoun (an "argument")?
 # ↑ Higher = same entities referred to across neighbours. Reliable.
@@ -674,23 +742,30 @@ def cm_crfao1(sentences: List[Sentence]) -> Optional[float]:
         argument_overlap = _argument_overlap(current_sentence, previous_sentence)
         if argument_overlap is not None:
             argument_overlap_per_sentence.append(min(1, argument_overlap))
-    return np.mean(argument_overlap_per_sentence)
+    return (
+        np.mean(argument_overlap_per_sentence)
+        if argument_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do any two sentences share a noun or pronoun?
 # ↑ Higher = entity recurrence throughout text. Reliable.
 def cm_crfaoa(sentences: List[Sentence]) -> Optional[float]:
     # Argument overlap, all sentences, binary, mean
+    # speed: _argument_overlap for all pairs a < b at once (see _pair_rows)
+    feats = [_sentence_features(s) for s in sentences]
+    ok = np.array([f["pos_complete"] and f["noun_lemmas_usable"] for f in feats], dtype=bool)
+    lemmas, pronouns = _word_matrices([[f["noun_lemmas"] for f in feats], [f["pronouns"] for f in feats]], [False, False])
     argument_overlap_per_sentence = []
-    for sinda in range(len(sentences)):
-        for sindb in range(len(sentences)):
-            if sindb <= sinda:
-                continue
-            sentence_a = sentences[sinda]
-            sentence_b = sentences[sindb]
-            argument_overlap = _argument_overlap(sentence_a, sentence_b)
-            if argument_overlap is not None:
-                argument_overlap_per_sentence.append(min(1, argument_overlap))
-    return np.mean(argument_overlap_per_sentence)
+    for (a, row_l), (_, row_p) in zip(_pair_rows(lemmas, lemmas), _pair_rows(pronouns, pronouns)):
+        if ok[a]:
+            argument_overlap_per_sentence.append(np.minimum(1, (row_l + row_p)[a + 1:][ok[a + 1:]]))
+    argument_overlap_per_sentence = _joined(argument_overlap_per_sentence)
+    return (
+        np.mean(argument_overlap_per_sentence)
+        if argument_overlap_per_sentence.size
+        else None
+    )
 
 # LAY: Do adjacent sentences share a word stem (e.g. "running"/"runs")?
 # ↑ Higher = same word families recur. Reliable.
@@ -705,7 +780,11 @@ def cm_crfso1(sentences: List[Sentence]) -> Optional[float]:
         stem_overlap = _stem_overlap(current_sentence, previous_sentence)
         if stem_overlap is not None:
             stem_overlap_per_sentence.append(min(1, stem_overlap))
-    return np.mean(stem_overlap_per_sentence)
+    return (
+        np.mean(stem_overlap_per_sentence)
+        if stem_overlap_per_sentence
+        else None
+    )
 
 # LAY: Do any two sentences share a word stem?
 # ↑ Higher = word-family recurrence throughout text. Reliable.
@@ -713,17 +792,22 @@ def cm_crfso1(sentences: List[Sentence]) -> Optional[float]:
 # compare each later sentence against each earlier sentence.
 def cm_crfsoa(sentences: List[Sentence]) -> Optional[float]:
     # Stem overlap, all sentences, binary, mean
+    # speed: _stem_overlap(current b, previous a) for all pairs a < b at once (see _pair_rows): the noun lemmas of
+    # the later sentence against the content lemmas of the earlier one, plus the shared pronouns
+    feats = [_sentence_features(s) for s in sentences]
+    ok = np.array([f["pos_complete"] and f["content_lemmas_usable"] for f in feats], dtype=bool)
+    contents, nouns, pronouns = _word_matrices([[f["stem_contents"] for f in feats], [f["stem_nouns"] for f in feats],
+                                                [f["pronouns"] for f in feats]], [False, False, False])
     stem_overlap_per_sentence = []
-    for sinda in range(len(sentences)):
-        for sindb in range(len(sentences)):
-            if sindb <= sinda:
-                continue
-            previous_sentence = sentences[sinda]
-            current_sentence = sentences[sindb]
-            stem_overlap = _stem_overlap(current_sentence,previous_sentence)
-            if stem_overlap is not None:
-                stem_overlap_per_sentence.append(min(1, stem_overlap))
-    return np.mean(stem_overlap_per_sentence)
+    for (a, row_s), (_, row_p) in zip(_pair_rows(contents, nouns), _pair_rows(pronouns, pronouns)):
+        if ok[a]:
+            stem_overlap_per_sentence.append(np.minimum(1, (row_s + row_p)[a + 1:][ok[a + 1:]]))
+    stem_overlap_per_sentence = _joined(stem_overlap_per_sentence)
+    return (
+        np.mean(stem_overlap_per_sentence)
+        if stem_overlap_per_sentence.size
+        else None
+    )
 
 # LAY: What share of content words is shared between adjacent sentences? (mean)
 # ↑ Higher = tighter local cohesion. Reliable.
@@ -768,22 +852,10 @@ def cm_crfcwo1d(sentences: List[Sentence]) -> Optional[float]:
 # FV3 Fix: Apply the same temporal direction as local CRFCWO:
 # compare each later sentence against each earlier sentence.
 def cm_crfcwoa(sentences: List[Sentence]) -> Optional[float]:
-    word_overlap_per_sentence = []
-    for sinda in range(len(sentences)):
-        for sindb in range(len(sentences)):
-            if sindb <= sinda:
-                continue
-            previous_sentence = sentences[sinda]
-            current_sentence = sentences[sindb]
-            word_overlap = _word_overlap(
-                current_sentence,
-                previous_sentence
-            )
-            if word_overlap is not None:
-                word_overlap_per_sentence.append(word_overlap)
+    word_overlap_per_sentence = _word_overlap_all_pairs(sentences)
     return (
         np.mean(word_overlap_per_sentence)
-        if word_overlap_per_sentence
+        if word_overlap_per_sentence.size
         else np.nan
     )
 
@@ -792,22 +864,10 @@ def cm_crfcwoa(sentences: List[Sentence]) -> Optional[float]:
 # FV3 Fix: Apply the same temporal direction as local CRFCWO:
 # compare each later sentence against each earlier sentence.
 def cm_crfcwoad(sentences: List[Sentence]) -> Optional[float]:
-    word_overlap_per_sentence = []
-    for sinda in range(len(sentences)):
-        for sindb in range(len(sentences)):
-            if sindb <= sinda:
-                continue
-            previous_sentence = sentences[sinda]
-            current_sentence = sentences[sindb]
-            word_overlap = _word_overlap(
-                current_sentence,
-                previous_sentence
-            )
-            if word_overlap is not None:
-                word_overlap_per_sentence.append(word_overlap)
+    word_overlap_per_sentence = _word_overlap_all_pairs(sentences)
     return (
         np.std(word_overlap_per_sentence)
-        if word_overlap_per_sentence
+        if word_overlap_per_sentence.size
         else np.nan
     )
 
@@ -862,7 +922,13 @@ def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
     if not tokens_alpha:
         return None
     lex = LexicalRichness(tokens_alpha, preprocessor=None, tokenizer=None)
-    return lex.vocd()
+    # lexicalrichness 0.5.1 samples 50 tokens by default and requires the
+    # document to contain strictly more tokens than the requested sample.
+    # Insufficient input is an undefined index, not a calculation error.
+    vocd_sample_tokens = 50
+    if lex.words <= vocd_sample_tokens:
+        return None
+    return lex.vocd(ntokens=vocd_sample_tokens)
 
 # ============================================================================
 # SYNTACTIC COMPLEXITY (SYN*) — "How complex and consistent is sentence structure?"
@@ -2931,7 +2997,10 @@ def _safe_cosine_similarity(vector_a, vector_b) -> Optional[float]:
     if norm_a == 0 or norm_b == 0:
         return None
 
-    similarity = cosine_similarity([vector_a], [vector_b])[0][0]
+    # speed: sklearn's cosine_similarity (row-normalise, then dot) without its per-call input validation (~1 ms per pair)
+    a = np.asarray(vector_a, dtype=np.float64)
+    b = np.asarray(vector_b, dtype=np.float64)
+    similarity = np.dot(a / np.sqrt(np.dot(a, a)), b / np.sqrt(np.dot(b, b)))
 
     return float(similarity) if np.isfinite(similarity) else None
 
@@ -3017,15 +3086,30 @@ def _project_onto_hyperplane(v, basis):
     return projection, perpendicular
 
 def _lsa_given_new_for_vectors(vectors):
+    # speed: _project_onto_hyperplane took the SVD of all preceding vectors at every sentence (a d x i
+    # matrix, so quadratic work over a text). The left singular vectors and singular values of [v_0 .. v_{i-1}] are those of
+    # [U S | v_{i-1}] with U, S from the step before (the same B B^T), a d x (d + 1) matrix at most; all singular directions are
+    # carried on, and the rank cut-off is the original's (max(d, i) * eps * largest singular value).
     results = []
+    carried = None
     for i in range(len(vectors)):
         current_vec = vectors[i]
         if i == 0:
             G = 0
             N = np.linalg.norm(current_vec)
         else:
-            basis = vectors[:i]
-            p, perp = _project_onto_hyperplane(current_vec, basis)
+            previous = np.asarray(vectors[i - 1], dtype=float)[:, None]
+            stacked = previous if carried is None else np.hstack([carried, previous])
+            U, singular_values, _ = np.linalg.svd(stacked, full_matrices=False)
+            carried = U * singular_values
+            tolerance = max(len(current_vec), i) * np.finfo(singular_values.dtype).eps * singular_values[0]
+            rank = np.sum(singular_values > tolerance)
+            if rank == 0:
+                p, perp = np.zeros_like(current_vec), current_vec
+            else:
+                Q = U[:, :rank]
+                p = Q @ (Q.T @ current_vec)
+                perp = current_vec - p
             G = np.linalg.norm(p)
             N = np.linalg.norm(perp)
         given_new_ratio = G / (G + N) if (G + N) > 0 else np.nan
@@ -3150,16 +3234,22 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
             adj_sent_sim.append(similarity)
 
     # --- LSA similarity between all usable sentence pairs in paragraphs ---
+    # speed: _safe_cosine_similarity for all pairs i < j of a paragraph at once, in loop order
     all_sent_pairs_sim = []
     for paragraph in sentence_vectors_transformed_by_paragraph:
-        for first_index in range(len(paragraph)):
-            for second_index in range(first_index + 1, len(paragraph)):
-                similarity = _safe_cosine_similarity(
-                    paragraph[first_index],
-                    paragraph[second_index]
-                )
-                if similarity is not None:
-                    all_sent_pairs_sim.append(similarity)
+        usable = [
+            np.asarray(vector, dtype=np.float64)
+            for vector in paragraph
+            if vector is not None and np.linalg.norm(vector) != 0
+        ]
+        if len(usable) < 2:
+            continue
+        matrix = np.vstack(usable)
+        matrix = matrix / np.sqrt(np.einsum("ij,ij->i", matrix, matrix))[:, None]
+        for first_index in range(len(usable) - 1):
+            similarities = matrix[first_index + 1:] @ matrix[first_index]
+            all_sent_pairs_sim.append(similarities[np.isfinite(similarities)])
+    all_sent_pairs_sim = _joined(all_sent_pairs_sim)
 
     # --- LSA similarity between adjacent original paragraphs ---
     adj_para_sim = []
@@ -4788,7 +4878,8 @@ def get_SMCAUSwn(poses: List[List[str]], word_lemma: List[List[str]], lang: str)
         return None
 
     if lang == "de" and germanet is None:
-        logger.warning("GermaNet not available")
+        # Missing GermaNet is a documented availability condition. Returning
+        # None is the expected result and must not be logged as a failure.
         return None
 
     verbs_lemma = [
@@ -4921,6 +5012,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     meta = None
     modification_meta = None
 
+    sentence_features_token = _SENTENCE_FEATURES.set({})  # this request's own cache (see _sentence_features)
     try:
         # Normalize the language once so every metric family uses the same
         # language branch for inputs such as "DE" or " de ".
@@ -7445,6 +7537,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
     except Exception as ex:
         logger.exception(ex)
+    finally:
+        _SENTENCE_FEATURES.reset(sentence_features_token)  # release this request's sentences
 
     logger.debug(meta)
     logger.debug(modification_meta)

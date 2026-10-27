@@ -1,3 +1,4 @@
+from duui_logging import log_error
 from EssayScorer import OpenAIProcessing
 # Normaly filled with medical however this placeholder makes more flexible for other uses
 # Second Placeholder is for maximum points for grading
@@ -35,7 +36,7 @@ class GradingMedicalEducationScorer:
             grade = float(grade_text)
             reason = "Grade extracted successfully."
         except Exception as e:
-            print(f"Error parsing grade output: {e}")
+            log_error(f"Error parsing grade output: {e}")
             grade = -1
             reason = "Failed to parse grade from the model response."
         output_llm_grading["score"] = grade

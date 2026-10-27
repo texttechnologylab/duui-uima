@@ -1,3 +1,4 @@
+from duui_logging import log_error
 from EssayScorer import OpenAIProcessing
 import json
 # pormpt is from the Paper: https://arxiv.org/pdf/2501.14305
@@ -60,7 +61,7 @@ class AGGScore:
             output_llm_agg["score"] = json_dict.get("score")
             output_llm_agg["reason"] = json_dict.get("feedback")
         except Exception as e:
-            print(f"Error parsing JSON output: {e}")
+            log_error(f"Error parsing JSON output: {e}")
             output_llm_agg["json_output"] = None
             output_llm_agg["score"] = -1
             output_llm_agg["reason"] = "Failed to parse JSON output from the model response."

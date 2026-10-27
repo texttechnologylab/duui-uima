@@ -83,7 +83,7 @@ The redacted text is written to a secondary CAS view named `opf_redacted`.
 1. Available ready-to-use image can be found here (it's forced to use `opf_redacted` as output view):
 
    `docker pull docker.texttechnologylab.org/duui-anonymize`
-2. Available ready-to-use image can be found here (no forced taget view):
+2. Available ready-to-use image can be found here (no forced target view):
 
    `docker pull docker.texttechnologylab.org/duui-anonymize-open`
 
@@ -157,14 +157,26 @@ requirements.txt
 Text Technology Lab (TTLab), Goethe University Frankfurt
 [abusaleh@em.uni-frankfurt.de](mailto:abusaleh@em.uni-frankfurt.de) · [texttechnologylab.org](https://www.texttechnologylab.org)
 
+If you use this component, please cite it together with DUUI:
+
 ```bibtex
-@misc{abusaleh_duui_anonymize_2026,
-  author       = {Abusaleh, Ali},
-  title        = {{DUUI Anonymize}: PII Detection and Redaction Component for {DUUI}},
-  year         = {2026},
-  institution  = {Text Technology Lab, Goethe University Frankfurt},
-  howpublished = {\url{https://github.com/texttechnologylab/duui-uima}},
-  note         = {Part of the DockerUnifiedUIMAInterface (DUUI) component ecosystem}
+@misc{Abusaleh:et:al:2026:Anonymize,
+  author         = {Abusaleh, Ali and Mehler, Alexander},
+  title          = {PII Detection and Redaction as {DUUI} Component},
+  year           = {2026},
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-anonymize}
+}
+
+@inproceedings{Leonhardt:et:al:2023,
+  title     = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
+  author    = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel and Mehler, Alexander},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year      = {2023},
+  address   = {Singapore},
+  publisher = {Association for Computational Linguistics},
+  url       = {https://aclanthology.org/2023.findings-emnlp.29},
+  pages     = {385--399},
+  pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 ```
 

@@ -1,14 +1,10 @@
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=duui-transformers-emotion&message=0.2.0&color=blue&#41;]&#40;https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list&#41;)
-
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=Python&message=3.10&color=green&#41;]&#40;&#41;)
-
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=Transformers&message=4.41.2&color=yellow&#41;]&#40;&#41;)
-
-[//]: # ([![Version]&#40;https://img.shields.io/static/v1?label=Torch&message=2.3.0&color=red&#41;]&#40;&#41;)
+[![Version](https://img.shields.io/static/v1?label=duui-text-to-image&message=0.2.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-text-to-image/tags/list)
+[![Python](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
+[![Torch](https://img.shields.io/static/v1?label=Torch&message=2.6.0&color=red)]()
 
 # Text To Image
 
-DUUI implementation for selected Hugging-Face-based [Text-to-image](https://huggingface.co/models?pipeline_tag=text-to-image) models,
+DUUI implementation for selected Hugging-Face-based [Text-to-image](https://huggingface.co/models?pipeline_tag=text-to-image) models.
 
 | Name                                                  | Revision                                 | Languages |
 |-------------------------------------------------------|------------------------------------------|-----------|
@@ -16,6 +12,7 @@ DUUI implementation for selected Hugging-Face-based [Text-to-image](https://hugg
 | stabilityai/stable-diffusion-xl-base-1.0 | 462165984030d82259a11f4367a4eed129e94a7b | en        |
 | Shakker-Labs/Lumatales-FL                           | 8a07771494f995f4a39dd8afde023012195217a5 | en        |
 | RunDiffusion/Juggernaut-XL-v6           | 3c3746c9e41e5543cd01e5f56c024d381ad11c2c | en        |
+| hassanelmghari/shou_xin (LoRA on black-forest-labs/FLUX.1-dev) | a1551631da706873a17c15e0ed0d266d8522655d | en        |
 
 # How To Use
 
@@ -23,23 +20,21 @@ For using duui-text-to-image as a DUUI image it is necessary to use the [Docker 
 
 ## Start Docker container
 
-[//]: # (```)
+```
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-text-to-image:latest
+```
 
-[//]: # (docker run -p 9714:9714 docker.texttechnologylab.org/duui-transformers-emotion:latest)
-
-[//]: # (```)
-
-Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-transformers-emotion/tags/list
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-text-to-image/tags/list
 
 ## Run within DUUI
 
-```
+```java
 
 composer.add(
 
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-text-to-image:latest")
 
-        .withParameter("model_name", "OFA-Sys/small-stable-diffusion-v0 ")
+        .withParameter("model_name", "OFA-Sys/small-stable-diffusion-v0")
 
         .withParameter("selection", "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 
@@ -90,9 +85,9 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{abusaleh:2025,
-  author         = {Abusaleh, Ali},
-  title          = {Text-to-Image as {DUUI} component},
+@misc{Abusaleh:et:al:2025:TextToImage,
+  author         = {Abusaleh, Ali and Mehler, Alexander},
+  title          = {Text-to-Image as {DUUI} Component},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-text-to-image}
 }

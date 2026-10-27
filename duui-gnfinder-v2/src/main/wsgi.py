@@ -10,6 +10,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import UUID5, BaseModel, Field
 
+import logging
+import duui_logging
+from duui_logging import log_info, log_warn, log_error, log_debug
+
 GNFINDER_PATH: Final[Path] = Path(
     os.environ.get("GNFINDER_PATH", shutil.which("gnfinder"))
 )
@@ -53,6 +57,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 
 with open("communication_layer.lua", "r") as f:
@@ -239,7 +245,7 @@ class FinderResultData(BaseModel):
     curation: Annotated[
         str,
         Field(
-            description="A curation level for the record's data-source. If data-source is known to be curated, there is less risk of misspelling of the matched name."
+            description="A curation level for the record's data-sources. If data-source is known to be curated, there is less risk of misspelling of the matched name."
         ),
     ]
 

@@ -31,7 +31,12 @@ public class DUUICohMetrixTest {
         DUUIComposer composer = new DUUIComposer()
                 .withWorkers(1)
                 .withSkipVerification(true)
-                .withLuaContext(new DUUILuaContext().withJsonLibrary());
+                .withLuaContext(new DUUILuaContext().withJsonLibrary())
+                .withDebugLevel(DUUIComposer.DebugLevel.INFO)
+                .withComponentLogging(true)
+                .withDebugColorful(true)
+                .withDebugSeverity(true)
+                .withDebugSource(true);
 
         DUUIRemoteDriver remoteDriver = new DUUIRemoteDriver();
         composer.addDriver(remoteDriver);

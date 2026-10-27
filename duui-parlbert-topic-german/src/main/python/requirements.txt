@@ -1,9 +1,9 @@
-fastapi==0.66.0
-pydantic==1.8.2
-requests==2.25.1
+fastapi
+pydantic
+requests
 uvicorn
-transformers==5.5.0
-torch==2.13.0
-protobuf==4.24.2
-sentencepiece==0.1.99
-tokenizers==0.13.3
+transformers
+torch
+protobuf
+sentencepiece
+duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger
