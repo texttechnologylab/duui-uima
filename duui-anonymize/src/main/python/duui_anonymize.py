@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import gc
 import logging
 import json
-from functools import lru_cache
+import threading
+import time
+from collections import OrderedDict
 from typing import Any, List, Optional
 
 import torch
@@ -83,8 +86,13 @@ class DUUIDocumentation(BaseModel):
 
 class Settings(BaseSettings):
     duui_tool_name: str = "DUUI Anonymize"
-    duui_tool_version: str = "1.0"
+    duui_tool_version: str = "1.2"
     default_model: str = DEFAULT_MODEL
+    # Unload a model after it has not been used for this many seconds (env: MODEL_TTL_SECONDS).
+    # Tracked per model; 0 or less disables unloading.
+    model_ttl_seconds: int = 1800
+    # Maximum number of models kept loaded at once (env: MODEL_CACHE_SIZE).
+    model_cache_size: int = 2
 
 
 settings = Settings()
@@ -98,7 +106,7 @@ app = FastAPI(
     redoc_url=None,
     title="DUUI Anonymize",
     description="PII detection and redaction for TTLab DUUI using openai/privacy-filter",
-    version="1.0",
+    version="1.2",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "Ali Abusaleh",
@@ -186,17 +194,82 @@ async def post_process(raw_request: Request) -> DUUIResponse:
 # Business logic
 # ---------------------------------------------------------------------------
 
-@lru_cache(maxsize=4)
+class _PipelineCache:
+    """LRU cache of loaded pipelines that also unloads entries idle longer than ``ttl`` seconds."""
+
+    def __init__(self, ttl: int, maxsize: int) -> None:
+        self.ttl = ttl
+        self.maxsize = max(1, maxsize)
+        self._entries: OrderedDict[tuple, list] = OrderedDict()  # key -> [pipeline, last_used]
+        self._lock = threading.RLock()
+        self._sweeper: Optional[threading.Thread] = None
+
+    def get(self, key: tuple, loader):
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                entry = [loader(), 0.0]
+                self._entries[key] = entry
+                while len(self._entries) > self.maxsize:
+                    old_key, _ = self._entries.popitem(last=False)
+                    logger.info("Unloading pipeline (cache full): %s", old_key)
+                    self._release()
+                self._start_sweeper()
+            entry[1] = time.monotonic()
+            self._entries.move_to_end(key)
+            return entry[0]
+
+    def evict_expired(self) -> None:
+        if self.ttl <= 0:
+            return
+        now = time.monotonic()
+        with self._lock:
+            expired = [k for k, (_, last_used) in self._entries.items() if now - last_used > self.ttl]
+            for key in expired:
+                del self._entries[key]
+                logger.info("Unloading pipeline (idle > %ds): %s", self.ttl, key)
+            if expired:
+                self._release()
+
+    def _start_sweeper(self) -> None:
+        if self.ttl <= 0 or self._sweeper is not None:
+            return
+        interval = min(60, max(1, self.ttl // 2))
+
+        def run() -> None:
+            while True:
+                time.sleep(interval)
+                try:
+                    self.evict_expired()
+                except Exception:
+                    logger.exception("Pipeline TTL sweep failed")
+
+        self._sweeper = threading.Thread(target=run, name="pipeline-ttl-sweeper", daemon=True)
+        self._sweeper.start()
+
+    @staticmethod
+    def _release() -> None:
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+
+_pipelines = _PipelineCache(ttl=settings.model_ttl_seconds, maxsize=settings.model_cache_size)
+
+
 def _load_pipeline(model: str, device: str, trust_remote_code: bool = False):
-    dev = 0 if device == "cuda" else -1
-    logger.info("Loading pipeline: model=%s device=%s trust_remote_code=%s", model, device, trust_remote_code)
-    return hf_pipeline(
-        task="token-classification",
-        model=model,
-        aggregation_strategy="simple",
-        device=dev,
-        trust_remote_code=trust_remote_code,
-    )
+    def load():
+        dev = 0 if device == "cuda" else -1
+        logger.info("Loading pipeline: model=%s device=%s trust_remote_code=%s", model, device, trust_remote_code)
+        return hf_pipeline(
+            task="token-classification",
+            model=model,
+            aggregation_strategy="simple",
+            device=dev,
+            trust_remote_code=trust_remote_code,
+        )
+
+    return _pipelines.get((model, device, trust_remote_code), load)
 
 
 def _resolve_selection(options: dict[str, Any], text_length: int) -> Optional[tuple[int, int]]:

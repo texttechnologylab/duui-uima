@@ -68,6 +68,18 @@ The redacted text is written to a secondary CAS view named `opf_redacted`.
 
 ---
 
+## Service settings (environment variables)
+
+| Variable | Default | Description |
+|---|---|---|
+| `MODEL_TTL_SECONDS` | `1800` | Unload a loaded model after it has not been used for this many seconds (default 30 min). The timer is per model: each model is unloaded independently once it has been idle this long. The service keeps running and reloads the model on the next request. `0` disables unloading |
+| `MODEL_CACHE_SIZE` | `2` | Maximum number of models (per model/device combination) kept loaded at once; the least recently used one is unloaded when the limit is exceeded |
+| `DEFAULT_MODEL` | `openai/privacy-filter` | Model used when the request does not set `model` |
+
+Example: `docker run -e MODEL_TTL_SECONDS=600 -p 9714:9714 docker.texttechnologylab.org/duui-anonymize`
+
+---
+
 ## Modes
 
 | Mode | Effect on `redacted_text` |
@@ -104,6 +116,11 @@ CPU image:
 ```bash
 docker build -f src/main/docker/Dockerfile -t duui-anonymize:latest .
 docker run -p 9714:9714 duui-anonymize:latest
+```
+
+"Open" variant (does not force the `opf_redacted` view; set it with `.withTargetView(...)` instead):
+```bash
+docker build -f src/main/docker/Dockerfile --build-arg COMMUNICATION_LUA=communication_open.lua -t duui-anonymize-open:latest .
 ```
 
 GPU (CUDA 11.8) image:
