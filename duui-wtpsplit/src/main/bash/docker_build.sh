@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export DUUI_WTPSPLIT_ANNOTATOR_NAME=duui-wtpsplit
+export DUUI_WTPSPLIT_ANNOTATOR_VERSION=1.0.0
+
+export DUUI_WTPSPLIT_LOG_LEVEL=INFO
+
+export DOCKER_REGISTRY="docker.texttechnologylab.org/"
+
+docker build \
+  --build-arg DUUI_WTPSPLIT_ANNOTATOR_NAME \
+  --build-arg DUUI_WTPSPLIT_ANNOTATOR_VERSION \
+  --build-arg DUUI_WTPSPLIT_LOG_LEVEL \
+  -t ${DOCKER_REGISTRY}${DUUI_WTPSPLIT_ANNOTATOR_NAME}:${DUUI_WTPSPLIT_ANNOTATOR_VERSION} \
+  -f "src/main/docker/Dockerfile" \
+  .
+
+docker tag \
+  ${DOCKER_REGISTRY}${DUUI_WTPSPLIT_ANNOTATOR_NAME}:${DUUI_WTPSPLIT_ANNOTATOR_VERSION} \
+  ${DOCKER_REGISTRY}${DUUI_WTPSPLIT_ANNOTATOR_NAME}:latest
