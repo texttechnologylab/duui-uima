@@ -130,14 +130,17 @@ overlap), so without GermaNet the German components are `None`.
 (congruence of the loadings, correlation of the scores of the same excerpts).
 
 The corpus file is not part of this repository: place `CLEAR_corpus_final.csv`
-from the CLEAR repository in `clear_corpus/` and run `ClearCorpusCohMetrixTest`
+from the CLEAR repository in the corpus directory (`CLEAR_DIR` in
+`ClearCorpusCohMetrixTest`, `/storage/projects/CORE/projects2/coh_metrix/clear_corpus`;
+`$CLEAR` below) and run `ClearCorpusCohMetrixTest`
 (CLEAR reader -> spaCy -> Coh-Metrix -> XMI) to recreate the processed corpus.
 The PCA scripts in `easability/` use the dependencies in `requirements-dev.txt`
 (Python 3.12):
 
 ```bash
-python easability/extract_indices.py clear_corpus/xmi_en clear_corpus/indices_en.csv
-python easability/pca.py clear_corpus/indices_en.csv easability/results/clear_en_pca \
+CLEAR=/storage/projects/CORE/projects2/coh_metrix/clear_corpus
+python easability/extract_indices.py $CLEAR/xmi_en $CLEAR/indices_en.csv
+python easability/pca.py $CLEAR/indices_en.csv easability/results/clear_en_pca \
     --model src/main/resources/easability/text_easability_en.json --language en \
     --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, 4724 excerpts" \
     --label-suffix _clear
@@ -149,7 +152,7 @@ loadings, marker scores, validation against the CLEAR difficulty ratings) and
 the underlying tables, including the component scores of every CLEAR excerpt
 (`scores.csv`, by excerpt ID).
 
-German: place the translation in `clear_corpus/` (default
+German: place the translation in `$CLEAR` (default
 `translation_kolibri-1-q4km/`, other versions with `-Dclear.translation=...`)
 and give the GermaNet XML directory (it must be readable by the Docker daemon;
 copy it from a network mount to a local directory):
@@ -157,9 +160,9 @@ copy it from a network mount to a local directory):
 ```bash
 mvn test -Dtest='ClearCorpusCohMetrixTest#runPipelineGermanTranslation' \
     -Dcohmetrix.germanet.path=/path/to/GN_V180_XML
-python easability/extract_indices.py clear_corpus/xmi_de_kolibri-1-q4km \
-    clear_corpus/indices_de_kolibri-1-q4km.csv
-python easability/pca.py clear_corpus/indices_de_kolibri-1-q4km.csv \
+python easability/extract_indices.py $CLEAR/xmi_de_kolibri-1-q4km \
+    $CLEAR/indices_de_kolibri-1-q4km.csv
+python easability/pca.py $CLEAR/indices_de_kolibri-1-q4km.csv \
     easability/results/clear_de_kolibri-1-q4km_pca \
     --model src/main/resources/easability/text_easability_de.json --language de \
     --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, translated into German with Kolibri-1 Q4_K_M (translation_kolibri-1-q4km), 4669 of 4724 excerpts (without truncated translations and paragraph mismatches)" \

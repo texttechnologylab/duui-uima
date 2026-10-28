@@ -38,11 +38,13 @@ public class ClearCorpusCohMetrixTest {
     // TODO replace with the released image; local build of the working tree (labels of a8dd58b/94c461c)
     private static final String COHMETRIX_IMAGE = "duui-coh-metrix:easability-dev";
 
-    private static final Path CLEAR_CSV = Paths.get("clear_corpus/CLEAR_corpus_final.csv");
+    /** Corpus, translations and processed corpora (not in the repository, see README). */
+    static final Path CLEAR_DIR = Paths.get("/storage/projects/CORE/projects2/coh_metrix/clear_corpus");
+    private static final Path CLEAR_CSV = CLEAR_DIR.resolve("CLEAR_corpus_final.csv");
 
     /** Translation directory (translation_eval/translate_clear.py output), default kolibri-1-q4km. */
     private static final String TRANSLATION_PROPERTY = "clear.translation";
-    private static final String DEFAULT_TRANSLATION = "clear_corpus/translation_kolibri-1-q4km";
+    private static final String DEFAULT_TRANSLATION = CLEAR_DIR.resolve("translation_kolibri-1-q4km").toString();
 
     // Without the PC indices: the reference corpus is the input of the PCA, so it must not depend on an earlier
     // model (easability/pca.py)
@@ -55,10 +57,10 @@ public class ClearCorpusCohMetrixTest {
                 .withScale(1)
                 .build()
                 .withTimeout(500L);
-        run(new DUUIClearCorpusReader(CLEAR_CSV, "en"), cohMetrix, Paths.get("clear_corpus/xmi_en"));
+        run(new DUUIClearCorpusReader(CLEAR_CSV, "en"), cohMetrix, CLEAR_DIR.resolve("xmi_en"));
     }
 
-    /** Output: {@code clear_corpus/xmi_de_<translation directory without "translation_">}. */
+    /** Output: {@code <CLEAR_DIR>/xmi_de_<translation directory without "translation_">}. */
     @Test
     public void runPipelineGermanTranslation() throws Exception {
         Path translation = translationDirectory();
@@ -78,9 +80,9 @@ public class ClearCorpusCohMetrixTest {
         return Paths.get(System.getProperty(TRANSLATION_PROPERTY, DEFAULT_TRANSLATION));
     }
 
-    /** {@code clear_corpus/xmi_de_<translation directory without "translation_">}. */
+    /** {@code <CLEAR_DIR>/xmi_de_<translation directory without "translation_">}. */
     static Path germanXmiLocation(Path translation) {
-        return Paths.get("clear_corpus/xmi_de_"
+        return CLEAR_DIR.resolve("xmi_de_"
                 + translation.getFileName().toString().replaceFirst("^translation_", ""));
     }
 

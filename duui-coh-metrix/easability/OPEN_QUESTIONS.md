@@ -84,7 +84,7 @@ TODO when committing Text Easability:
   (`duui-coh-metrix:easability-dev`, PC group excluded so the reference corpus does not depend on an earlier
   model). The input values are identical to the 0.1.2 run for all 4724 excerpts, including `LSAGN_spacy` (the SVD
   fix does not change CLEAR); only the labels differ. Extraction and PCA rerun: the result is unchanged (scores
-  differ by < 3e-14). Old data kept in `clear_corpus/xmi_en_0.1.2/` and `clear_corpus/indices_en_0.1.2.csv`
+  differ by < 3e-14). Old data kept in `/storage/projects/CORE/projects2/coh_metrix/clear_corpus/` (`xmi_en_0.1.2/`, `indices_en_0.1.2.csv`)
   (not committed).
 - Checked 2026-10-26: `ClearCorpusTextEasabilityTest` also runs with `include_indices=PCNARz,PCSYNp`: only these
   two indices are output, with values identical to the full run (48 excerpts).

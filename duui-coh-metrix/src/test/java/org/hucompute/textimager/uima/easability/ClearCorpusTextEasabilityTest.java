@@ -61,7 +61,7 @@ public class ClearCorpusTextEasabilityTest {
 
     @Test
     public void componentScoresMatchPca() throws Exception {
-        check(Paths.get("clear_corpus/xmi_en"), Paths.get("easability/results/clear_en_pca/scores.csv"),
+        check(ClearCorpusCohMetrixTest.CLEAR_DIR.resolve("xmi_en"), Paths.get("easability/results/clear_en_pca/scores.csv"),
                 "_clear", COHMETRIX_IMAGE, false);
     }
 

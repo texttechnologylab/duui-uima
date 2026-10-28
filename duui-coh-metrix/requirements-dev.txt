@@ -1,6 +1,7 @@
-# Analysis scripts in easability/ (not needed for the DUUI component)
+# Analysis scripts in easability/ and translation_eval/ (not needed for the DUUI component)
 # conda create -n duui-coh-metrix-dev python=3.12 && conda activate duui-coh-metrix-dev
 # pip install -r requirements-dev.txt
+datasets==5.1.0
 dkpro-cassis==0.12.0
 factor_analyzer==0.5.1
 numpy==2.5.4

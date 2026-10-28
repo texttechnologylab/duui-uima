@@ -43,6 +43,38 @@ Full list: `easability/OPEN_QUESTIONS.md`, section "Index labels".
 - `SMINTEp` probably undercounts intentional verbs (none in 71% of the CLEAR
   excerpts).
 
+## CLEAR translation (German model)
+
+First version: all 4724 excerpts translated by Kolibri-1 Q4_K_M
+(`translation_eval/translate_clear.py`, `translation_eval/kolibri/Dockerfile`)
+into `/storage/projects/CORE/projects2/coh_metrix/clear_corpus/translation_kolibri-1-q4km/`,
+log `translation_kolibri-1-q4km.log` next to it. WMT24++ data and Kolibri
+translations (`translation_eval/translate_wmt24pp.py`):
+`/storage/projects/CORE/projects2/coh_metrix/translation_eval/data/`. Used as
+is for now; open:
+
+- **Two broken translations**: 2589 and 4500 ran into the 32k-token limit
+  (`finish_reason: length`) in a repetition loop (19,067 and 23,673 words
+  instead of about 190). The script writes them like normal results.
+  Retranslate (per paragraph or with `max_tokens`) or exclude; let the script
+  treat `length` as an error.
+- **54 paragraph mismatches** (1.1%, `PARAGRAPH MISMATCH` in the log, includes
+  4500): mostly ±1 paragraph, some far off (4621 14→5, 7211 14→9, 6531 11→7,
+  7147 3→1); about a dozen single-paragraph excerpts split into 2–3.
+  Paragraph-based indices need the same count. Retranslate per paragraph
+  (WMT25 fallback, Kocmi et al. 2025) or exclude.
+- **Possibly missing content**: 4 excerpts with fewer than 75% of the source
+  words (median 95%): 6011, 7221, 4445, 6472. 6011 drops a whole clause and
+  writes "one thousand seven hundred and eighty nine" as "1789"; the other
+  three are not checked. A dropped sentence is not caught by the paragraph
+  check.
+- **Model choice**: compare with two other models on WMT24++
+  (`translation_eval/load_wmt24pp.py`), including Coh-Metrix indices of
+  source, reference and translations. Kolibri-1 knowledge cutoff (June 2026)
+  is after WMT24++, so contamination is possible.
+- **Server**: the Kolibri container accepts requests without the API key
+  (`LLAMA_ARG_API_KEY` not set at start).
+
 ## Performance
 
 - `SMCAUSlsa` dominates the runtime: on a synthetic 500-sentence document (300-dimensional vectors) it takes
