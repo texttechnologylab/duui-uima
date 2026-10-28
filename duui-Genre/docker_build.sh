@@ -18,13 +18,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
-###---------------------------------------------------------------------
-#export MODEL_NAME="TurkuNLP/web-register-classification-en"
-#export MODEL_SPECNAME="turkunlp-genre-en"
-#export MODEL_VERSION="93969151434144dc8505865d31823c79bd385167"
-#export MODEL_SOURCE="https://huggingface.co/TurkuNLP/web-register-classification-en"
-#export MODEL_LANG="EN"
-###--------------------------------------------------------------------
+##---------------------------------------------------------------------
+export MODEL_NAME="TurkuNLP/web-register-classification-en"
+export MODEL_SPECNAME="turkunlp-genre-en"
+export MODEL_VERSION="93969151434144dc8505865d31823c79bd385167"
+export MODEL_SOURCE="https://huggingface.co/TurkuNLP/web-register-classification-en"
+export MODEL_LANG="EN"
+##--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
 #export MODEL_NAME="TurkuNLP/finerweb-quality-classifier"
@@ -42,13 +42,13 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 #export MODEL_LANG="EN"
 ###--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
-export MODEL_NAME="classla/xlm-roberta-base-multilingual-text-genre-classifier"
-export MODEL_SPECNAME="x-genre-classifier"
-export MODEL_VERSION="ebe54ca322f6fd4dc95700705b99f23e3437c8d0"
-export MODEL_SOURCE="https://huggingface.co/classla/xlm-roberta-base-multilingual-text-genre-classifier"
-export MODEL_LANG="Multi"
-##--------------------------------------------------------------------
+###---------------------------------------------------------------------
+#export MODEL_NAME="classla/xlm-roberta-base-multilingual-text-genre-classifier"
+#export MODEL_SPECNAME="x-genre-classifier"
+#export MODEL_VERSION="ebe54ca322f6fd4dc95700705b99f23e3437c8d0"
+#export MODEL_SOURCE="https://huggingface.co/classla/xlm-roberta-base-multilingual-text-genre-classifier"
+#export MODEL_LANG="Multi"
+###--------------------------------------------------------------------
 
 
 

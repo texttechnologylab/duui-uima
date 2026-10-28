@@ -19,11 +19,11 @@ export DOCKER_REGISTRY="docker.texttechnologylab.org/"
 ####--------------------------------------------------------------------
 
 ####---------------------------------------------------------------------
-export MODEL_NAME="DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence"
-export MODEL_SPECNAME="dreamy-xlm-roberta-emotion"
-export MODEL_VERSION="b3487623ec2dd4b9bd0644d8266291afb9956e9f"
-export MODEL_SOURCE="https://huggingface.co/DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence"
-export MODEL_LANG="Multi"
+#export MODEL_NAME="DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence"
+#export MODEL_SPECNAME="dreamy-xlm-roberta-emotion"
+#export MODEL_VERSION="b3487623ec2dd4b9bd0644d8266291afb9956e9f"
+#export MODEL_SOURCE="https://huggingface.co/DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence"
+#export MODEL_LANG="Multi"
 ####--------------------------------------------------------------------
 
 ####---------------------------------------------------------------------
@@ -178,11 +178,11 @@ export MODEL_LANG="Multi"
 ###--------------------------------------------------------------------
 
 ##---------------------------------------------------------------------
-#export MODEL_NAME="ChrisLalk/German-Emotions"
-#export MODEL_SPECNAME="german-emotions"
-#export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
-#export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
-#export MODEL_LANG="DE"
+export MODEL_NAME="ChrisLalk/German-Emotions"
+export MODEL_SPECNAME="german-emotions"
+export MODEL_VERSION="a60c4707ead45e083f67157edd7ff56621ee39e"
+export MODEL_SOURCE="https://huggingface.co/ChrisLalk/German-Emotions"
+export MODEL_LANG="DE"
 ##--------------------------------------------------------------------
 
 ###---------------------------------------------------------------------
