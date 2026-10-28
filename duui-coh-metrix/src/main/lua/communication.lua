@@ -208,6 +208,9 @@ function serialize(inputCas, outputStream, parameters)
         language = inputCas:getDocumentLanguage(),
         paragraphs = paragraphs,
         noun_chunks = noun_chunks,
+        -- optional, comma-separated index names (README, "Selecting indices")
+        include_indices = parameters["include_indices"],
+        exclude_indices = parameters["exclude_indices"],
     }))
 end
 
@@ -249,6 +252,7 @@ function deserialize(inputCas, inputStream)
             local index_feature = requireFeature(index_type, "index")
             local type_name_feature = requireFeature(index_type, "typeName")
             local label_ttlab_feature = requireFeature(index_type, "labelTTLab")
+            local label_internal_feature = requireFeature(index_type, "labelInternal")
             local label_v3_feature = requireFeature(index_type, "labelV3")
             local label_v2_feature = requireFeature(index_type, "labelV2")
             local description_feature = requireFeature(index_type, "description")
@@ -259,6 +263,7 @@ function deserialize(inputCas, inputStream)
             index_anno:setIntValue(index_feature, index["index"])
             setOptionalStringFeature(index_anno, type_name_feature, index["type_name"])
             setOptionalStringFeature(index_anno, label_ttlab_feature, index["label_ttlab"])
+            setOptionalStringFeature(index_anno, label_internal_feature, index["label_internal"])
             setOptionalStringFeature(index_anno, label_v3_feature, index["label_v3"])
             setOptionalStringFeature(index_anno, label_v2_feature, index["label_v2"])
             setOptionalStringFeature(index_anno, description_feature, index["description"])

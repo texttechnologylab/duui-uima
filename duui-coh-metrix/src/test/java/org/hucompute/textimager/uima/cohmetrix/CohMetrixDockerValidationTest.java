@@ -11,6 +11,7 @@ import org.apache.uima.cas.impl.XmiCasDeserializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.resource.metadata.TypeSystemDescription;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicContainer;
@@ -63,8 +64,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CohMetrixDockerValidationTest {
 //    static final String DOCKER_IMAGE =
 //            "duui-coh-metrix:review-fixes-20260909";
+//    static final String DOCKER_IMAGE =
+//            "docker.texttechnologylab.org/duui-coh-metrix:0.1.2";
+    // TODO replace with the released image; local build of the working tree (new labels, Text Easability)
     static final String DOCKER_IMAGE =
-            "docker.texttechnologylab.org/duui-coh-metrix:0.1.2";
+            "duui-coh-metrix:easability-dev";
 
     /**
      * Optional host path to the licensed GermaNet XML directory.
@@ -101,21 +105,14 @@ public class CohMetrixDockerValidationTest {
     );
 
     /**
-     * Text Easability principal-component scores are explicit placeholders in
-     * the current component. They require the unavailable TASA LSA model and
-     * regression weights and therefore deliberately return NaN plus a stable
-     * "Not implemented" diagnostic. Both Coh-Metrix labels and their TTLab
-     * Wikipedia aliases are accepted by normalizing the alias below.
+     * Text Easability models (easability/pca.py, text_easability_<language>.json),
+     * also baked into the image. The PC scores are recomputed from the
+     * component's own input indices; the public label suffix is the same for
+     * all languages, the internal one is the model's label_suffix.
      */
-    static final Set<String> TEXT_EASABILITY_PC_LABELS = Set.of(
-            "PCNARz", "PCNARp", "PCSYNz", "PCSYNp",
-            "PCCNCz", "PCCNCp", "PCREFz", "PCREFp",
-            "PCDCz", "PCDCp", "PCVERBz", "PCVERBp",
-            "PCCONNz", "PCCONNp", "PCTEMPz", "PCTEMPp"
-    );
-    static final String TEXT_EASABILITY_NOT_IMPLEMENTED_PREFIX =
-            "Not implemented: Text Easability PC scores require LSA model "
-                    + "+ regression weights trained on TASA corpus";
+    static final Path TEXT_EASABILITY_MODELS = Path.of("src/main/resources/easability");
+    static final String TEXT_EASABILITY_SUFFIX = "_clear";
+    static final double TEXT_EASABILITY_TOLERANCE = 1e-9;
 
     static DUUIComposer composer;
     static TypeSystemDescription validationTypeSystem;
@@ -357,21 +354,105 @@ public class CohMetrixDockerValidationTest {
 
     @Test
     void emptyDocumentHasNoNumericCohMetrixResults() throws Exception {
+        assertEmptyDocumentHasNoNumericResults("en");
+    }
+
+    @Test
+    void emptyGermanDocumentHasNoNumericCohMetrixResults() throws Exception {
+        assertEmptyDocumentHasNoNumericResults("de");
+    }
+
+    private static void assertEmptyDocumentHasNoNumericResults(String language) throws Exception {
         JCas cas = createValidationJCas();
-        cas.setDocumentLanguage("en");
+        cas.setDocumentLanguage(language);
         cas.setDocumentText("");
 
         ResultSnapshot result = run(cas);
         assertFalse(result.values().isEmpty(), "Docker component returned no indices");
-        result.values().forEach((label, ignored) -> {
-            if (isIntentionallyUnimplementedTextEasability(label)) {
-                assertIntentionallyUnimplementedResult(result, label);
-                return;
+        // the Text Easability components are computed from the other indices, so they are undefined as well
+        textEasabilityModel(language).getJSONArray("components").forEach(component -> {
+            for (String key : List.of("label_v3_z", "label_v3_p")) {
+                String label = ((JSONObject) component).getString(key);
+                assertTrue(result.values().containsKey(label + TEXT_EASABILITY_SUFFIX),
+                        () -> "Docker output does not contain " + label + TEXT_EASABILITY_SUFFIX);
             }
+        });
+        result.values().forEach((label, ignored) -> {
             Double value = requireCleanResult(result, label);
             assertTrue(Double.isNaN(value),
                     () -> label + " must be NaN for an empty document, but was " + value);
         });
+    }
+
+    @TestFactory
+    Stream<DynamicNode> textEasabilityEnglish() {
+        return textEasability("en");
+    }
+
+    /**
+     * Without the GermaNet mount ({@value #GERMANET_PATH_PROPERTY}) the
+     * GermaNet inputs (polysemy, verb overlap) are undefined, so all German
+     * PC indices must be NaN.
+     */
+    @TestFactory
+    Stream<DynamicNode> textEasabilityGerman() {
+        return textEasability("de");
+    }
+
+    /**
+     * Text Easability (PC*) on every fixture of the language, recomputed from
+     * the component's input indices and the model: an undefined input that is
+     * never undefined in the reference corpus makes all components NaN
+     * (e.g. single sentence: no sentence pair); otherwise undefined inputs
+     * count as the reference mean (standardized 0), z = standardized inputs
+     * times the weights, and the percentile is in [0, 100]. The internal label
+     * carries the model's suffix.
+     */
+    private static Stream<DynamicNode> textEasability(String language) {
+        JSONObject model = textEasabilityModel(language);
+        String internalSuffix = model.getString("label_suffix");
+        return cases.stream()
+                .filter(testCase -> testCase.suite().endsWith("_" + language))
+                .map(testCase -> DynamicTest.dynamicTest(testCase.displayName(), () -> {
+                    ResultSnapshot result = resultFor(testCase);
+
+                    double[] standardized = new double[model.getJSONArray("inputs").length()];
+                    boolean defined = true;
+                    for (int i = 0; i < standardized.length; i++) {
+                        JSONObject input = model.getJSONArray("inputs").getJSONObject(i);
+                        double sum = 0;
+                        for (Object label : input.getJSONArray("labels_ttlab")) {
+                            sum += requireCleanResult(result, (String) label);
+                        }
+                        if (Double.isNaN(sum)) {
+                            defined &= input.getInt("missing_documents") > 0;
+                        } else {
+                            standardized[i] = (sum - input.getDouble("mean")) / input.getDouble("scale");
+                        }
+                    }
+
+                    for (Object entry : model.getJSONArray("components")) {
+                        JSONObject component = (JSONObject) entry;
+                        String zLabel = component.getString("label_v3_z") + TEXT_EASABILITY_SUFFIX;
+                        String pLabel = component.getString("label_v3_p") + TEXT_EASABILITY_SUFFIX;
+                        double z = requireCleanResult(result, zLabel);
+                        double p = requireCleanResult(result, pLabel);
+                        String internal = component.getString("label_v3_z") + internalSuffix;
+                        assertTrue(result.values().containsKey(internal),
+                                () -> "Docker output has no internal label " + internal);
+                        if (!defined) {
+                            assertTrue(Double.isNaN(z), () -> zLabel + " has an undefined input and must be NaN, but was " + z);
+                            assertTrue(Double.isNaN(p), () -> pLabel + " has an undefined input and must be NaN, but was " + p);
+                            continue;
+                        }
+                        double expected = 0;
+                        for (int i = 0; i < standardized.length; i++) {
+                            expected += standardized[i] * component.getJSONArray("weights").getDouble(i);
+                        }
+                        assertEquals(expected, z, TEXT_EASABILITY_TOLERANCE, zLabel);
+                        assertTrue(p >= 0 && p <= 100, () -> pLabel + " must be in [0, 100], but was " + p);
+                    }
+                }));
     }
 
     @Test
@@ -567,6 +648,8 @@ public class CohMetrixDockerValidationTest {
         Type indexType = requireType(cas, INDEX_TYPE);
         Feature labelV3 = requireFeature(indexType, "labelV3");
         Feature labelTTLab = requireFeature(indexType, "labelTTLab");
+        // labelInternal was added after 0.1.2; older images do not have it.
+        Feature labelInternal = indexType.getFeatureByBaseName("labelInternal");
         Feature valueFeature = requireFeature(indexType, "value");
         Feature errorFeature = indexType.getFeatureByBaseName("error");
 
@@ -576,10 +659,12 @@ public class CohMetrixDockerValidationTest {
         for (FeatureStructure index : indexed(cas, indexType)) {
             String v3 = index.getStringValue(labelV3);
             String ttlab = index.getStringValue(labelTTLab);
+            String internal = labelInternal == null ? null : index.getStringValue(labelInternal);
             double value = index.getDoubleValue(valueFeature);
             String error = errorFeature == null ? null : index.getStringValue(errorFeature);
 
             putLabel(values, errors, ttlab, value, error, false);
+            putLabel(values, errors, internal, value, error, false);
             putLabel(values, errors, v3, value, error, true);
         }
 
@@ -624,27 +709,13 @@ public class CohMetrixDockerValidationTest {
         return actual;
     }
 
-    private static boolean isIntentionallyUnimplementedTextEasability(String label) {
-        String normalized = label.endsWith("_wikipedia")
-                ? label.substring(0, label.length() - "_wikipedia".length())
-                : label;
-        return TEXT_EASABILITY_PC_LABELS.contains(normalized);
-    }
-
-    private static void assertIntentionallyUnimplementedResult(
-            ResultSnapshot result,
-            String label
-    ) {
-        Double actual = result.values().get(label);
-        assertNotNull(actual, () -> "Docker output does not contain " + label);
-        assertTrue(Double.isNaN(actual), () ->
-                label + " is not implemented and must be NaN, but was " + actual);
-
-        String error = result.errors().get(label);
-        assertNotNull(error, () ->
-                label + " is not implemented but returned no diagnostic");
-        assertTrue(error.startsWith(TEXT_EASABILITY_NOT_IMPLEMENTED_PREFIX), () ->
-                label + " returned an unexpected placeholder diagnostic: " + error);
+    private static JSONObject textEasabilityModel(String language) {
+        Path path = TEXT_EASABILITY_MODELS.resolve("text_easability_" + language + ".json");
+        try {
+            return new JSONObject(Files.readString(path, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not read " + path, e);
+        }
     }
 
     /**

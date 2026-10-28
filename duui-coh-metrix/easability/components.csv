@@ -1,0 +1,9 @@
+label_v3_z,label_v3_p,name,marker_measures,published_r_drp,published_variance
+PCNARz,PCNARp,Narrativity,6:+;8:+;16:+;3:+;2:-;1:-;19:-,-0.69,0.185
+PCSYNz,PCSYNp,Syntactic simplicity,28:-;29:-;30:-;45:-;32:+,-0.47,0.095
+PCCNCz,PCCNCp,Word concreteness,21:+;22:+;20:+,-0.23,0.063
+PCREFz,PCREFp,Referential cohesion,33:+;34:+;35:+;36:+;37:+;38:+,0.03,0.141
+PCDCz,PCDCp,Deep cohesion,11:+;47:+,0.11,0.055
+PCVERBz,PCVERBp,Verb cohesion,49:+;50:+,,0.054
+PCCONNz,PCCONNp,Connectivity,13:+;14:+;15:+;10:+,,0.041
+PCTEMPz,PCTEMPp,Temporality,51:+;12:+,,0.040

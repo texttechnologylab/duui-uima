@@ -110,6 +110,13 @@
             </exclusions>
         </dependency>
 
+        <!-- CLEAR corpus (tab-separated, multi-line quoted excerpts) -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.10.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

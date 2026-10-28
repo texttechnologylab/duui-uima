@@ -72,7 +72,12 @@
                 </featureDescription>
                 <featureDescription>
                     <name>labelTTLab</name>
-                    <description>TTLab implementation label.</description>
+                    <description>Public TTLab label and unique key: the Coh-Metrix 3.0 label plus a suffix where the English implementation deviates from the original; identical for all languages.</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>labelInternal</name>
+                    <description>Internal TTLab label: the Coh-Metrix 3.0 label plus the concrete resource used for this language.</description>
                     <rangeTypeName>uima.cas.String</rangeTypeName>
                 </featureDescription>
                 <featureDescription>

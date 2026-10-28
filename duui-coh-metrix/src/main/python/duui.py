@@ -1,4 +1,5 @@
 import csv
+import json
 import logging
 import pyphen
 import textstat
@@ -129,6 +130,9 @@ class TextImagerRequest(BaseModel):
     text: str
     paragraphs: List[Paragraph]
     noun_chunks: List[NounChunk]
+    # comma-separated index names (README, "Selecting indices")
+    include_indices: Optional[str] = None
+    exclude_indices: Optional[str] = None
 
 
 class AnnotationMeta(BaseModel):
@@ -144,23 +148,24 @@ class DocumentModification(BaseModel):
     comment: str
 
 
-# Index labels. Every index carries three names:
-#   label_v3     the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g. LSASS1
-#   label_v2     the Coh-Metrix 2.x label, e.g. LSAassa; None for indices that are not part of Coh-Metrix
-#   label_ttlab  the technical TTLab name: the v3 label plus the resource that replaces the original one
-#                (_spacy, _germanet, _gptlist, _wiki10000, _mrctranslate, _textstat, _wikipedia, ...), e.g. LSASS1_spacy
-# Only label_ttlab is unique (WRDFRQc / WRDFRQa / WRDFRQmc and RDL2 occur twice under their v3 label, with the same index
-# number), so it is the key for storing and joining results. A display name for tables and figures can be derived as:
-#   1. the index has a v3 label used once: the v3 label                      LSASS1_spacy      -> LSASS1
-#   2. the v3 label belongs to two indices: the v3 label and the variant     WRDFRQc           -> WRDFRQc · CELEX
-#      (the part of label_ttlab after the v3 label; CELEX where there is      WRDFRQc_wiki10000 -> WRDFRQc · wiki10000
-#      none)                                                                  RDL2_synstrutt    -> RDL2 · synstrutt
-#   3. the index has no v3 label (the textstat additions 1001-1011): label_ttlab without the suffix   RDFOG_textstat -> RDFOG
-# with label_ttlab shown beside it as the secondary name wherever the two differ.
+# Index labels (full rules: README.md, "Index labels"):
+#   label_v3        the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g. WRDPOLc;
+#                   None for project-only indices (1001+)
+#   label_v2        the Coh-Metrix 2.x label, e.g. POLm; "n/a" where Coh-Metrix has none, None for project-only indices
+#   label_ttlab     the public TTLab label and unique key: the v3 label, plus a suffix only where the English
+#                   implementation deviates from the original (WRDFRQc_wiki, LSASS1_spacy); the same for all languages
+#   label_internal  the v3 label plus the concrete resource used for this language (WRDPOLc_germanet,
+#                   WRDFRQc_dewiki10000); no suffix where the original resource is used. Always set explicitly, also
+#                   where it equals label_ttlab.
+# label_v3 and the index number repeat only for variants of an ambiguous original definition (RDL2_synstruta_wiki,
+# RDL2_synstrutt_wiki).
+# version: the version of the index computation, set explicitly for every index; bump it when the value for the same
+# input changes (README.md, "Index version").
 class Index(BaseModel):
     index: int
     type_name: str
-    label_ttlab: Optional[str] = None
+    label_ttlab: str
+    label_internal: str
     label_v3: Optional[str] = None
     label_v2: Optional[str] = None
     description: str
@@ -173,6 +178,208 @@ class Index(BaseModel):
         if v is not None and (math.isinf(v) or math.isnan(v)):
             return None
         return v
+
+
+# All indices post_process can emit, in output order: (index, type_name, label_ttlab, label_v3). The public labels are
+# the same for every language, so the selection of indices does not depend on the document language.
+INDEX_CATALOG: List[Tuple[int, str, str, Optional[str]]] = [
+    (1, "Descriptive", "DESPC", "DESPC"),
+    (2, "Descriptive", "DESSC", "DESSC"),
+    (3, "Descriptive", "DESWC", "DESWC"),
+    (4, "Descriptive", "DESPL", "DESPL"),
+    (5, "Descriptive", "DESPLd", "DESPLd"),
+    (6, "Descriptive", "DESSL", "DESSL"),
+    (7, "Descriptive", "DESSLd", "DESSLd"),
+    (8, "Descriptive", "DESWLsy", "DESWLsy"),
+    (9, "Descriptive", "DESWLsyd", "DESWLsyd"),
+    (10, "Descriptive", "DESWLlt", "DESWLlt"),
+    (11, "Descriptive", "DESWLltd", "DESWLltd"),
+    (12, "Text Easability Principal Component Scores", "PCNARz_clear", "PCNARz"),
+    (13, "Text Easability Principal Component Scores", "PCNARp_clear", "PCNARp"),
+    (14, "Text Easability Principal Component Scores", "PCSYNz_clear", "PCSYNz"),
+    (15, "Text Easability Principal Component Scores", "PCSYNp_clear", "PCSYNp"),
+    (16, "Text Easability Principal Component Scores", "PCCNCz_clear", "PCCNCz"),
+    (17, "Text Easability Principal Component Scores", "PCCNCp_clear", "PCCNCp"),
+    (18, "Text Easability Principal Component Scores", "PCREFz_clear", "PCREFz"),
+    (19, "Text Easability Principal Component Scores", "PCREFp_clear", "PCREFp"),
+    (20, "Text Easability Principal Component Scores", "PCDCz_clear", "PCDCz"),
+    (21, "Text Easability Principal Component Scores", "PCDCp_clear", "PCDCp"),
+    (22, "Text Easability Principal Component Scores", "PCVERBz_clear", "PCVERBz"),
+    (23, "Text Easability Principal Component Scores", "PCVERBp_clear", "PCVERBp"),
+    (24, "Text Easability Principal Component Scores", "PCCONNz_clear", "PCCONNz"),
+    (25, "Text Easability Principal Component Scores", "PCCONNp_clear", "PCCONNp"),
+    (26, "Text Easability Principal Component Scores", "PCTEMPz_clear", "PCTEMPz"),
+    (27, "Text Easability Principal Component Scores", "PCTEMPp_clear", "PCTEMPp"),
+    (28, "Referential Cohesion", "CRFNO1", "CRFNO1"),
+    (29, "Referential Cohesion", "CRFAO1", "CRFAO1"),
+    (30, "Referential Cohesion", "CRFSO1", "CRFSO1"),
+    (31, "Referential Cohesion", "CRFNOa", "CRFNOa"),
+    (32, "Referential Cohesion", "CRFAOa", "CRFAOa"),
+    (33, "Referential Cohesion", "CRFSOa", "CRFSOa"),
+    (34, "Referential Cohesion", "CRFCWO1", "CRFCWO1"),
+    (35, "Referential Cohesion", "CRFCWO1d", "CRFCWO1d"),
+    (36, "Referential Cohesion", "CRFCWOa", "CRFCWOa"),
+    (37, "Referential Cohesion", "CRFCWOad", "CRFCWOad"),
+    (38, "LSA", "LSASS1_spacy", "LSASS1"),
+    (39, "LSA", "LSASS1d_spacy", "LSASS1d"),
+    (40, "LSA", "LSASSp_spacy", "LSASSp"),
+    (41, "LSA", "LSASSpd_spacy", "LSASSpd"),
+    (42, "LSA", "LSAPP1_spacy", "LSAPP1"),
+    (43, "LSA", "LSAPP1d_spacy", "LSAPP1d"),
+    (44, "LSA", "LSAGN_spacy", "LSAGN"),
+    (45, "LSA", "LSAGNd_spacy", "LSAGNd"),
+    (46, "Lexical Diversity", "LDTTRc", "LDTTRc"),
+    (47, "Lexical Diversity", "LDTTRa", "LDTTRa"),
+    (48, "Lexical Diversity", "LDMTLDa", "LDMTLDa"),
+    (49, "Lexical Diversity", "LDVOCDa", "LDVOCDa"),
+    (50, "Connectives", "CNCAll_llmlist", "CNCAll"),
+    (51, "Connectives", "CNCCaus_llmlist", "CNCCaus"),
+    (52, "Connectives", "CNCLogic_llmlist", "CNCLogic"),
+    (53, "Connectives", "CNCADC_llmlist", "CNCADC"),
+    (54, "Connectives", "CNCTemp_llmlist", "CNCTemp"),
+    (55, "Connectives", "CNCTempx_llmlist", "CNCTempx"),
+    (56, "Connectives", "CNCAdd_llmlist", "CNCAdd"),
+    (57, "Connectives", "CNCPos_llmlist", "CNCPos"),
+    (58, "Connectives", "CNCNeg_llmlist", "CNCNeg"),
+    (59, "Situation Model", "SMCAUSv_wordnet", "SMCAUSv"),
+    (60, "Situation Model", "SMCAUSvp_wordnet", "SMCAUSvp"),
+    (61, "Situation Model", "SMINTEp_wordnet", "SMINTEp"),
+    (62, "Situation Model", "SMCAUSr_wordnet", "SMCAUSr"),
+    (63, "Situation Model", "SMINTEr_llmlist", "SMINTEr"),
+    (64, "Situation Model", "SMCAUSlsa_spacy", "SMCAUSlsa"),
+    (65, "Situation Model", "SMCAUSwn", "SMCAUSwn"),
+    (66, "Situation Model", "SMTEMP_llmlist", "SMTEMP"),
+    (67, "Syntactic Complexity", "SYNLE", "SYNLE"),
+    (68, "Syntactic Complexity", "SYNNP", "SYNNP"),
+    (69, "Syntactic Complexity", "SYNMEDpos", "SYNMEDpos"),
+    (70, "Syntactic Complexity", "SYNMEDwrd", "SYNMEDwrd"),
+    (71, "Syntactic Complexity", "SYNMEDlem", "SYNMEDlem"),
+    (72, "Syntactic Complexity", "SYNSTRUTa", "SYNSTRUTa"),
+    (73, "Syntactic Complexity", "SYNSTRUTt", "SYNSTRUTt"),
+    (74, "Syntactic Pattern Density", "DRNP", "DRNP"),
+    (75, "Syntactic Pattern Density", "DRVP", "DRVP"),
+    (76, "Syntactic Pattern Density", "DRAP", "DRAP"),
+    (77, "Syntactic Pattern Density", "DRPP", "DRPP"),
+    (78, "Syntactic Pattern Density", "DRPVAL", "DRPVAL"),
+    (79, "Syntactic Pattern Density", "DRNEG_llmlist", "DRNEG"),
+    (80, "Syntactic Pattern Density", "DRGERUND", "DRGERUND"),
+    (81, "Syntactic Pattern Density", "DRINF", "DRINF"),
+    (82, "Word Information", "WRDNOUN", "WRDNOUN"),
+    (83, "Word Information", "WRDVERB", "WRDVERB"),
+    (84, "Word Information", "WRDADJ", "WRDADJ"),
+    (85, "Word Information", "WRDADV", "WRDADV"),
+    (86, "Word Information", "WRDPRO", "WRDPRO"),
+    (87, "Word Information", "WRDPRP1s", "WRDPRP1s"),
+    (88, "Word Information", "WRDPRP1p", "WRDPRP1p"),
+    (89, "Word Information", "WRDPRP2", "WRDPRP2"),
+    (90, "Word Information", "WRDPRP3s", "WRDPRP3s"),
+    (91, "Word Information", "WRDPRP3p", "WRDPRP3p"),
+    (92, "Word Information", "WRDFRQc_wiki", "WRDFRQc"),
+    (93, "Word Information", "WRDFRQa_wiki", "WRDFRQa"),
+    (94, "Word Information", "WRDFRQmc_wiki", "WRDFRQmc"),
+    (95, "Word Information", "WRDAOAc", "WRDAOAc"),
+    (96, "Word Information", "WRDFAMc", "WRDFAMc"),
+    (97, "Word Information", "WRDCNCc", "WRDCNCc"),
+    (98, "Word Information", "WRDIMGc", "WRDIMGc"),
+    (99, "Word Information", "WRDMEAc", "WRDMEAc"),
+    (100, "Word Information", "WRDPOLc", "WRDPOLc"),
+    (101, "Word Information", "WRDHYPn", "WRDHYPn"),
+    (102, "Word Information", "WRDHYPv", "WRDHYPv"),
+    (103, "Word Information", "WRDHYPnv", "WRDHYPnv"),
+    (104, "Readability", "RDFRE_textstat", "RDFRE"),
+    (105, "Readability", "RDFKGL_textstat", "RDFKGL"),
+    (1001, "Readability", "RDFOG_textstat", None),
+    (1002, "Readability", "RDSMOG_textstat", None),
+    (1003, "Readability", "RDARI_textstat", None),
+    (1004, "Readability", "RDCLI_textstat", None),
+    (1005, "Readability", "RDLW_textstat", None),
+    (1006, "Readability", "RDDCRS_textstat", None),
+    (1007, "Readability", "RDSPACHE_textstat", None),
+    (1008, "Readability", "RDWSTF1_textstat", None),
+    (1009, "Readability", "RDWSTF2_textstat", None),
+    (1010, "Readability", "RDWSTF3_textstat", None),
+    (1011, "Readability", "RDWSTF4_textstat", None),
+    (106, "Readability", "RDL2_synstruta_wiki", "RDL2"),
+    (106, "Readability", "RDL2_synstrutt_wiki", "RDL2"),
+]
+
+# Indices computed from other indices: label_ttlab -> labels of the inputs. The inputs are computed when the derived
+# index is selected, but only output if they are selected themselves. Text Easability adds its inputs per language.
+INDEX_REQUIRES: Dict[str, Tuple[str, ...]] = {
+    "RDL2_synstruta_wiki": ("CRFCWO1", "SYNSTRUTa", "WRDFRQmc_wiki"),
+    "RDL2_synstrutt_wiki": ("CRFCWO1", "SYNSTRUTt", "WRDFRQmc_wiki"),
+}
+
+# Indices that share one precomputation in post_process.
+_WRD_COUNT_INDICES = frozenset({"WRDNOUN", "WRDVERB", "WRDADJ", "WRDADV", "WRDPRO", "WRDPRP1s", "WRDPRP1p", "WRDPRP2",
+                                "WRDPRP3s", "WRDPRP3p"})
+_MRC_INDICES = frozenset({"WRDAOAc", "WRDFAMc", "WRDCNCc", "WRDIMGc", "WRDMEAc"})
+_WRDHYP_INDICES = frozenset({"WRDHYPn", "WRDHYPv", "WRDHYPnv"})
+_LSA_GIVEN_NEW_INDICES = frozenset({"LSAGN_spacy", "LSAGNd_spacy"})
+
+
+def _parse_index_names(value: Optional[str]) -> List[str]:
+    return [name.strip() for name in (value or "").split(",") if name.strip()]
+
+
+def _resolve_index_selection(
+        include: Optional[str],
+        exclude: Optional[str],
+        requires: Dict[str, Tuple[str, ...]],
+) -> Tuple[Set[str], Set[str]]:
+    # Returns (output, compute) as sets of label_ttlab (README, "Selecting indices"). Names are "*", a group
+    # (type_name), a label_ttlab or a label_v3, case-insensitive. For each index the most specific matching name
+    # decides (index over group over "*"); exclude wins within the same level. An empty include means "*".
+    groups = {type_name.lower() for _, type_name, _, _ in INDEX_CATALOG}
+    index_names: Dict[str, Set[str]] = defaultdict(set)
+    for _, _, label_ttlab, label_v3 in INDEX_CATALOG:
+        index_names[label_ttlab.lower()].add(label_ttlab)
+        if label_v3:
+            index_names[label_v3.lower()].add(label_ttlab)
+
+    def classify(names: List[str]) -> Tuple[bool, Set[str], Set[str]]:
+        all_indices, matched_groups, matched_indices = False, set(), set()
+        for name in names:
+            key = name.lower()
+            if key == "*":
+                all_indices = True
+            elif key in groups:
+                matched_groups.add(key)
+            elif key in index_names:
+                matched_indices |= index_names[key]
+            else:
+                # internal labels (WRDPOLc_germanet) are language-dependent, so only point to the public label
+                prefixes = [known for known in index_names if key.startswith(known + "_")]
+                hint = f" (internal label? use {', '.join(sorted(index_names[max(prefixes, key=len)]))})" if prefixes else ""
+                logger.warning("Ignoring unknown index name \"%s\"%s", name, hint)
+        return all_indices, matched_groups, matched_indices
+
+    include_names = _parse_index_names(include)
+    include_all, include_groups, include_indices = classify(include_names)
+    exclude_all, exclude_groups, exclude_indices = classify(_parse_index_names(exclude))
+    include_all = include_all or not include_names
+
+    output = set()
+    for _, type_name, label_ttlab, _ in INDEX_CATALOG:
+        group = type_name.lower()
+        if label_ttlab in exclude_indices:
+            continue
+        if label_ttlab in include_indices:
+            output.add(label_ttlab)
+        elif group in exclude_groups:
+            continue
+        elif group in include_groups or (include_all and not exclude_all):
+            output.add(label_ttlab)
+
+    compute = set(output)
+    pending = list(output)
+    while pending:
+        for required in requires.get(pending.pop(), ()):
+            if required not in compute:
+                compute.add(required)
+                pending.append(required)
+    logger.debug("Selected indices: %d output, %d computed", len(output), len(compute))
+    return output, compute
 
 
 class TextImagerResponse(BaseModel):
@@ -314,7 +521,10 @@ def get_documentation() -> TextImagerDocumentation:
             "python_version_full": sys_version,
         },
         docker_container_id="[TODO]",
-        parameters={},
+        parameters={
+            "include_indices": "comma-separated index groups, label_ttlab or label_v3 names, or *; default all",
+            "exclude_indices": "comma-separated index groups, label_ttlab or label_v3 names; default none",
+        },
         capability=capabilities,
         implementation_specific=None,
     )
@@ -336,6 +546,15 @@ def get_input_output() -> TextImagerInputOutput:
         inputs=TEXTIMAGER_ANNOTATOR_INPUT_TYPES,
         outputs=TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES
     )
+
+
+@app.get("/v1/indices")
+def get_indices() -> List[Dict[str, Any]]:
+    # The names accepted by include_indices / exclude_indices.
+    return [
+        {"index": index, "type_name": type_name, "label_ttlab": label_ttlab, "label_v3": label_v3}
+        for index, type_name, label_ttlab, label_v3 in INDEX_CATALOG
+    ]
 
 # ============================================================================
 # DESCRIPTIVE (DES*) — "How big is the text?"
@@ -2177,8 +2396,8 @@ def _wrd_precompute(
 #       resources and should be interpreted accordingly.
 #   (c) Polysemy & hypernymy via WordNet (en) / GermaNet (de). Values are
 #       not directly comparable across languages. NOTE(H9).
-#   (d) CELEX word-frequency indices are stubbed None; Wikipedia-sample
-#       alternatives WRDFRQ*_wiki10000 are emitted. NOTE(L9).
+#   (d) CELEX is not available; the word-frequency indices WRDFRQ*_wiki use
+#       a Wikipedia sample instead. NOTE(L9).
 # ============================================================================
 
 # LAY: How many nouns per 1,000 words?
@@ -3088,8 +3307,11 @@ def _project_onto_hyperplane(v, basis):
 def _lsa_given_new_for_vectors(vectors):
     # speed: _project_onto_hyperplane took the SVD of all preceding vectors at every sentence (a d x i
     # matrix, so quadratic work over a text). The left singular vectors and singular values of [v_0 .. v_{i-1}] are those of
-    # [U S | v_{i-1}] with U, S from the step before (the same B B^T), a d x (d + 1) matrix at most; all singular directions are
-    # carried on, and the rank cut-off is the original's (max(d, i) * eps * largest singular value).
+    # [U S | v_{i-1}] with U, S from the step before (the same B B^T), a d x (d + 1) matrix at most; the rank cut-off is the
+    # original's (max(d, i) * eps * largest singular value).
+    # Only the singular directions above the cut-off are carried on: carrying the near-zero ones as well made the SVD fail to
+    # converge on texts with repeated sentences (rank < d), e.g. boilerplate lines. If it still fails, the step falls back to the
+    # original SVD of all preceding vectors.
     results = []
     carried = None
     for i in range(len(vectors)):
@@ -3100,10 +3322,13 @@ def _lsa_given_new_for_vectors(vectors):
         else:
             previous = np.asarray(vectors[i - 1], dtype=float)[:, None]
             stacked = previous if carried is None else np.hstack([carried, previous])
-            U, singular_values, _ = np.linalg.svd(stacked, full_matrices=False)
-            carried = U * singular_values
+            try:
+                U, singular_values, _ = np.linalg.svd(stacked, full_matrices=False)
+            except np.linalg.LinAlgError:
+                U, singular_values, _ = np.linalg.svd(np.asarray(vectors[:i], dtype=float).T, full_matrices=False)
             tolerance = max(len(current_vec), i) * np.finfo(singular_values.dtype).eps * singular_values[0]
             rank = np.sum(singular_values > tolerance)
+            carried = U[:, :rank] * singular_values[:rank]
             if rank == 0:
                 p, perp = np.zeros_like(current_vec), current_vec
             else:
@@ -3116,7 +3341,7 @@ def _lsa_given_new_for_vectors(vectors):
         results.append(given_new_ratio)
     return np.array(results)
 
-def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float]]]], words: List[List[List[str]]], tokens_vector_length: int, n_components, use_truncated_svd: bool = False) -> Dict[str, Any]:
+def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float]]]], words: List[List[List[str]]], tokens_vector_length: int, n_components, use_truncated_svd: bool = False, given_new: bool = True) -> Dict[str, Any]:
     if tokens_vector_length <= 0:
         return {
             "LSASS1": np.nan,
@@ -3267,7 +3492,8 @@ def _lsa_cohesion_indices(vec_per_paragraph_sentences: List[List[List[List[float
         if vector is not None and np.linalg.norm(vector) > 0
     ]
 
-    if usable_given_new_vectors:
+    # given/new is the slowest LSA step; given_new=False (LSAGN/LSAGNd not selected) leaves both NaN
+    if given_new and usable_given_new_vectors:
         given_new_ratios = _lsa_given_new_for_vectors(
             np.vstack(usable_given_new_vectors)
         )
@@ -3409,17 +3635,16 @@ all_word_frequencies_map = {
 # original CELEX reference corpus (17.9M words, paywalled). Absolute
 # frequency values and their logs differ from the reference Coh-Metrix
 # output; rank-ordering among content words is expected to be broadly
-# similar. The standard V3 WRDFRQc/a/mc outputs are stubbed (None) on
-# purpose (see L6); the Wikipedia-backed alternatives are exposed with a
-# `label_ttlab` suffix.
+# similar. The indices keep their V3 labels WRDFRQc/a/mc, with the public
+# label suffix _wiki (internally _enwiki10000 / _dewiki10000).
 # ============================================================================
 # WORD FREQUENCY (WRDFRQ*) & L2 READABILITY (RDL2)
 # Approximate: the original Coh-Metrix uses the CELEX lexical database, which
 # is paywalled. This implementation uses a 10,000-article Wikipedia sample
-# (NOTE(L9)). Standard outputs WRDFRQc/a/mc remain None; the _wiki10000
-# suffix variants are emitted instead. RDL2 is the "L2 Readability" composite
+# (NOTE(L9)), labelled WRDFRQ*_wiki. RDL2 is the "L2 Readability" composite
 # formula (Crossley et al. 2008) and is emitted twice — using SYNSTRUTa and
-# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)).
+# using SYNSTRUTt — because the spec does not disambiguate (NOTE(L7)). Both
+# use the Wikipedia WRDFRQmc: RDL2_synstruta_wiki / RDL2_synstrutt_wiki.
 # ============================================================================
 
 # LAY: Average frequency of content words in everyday text.
@@ -3779,6 +4004,9 @@ _DE_INTENTIONAL_SEED = {"beabsichtigen", "planen", "wollen", "vorhaben", "kontak
 
 _de_causal_verbs_expanded = _germanet_expand_verb_lemmas({"verursachen", "bewirken", "ausl\u00f6sen"})
 _de_intentional_verbs_expanded = _germanet_expand_verb_lemmas({"beabsichtigen", "planen"})
+# Resource actually used for the DE inventories, for label_internal (README "Index labels", rule 4).
+_de_causal_verbs_source = "germanet" if _de_causal_verbs_expanded else "seedlist"
+_de_intentional_verbs_source = "germanet" if _de_intentional_verbs_expanded else "seedlist"
 if not _de_causal_verbs_expanded:
     _de_causal_verbs_expanded = set(_DE_CAUSAL_SEED)
     logger.info("DE causal verbs: using %d hardcoded seeds (GermaNet expansion unavailable)",
@@ -5004,6 +5232,80 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
     smtemp = sum(pair_scores) / len(pair_scores)
     return round(smtemp, 3)
 
+# ============================================================================
+# TEXT EASABILITY (PC*) — "How easy is the text on eight dimensions?"
+# Principal component scores (Graesser, McNamara & Kulikowich 2011) relative
+# to a reference corpus. The original components come from the non-public
+# TASA corpus; the models here are computed by easability/pca.py on an openly
+# available reference corpus (English: CLEAR, German: CLEAR translated), one
+# model file per language.
+# z = standardized input indices @ component weights (mean 0, SD 1 in the
+# reference corpus); percentile = share of reference texts with a lower z.
+# ============================================================================
+
+TEXT_EASABILITY_TYPE_NAME = "Text Easability Principal Component Scores"
+
+
+def _load_text_easability_models(directory: str) -> Dict[str, Dict[str, Any]]:
+    models = {}
+    for path in sorted(Path(directory).glob("text_easability_*.json")):
+        with open(path, encoding="utf-8") as f:
+            model = json.load(f)
+        models[model["language"]] = model
+        logger.info("Loaded Text Easability model for \"%s\" from \"%s\"", model["language"], path)
+    return models
+
+
+text_easability_models = _load_text_easability_models("src/main/resources/easability")
+
+
+def _text_easability_requires(lang: str) -> Dict[str, Tuple[str, ...]]:
+    # All PC indices are computed together from the input indices of the language's model (see INDEX_REQUIRES).
+    model = text_easability_models.get(lang)
+    if model is None:
+        return {}
+    inputs = tuple(label for measure in model["inputs"] for label in measure["labels_ttlab"])
+    return {
+        label_ttlab: inputs
+        for _, type_name, label_ttlab, _ in INDEX_CATALOG
+        if type_name == TEXT_EASABILITY_TYPE_NAME
+    }
+
+# LAY: Eight ease dimensions (narrativity, syntactic simplicity, word concreteness, referential/deep/verb
+# cohesion, connectivity, temporality) as z score and percentile relative to the reference corpus.
+# ↑ Higher = easier text on that dimension. Approximate: not the TASA reference corpus. None if an input is
+# undefined that is always defined in the reference corpus (empty document, single sentence).
+def cm_text_easability(indices: List[Index], lang: str) -> Optional[Dict[str, float]]:
+    # Computed from the other indices, so it must run after all of them. A
+    # missing input index value counts as the reference mean (standardized 0)
+    # only if the input is missing in the reference corpus as well (e.g. causal
+    # cohesion without causal verbs); any other missing input (e.g. empty
+    # document, no sentence pair) makes the components undefined: None.
+    model = text_easability_models.get(lang)
+    if model is None:
+        raise ValueError(f"No Text Easability model for language \"{lang}\"")
+    values = {index.label_ttlab: index.value for index in indices}
+    standardized = []
+    for measure in model["inputs"]:
+        unknown = [label for label in measure["labels_ttlab"] if label not in values]
+        if unknown:
+            raise KeyError(f"Text Easability input index not found: {', '.join(unknown)}")
+        parts = [values[label] for label in measure["labels_ttlab"]]
+        if any(part is None or math.isnan(part) for part in parts):
+            if measure["missing_documents"] == 0:
+                return None
+            standardized.append(0.0)
+        else:
+            standardized.append((sum(parts) - measure["mean"]) / measure["scale"])
+    standardized = np.asarray(standardized)
+    results = {}
+    for component in model["components"]:
+        z = float(standardized @ np.asarray(component["weights"]))
+        quantiles = component["percentile_quantiles"]
+        results[component["label_v3_z"]] = z
+        results[component["label_v3_p"]] = float(np.interp(z, quantiles, np.linspace(0, 100, len(quantiles))))
+    return results
+
 @app.post("/v1/process")
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
@@ -5019,6 +5321,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         lang = (request.language or "").strip().lower()
         textstat.set_lang(lang)
 
+        # output: the selected indices; compute: these plus the inputs of selected derived indices
+        index_requires = dict(INDEX_REQUIRES)
+        index_requires.update(_text_easability_requires(lang))
+        output, compute = _resolve_index_selection(request.include_indices, request.exclude_indices, index_requires)
+        compute_groups = {type_name for _, type_name, label_ttlab, _ in INDEX_CATALOG if label_ttlab in compute}
+
         sentences = []
         for p in request.paragraphs:
             sentences.extend(p.sentences)
@@ -5031,8 +5339,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         tokens_count = sum(1 for t in tokens if not t.is_punct)
         has_readability_input = tokens_count > 0 and bool(sentences)
 
+        # only the LSA group uses the vector dimension
         vector_dimension_counts = defaultdict(int)
-        for t in tokens:
+        for t in (tokens if "LSA" in compute_groups else []):
             if not t.has_vector or t.vector is None:
                 continue
             try:
@@ -5061,2155 +5370,2366 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ### Descriptive
 
         # DESPC
-        try:
-            despc = cm_despc(request.paragraphs)
-            despc_error = None
-        except Exception as e:
-            logger.error("Error calculating DESPC: %s", e)
-            despc = None
-            despc_error = str(e)
-        indices.append(Index(
-            index=1,
-            type_name="Descriptive",
-            label_ttlab='DESPC',
-            label_v3="DESPC",
-            label_v2="READNP",
-            description="Paragraph count, number of paragraphs",
-            value=despc,
-            error=despc_error
-        ))
+        if "DESPC" in compute:
+            try:
+                despc = cm_despc(request.paragraphs)
+                despc_error = None
+            except Exception as e:
+                logger.error("Error calculating DESPC: %s", e)
+                despc = None
+                despc_error = str(e)
+            indices.append(Index(
+                index=1,
+                type_name="Descriptive",
+                label_ttlab='DESPC',
+                label_internal='DESPC',
+                label_v3="DESPC",
+                label_v2="READNP",
+                description="Paragraph count, number of paragraphs",
+                version="1.0",
+                value=despc,
+                error=despc_error
+            ))
 
         # DESSC
-        try:
-            dessc = cm_dessc(request.paragraphs)
-            dessc_error = None
-        except Exception as e:
-            logger.error("Error calculating DESSC: %s", e)
-            dessc = None
-            dessc_error = str(e)
-        indices.append(Index(
-            index=2,
-            type_name="Descriptive",
-            label_ttlab='DESSC',
-            label_v3="DESSC",
-            label_v2="READNS",
-            description="Sentence count, number of sentences",
-            value=dessc,
-            error=dessc_error
-        ))
+        if "DESSC" in compute:
+            try:
+                dessc = cm_dessc(request.paragraphs)
+                dessc_error = None
+            except Exception as e:
+                logger.error("Error calculating DESSC: %s", e)
+                dessc = None
+                dessc_error = str(e)
+            indices.append(Index(
+                index=2,
+                type_name="Descriptive",
+                label_ttlab='DESSC',
+                label_internal='DESSC',
+                label_v3="DESSC",
+                label_v2="READNS",
+                description="Sentence count, number of sentences",
+                version="1.0",
+                value=dessc,
+                error=dessc_error
+            ))
 
         # DESWC
-        try:
-            deswc = cm_deswc(request.paragraphs)
-            deswc_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWC: %s", e)
-            deswc = None
-            deswc_error = str(e)
-        indices.append(Index(
-            index=3,
-            type_name="Descriptive",
-            label_ttlab='DESWC',
-            label_v3="DESWC",
-            label_v2="READNW",
-            description="Word count, number of words",
-            value=deswc,
-            error=deswc_error
-        ))
+        if "DESWC" in compute:
+            try:
+                deswc = cm_deswc(request.paragraphs)
+                deswc_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWC: %s", e)
+                deswc = None
+                deswc_error = str(e)
+            indices.append(Index(
+                index=3,
+                type_name="Descriptive",
+                label_ttlab='DESWC',
+                label_internal='DESWC',
+                label_v3="DESWC",
+                label_v2="READNW",
+                description="Word count, number of words",
+                version="1.0",
+                value=deswc,
+                error=deswc_error
+            ))
 
         # DESPL
-        try:
-            despl = cm_despl(request.paragraphs)
-            despl_error = None
-        except Exception as e:
-            logger.error("Error calculating DESPL: %s", e)
-            despl = None
-            despl_error = str(e)
-        indices.append(Index(
-            index=4,
-            type_name="Descriptive",
-            label_ttlab='DESPL',
-            label_v3="DESPL",
-            label_v2="READAPL",
-            description="Paragraph length, number of sentences, mean",
-            value=despl,
-            error=despl_error
-        ))
+        if "DESPL" in compute:
+            try:
+                despl = cm_despl(request.paragraphs)
+                despl_error = None
+            except Exception as e:
+                logger.error("Error calculating DESPL: %s", e)
+                despl = None
+                despl_error = str(e)
+            indices.append(Index(
+                index=4,
+                type_name="Descriptive",
+                label_ttlab='DESPL',
+                label_internal='DESPL',
+                label_v3="DESPL",
+                label_v2="READAPL",
+                description="Paragraph length, number of sentences, mean",
+                version="1.0",
+                value=despl,
+                error=despl_error
+            ))
 
         # DESPLd
-        try:
-            despld = cm_despld(request.paragraphs)
-            despld_error = None
-        except Exception as e:
-            logger.error("Error calculating DESPLd: %s", e)
-            despld = None
-            despld_error = str(e)
-        indices.append(Index(
-            index=5,
-            type_name="Descriptive",
-            label_ttlab='DESPLd',
-            label_v3="DESPLd",
-            label_v2="n/a",
-            description="Paragraph length, number of sentences, standard deviation",
-            value=despld,
-            error=despld_error
-        ))
+        if "DESPLd" in compute:
+            try:
+                despld = cm_despld(request.paragraphs)
+                despld_error = None
+            except Exception as e:
+                logger.error("Error calculating DESPLd: %s", e)
+                despld = None
+                despld_error = str(e)
+            indices.append(Index(
+                index=5,
+                type_name="Descriptive",
+                label_ttlab='DESPLd',
+                label_internal='DESPLd',
+                label_v3="DESPLd",
+                label_v2="n/a",
+                description="Paragraph length, number of sentences, standard deviation",
+                version="1.0",
+                value=despld,
+                error=despld_error
+            ))
 
         # DESSL
-        try:
-            dessl = cm_dessl(request.paragraphs)
-            dessl_error = None
-        except Exception as e:
-            logger.error("Error calculating DESSL: %s", e)
-            dessl = None
-            dessl_error = str(e)
-        indices.append(Index(
-            index=6,
-            type_name="Descriptive",
-            label_ttlab='DESSL',
-            label_v3="DESSL",
-            label_v2="READASL",
-            description="Sentence length, number of words, mean",
-            value=dessl,
-            error=dessl_error
-        ))
+        if "DESSL" in compute:
+            try:
+                dessl = cm_dessl(request.paragraphs)
+                dessl_error = None
+            except Exception as e:
+                logger.error("Error calculating DESSL: %s", e)
+                dessl = None
+                dessl_error = str(e)
+            indices.append(Index(
+                index=6,
+                type_name="Descriptive",
+                label_ttlab='DESSL',
+                label_internal='DESSL',
+                label_v3="DESSL",
+                label_v2="READASL",
+                description="Sentence length, number of words, mean",
+                version="1.0",
+                value=dessl,
+                error=dessl_error
+            ))
 
         # DESSLd
-        try:
-            dessld = cm_dessld(request.paragraphs)
-            dessld_error = None
-        except Exception as e:
-            logger.error("Error calculating DESSLd: %s", e)
-            dessld = None
-            dessld_error = str(e)
-        indices.append(Index(
-            index=7,
-            type_name="Descriptive",
-            label_ttlab='DESSLd',
-            label_v3="DESSLd",
-            label_v2="n/a",
-            description="Sentence length, number of words, standard deviation",
-            value=dessld,
-            error=dessld_error
-        ))
+        if "DESSLd" in compute:
+            try:
+                dessld = cm_dessld(request.paragraphs)
+                dessld_error = None
+            except Exception as e:
+                logger.error("Error calculating DESSLd: %s", e)
+                dessld = None
+                dessld_error = str(e)
+            indices.append(Index(
+                index=7,
+                type_name="Descriptive",
+                label_ttlab='DESSLd',
+                label_internal='DESSLd',
+                label_v3="DESSLd",
+                label_v2="n/a",
+                description="Sentence length, number of words, standard deviation",
+                version="1.0",
+                value=dessld,
+                error=dessld_error
+            ))
 
         # DESWLsy
-        try:
-            deswlsy = cm_deswlsy(tokens, lang)
-            deswlsy_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLsy: %s", e)
-            deswlsy = None
-            deswlsy_error = str(e)
-        indices.append(Index(
-            index=8,
-            type_name="Descriptive",
-            label_ttlab='DESWLsy',
-            label_v3="DESWLsy",
-            label_v2="READASW",
-            description="Word length, number of syllables, mean",
-            value=deswlsy,
-            error=deswlsy_error
-        ))
+        if "DESWLsy" in compute:
+            try:
+                deswlsy = cm_deswlsy(tokens, lang)
+                deswlsy_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLsy: %s", e)
+                deswlsy = None
+                deswlsy_error = str(e)
+            indices.append(Index(
+                index=8,
+                type_name="Descriptive",
+                label_ttlab='DESWLsy',
+                label_internal='DESWLsy',
+                label_v3="DESWLsy",
+                label_v2="READASW",
+                description="Word length, number of syllables, mean",
+                version="1.0",
+                value=deswlsy,
+                error=deswlsy_error
+            ))
 
         # DESWLsyd
-        try:
-            deswlsyd = cm_deswlsyd(tokens, lang)
-            deswlsyd_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLsyd: %s", e)
-            deswlsyd = None
-            deswlsyd_error = str(e)
-        indices.append(Index(
-            index=9,
-            type_name="Descriptive",
-            label_ttlab='DESWLsyd',
-            label_v3="DESWLsyd",
-            label_v2="n/a",
-            description="Word length, number of syllables, standard deviation",
-            value=deswlsyd,
-            error=deswlsyd_error
-        ))
+        if "DESWLsyd" in compute:
+            try:
+                deswlsyd = cm_deswlsyd(tokens, lang)
+                deswlsyd_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLsyd: %s", e)
+                deswlsyd = None
+                deswlsyd_error = str(e)
+            indices.append(Index(
+                index=9,
+                type_name="Descriptive",
+                label_ttlab='DESWLsyd',
+                label_internal='DESWLsyd',
+                label_v3="DESWLsyd",
+                label_v2="n/a",
+                description="Word length, number of syllables, standard deviation",
+                version="1.0",
+                value=deswlsyd,
+                error=deswlsyd_error
+            ))
 
         # DESWLlt
-        try:
-            deswllt = cm_deswllt(request.paragraphs)
-            deswllt_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLlt: %s", e)
-            deswllt = None
-            deswllt_error = str(e)
-        indices.append(Index(
-            index=10,
-            type_name="Descriptive",
-            label_ttlab='DESWLlt',
-            label_v3="DESWLlt",
-            label_v2="n/a",
-            description="Word length, number of letters, mean",
-            value=deswllt,
-            error=deswllt_error
-        ))
+        if "DESWLlt" in compute:
+            try:
+                deswllt = cm_deswllt(request.paragraphs)
+                deswllt_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLlt: %s", e)
+                deswllt = None
+                deswllt_error = str(e)
+            indices.append(Index(
+                index=10,
+                type_name="Descriptive",
+                label_ttlab='DESWLlt',
+                label_internal='DESWLlt',
+                label_v3="DESWLlt",
+                label_v2="n/a",
+                description="Word length, number of letters, mean",
+                version="1.0",
+                value=deswllt,
+                error=deswllt_error
+            ))
 
         # DESWLltd
-        try:
-            deswlltd = cm_deswlltd(request.paragraphs)
-            deswlltd_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLltd: %s", e)
-            deswlltd = None
-            deswlltd_error = str(e)
-        indices.append(Index(
-            index=11,
-            type_name="Descriptive",
-            label_ttlab='DESWLltd',
-            label_v3="DESWLltd",
-            label_v2="n/a",
-            description="Word length, number of letters, standard deviation",
-            value=deswlltd,
-            error=deswlltd_error
-        ))
+        if "DESWLltd" in compute:
+            try:
+                deswlltd = cm_deswlltd(request.paragraphs)
+                deswlltd_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLltd: %s", e)
+                deswlltd = None
+                deswlltd_error = str(e)
+            indices.append(Index(
+                index=11,
+                type_name="Descriptive",
+                label_ttlab='DESWLltd',
+                label_internal='DESWLltd',
+                label_v3="DESWLltd",
+                label_v2="n/a",
+                description="Word length, number of letters, standard deviation",
+                version="1.0",
+                value=deswlltd,
+                error=deswlltd_error
+            ))
 
         ### Text Easability Principal Component Scores
 
         # PCNARz
-        try:
-            #pcnarz = cm_pcnarz(sentences)
-            pcnarz = None
-            pcnarz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCNARz: %s", e)
-            pcnarz = None
-            pcnarz_error = str(e)
-        indices.append(Index(
-            index=12,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCNARz_wikipedia",
-            label_v3="PCNARz",
-            label_v2="n/a",
-            description="Text Easability PC Narrativity, z score",
-            value=pcnarz,
-            error=pcnarz_error
-        ))
+        if "PCNARz_clear" in compute:
+            try:
+                #pcnarz = cm_pcnarz(sentences)
+                pcnarz = None
+                pcnarz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCNARz: %s", e)
+                pcnarz = None
+                pcnarz_error = str(e)
+            indices.append(Index(
+                index=12,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCNARz_clear",
+                label_internal="PCNARz_clear",
+                label_v3="PCNARz",
+                label_v2="n/a",
+                description="Text Easability PC Narrativity, z score",
+                version="1.0",
+                value=pcnarz,
+                error=pcnarz_error
+            ))
 
         # PCNARp
-        try:
-            #pcnarp = cm_pcnarp(sentences)
-            pcnarp = None
-            pcnarp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCNARp: %s", e)
-            pcnarp = None
-            pcnarp_error = str(e)
-        indices.append(Index(
-            index=13,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCNARp_wikipedia",
-            label_v3="PCNARp",
-            label_v2="n/a",
-            description="Text Easability PC Narrativity, percentile",
-            value=pcnarp,
-            error=pcnarp_error
-        ))
+        if "PCNARp_clear" in compute:
+            try:
+                #pcnarp = cm_pcnarp(sentences)
+                pcnarp = None
+                pcnarp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCNARp: %s", e)
+                pcnarp = None
+                pcnarp_error = str(e)
+            indices.append(Index(
+                index=13,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCNARp_clear",
+                label_internal="PCNARp_clear",
+                label_v3="PCNARp",
+                label_v2="n/a",
+                description="Text Easability PC Narrativity, percentile",
+                version="1.0",
+                value=pcnarp,
+                error=pcnarp_error
+            ))
 
         # PCSYNz
-        try:
-            #pcsynz = cm_pcsynz(sentences)
-            pcsynz = None
-            pcsynz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCSYNz: %s", e)
-            pcsynz = None
-            pcsynz_error = str(e)
-        indices.append(Index(
-            index=14,
-            type_name="Text Easability Principal Component Scores",
-            label_v3="PCSYNz",
-            label_v2="n/a",
-            label_ttlab="PCSYNz_wikipedia",
-            description="Text Easability PC Syntactic simplicity, z score",
-            value=pcsynz,
-            error=pcsynz_error
-        ))
+        if "PCSYNz_clear" in compute:
+            try:
+                #pcsynz = cm_pcsynz(sentences)
+                pcsynz = None
+                pcsynz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCSYNz: %s", e)
+                pcsynz = None
+                pcsynz_error = str(e)
+            indices.append(Index(
+                index=14,
+                type_name="Text Easability Principal Component Scores",
+                label_v3="PCSYNz",
+                label_v2="n/a",
+                label_ttlab="PCSYNz_clear",
+                label_internal="PCSYNz_clear",
+                description="Text Easability PC Syntactic simplicity, z score",
+                version="1.0",
+                value=pcsynz,
+                error=pcsynz_error
+            ))
 
         # PCSYNp
-        try:
-            #pcsynp = cm_pcsynp(sentences)
-            pcsynp = None
-            pcsynp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCSYNp: %s", e)
-            pcsynp = None
-            pcsynp_error = str(e)
-        indices.append(Index(
-            index=15,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCSYNp_wikipedia",
-            label_v3="PCSYNp",
-            label_v2="n/a",
-            description="Text Easability PC Syntactic simplicity, percentile",
-            value=pcsynp,
-            error=pcsynp_error
-        ))
+        if "PCSYNp_clear" in compute:
+            try:
+                #pcsynp = cm_pcsynp(sentences)
+                pcsynp = None
+                pcsynp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCSYNp: %s", e)
+                pcsynp = None
+                pcsynp_error = str(e)
+            indices.append(Index(
+                index=15,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCSYNp_clear",
+                label_internal="PCSYNp_clear",
+                label_v3="PCSYNp",
+                label_v2="n/a",
+                description="Text Easability PC Syntactic simplicity, percentile",
+                version="1.0",
+                value=pcsynp,
+                error=pcsynp_error
+            ))
 
         # PCCNCz
-        try:
-            #pccncz = cm_pccncz(sentences)
-            pccncz = None
-            pccncz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCCNCz: %s", e)
-            pccncz = None
-            pccncz_error = str(e)
-        indices.append(Index(
-            index=16,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCCNCz_wikipedia",
-            label_v3="PCCNCz",
-            label_v2="n/a",
-            description="Text Easability PC Word concreteness, z score",
-            value=pccncz,
-            error=pccncz_error
-        ))
+        if "PCCNCz_clear" in compute:
+            try:
+                #pccncz = cm_pccncz(sentences)
+                pccncz = None
+                pccncz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCCNCz: %s", e)
+                pccncz = None
+                pccncz_error = str(e)
+            indices.append(Index(
+                index=16,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCCNCz_clear",
+                label_internal="PCCNCz_clear",
+                label_v3="PCCNCz",
+                label_v2="n/a",
+                description="Text Easability PC Word concreteness, z score",
+                version="1.0",
+                value=pccncz,
+                error=pccncz_error
+            ))
 
         # PCCNCp
-        try:
-            #pccncp = cm_pccncp(sentences)
-            pccncp = None
-            pccncp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCCNCp: %s", e)
-            pccncp = None
-            pccncp_error = str(e)
-        indices.append(Index(
-            index=17,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCCNCp_wikipedia",
-            label_v3="PCCNCp",
-            label_v2="n/a",
-            description="Text Easability PC Word concreteness, percentile",
-            value=pccncp,
-            error=pccncp_error
-        ))
+        if "PCCNCp_clear" in compute:
+            try:
+                #pccncp = cm_pccncp(sentences)
+                pccncp = None
+                pccncp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCCNCp: %s", e)
+                pccncp = None
+                pccncp_error = str(e)
+            indices.append(Index(
+                index=17,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCCNCp_clear",
+                label_internal="PCCNCp_clear",
+                label_v3="PCCNCp",
+                label_v2="n/a",
+                description="Text Easability PC Word concreteness, percentile",
+                version="1.0",
+                value=pccncp,
+                error=pccncp_error
+            ))
 
         # PCREFz
-        try:
-            #pcrefz = cm_pcrefz(sentences)
-            pcrefz = None
-            pcrefz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCREFz: %s", e)
-            pcrefz = None
-            pcrefz_error = str(e)
-        indices.append(Index(
-            index=18,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCREFz_wikipedia",
-            label_v3="PCREFz",
-            label_v2="n/a",
-            description="Text Easability PC Referential cohesion, z score",
-            value=pcrefz,
-            error=pcrefz_error
-        ))
+        if "PCREFz_clear" in compute:
+            try:
+                #pcrefz = cm_pcrefz(sentences)
+                pcrefz = None
+                pcrefz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCREFz: %s", e)
+                pcrefz = None
+                pcrefz_error = str(e)
+            indices.append(Index(
+                index=18,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCREFz_clear",
+                label_internal="PCREFz_clear",
+                label_v3="PCREFz",
+                label_v2="n/a",
+                description="Text Easability PC Referential cohesion, z score",
+                version="1.0",
+                value=pcrefz,
+                error=pcrefz_error
+            ))
 
         # PCREFp
-        try:
-            #pcrefp = cm_pcrefp(sentences)
-            pcrefp = None
-            pcrefp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCREFp: %s", e)
-            pcrefp = None
-            pcrefp_error = str(e)
-        indices.append(Index(
-            index=19,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCREFp_wikipedia",
-            label_v3="PCREFp",
-            label_v2="n/a",
-            description="Text Easability PC Referential cohesion, percentile",
-            value=pcrefp,
-            error=pcrefp_error
-        ))
+        if "PCREFp_clear" in compute:
+            try:
+                #pcrefp = cm_pcrefp(sentences)
+                pcrefp = None
+                pcrefp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCREFp: %s", e)
+                pcrefp = None
+                pcrefp_error = str(e)
+            indices.append(Index(
+                index=19,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCREFp_clear",
+                label_internal="PCREFp_clear",
+                label_v3="PCREFp",
+                label_v2="n/a",
+                description="Text Easability PC Referential cohesion, percentile",
+                version="1.0",
+                value=pcrefp,
+                error=pcrefp_error
+            ))
 
         # PCDCz
-        try:
-            #pcdcz = cm_pcdcz(sentences)
-            pcdcz = None
-            pcdcz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCDCz: %s", e)
-            pcdcz = None
-            pcdcz_error = str(e)
-        indices.append(Index(
-            index=20,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCDCz_wikipedia",
-            label_v3="PCDCz",
-            label_v2="n/a",
-            description="Text Easability PC Deep cohesion, z score",
-            value=pcdcz,
-            error=pcdcz_error
-        ))
+        if "PCDCz_clear" in compute:
+            try:
+                #pcdcz = cm_pcdcz(sentences)
+                pcdcz = None
+                pcdcz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCDCz: %s", e)
+                pcdcz = None
+                pcdcz_error = str(e)
+            indices.append(Index(
+                index=20,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCDCz_clear",
+                label_internal="PCDCz_clear",
+                label_v3="PCDCz",
+                label_v2="n/a",
+                description="Text Easability PC Deep cohesion, z score",
+                version="1.0",
+                value=pcdcz,
+                error=pcdcz_error
+            ))
 
         # PCDCp
-        try:
-            #pcdcp = cm_pcdcp(sentences)
-            pcdcp = None
-            pcdcp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCDCp: %s", e)
-            pcdcp = None
-            pcdcp_error = str(e)
-        indices.append(Index(
-            index=21,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCDCp_wikipedia",
-            label_v3="PCDCp",
-            label_v2="n/a",
-            description="Text Easability PC Deep cohesion, percentile",
-            value=pcdcp,
-            error=pcdcp_error
-        ))
+        if "PCDCp_clear" in compute:
+            try:
+                #pcdcp = cm_pcdcp(sentences)
+                pcdcp = None
+                pcdcp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCDCp: %s", e)
+                pcdcp = None
+                pcdcp_error = str(e)
+            indices.append(Index(
+                index=21,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCDCp_clear",
+                label_internal="PCDCp_clear",
+                label_v3="PCDCp",
+                label_v2="n/a",
+                description="Text Easability PC Deep cohesion, percentile",
+                version="1.0",
+                value=pcdcp,
+                error=pcdcp_error
+            ))
 
         # PCVERBz
-        try:
-            #pcverbz = cm_pcverbz(sentences)
-            pcverbz = None
-            pcverbz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCVERBz: %s", e)
-            pcverbz = None
-            pcverbz_error = str(e)
-        indices.append(Index(
-            index=22,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCVERBz_wikipedia",
-            label_v3="PCVERBz",
-            label_v2="n/a",
-            description="Text Easability PC Verb cohesion, z score",
-            value=pcverbz,
-            error=pcverbz_error
-        ))
+        if "PCVERBz_clear" in compute:
+            try:
+                #pcverbz = cm_pcverbz(sentences)
+                pcverbz = None
+                pcverbz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCVERBz: %s", e)
+                pcverbz = None
+                pcverbz_error = str(e)
+            indices.append(Index(
+                index=22,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCVERBz_clear",
+                label_internal="PCVERBz_clear",
+                label_v3="PCVERBz",
+                label_v2="n/a",
+                description="Text Easability PC Verb cohesion, z score",
+                version="1.0",
+                value=pcverbz,
+                error=pcverbz_error
+            ))
 
         # PCVERBp
-        try:
-            #pcverbp = cm_pcverbp(sentences)
-            pcverbp = None
-            pcverbp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCVERBp: %s", e)
-            pcverbp = None
-            pcverbp_error = str(e)
-        indices.append(Index(
-            index=23,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCVERBp_wikipedia",
-            label_v3="PCVERBp",
-            label_v2="n/a",
-            description="Text Easability PC Verb cohesion, percentile",
-            value=pcverbp,
-            error=pcverbp_error
-        ))
+        if "PCVERBp_clear" in compute:
+            try:
+                #pcverbp = cm_pcverbp(sentences)
+                pcverbp = None
+                pcverbp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCVERBp: %s", e)
+                pcverbp = None
+                pcverbp_error = str(e)
+            indices.append(Index(
+                index=23,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCVERBp_clear",
+                label_internal="PCVERBp_clear",
+                label_v3="PCVERBp",
+                label_v2="n/a",
+                description="Text Easability PC Verb cohesion, percentile",
+                version="1.0",
+                value=pcverbp,
+                error=pcverbp_error
+            ))
 
         # PCCONNz
-        try:
-            #pcconnz = cm_pcconnz(sentences)
-            pcconnz = None
-            pcconnz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCCONNz: %s", e)
-            pcconnz = None
-            pcconnz_error = str(e)
-        indices.append(Index(
-            index=24,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCCONNz_wikipedia",
-            label_v3="PCCONNz",
-            label_v2="n/a",
-            description="Text Easability PC Connectivity, z score",
-            value=pcconnz,
-            error=pcconnz_error
-        ))
+        if "PCCONNz_clear" in compute:
+            try:
+                #pcconnz = cm_pcconnz(sentences)
+                pcconnz = None
+                pcconnz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCCONNz: %s", e)
+                pcconnz = None
+                pcconnz_error = str(e)
+            indices.append(Index(
+                index=24,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCCONNz_clear",
+                label_internal="PCCONNz_clear",
+                label_v3="PCCONNz",
+                label_v2="n/a",
+                description="Text Easability PC Connectivity, z score",
+                version="1.0",
+                value=pcconnz,
+                error=pcconnz_error
+            ))
 
         # PCCONNp
-        try:
-            #pcconnp = cm_pcconnp(sentences)
-            pcconnp = None
-            pcconnp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCCONNp: %s", e)
-            pcconnp = None
-            pcconnp_error = str(e)
-        indices.append(Index(
-            index=25,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCCONNp_wikipedia",
-            label_v3="PCCONNp",
-            label_v2="n/a",
-            description="Text Easability PC Connectivity, percentile",
-            value=pcconnp,
-            error=pcconnp_error
-        ))
+        if "PCCONNp_clear" in compute:
+            try:
+                #pcconnp = cm_pcconnp(sentences)
+                pcconnp = None
+                pcconnp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCCONNp: %s", e)
+                pcconnp = None
+                pcconnp_error = str(e)
+            indices.append(Index(
+                index=25,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCCONNp_clear",
+                label_internal="PCCONNp_clear",
+                label_v3="PCCONNp",
+                label_v2="n/a",
+                description="Text Easability PC Connectivity, percentile",
+                version="1.0",
+                value=pcconnp,
+                error=pcconnp_error
+            ))
 
         # PCTEMPz
-        try:
-            #pctempz = cm_pctempz(sentences)
-            pctempz = None
-            pctempz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCTEMPz: %s", e)
-            pctempz = None
-            pctempz_error = str(e)
-        indices.append(Index(
-            index=26,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCTEMPz_wikipedia",
-            label_v3="PCTEMPz",
-            label_v2="n/a",
-            description="Text Easability PC Temporality, z score",
-            value=pctempz,
-            error=pctempz_error
-        ))
+        if "PCTEMPz_clear" in compute:
+            try:
+                #pctempz = cm_pctempz(sentences)
+                pctempz = None
+                pctempz_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCTEMPz: %s", e)
+                pctempz = None
+                pctempz_error = str(e)
+            indices.append(Index(
+                index=26,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCTEMPz_clear",
+                label_internal="PCTEMPz_clear",
+                label_v3="PCTEMPz",
+                label_v2="n/a",
+                description="Text Easability PC Temporality, z score",
+                version="1.0",
+                value=pctempz,
+                error=pctempz_error
+            ))
 
         # PCTEMPp
-        try:
-            #pctempp = cm_pctempp(sentences)
-            pctempp = None
-            pctempp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
-        except Exception as e:
-            logger.error("Error calculating PCTEMPp: %s", e)
-            pctempp = None
-            pctempp_error = str(e)
-        indices.append(Index(
-            index=27,
-            type_name="Text Easability Principal Component Scores",
-            label_ttlab="PCTEMPp_wikipedia",
-            label_v3="PCTEMPp",
-            label_v2="n/a",
-            description="Text Easability PC Temporality, percentile",
-            value=pctempp,
-            error=pctempp_error
-        ))
+        if "PCTEMPp_clear" in compute:
+            try:
+                #pctempp = cm_pctempp(sentences)
+                pctempp = None
+                pctempp_error = "Not implemented: Text Easability PC scores require LSA model + regression weights trained on TASA corpus (not available in this container)"
+            except Exception as e:
+                logger.error("Error calculating PCTEMPp: %s", e)
+                pctempp = None
+                pctempp_error = str(e)
+            indices.append(Index(
+                index=27,
+                type_name="Text Easability Principal Component Scores",
+                label_ttlab="PCTEMPp_clear",
+                label_internal="PCTEMPp_clear",
+                label_v3="PCTEMPp",
+                label_v2="n/a",
+                description="Text Easability PC Temporality, percentile",
+                version="1.0",
+                value=pctempp,
+                error=pctempp_error
+            ))
 
         ### Referential Cohesion
 
         # CRFNO1
-        try:
-            crfno1 = cm_crfno1(sentences)
-            crfno1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFNO1: %s", e)
-            crfno1 = None
-            crfno1_error = str(e)
-        indices.append(Index(
-            index=28,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFNO1',
-            label_v3="CRFNO1",
-            label_v2="CRFBN1um",
-            description="Noun overlap, adjacent sentences, binary, mean",
-            value=crfno1,
-            error=crfno1_error
-        ))
+        if "CRFNO1" in compute:
+            try:
+                crfno1 = cm_crfno1(sentences)
+                crfno1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFNO1: %s", e)
+                crfno1 = None
+                crfno1_error = str(e)
+            indices.append(Index(
+                index=28,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFNO1',
+                label_internal='CRFNO1',
+                label_v3="CRFNO1",
+                label_v2="CRFBN1um",
+                description="Noun overlap, adjacent sentences, binary, mean",
+                version="1.0",
+                value=crfno1,
+                error=crfno1_error
+            ))
 
         # CRFAO1
-        try:
-            crfao1 = cm_crfao1(sentences)
-            crfao1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFAO1: %s", e)
-            crfao1 = None
-            crfao1_error = str(e)
-        indices.append(Index(
-            index=29,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFAO1',
-            label_v3="CRFAO1",
-            label_v2="CRFBA1um",
-            description="Argument overlap, adjacent sentences, binary, mean",
-            value=crfao1,
-            error=crfao1_error
-        ))
+        if "CRFAO1" in compute:
+            try:
+                crfao1 = cm_crfao1(sentences)
+                crfao1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFAO1: %s", e)
+                crfao1 = None
+                crfao1_error = str(e)
+            indices.append(Index(
+                index=29,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFAO1',
+                label_internal='CRFAO1',
+                label_v3="CRFAO1",
+                label_v2="CRFBA1um",
+                description="Argument overlap, adjacent sentences, binary, mean",
+                version="1.0",
+                value=crfao1,
+                error=crfao1_error
+            ))
 
         # CRFSO1
-        try:
-            crfso1 = cm_crfso1(sentences)
-            crfso1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFSO1: %s", e)
-            crfso1 = None
-            crfso1_error = str(e)
-        indices.append(Index(
-            index=30,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFSO1',
-            label_v3="CRFSO1",
-            label_v2="CRFBS1um",
-            description="Stem overlap, adjacent sentences, binary, mean",
-            value=crfso1,
-            error=crfso1_error
-        ))
+        if "CRFSO1" in compute:
+            try:
+                crfso1 = cm_crfso1(sentences)
+                crfso1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFSO1: %s", e)
+                crfso1 = None
+                crfso1_error = str(e)
+            indices.append(Index(
+                index=30,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFSO1',
+                label_internal='CRFSO1',
+                label_v3="CRFSO1",
+                label_v2="CRFBS1um",
+                description="Stem overlap, adjacent sentences, binary, mean",
+                version="1.0",
+                value=crfso1,
+                error=crfso1_error
+            ))
 
         # CRFNOa
-        try:
-            crfnoa = cm_crfnoa(sentences)
-            crfnoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFNOa: %s", e)
-            crfnoa = None
-            crfnoa_error = str(e)
-        indices.append(Index(
-            index=31,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFNOa',
-            label_v3="CRFNOa",
-            label_v2="CRFBNaum",
-            description="Noun overlap, all sentences, binary, mean",
-            value=crfnoa,
-            error=crfnoa_error
-        ))
+        if "CRFNOa" in compute:
+            try:
+                crfnoa = cm_crfnoa(sentences)
+                crfnoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFNOa: %s", e)
+                crfnoa = None
+                crfnoa_error = str(e)
+            indices.append(Index(
+                index=31,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFNOa',
+                label_internal='CRFNOa',
+                label_v3="CRFNOa",
+                label_v2="CRFBNaum",
+                description="Noun overlap, all sentences, binary, mean",
+                version="1.0",
+                value=crfnoa,
+                error=crfnoa_error
+            ))
 
         # CRFAOa
-        try:
-            crfaoa = cm_crfaoa(sentences)
-            crfaoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFAOa: %s", e)
-            crfaoa = None
-            crfaoa_error = str(e)
-        indices.append(Index(
-            index=32,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFAOa',
-            label_v3="CRFAOa",
-            label_v2="CRFBAaum",
-            description="Argument overlap, all sentences, binary, mean",
-            value=crfaoa,
-            error=crfaoa_error
-        ))
+        if "CRFAOa" in compute:
+            try:
+                crfaoa = cm_crfaoa(sentences)
+                crfaoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFAOa: %s", e)
+                crfaoa = None
+                crfaoa_error = str(e)
+            indices.append(Index(
+                index=32,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFAOa',
+                label_internal='CRFAOa',
+                label_v3="CRFAOa",
+                label_v2="CRFBAaum",
+                description="Argument overlap, all sentences, binary, mean",
+                version="1.0",
+                value=crfaoa,
+                error=crfaoa_error
+            ))
 
         # CRFSOa
-        try:
-            crfsoa = cm_crfsoa(sentences)
-            crfsoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFSOa: %s", e)
-            crfsoa = None
-            crfsoa_error = str(e)
-        indices.append(Index(
-            index=33,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFSOa',
-            label_v3="CRFSOa",
-            label_v2="CRFBSaum",
-            description="Stem overlap, all sentences, binary, mean",
-            value=crfsoa,
-            error=crfsoa_error
-        ))
+        if "CRFSOa" in compute:
+            try:
+                crfsoa = cm_crfsoa(sentences)
+                crfsoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFSOa: %s", e)
+                crfsoa = None
+                crfsoa_error = str(e)
+            indices.append(Index(
+                index=33,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFSOa',
+                label_internal='CRFSOa',
+                label_v3="CRFSOa",
+                label_v2="CRFBSaum",
+                description="Stem overlap, all sentences, binary, mean",
+                version="1.0",
+                value=crfsoa,
+                error=crfsoa_error
+            ))
 
         # CRFCWO1
-        try:
-            crfcwo1 = cm_crfcwo1(sentences)
-            crfcwo1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWO1: %s", e)
-            crfcwo1 = None
-            crfcwo1_error = str(e)
-        indices.append(Index(
-            index=34,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFCWO1',
-            label_v3="CRFCWO1",
-            label_v2="CRFPC1um",
-            description="Content word overlap, adjacent sentences, proportional, mean",
-            value=crfcwo1,
-            error=crfcwo1_error
-        ))
+        if "CRFCWO1" in compute:
+            try:
+                crfcwo1 = cm_crfcwo1(sentences)
+                crfcwo1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWO1: %s", e)
+                crfcwo1 = None
+                crfcwo1_error = str(e)
+            indices.append(Index(
+                index=34,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFCWO1',
+                label_internal='CRFCWO1',
+                label_v3="CRFCWO1",
+                label_v2="CRFPC1um",
+                description="Content word overlap, adjacent sentences, proportional, mean",
+                version="1.0",
+                value=crfcwo1,
+                error=crfcwo1_error
+            ))
 
         # CRFCWO1d
-        try:
-            crfcwo1d = cm_crfcwo1d(sentences)
-            crfcwo1d_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWO1d: %s", e)
-            crfcwo1d = None
-            crfcwo1d_error = str(e)
-        indices.append(Index(
-            index=35,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFCWO1d',
-            label_v3="CRFCWO1d",
-            label_v2="n/a",
-            description="Content word overlap, adjacent sentences, proportional, standard deviation",
-            value=crfcwo1d,
-            error=crfcwo1d_error
-        ))
+        if "CRFCWO1d" in compute:
+            try:
+                crfcwo1d = cm_crfcwo1d(sentences)
+                crfcwo1d_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWO1d: %s", e)
+                crfcwo1d = None
+                crfcwo1d_error = str(e)
+            indices.append(Index(
+                index=35,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFCWO1d',
+                label_internal='CRFCWO1d',
+                label_v3="CRFCWO1d",
+                label_v2="n/a",
+                description="Content word overlap, adjacent sentences, proportional, standard deviation",
+                version="1.0",
+                value=crfcwo1d,
+                error=crfcwo1d_error
+            ))
 
         # CRFCWOa
-        try:
-            crfcwoa = cm_crfcwoa(sentences)
-            crfcwoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWOa: %s", e)
-            crfcwoa = None
-            crfcwoa_error = str(e)
-        indices.append(Index(
-            index=36,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFCWOa',
-            label_v3="CRFCWOa",
-            label_v2="CRFPCaum",
-            description="Content word overlap, all sentences, proportional, mean",
-            value=crfcwoa,
-            error=crfcwoa_error
-        ))
+        if "CRFCWOa" in compute:
+            try:
+                crfcwoa = cm_crfcwoa(sentences)
+                crfcwoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWOa: %s", e)
+                crfcwoa = None
+                crfcwoa_error = str(e)
+            indices.append(Index(
+                index=36,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFCWOa',
+                label_internal='CRFCWOa',
+                label_v3="CRFCWOa",
+                label_v2="CRFPCaum",
+                description="Content word overlap, all sentences, proportional, mean",
+                version="1.0",
+                value=crfcwoa,
+                error=crfcwoa_error
+            ))
 
         # CRFCWOad
-        try:
-            crfcwoad = cm_crfcwoad(sentences)
-            crfcwoad_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWOad: %s", e)
-            crfcwoad = None
-            crfcwoad_error = str(e)
-        indices.append(Index(
-            index=37,
-            type_name="Referential Cohesion",
-            label_ttlab='CRFCWOad',
-            label_v3="CRFCWOad",
-            label_v2="n/a",
-            description="Content word overlap, all sentences, proportional, standard deviation",
-            value=crfcwoad,
-            error=crfcwoad_error
-        ))
+        if "CRFCWOad" in compute:
+            try:
+                crfcwoad = cm_crfcwoad(sentences)
+                crfcwoad_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWOad: %s", e)
+                crfcwoad = None
+                crfcwoad_error = str(e)
+            indices.append(Index(
+                index=37,
+                type_name="Referential Cohesion",
+                label_ttlab='CRFCWOad',
+                label_internal='CRFCWOad',
+                label_v3="CRFCWOad",
+                label_v2="n/a",
+                description="Content word overlap, all sentences, proportional, standard deviation",
+                version="1.0",
+                value=crfcwoad,
+                error=crfcwoad_error
+            ))
 
-        ### Lexical Diversity
+        ### LSA
 
-        try:
-            token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
-            lsa_indices = _lsa_cohesion_indices(
-                token_vectors,
-                token_words,
-                tokens_vector_length,
-                n_components=settings.lsa_svd_components,
-                use_truncated_svd=settings.lsa_use_truncated_svd
-            )
-            lsa_error = None
-        except Exception as e:
-            logger.error("Error calculating LSA: %s", e)
-            lsa_indices = None
-            lsa_error = str(e)
+        if "LSA" in compute_groups:
+            try:
+                token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
+                lsa_indices = _lsa_cohesion_indices(
+                    token_vectors,
+                    token_words,
+                    tokens_vector_length,
+                    n_components=settings.lsa_svd_components,
+                    use_truncated_svd=settings.lsa_use_truncated_svd,
+                    given_new=not compute.isdisjoint(_LSA_GIVEN_NEW_INDICES)
+                )
+                lsa_error = None
+            except Exception as e:
+                logger.error("Error calculating LSA: %s", e)
+                lsa_indices = None
+                lsa_error = str(e)
 
         # LSASS1
-        try:
-            lsass1 = cm_lsass1(lsa_indices)
-            lsass1_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASS1: %s", e)
-            lsass1 = None
-            # M7 fix: guard against None + str when the outer LSA step succeeded.
-            lsass1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)
-        indices.append(Index(
-            index=38,
-            type_name="LSA",
-            label_ttlab="LSASS1_spacy",
-            label_v3="LSASS1",
-            label_v2="LSAassa",
-            description="LSA overlap, adjacent sentences, mean",
-            value=lsass1,
-            error=lsass1_error
-        ))
+        if "LSASS1_spacy" in compute:
+            try:
+                lsass1 = cm_lsass1(lsa_indices)
+                lsass1_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASS1: %s", e)
+                lsass1 = None
+                # M7 fix: guard against None + str when the outer LSA step succeeded.
+                lsass1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)
+            indices.append(Index(
+                index=38,
+                type_name="LSA",
+                label_ttlab="LSASS1_spacy",
+                label_internal="LSASS1_spacy",
+                label_v3="LSASS1",
+                label_v2="LSAassa",
+                description="LSA overlap, adjacent sentences, mean",
+                version="1.0",
+                value=lsass1,
+                error=lsass1_error
+            ))
 
         # LSASS1d
-        try:
-            lsass1d = cm_lsass1d(lsa_indices)
-            lsass1d_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASS1d: %s", e)
-            lsass1d = None
-            lsass1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=39,
-            type_name="LSA",
-            label_ttlab="LSASS1d_spacy",
-            label_v3="LSASS1d",
-            label_v2="LSAassd",
-            description="LSA overlap, adjacent sentences, standard deviation",
-            value=lsass1d,
-            error=lsass1d_error
-        ))
+        if "LSASS1d_spacy" in compute:
+            try:
+                lsass1d = cm_lsass1d(lsa_indices)
+                lsass1d_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASS1d: %s", e)
+                lsass1d = None
+                lsass1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=39,
+                type_name="LSA",
+                label_ttlab="LSASS1d_spacy",
+                label_internal="LSASS1d_spacy",
+                label_v3="LSASS1d",
+                label_v2="LSAassd",
+                description="LSA overlap, adjacent sentences, standard deviation",
+                version="1.0",
+                value=lsass1d,
+                error=lsass1d_error
+            ))
 
         # LSASSp
-        try:
-            lsassp = cm_lsassp(lsa_indices)
-            lsassp_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASSp: %s", e)
-            lsassp = None
-            lsassp_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=40,
-            type_name="LSA",
-            label_ttlab="LSASSp_spacy",
-            label_v3="LSASSp",
-            label_v2="LSApssa",
-            description="LSA overlap, all sentences in paragraph, mean",
-            value=lsassp,
-            error=lsassp_error
-        ))
+        if "LSASSp_spacy" in compute:
+            try:
+                lsassp = cm_lsassp(lsa_indices)
+                lsassp_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASSp: %s", e)
+                lsassp = None
+                lsassp_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=40,
+                type_name="LSA",
+                label_ttlab="LSASSp_spacy",
+                label_internal="LSASSp_spacy",
+                label_v3="LSASSp",
+                label_v2="LSApssa",
+                description="LSA overlap, all sentences in paragraph, mean",
+                version="1.0",
+                value=lsassp,
+                error=lsassp_error
+            ))
 
         # LSASSpd
-        try:
-            lsasspd = cm_lsasspd(lsa_indices)
-            lsasspd_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASSpd: %s", e)
-            lsasspd = None
-            lsasspd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=41,
-            type_name="LSA",
-            label_ttlab="LSASSpd_spacy",
-            label_v3="LSASSpd",
-            label_v2="LSApssd",
-            description="LSA overlap, all sentences in paragraph, standard deviation",
-            value=lsasspd,
-            error=lsasspd_error
-        ))
+        if "LSASSpd_spacy" in compute:
+            try:
+                lsasspd = cm_lsasspd(lsa_indices)
+                lsasspd_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASSpd: %s", e)
+                lsasspd = None
+                lsasspd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=41,
+                type_name="LSA",
+                label_ttlab="LSASSpd_spacy",
+                label_internal="LSASSpd_spacy",
+                label_v3="LSASSpd",
+                label_v2="LSApssd",
+                description="LSA overlap, all sentences in paragraph, standard deviation",
+                version="1.0",
+                value=lsasspd,
+                error=lsasspd_error
+            ))
 
         # LSAPP1
-        try:
-            lsapp1 = cm_lsapp1(lsa_indices)
-            lsapp1_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAPP1: %s", e)
-            lsapp1 = None
-            lsapp1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=42,
-            type_name="LSA",
-            label_ttlab="LSAPP1_spacy",
-            label_v3="LSAPP1",
-            label_v2="LSAppa",
-            description="LSA overlap, adjacent paragraphs, mean",
-            value=lsapp1,
-            error=lsapp1_error
-        ))
+        if "LSAPP1_spacy" in compute:
+            try:
+                lsapp1 = cm_lsapp1(lsa_indices)
+                lsapp1_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAPP1: %s", e)
+                lsapp1 = None
+                lsapp1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=42,
+                type_name="LSA",
+                label_ttlab="LSAPP1_spacy",
+                label_internal="LSAPP1_spacy",
+                label_v3="LSAPP1",
+                label_v2="LSAppa",
+                description="LSA overlap, adjacent paragraphs, mean",
+                version="1.0",
+                value=lsapp1,
+                error=lsapp1_error
+            ))
 
         # LSAPP1d
-        try:
-            lsapp1d = cm_lsapp1d(lsa_indices)
-            lsapp1d_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAPP1d: %s", e)
-            lsapp1d = None
-            lsapp1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=43,
-            type_name="LSA",
-            label_ttlab="LSAPP1d_spacy",
-            label_v3="LSAPP1d",
-            label_v2="LSAppd",
-            description="LSA overlap, adjacent paragraphs, standard deviation",
-            value=lsapp1d,
-            error=lsapp1d_error
-        ))
+        if "LSAPP1d_spacy" in compute:
+            try:
+                lsapp1d = cm_lsapp1d(lsa_indices)
+                lsapp1d_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAPP1d: %s", e)
+                lsapp1d = None
+                lsapp1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=43,
+                type_name="LSA",
+                label_ttlab="LSAPP1d_spacy",
+                label_internal="LSAPP1d_spacy",
+                label_v3="LSAPP1d",
+                label_v2="LSAppd",
+                description="LSA overlap, adjacent paragraphs, standard deviation",
+                version="1.0",
+                value=lsapp1d,
+                error=lsapp1d_error
+            ))
 
         # LSAGN
-        try:
-            lsagn = cm_lsagn(lsa_indices)
-            lsagn_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAGN: %s", e)
-            lsagn = None
-            lsagn_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=44,
-            type_name="LSA",
-            label_ttlab="LSAGN_spacy",
-            label_v3="LSAGN",
-            label_v2="LSAGN",
-            description="LSA given/new, sentences, mean",
-            value=lsagn,
-            error=lsagn_error
-        ))
+        if "LSAGN_spacy" in compute:
+            try:
+                lsagn = cm_lsagn(lsa_indices)
+                lsagn_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAGN: %s", e)
+                lsagn = None
+                lsagn_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=44,
+                type_name="LSA",
+                label_ttlab="LSAGN_spacy",
+                label_internal="LSAGN_spacy",
+                label_v3="LSAGN",
+                label_v2="LSAGN",
+                description="LSA given/new, sentences, mean",
+                version="1.0",
+                value=lsagn,
+                error=lsagn_error
+            ))
 
         # LSAGNd
-        try:
-            lsagnd = cm_lsagnd(lsa_indices)
-            lsagnd_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAGNd: %s", e)
-            lsagnd = None
-            lsagnd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=45,
-            type_name="LSA",
-            label_ttlab="LSAGNd_spacy",
-            label_v3="LSAGNd",
-            label_v2="n/a",
-            description="LSA given/new, sentences, standard deviation",
-            value=lsagnd,
-            error=lsagnd_error
-        ))
+        if "LSAGNd_spacy" in compute:
+            try:
+                lsagnd = cm_lsagnd(lsa_indices)
+                lsagnd_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAGNd: %s", e)
+                lsagnd = None
+                lsagnd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            indices.append(Index(
+                index=45,
+                type_name="LSA",
+                label_ttlab="LSAGNd_spacy",
+                label_internal="LSAGNd_spacy",
+                label_v3="LSAGNd",
+                label_v2="n/a",
+                description="LSA given/new, sentences, standard deviation",
+                version="1.0",
+                value=lsagnd,
+                error=lsagnd_error
+            ))
 
         ### Lexical Diversity
 
         # LDTTRc
-        try:
-            ldttrc = cm_ldttrc(tokens)
-            ldttrc_error = None
-        except Exception as e:
-            logger.error("Error calculating LDTTRc: %s", e)
-            ldttrc = None
-            ldttrc_error = str(e)
-        indices.append(Index(
-            index=46,
-            type_name="Lexical Diversity",
-            label_ttlab='LDTTRc',
-            label_v3="LDTTRc",
-            label_v2="TYPTOKc",
-            description="Lexical diversity, type-token ratio, content word lemmas",
-            value=ldttrc,
-            error=ldttrc_error
-        ))
+        if "LDTTRc" in compute:
+            try:
+                ldttrc = cm_ldttrc(tokens)
+                ldttrc_error = None
+            except Exception as e:
+                logger.error("Error calculating LDTTRc: %s", e)
+                ldttrc = None
+                ldttrc_error = str(e)
+            indices.append(Index(
+                index=46,
+                type_name="Lexical Diversity",
+                label_ttlab='LDTTRc',
+                label_internal='LDTTRc',
+                label_v3="LDTTRc",
+                label_v2="TYPTOKc",
+                description="Lexical diversity, type-token ratio, content word lemmas",
+                version="1.0",
+                value=ldttrc,
+                error=ldttrc_error
+            ))
 
         # LDTTRa
-        try:
-            ldttra = cm_ldttra(tokens)
-            ldttra_error = None
-        except Exception as e:
-            logger.error("Error calculating LDTTRa: %s", e)
-            ldttra = None
-            ldttra_error = str(e)
-        indices.append(Index(
-            index=47,
-            type_name="Lexical Diversity",
-            label_ttlab='LDTTRa',
-            label_v3="LDTTRa",
-            label_v2="n/a",
-            description="Lexical diversity, type-token ratio, all words",
-            value=ldttra,
-            error=ldttra_error
-        ))
+        if "LDTTRa" in compute:
+            try:
+                ldttra = cm_ldttra(tokens)
+                ldttra_error = None
+            except Exception as e:
+                logger.error("Error calculating LDTTRa: %s", e)
+                ldttra = None
+                ldttra_error = str(e)
+            indices.append(Index(
+                index=47,
+                type_name="Lexical Diversity",
+                label_ttlab='LDTTRa',
+                label_internal='LDTTRa',
+                label_v3="LDTTRa",
+                label_v2="n/a",
+                description="Lexical diversity, type-token ratio, all words",
+                version="1.0",
+                value=ldttra,
+                error=ldttra_error
+            ))
 
         # LDMTLDa
-        try:
-            ldmtlda = cm_ldmtlda(tokens)
-            ldmtlda_error = None
-        except Exception as e:
-            logger.error("Error calculating LDMTLDa: %s", e)
-            ldmtlda = None
-            ldmtlda_error = str(e)
-        indices.append(Index(
-            index=48,
-            type_name="Lexical Diversity",
-            label_ttlab='LDMTLDa',
-            label_v3="LDMTLDa",
-            label_v2="LEXDIVTD",
-            description="Lexical diversity, MTLD, all words",
-            value=ldmtlda,
-            error=ldmtlda_error
-        ))
+        if "LDMTLDa" in compute:
+            try:
+                ldmtlda = cm_ldmtlda(tokens)
+                ldmtlda_error = None
+            except Exception as e:
+                logger.error("Error calculating LDMTLDa: %s", e)
+                ldmtlda = None
+                ldmtlda_error = str(e)
+            indices.append(Index(
+                index=48,
+                type_name="Lexical Diversity",
+                label_ttlab='LDMTLDa',
+                label_internal='LDMTLDa',
+                label_v3="LDMTLDa",
+                label_v2="LEXDIVTD",
+                description="Lexical diversity, MTLD, all words",
+                version="1.0",
+                value=ldmtlda,
+                error=ldmtlda_error
+            ))
 
         # LDVOCDa
-        try:
-            ldvocda = cm_ldvocda(tokens)
-            ldvocda_error = None
-        except Exception as e:
-            logger.error("Error calculating LDVOCDa: %s", e)
-            ldvocda = None
-            ldvocda_error = str(e)
-        indices.append(Index(
-            index=49,
-            type_name="Lexical Diversity",
-            label_ttlab='LDVOCDa',
-            label_v3="LDVOCDa",
-            label_v2="LEXDIVVD",
-            description="Lexical diversity, VOCD, all words",
-            value=ldvocda,
-            error=ldvocda_error
-        ))
+        if "LDVOCDa" in compute:
+            try:
+                ldvocda = cm_ldvocda(tokens)
+                ldvocda_error = None
+            except Exception as e:
+                logger.error("Error calculating LDVOCDa: %s", e)
+                ldvocda = None
+                ldvocda_error = str(e)
+            indices.append(Index(
+                index=49,
+                type_name="Lexical Diversity",
+                label_ttlab='LDVOCDa',
+                label_internal='LDVOCDa',
+                label_v3="LDVOCDa",
+                label_v2="LEXDIVVD",
+                description="Lexical diversity, VOCD, all words",
+                version="1.0",
+                value=ldvocda,
+                error=ldvocda_error
+            ))
 
         ### Connectives
 
         # L1: compute connective counts once and reuse across all 9 CNC* indices.
-        try:
-            _cnc_counts = _count_connectives(request.text, lang, tokens_count)
-        except Exception as e:
-            logger.error("Error precomputing connective counts: %s", e)
-            _cnc_counts = None
+        if "Connectives" in compute_groups:
+            try:
+                _cnc_counts = _count_connectives(request.text, lang, tokens_count)
+            except Exception as e:
+                logger.error("Error precomputing connective counts: %s", e)
+                _cnc_counts = None
 
         # CNCAll
-        try:
-            cncall = cm_cncall(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cncall_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCAll: %s", e)
-            cncall = None
-            cncall_error = str(e)
-        indices.append(Index(
-            index=50,
-            type_name="Connectives",
-            label_ttlab="CNCAll_gptlist",
-            label_v3="CNCAll",
-            label_v2="CONi",
-            description="All connectives incidence",
-            value=cncall,
-            error=cncall_error
-        ))
+        if "CNCAll_llmlist" in compute:
+            try:
+                cncall = cm_cncall(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cncall_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCAll: %s", e)
+                cncall = None
+                cncall_error = str(e)
+            indices.append(Index(
+                index=50,
+                type_name="Connectives",
+                label_ttlab="CNCAll_llmlist",
+                label_internal="CNCAll_llmlist",
+                label_v3="CNCAll",
+                label_v2="CONi",
+                description="All connectives incidence",
+                version="1.0",
+                value=cncall,
+                error=cncall_error
+            ))
 
         # CNCCaus
-        try:
-            cnccaus = cm_cnccaus(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cnccaus_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCCaus: %s", e)
-            cnccaus = None
-            cnccaus_error = str(e)
-        indices.append(Index(
-            index=51,
-            type_name="Connectives",
-            label_ttlab="CNCCaus_gptlist",
-            label_v3="CNCCaus",
-            label_v2="CONCAUSi",
-            description="Causal connectives incidence",
-            value=cnccaus,
-            error=cnccaus_error
-        ))
+        if "CNCCaus_llmlist" in compute:
+            try:
+                cnccaus = cm_cnccaus(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cnccaus_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCCaus: %s", e)
+                cnccaus = None
+                cnccaus_error = str(e)
+            indices.append(Index(
+                index=51,
+                type_name="Connectives",
+                label_ttlab="CNCCaus_llmlist",
+                label_internal="CNCCaus_llmlist",
+                label_v3="CNCCaus",
+                label_v2="CONCAUSi",
+                description="Causal connectives incidence",
+                version="1.0",
+                value=cnccaus,
+                error=cnccaus_error
+            ))
 
         # CNCLogic
-        try:
-            cnclogic = cm_cnclogic(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cnclogic_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCLogic: %s", e)
-            cnclogic = None
-            cnclogic_error = str(e)
-        indices.append(Index(
-            index=52,
-            type_name="Connectives",
-            label_ttlab="CNCLogic_gptlist",
-            label_v3="CNCLogic",
-            label_v2="CONLOGi",
-            description="Logical connectives incidence",
-            value=cnclogic,
-            error=cnclogic_error
-        ))
+        if "CNCLogic_llmlist" in compute:
+            try:
+                cnclogic = cm_cnclogic(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cnclogic_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCLogic: %s", e)
+                cnclogic = None
+                cnclogic_error = str(e)
+            indices.append(Index(
+                index=52,
+                type_name="Connectives",
+                label_ttlab="CNCLogic_llmlist",
+                label_internal="CNCLogic_llmlist",
+                label_v3="CNCLogic",
+                label_v2="CONLOGi",
+                description="Logical connectives incidence",
+                version="1.0",
+                value=cnclogic,
+                error=cnclogic_error
+            ))
 
         # CNCADC
-        try:
-            cncadc = cm_cncadc(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cncadc_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCADC: %s", e)
-            cncadc = None
-            cncadc_error = str(e)
-        indices.append(Index(
-            index=53,
-            type_name="Connectives",
-            label_ttlab="CNCADC_gptlist",
-            label_v3="CNCADC",
-            label_v2="CONADVCONi",
-            description="Adversative and contrastive connectives incidence",
-            value=cncadc,
-            error=cncadc_error
-        ))
+        if "CNCADC_llmlist" in compute:
+            try:
+                cncadc = cm_cncadc(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cncadc_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCADC: %s", e)
+                cncadc = None
+                cncadc_error = str(e)
+            indices.append(Index(
+                index=53,
+                type_name="Connectives",
+                label_ttlab="CNCADC_llmlist",
+                label_internal="CNCADC_llmlist",
+                label_v3="CNCADC",
+                label_v2="CONADVCONi",
+                description="Adversative and contrastive connectives incidence",
+                version="1.0",
+                value=cncadc,
+                error=cncadc_error
+            ))
 
         # CNCTemp
-        try:
-            cnctemp = cm_cnctemp(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cnctemp_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCTemp: %s", e)
-            cnctemp = None
-            cnctemp_error = str(e)
-        indices.append(Index(
-            index=54,
-            type_name="Connectives",
-            label_ttlab="CNCTemp_gptlist",
-            label_v3="CNCTemp",
-            label_v2="CONTEMPi",
-            description="Temporal connectives incidence",
-            value=cnctemp,
-            error=cnctemp_error
-        ))
+        if "CNCTemp_llmlist" in compute:
+            try:
+                cnctemp = cm_cnctemp(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cnctemp_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCTemp: %s", e)
+                cnctemp = None
+                cnctemp_error = str(e)
+            indices.append(Index(
+                index=54,
+                type_name="Connectives",
+                label_ttlab="CNCTemp_llmlist",
+                label_internal="CNCTemp_llmlist",
+                label_v3="CNCTemp",
+                label_v2="CONTEMPi",
+                description="Temporal connectives incidence",
+                version="1.0",
+                value=cnctemp,
+                error=cnctemp_error
+            ))
 
         # CNCTempx
-        try:
-            cnctempx = cm_cnctempx(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cnctempx_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCTempx: %s", e)
-            cnctempx = None
-            cnctempx_error = str(e)
-        indices.append(Index(
-            index=55,
-            type_name="Connectives",
-            label_ttlab="CNCTempx_gptlist",
-            label_v3="CNCTempx",
-            label_v2="CONTEMPEXi",
-            description="Expanded temporal connectives incidence",
-            value=cnctempx,
-            error=cnctempx_error
-        ))
+        if "CNCTempx_llmlist" in compute:
+            try:
+                cnctempx = cm_cnctempx(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cnctempx_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCTempx: %s", e)
+                cnctempx = None
+                cnctempx_error = str(e)
+            indices.append(Index(
+                index=55,
+                type_name="Connectives",
+                label_ttlab="CNCTempx_llmlist",
+                label_internal="CNCTempx_llmlist",
+                label_v3="CNCTempx",
+                label_v2="CONTEMPEXi",
+                description="Expanded temporal connectives incidence",
+                version="1.0",
+                value=cnctempx,
+                error=cnctempx_error
+            ))
 
         # CNCAdd
-        try:
-            cncadd = cm_cncadd(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cncadd_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCAdd: %s", e)
-            cncadd = None
-            cncadd_error = str(e)
-        indices.append(Index(
-            index=56,
-            type_name="Connectives",
-            label_ttlab="CNCAdd_gptlist",
-            label_v3="CNCAdd",
-            label_v2="CONADDi",
-            description="Additive connectives incidence",
-            value=cncadd,
-            error=cncadd_error
-        ))
+        if "CNCAdd_llmlist" in compute:
+            try:
+                cncadd = cm_cncadd(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cncadd_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCAdd: %s", e)
+                cncadd = None
+                cncadd_error = str(e)
+            indices.append(Index(
+                index=56,
+                type_name="Connectives",
+                label_ttlab="CNCAdd_llmlist",
+                label_internal="CNCAdd_llmlist",
+                label_v3="CNCAdd",
+                label_v2="CONADDi",
+                description="Additive connectives incidence",
+                version="1.0",
+                value=cncadd,
+                error=cncadd_error
+            ))
 
         # CNCPos
-        try:
-            cncpos = cm_cncpos(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cncpos_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCPos: %s", e)
-            cncpos = None
-            cncpos_error = str(e)
-        indices.append(Index(
-            index=57,
-            type_name="Connectives",
-            label_ttlab="CNCPos_gptlist",
-            label_v3="CNCPos",
-            label_v2="n/a",
-            description="Positive connectives incidence",
-            value=cncpos,
-            error=cncpos_error
-        ))
+        if "CNCPos_llmlist" in compute:
+            try:
+                cncpos = cm_cncpos(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cncpos_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCPos: %s", e)
+                cncpos = None
+                cncpos_error = str(e)
+            indices.append(Index(
+                index=57,
+                type_name="Connectives",
+                label_ttlab="CNCPos_llmlist",
+                label_internal="CNCPos_llmlist",
+                label_v3="CNCPos",
+                label_v2="n/a",
+                description="Positive connectives incidence",
+                version="1.0",
+                value=cncpos,
+                error=cncpos_error
+            ))
 
         # CNCNeg
-        try:
-            cncneg = cm_cncneg(request.text, lang, tokens_count, connectives=_cnc_counts)
-            cncneg_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCNeg: %s", e)
-            cncneg = None
-            cncneg_error = str(e)
-        indices.append(Index(
-            index=58,
-            type_name="Connectives",
-            label_ttlab="CNCNeg_gptlist",
-            label_v3="CNCNeg",
-            label_v2="n/a",
-            description="Negative connectives incidence",
-            value=cncneg,
-            error=cncneg_error
-        ))
+        if "CNCNeg_llmlist" in compute:
+            try:
+                cncneg = cm_cncneg(request.text, lang, tokens_count, connectives=_cnc_counts)
+                cncneg_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCNeg: %s", e)
+                cncneg = None
+                cncneg_error = str(e)
+            indices.append(Index(
+                index=58,
+                type_name="Connectives",
+                label_ttlab="CNCNeg_llmlist",
+                label_internal="CNCNeg_llmlist",
+                label_v3="CNCNeg",
+                label_v2="n/a",
+                description="Negative connectives incidence",
+                version="1.0",
+                value=cncneg,
+                error=cncneg_error
+            ))
 
         ### Situation Model
 
         # SMCAUSv
-        try:
-            smcausv = cm_smcausv(sentences, lang)
-            smcausv_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSv: %s", e)
-            smcausv = None
-            smcausv_error = str(e)
-        indices.append(Index(
-            index=59,
-            type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSv_germanet"
-                if lang == "de"
-                else "SMCAUSv_wordnet"
-            ),
-            label_v3="SMCAUSv",
-            label_v2="CAUSV",
-            description="Causal verb incidence",
-            value=smcausv,
-            error=smcausv_error
-        ))
+        if "SMCAUSv_wordnet" in compute:
+            try:
+                smcausv = cm_smcausv(sentences, lang)
+                smcausv_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSv: %s", e)
+                smcausv = None
+                smcausv_error = str(e)
+            indices.append(Index(
+                index=59,
+                type_name="Situation Model",
+                label_ttlab="SMCAUSv_wordnet",
+                label_internal=f"SMCAUSv_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSv_wordnet",
+                label_v3="SMCAUSv",
+                label_v2="CAUSV",
+                description="Causal verb incidence",
+                version="1.0",
+                value=smcausv,
+                error=smcausv_error
+            ))
 
         # SMCAUSvp
-        try:
-            smcausvp = cm_smcausvp(sentences, lang)
-            smcausvp_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSvp: %s", e)
-            smcausvp = None
-            smcausvp_error = str(e)
-        indices.append(Index(
-            index=60,
-            type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSvp_germanet"
-                if lang == "de"
-                else "SMCAUSvp_wordnet"
-            ),
-            label_v3="SMCAUSvp",
-            label_v2="CAUSVP",
-            description="Causal verbs and causal particles incidence",
-            value=smcausvp,
-            error=smcausvp_error
-        ))
+        if "SMCAUSvp_wordnet" in compute:
+            try:
+                smcausvp = cm_smcausvp(sentences, lang)
+                smcausvp_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSvp: %s", e)
+                smcausvp = None
+                smcausvp_error = str(e)
+            indices.append(Index(
+                index=60,
+                type_name="Situation Model",
+                label_ttlab="SMCAUSvp_wordnet",
+                label_internal=f"SMCAUSvp_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSvp_wordnet",
+                label_v3="SMCAUSvp",
+                label_v2="CAUSVP",
+                description="Causal verbs and causal particles incidence",
+                version="1.0",
+                value=smcausvp,
+                error=smcausvp_error
+            ))
 
         # SMINTEp
-        try:
-            smintep = cm_smintep(sentences, lang)
-            smintep_error = None
-        except Exception as e:
-            logger.error("Error calculating SMINTEp: %s", e)
-            smintep = None
-            smintep_error = str(e)
-        indices.append(Index(
-            index=61,
-            type_name="Situation Model",
-            label_ttlab=(
-                "SMINTEp_germanet"
-                if lang == "de"
-                else "SMINTEp_wordnet"
-            ),
-            label_v3="SMINTEp",
-            label_v2="INTEi",
-            description="Intentional verbs incidence",
-            value=smintep,
-            error=smintep_error
-        ))
+        if "SMINTEp_wordnet" in compute:
+            try:
+                smintep = cm_smintep(sentences, lang)
+                smintep_error = None
+            except Exception as e:
+                logger.error("Error calculating SMINTEp: %s", e)
+                smintep = None
+                smintep_error = str(e)
+            indices.append(Index(
+                index=61,
+                type_name="Situation Model",
+                label_ttlab="SMINTEp_wordnet",
+                label_internal=f"SMINTEp_{_de_intentional_verbs_source}" if lang == "de" else "SMINTEp_wordnet",
+                label_v3="SMINTEp",
+                label_v2="INTEi",
+                description="Intentional verbs incidence",
+                version="1.0",
+                value=smintep,
+                error=smintep_error
+            ))
 
         # SMCAUSr
-        try:
-            smcausr = cm_smcausr(sentences, lang)
-            smcausr_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSr: %s", e)
-            smcausr = None
-            smcausr_error = str(e)
-        indices.append(Index(
-            index=62,
-            type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSr_germanet"
-                if lang == "de"
-                else "SMCAUSr_wordnet"
-            ),
-            label_v3="SMCAUSr",
-            label_v2="CAUSC",
-            description="Ratio of causal particles to causal verbs",
-            value=smcausr,
-            error=smcausr_error
-        ))
+        if "SMCAUSr_wordnet" in compute:
+            try:
+                smcausr = cm_smcausr(sentences, lang)
+                smcausr_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSr: %s", e)
+                smcausr = None
+                smcausr_error = str(e)
+            indices.append(Index(
+                index=62,
+                type_name="Situation Model",
+                label_ttlab="SMCAUSr_wordnet",
+                label_internal=f"SMCAUSr_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSr_wordnet",
+                label_v3="SMCAUSr",
+                label_v2="CAUSC",
+                description="Ratio of causal particles to causal verbs",
+                version="1.0",
+                value=smcausr,
+                error=smcausr_error
+            ))
 
         # SMINTEr
-        try:
-            sminter = cm_sminter(sentences, lang)
-            sminter_error = None
-        except Exception as e:
-            logger.error("Error calculating SMINTEr: %s", e)
-            sminter = None
-            sminter_error = str(e)
-        indices.append(Index(
-            index=63,
-            type_name="Situation Model",
-            label_ttlab=(
-                "SMINTEr_germanet"
-                if lang == "de"
-                else "SMINTEr_wordnet"
-            ),
-            label_v3="SMINTEr",
-            label_v2="INTEC",
-            description="Ratio of intentional particles to intentional verbs",
-            value=sminter,
-            error=sminter_error
-        ))
+        if "SMINTEr_llmlist" in compute:
+            try:
+                sminter = cm_sminter(sentences, lang)
+                sminter_error = None
+            except Exception as e:
+                logger.error("Error calculating SMINTEr: %s", e)
+                sminter = None
+                sminter_error = str(e)
+            indices.append(Index(
+                index=63,
+                type_name="Situation Model",
+                label_ttlab="SMINTEr_llmlist",
+                label_internal=f"SMINTEr_{_de_intentional_verbs_source}_llmlist" if lang == "de" else "SMINTEr_llmlist",
+                label_v3="SMINTEr",
+                label_v2="INTEC",
+                description="Ratio of intentional particles to intentional verbs",
+                version="1.0",
+                value=sminter,
+                error=sminter_error
+            ))
 
         # SMCAUSlsa
-        try:
-            smcauslsa = cm_smcauslsa(sentences)
-            smcauslsa_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSlsa: %s", e)
-            smcauslsa = None
-            smcauslsa_error = str(e)
-        indices.append(Index(
-            index=64,
-            type_name="Situation Model",
-            label_ttlab="SMCAUSlsa_spacy",
-            label_v3="SMCAUSlsa",
-            label_v2="CAUSLSA",
-            description="LSA verb overlap",
-            value=smcauslsa,
-            error=smcauslsa_error
-        ))
+        if "SMCAUSlsa_spacy" in compute:
+            try:
+                smcauslsa = cm_smcauslsa(sentences)
+                smcauslsa_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSlsa: %s", e)
+                smcauslsa = None
+                smcauslsa_error = str(e)
+            indices.append(Index(
+                index=64,
+                type_name="Situation Model",
+                label_ttlab="SMCAUSlsa_spacy",
+                label_internal="SMCAUSlsa_spacy",
+                label_v3="SMCAUSlsa",
+                label_v2="CAUSLSA",
+                description="LSA verb overlap",
+                version="1.0",
+                value=smcauslsa,
+                error=smcauslsa_error
+            ))
 
         # SMCAUSwn
-        try:
-            smcauswn = cm_smcauswn(sentences, lang)
-            smcauswn_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSwn: %s", e)
-            smcauswn = None
-            smcauswn_error = str(e)
-        indices.append(Index(
-            index=65,
-            type_name="Situation Model",
-            label_ttlab=(
-                "SMCAUSwn_germanet"
-                if lang == "de"
-                else "SMCAUSwn_wordnet"
-            ),
-            label_v3="SMCAUSwn",
-            label_v2="CAUSWN",
-            description="WordNet verb overlap",
-            value=smcauswn,
-            error=smcauswn_error
-        ))
+        if "SMCAUSwn" in compute:
+            try:
+                smcauswn = cm_smcauswn(sentences, lang)
+                smcauswn_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSwn: %s", e)
+                smcauswn = None
+                smcauswn_error = str(e)
+            indices.append(Index(
+                index=65,
+                type_name="Situation Model",
+                label_ttlab="SMCAUSwn",
+                label_internal="SMCAUSwn_germanet" if lang == "de" else "SMCAUSwn",
+                label_v3="SMCAUSwn",
+                label_v2="CAUSWN",
+                description="WordNet verb overlap",
+                version="1.0",
+                value=smcauswn,
+                error=smcauswn_error
+            ))
 
         # SMTEMP
-        try:
-            smtemp = cm_smtemp(sentences, lang)
-            smtemp_error = None
-        except Exception as e:
-            logger.error("Error calculating SMTEMP: %s", e)
-            smtemp = None
-            smtemp_error = str(e)
-        indices.append(Index(
-            index=66,
-            type_name="Situation Model",
-            label_ttlab="SMTEMP_gptlist",
-            label_v3="SMTEMP",
-            label_v2="TEMPta",
-            description="Temporal cohesion, tense and aspect repetition, mean",
-            value=smtemp,
-            error=smtemp_error
-        ))
+        if "SMTEMP_llmlist" in compute:
+            try:
+                smtemp = cm_smtemp(sentences, lang)
+                smtemp_error = None
+            except Exception as e:
+                logger.error("Error calculating SMTEMP: %s", e)
+                smtemp = None
+                smtemp_error = str(e)
+            indices.append(Index(
+                index=66,
+                type_name="Situation Model",
+                label_ttlab="SMTEMP_llmlist",
+                label_internal="SMTEMP_llmlist",
+                label_v3="SMTEMP",
+                label_v2="TEMPta",
+                description="Temporal cohesion, tense and aspect repetition, mean",
+                version="1.0",
+                value=smtemp,
+                error=smtemp_error
+            ))
 
         ### Syntactic Complexity
 
         # SYNLE
-        try:
-            synle = cm_synle(sentences, lang)
-            synle_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNLE: %s", e)
-            synle = None
-            synle_error = str(e)
-        indices.append(Index(
-            index=67,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNLE',
-            label_v3="SYNLE",
-            label_v2="SYNLE",
-            description="Left embeddedness, words before main verb, mean",
-            value=synle,
-            error=synle_error
-        ))
+        if "SYNLE" in compute:
+            try:
+                synle = cm_synle(sentences, lang)
+                synle_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNLE: %s", e)
+                synle = None
+                synle_error = str(e)
+            indices.append(Index(
+                index=67,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNLE',
+                label_internal='SYNLE',
+                label_v3="SYNLE",
+                label_v2="SYNLE",
+                description="Left embeddedness, words before main verb, mean",
+                version="1.0",
+                value=synle,
+                error=synle_error
+            ))
 
         # SYNNP
-        try:
-            synnp = cm_synnp(sentences, request.noun_chunks, lang)
-            synnp_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNNP: %s", e)
-            synnp = None
-            synnp_error = str(e)
-        indices.append(Index(
-            index=68,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNNP',
-            label_v3="SYNNP",
-            label_v2="SYNNP",
-            description="Number of modifiers per noun phrase, mean",
-            value=synnp,
-            error=synnp_error
-        ))
+        if "SYNNP" in compute:
+            try:
+                synnp = cm_synnp(sentences, request.noun_chunks, lang)
+                synnp_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNNP: %s", e)
+                synnp = None
+                synnp_error = str(e)
+            indices.append(Index(
+                index=68,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNNP',
+                label_internal='SYNNP',
+                label_v3="SYNNP",
+                label_v2="SYNNP",
+                description="Number of modifiers per noun phrase, mean",
+                version="1.0",
+                value=synnp,
+                error=synnp_error
+            ))
 
         # SYNMEDpos
-        try:
-            synmedpos = cm_synmedpos(sentences)
-            synmedpos_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNMEDpos: %s", e)
-            synmedpos = None
-            synmedpos_error = str(e)
-        indices.append(Index(
-            index=69,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNMEDpos',
-            label_v3="SYNMEDpos",
-            label_v2="MEDwtm",
-            description="Minimal Edit Distance, part of speech",
-            value=synmedpos,
-            error=synmedpos_error
-        ))
+        if "SYNMEDpos" in compute:
+            try:
+                synmedpos = cm_synmedpos(sentences)
+                synmedpos_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNMEDpos: %s", e)
+                synmedpos = None
+                synmedpos_error = str(e)
+            indices.append(Index(
+                index=69,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNMEDpos',
+                label_internal='SYNMEDpos',
+                label_v3="SYNMEDpos",
+                label_v2="MEDwtm",
+                description="Minimal Edit Distance, part of speech",
+                version="1.0",
+                value=synmedpos,
+                error=synmedpos_error
+            ))
 
         # SYNMEDwrd
-        try:
-            synmedwrd = cm_synmedwrd(sentences)
-            synmedwrd_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNMEDwrd: %s", e)
-            synmedwrd = None
-            synmedwrd_error = str(e)
-        indices.append(Index(
-            index=70,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNMEDwrd',
-            label_v3="SYNMEDwrd",
-            label_v2="MEDawm",
-            description="Minimal Edit Distance, all words",
-            value=synmedwrd,
-            error=synmedwrd_error
-        ))
+        if "SYNMEDwrd" in compute:
+            try:
+                synmedwrd = cm_synmedwrd(sentences)
+                synmedwrd_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNMEDwrd: %s", e)
+                synmedwrd = None
+                synmedwrd_error = str(e)
+            indices.append(Index(
+                index=70,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNMEDwrd',
+                label_internal='SYNMEDwrd',
+                label_v3="SYNMEDwrd",
+                label_v2="MEDawm",
+                description="Minimal Edit Distance, all words",
+                version="1.0",
+                value=synmedwrd,
+                error=synmedwrd_error
+            ))
 
         # SYNMEDlem
-        try:
-            synmedlem = cm_synmedlem(sentences)
-            synmedlem_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNMEDlem: %s", e)
-            synmedlem = None
-            synmedlem_error = str(e)
-        indices.append(Index(
-            index=71,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNMEDlem',
-            label_v3="SYNMEDlem",
-            label_v2="MEDalm",
-            description="Minimal Edit Distance, lemmas",
-            value=synmedlem,
-            error=synmedlem_error
-        ))
+        if "SYNMEDlem" in compute:
+            try:
+                synmedlem = cm_synmedlem(sentences)
+                synmedlem_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNMEDlem: %s", e)
+                synmedlem = None
+                synmedlem_error = str(e)
+            indices.append(Index(
+                index=71,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNMEDlem',
+                label_internal='SYNMEDlem',
+                label_v3="SYNMEDlem",
+                label_v2="MEDalm",
+                description="Minimal Edit Distance, lemmas",
+                version="1.0",
+                value=synmedlem,
+                error=synmedlem_error
+            ))
 
         # SYNSTRUTa
-        try:
-            synstruta = cm_synstruta(sentences)
-            synstruta_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNSTRUTa: %s", e)
-            synstruta = None
-            synstruta_error = str(e)
-        indices.append(Index(
-            index=72,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNSTRUTa',
-            label_v3="SYNSTRUTa",
-            label_v2="STRUTa",
-            description="Sentence syntax similarity, adjacent sentences, mean",
-            value=synstruta,
-            error=synstruta_error
-        ))
+        if "SYNSTRUTa" in compute:
+            try:
+                synstruta = cm_synstruta(sentences)
+                synstruta_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNSTRUTa: %s", e)
+                synstruta = None
+                synstruta_error = str(e)
+            indices.append(Index(
+                index=72,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNSTRUTa',
+                label_internal='SYNSTRUTa',
+                label_v3="SYNSTRUTa",
+                label_v2="STRUTa",
+                description="Sentence syntax similarity, adjacent sentences, mean",
+                version="1.0",
+                value=synstruta,
+                error=synstruta_error
+            ))
 
         # SYNSTRUTt
-        try:
-            synstrutt = cm_synstrutt(request.paragraphs)
-            synstrutt_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNSTRUTt: %s", e)
-            synstrutt = None
-            synstrutt_error = str(e)
-        finally:
-            _clear_synstrut_caches()
-        indices.append(Index(
-            index=73,
-            type_name="Syntactic Complexity",
-            label_ttlab='SYNSTRUTt',
-            label_v3="SYNSTRUTt",
-            label_v2="STRUTt",
-            description="Sentence syntax similarity, all combinations, across paragraphs, mean",
-            value=synstrutt,
-            error=synstrutt_error
-        ))
+        if "SYNSTRUTt" in compute:
+            try:
+                synstrutt = cm_synstrutt(request.paragraphs)
+                synstrutt_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNSTRUTt: %s", e)
+                synstrutt = None
+                synstrutt_error = str(e)
+            indices.append(Index(
+                index=73,
+                type_name="Syntactic Complexity",
+                label_ttlab='SYNSTRUTt',
+                label_internal='SYNSTRUTt',
+                label_v3="SYNSTRUTt",
+                label_v2="STRUTt",
+                description="Sentence syntax similarity, all combinations, across paragraphs, mean",
+                version="1.0",
+                value=synstrutt,
+                error=synstrutt_error
+            ))
 
         ### Syntactic Pattern Density
 
         # L2: compute count_metrics once and reuse across all 8 DR* indices.
-        try:
-            _dr_metrics = _count_metrics(sentences, request.noun_chunks, lang)
-        except Exception as e:
-            logger.error("Error precomputing DR metrics: %s", e)
-            _dr_metrics = None
+        if "Syntactic Pattern Density" in compute_groups:
+            try:
+                _dr_metrics = _count_metrics(sentences, request.noun_chunks, lang)
+            except Exception as e:
+                logger.error("Error precomputing DR metrics: %s", e)
+                _dr_metrics = None
 
         # DRNP
-        try:
-            drnp = cm_drnp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drnp_error = None
-        except Exception as e:
-            logger.error("Error calculating DRNP: %s", e)
-            drnp = None
-            drnp_error = str(e)
-        indices.append(Index(
-            index=74,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRNP',
-            label_v3="DRNP",
-            label_v2="n/a",
-            description="Noun phrase density, incidence",
-            value=drnp,
-            error=drnp_error
-        ))
+        if "DRNP" in compute:
+            try:
+                drnp = cm_drnp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drnp_error = None
+            except Exception as e:
+                logger.error("Error calculating DRNP: %s", e)
+                drnp = None
+                drnp_error = str(e)
+            indices.append(Index(
+                index=74,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRNP',
+                label_internal='DRNP',
+                label_v3="DRNP",
+                label_v2="n/a",
+                description="Noun phrase density, incidence",
+                version="1.0",
+                value=drnp,
+                error=drnp_error
+            ))
 
         # DRVP
-        try:
-            drvp = cm_drvp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drvp_error = None
-        except Exception as e:
-            logger.error("Error calculating DRVP: %s", e)
-            drvp = None
-            drvp_error = str(e)
-        indices.append(Index(
-            index=75,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRVP',
-            label_v3="DRVP",
-            label_v2="n/a",
-            description="Verb phrase density, incidence",
-            value=drvp,
-            error=drvp_error
-        ))
+        if "DRVP" in compute:
+            try:
+                drvp = cm_drvp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drvp_error = None
+            except Exception as e:
+                logger.error("Error calculating DRVP: %s", e)
+                drvp = None
+                drvp_error = str(e)
+            indices.append(Index(
+                index=75,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRVP',
+                label_internal='DRVP',
+                label_v3="DRVP",
+                label_v2="n/a",
+                description="Verb phrase density, incidence",
+                version="1.0",
+                value=drvp,
+                error=drvp_error
+            ))
 
         # DRAP
-        try:
-            drap = cm_drap(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drap_error = None
-        except Exception as e:
-            logger.error("Error calculating DRAP: %s", e)
-            drap = None
-            drap_error = str(e)
-        indices.append(Index(
-            index=76,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRAP',
-            label_v3="DRAP",
-            label_v2="n/a",
-            description="Adverbial phrase density, incidence",
-            value=drap,
-            error=drap_error
-        ))
+        if "DRAP" in compute:
+            try:
+                drap = cm_drap(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drap_error = None
+            except Exception as e:
+                logger.error("Error calculating DRAP: %s", e)
+                drap = None
+                drap_error = str(e)
+            indices.append(Index(
+                index=76,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRAP',
+                label_internal='DRAP',
+                label_v3="DRAP",
+                label_v2="n/a",
+                description="Adverbial phrase density, incidence",
+                version="1.0",
+                value=drap,
+                error=drap_error
+            ))
 
         # DRPP
-        try:
-            drpp = cm_drpp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drpp_error = None
-        except Exception as e:
-            logger.error("Error calculating DRPP: %s", e)
-            drpp = None
-            drpp_error = str(e)
-        indices.append(Index(
-            index=77,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRPP',
-            label_v3="DRPP",
-            label_v2="n/a",
-            description="Preposition phrase density, incidence",
-            value=drpp,
-            error=drpp_error
-        ))
+        if "DRPP" in compute:
+            try:
+                drpp = cm_drpp(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drpp_error = None
+            except Exception as e:
+                logger.error("Error calculating DRPP: %s", e)
+                drpp = None
+                drpp_error = str(e)
+            indices.append(Index(
+                index=77,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRPP',
+                label_internal='DRPP',
+                label_v3="DRPP",
+                label_v2="n/a",
+                description="Preposition phrase density, incidence",
+                version="1.0",
+                value=drpp,
+                error=drpp_error
+            ))
 
         # DRPVAL
-        try:
-            drpval = cm_drpval(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drpval_error = None
-        except Exception as e:
-            logger.error("Error calculating DRPVAL: %s", e)
-            drpval = None
-            drpval_error = str(e)
-        indices.append(Index(
-            index=78,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRPVAL',
-            label_v3="DRPVAL",
-            label_v2="AGLSPSVi",
-            description="Agentless passive voice density, incidence",
-            value=drpval,
-            error=drpval_error
-        ))
+        if "DRPVAL" in compute:
+            try:
+                drpval = cm_drpval(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drpval_error = None
+            except Exception as e:
+                logger.error("Error calculating DRPVAL: %s", e)
+                drpval = None
+                drpval_error = str(e)
+            indices.append(Index(
+                index=78,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRPVAL',
+                label_internal='DRPVAL',
+                label_v3="DRPVAL",
+                label_v2="AGLSPSVi",
+                description="Agentless passive voice density, incidence",
+                version="1.0",
+                value=drpval,
+                error=drpval_error
+            ))
 
         # DRNEG
-        try:
-            drneg = cm_drneg(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drneg_error = None
-        except Exception as e:
-            logger.error("Error calculating DRNEG: %s", e)
-            drneg = None
-            drneg_error = str(e)
-        indices.append(Index(
-            index=79,
-            type_name="Syntactic Pattern Density",
-            label_ttlab="DRNEG_gptlist",
-            label_v3="DRNEG",
-            label_v2="DENNEGi",
-            description="Negation density, incidence",
-            value=drneg,
-            error=drneg_error
-        ))
+        if "DRNEG_llmlist" in compute:
+            try:
+                drneg = cm_drneg(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drneg_error = None
+            except Exception as e:
+                logger.error("Error calculating DRNEG: %s", e)
+                drneg = None
+                drneg_error = str(e)
+            indices.append(Index(
+                index=79,
+                type_name="Syntactic Pattern Density",
+                label_ttlab="DRNEG_llmlist",
+                label_internal="DRNEG_llmlist",
+                label_v3="DRNEG",
+                label_v2="DENNEGi",
+                description="Negation density, incidence",
+                version="1.0",
+                value=drneg,
+                error=drneg_error
+            ))
 
         # DRGERUND
-        try:
-            drgerund = cm_drgerund(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drgerund_error = None
-        except Exception as e:
-            logger.error("Error calculating DRGERUND: %s", e)
-            drgerund = None
-            drgerund_error = str(e)
-        indices.append(Index(
-            index=80,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRGERUND',
-            label_v3="DRGERUND",
-            label_v2="GERUNDi",
-            description="Gerund density, incidence",
-            value=drgerund,
-            error=drgerund_error
-        ))
+        if "DRGERUND" in compute:
+            try:
+                drgerund = cm_drgerund(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drgerund_error = None
+            except Exception as e:
+                logger.error("Error calculating DRGERUND: %s", e)
+                drgerund = None
+                drgerund_error = str(e)
+            indices.append(Index(
+                index=80,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRGERUND',
+                label_internal='DRGERUND',
+                label_v3="DRGERUND",
+                label_v2="GERUNDi",
+                description="Gerund density, incidence",
+                version="1.0",
+                value=drgerund,
+                error=drgerund_error
+            ))
 
         # DRINF
-        try:
-            drinf = cm_drinf(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
-            drinf_error = None
-        except Exception as e:
-            logger.error("Error calculating DRINF: %s", e)
-            drinf = None
-            drinf_error = str(e)
-        indices.append(Index(
-            index=81,
-            type_name="Syntactic Pattern Density",
-            label_ttlab='DRINF',
-            label_v3="DRINF",
-            label_v2="INFi",
-            description="Infinitive density, incidence",
-            value=drinf,
-            error=drinf_error
-        ))
+        if "DRINF" in compute:
+            try:
+                drinf = cm_drinf(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
+                drinf_error = None
+            except Exception as e:
+                logger.error("Error calculating DRINF: %s", e)
+                drinf = None
+                drinf_error = str(e)
+            indices.append(Index(
+                index=81,
+                type_name="Syntactic Pattern Density",
+                label_ttlab='DRINF',
+                label_internal='DRINF',
+                label_v3="DRINF",
+                label_v2="INFi",
+                description="Infinitive density, incidence",
+                version="1.0",
+                value=drinf,
+                error=drinf_error
+            ))
 
         ### Word Information
 
         # L11: compute WRD* counter dict once and reuse across all 10 WRD* indices.
-        try:
-            _wrd_counts = _wrd_precompute(sentences)
-        except Exception as e:
-            logger.error("Error precomputing WRD counts: %s", e)
-            _wrd_counts = None
+        if not compute.isdisjoint(_WRD_COUNT_INDICES):
+            try:
+                _wrd_counts = _wrd_precompute(sentences)
+            except Exception as e:
+                logger.error("Error precomputing WRD counts: %s", e)
+                _wrd_counts = None
 
         # WRDNOUN
-        try:
-            wrdnoun = cm_wrdnoun(sentences, counts=_wrd_counts)
-            wrdnoun_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDNOUN: %s", e)
-            wrdnoun = None
-            wrdnoun_error = str(e)
-        indices.append(Index(
-            index=82,
-            type_name="Word Information",
-            label_ttlab='WRDNOUN',
-            label_v3="WRDNOUN",
-            label_v2="NOUNi",
-            description="Noun incidence",
-            value=wrdnoun,
-            error=wrdnoun_error
-        ))
+        if "WRDNOUN" in compute:
+            try:
+                wrdnoun = cm_wrdnoun(sentences, counts=_wrd_counts)
+                wrdnoun_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDNOUN: %s", e)
+                wrdnoun = None
+                wrdnoun_error = str(e)
+            indices.append(Index(
+                index=82,
+                type_name="Word Information",
+                label_ttlab='WRDNOUN',
+                label_internal='WRDNOUN',
+                label_v3="WRDNOUN",
+                label_v2="NOUNi",
+                description="Noun incidence",
+                version="1.0",
+                value=wrdnoun,
+                error=wrdnoun_error
+            ))
 
         # WRDVERB
-        try:
-            wrdverb = cm_wrdverb(sentences, counts=_wrd_counts)
-            wrdverb_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDVERB: %s", e)
-            wrdverb = None
-            wrdverb_error = str(e)
-        indices.append(Index(
-            index=83,
-            type_name="Word Information",
-            label_ttlab='WRDVERB',
-            label_v3="WRDVERB",
-            label_v2="VERBi",
-            description="Verb incidence",
-            value=wrdverb,
-            error=wrdverb_error
-        ))
+        if "WRDVERB" in compute:
+            try:
+                wrdverb = cm_wrdverb(sentences, counts=_wrd_counts)
+                wrdverb_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDVERB: %s", e)
+                wrdverb = None
+                wrdverb_error = str(e)
+            indices.append(Index(
+                index=83,
+                type_name="Word Information",
+                label_ttlab='WRDVERB',
+                label_internal='WRDVERB',
+                label_v3="WRDVERB",
+                label_v2="VERBi",
+                description="Verb incidence",
+                version="1.0",
+                value=wrdverb,
+                error=wrdverb_error
+            ))
 
         # WRDADJ
-        try:
-            wrdadj = cm_wrdadj(sentences, counts=_wrd_counts)
-            wrdadj_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDADJ: %s", e)
-            wrdadj = None
-            wrdadj_error = str(e)
-        indices.append(Index(
-            index=84,
-            type_name="Word Information",
-            label_ttlab='WRDADJ',
-            label_v3="WRDADJ",
-            label_v2="ADJi",
-            description="Adjective incidence",
-            value=wrdadj,
-            error=wrdadj_error
-        ))
+        if "WRDADJ" in compute:
+            try:
+                wrdadj = cm_wrdadj(sentences, counts=_wrd_counts)
+                wrdadj_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDADJ: %s", e)
+                wrdadj = None
+                wrdadj_error = str(e)
+            indices.append(Index(
+                index=84,
+                type_name="Word Information",
+                label_ttlab='WRDADJ',
+                label_internal='WRDADJ',
+                label_v3="WRDADJ",
+                label_v2="ADJi",
+                description="Adjective incidence",
+                version="1.0",
+                value=wrdadj,
+                error=wrdadj_error
+            ))
 
         # WRDADV
-        try:
-            wrdadv = cm_wrdadv(sentences, counts=_wrd_counts)
-            wrdadv_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDADV: %s", e)
-            wrdadv = None
-            wrdadv_error = str(e)
-        indices.append(Index(
-            index=85,
-            type_name="Word Information",
-            label_ttlab='WRDADV',
-            label_v3="WRDADV",
-            label_v2="ADVi",
-            description="Adverb incidence",
-            value=wrdadv,
-            error=wrdadv_error
-        ))
+        if "WRDADV" in compute:
+            try:
+                wrdadv = cm_wrdadv(sentences, counts=_wrd_counts)
+                wrdadv_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDADV: %s", e)
+                wrdadv = None
+                wrdadv_error = str(e)
+            indices.append(Index(
+                index=85,
+                type_name="Word Information",
+                label_ttlab='WRDADV',
+                label_internal='WRDADV',
+                label_v3="WRDADV",
+                label_v2="ADVi",
+                description="Adverb incidence",
+                version="1.0",
+                value=wrdadv,
+                error=wrdadv_error
+            ))
 
         # WRDPRO
-        try:
-            wrdpro = cm_wrdpro(sentences, counts=_wrd_counts)
-            wrdpro_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRO: %s", e)
-            wrdpro = None
-            wrdpro_error = str(e)
-        indices.append(Index(
-            index=86,
-            type_name="Word Information",
-            label_ttlab='WRDPRO',
-            label_v3="WRDPRO",
-            label_v2="DENPRPi",
-            description="Pronoun incidence",
-            value=wrdpro,
-            error=wrdpro_error
-        ))
+        if "WRDPRO" in compute:
+            try:
+                wrdpro = cm_wrdpro(sentences, counts=_wrd_counts)
+                wrdpro_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRO: %s", e)
+                wrdpro = None
+                wrdpro_error = str(e)
+            indices.append(Index(
+                index=86,
+                type_name="Word Information",
+                label_ttlab='WRDPRO',
+                label_internal='WRDPRO',
+                label_v3="WRDPRO",
+                label_v2="DENPRPi",
+                description="Pronoun incidence",
+                version="1.0",
+                value=wrdpro,
+                error=wrdpro_error
+            ))
 
         # WRDPRP1s
-        try:
-            wrdprp1s = cm_wrdprp1s(sentences, counts=_wrd_counts)
-            wrdprp1s_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP1s: %s", e)
-            wrdprp1s = None
-            wrdprp1s_error = str(e)
-        indices.append(Index(
-            index=87,
-            type_name="Word Information",
-            label_ttlab='WRDPRP1s',
-            label_v3="WRDPRP1s",
-            label_v2="n/a",
-            description="First-person singular pronoun incidence",
-            value=wrdprp1s,
-            error=wrdprp1s_error
-        ))
+        if "WRDPRP1s" in compute:
+            try:
+                wrdprp1s = cm_wrdprp1s(sentences, counts=_wrd_counts)
+                wrdprp1s_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP1s: %s", e)
+                wrdprp1s = None
+                wrdprp1s_error = str(e)
+            indices.append(Index(
+                index=87,
+                type_name="Word Information",
+                label_ttlab='WRDPRP1s',
+                label_internal='WRDPRP1s',
+                label_v3="WRDPRP1s",
+                label_v2="n/a",
+                description="First-person singular pronoun incidence",
+                version="1.0",
+                value=wrdprp1s,
+                error=wrdprp1s_error
+            ))
 
         # WRDPRP1p
-        try:
-            wrdprp1p = cm_wrdprp1p(sentences, counts=_wrd_counts)
-            wrdprp1p_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP1p: %s", e)
-            wrdprp1p = None
-            wrdprp1p_error = str(e)
-        indices.append(Index(
-            index=88,
-            type_name="Word Information",
-            label_ttlab='WRDPRP1p',
-            label_v3="WRDPRP1p",
-            label_v2="n/a",
-            description="First-person plural pronoun incidence",
-            value=wrdprp1p,
-            error=wrdprp1p_error
-        ))
+        if "WRDPRP1p" in compute:
+            try:
+                wrdprp1p = cm_wrdprp1p(sentences, counts=_wrd_counts)
+                wrdprp1p_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP1p: %s", e)
+                wrdprp1p = None
+                wrdprp1p_error = str(e)
+            indices.append(Index(
+                index=88,
+                type_name="Word Information",
+                label_ttlab='WRDPRP1p',
+                label_internal='WRDPRP1p',
+                label_v3="WRDPRP1p",
+                label_v2="n/a",
+                description="First-person plural pronoun incidence",
+                version="1.0",
+                value=wrdprp1p,
+                error=wrdprp1p_error
+            ))
 
         # WRDPRP2
-        try:
-            wrdprp2 = cm_wrdprp2(sentences, counts=_wrd_counts)
-            wrdprp2_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP2: %s", e)
-            wrdprp2 = None
-            wrdprp2_error = str(e)
-        indices.append(Index(
-            index=89,
-            type_name="Word Information",
-            label_ttlab='WRDPRP2',
-            label_v3="WRDPRP2",
-            label_v2="PRO2i",
-            description="Second-person pronoun incidence",
-            value=wrdprp2,
-            error=wrdprp2_error
-        ))
+        if "WRDPRP2" in compute:
+            try:
+                wrdprp2 = cm_wrdprp2(sentences, counts=_wrd_counts)
+                wrdprp2_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP2: %s", e)
+                wrdprp2 = None
+                wrdprp2_error = str(e)
+            indices.append(Index(
+                index=89,
+                type_name="Word Information",
+                label_ttlab='WRDPRP2',
+                label_internal='WRDPRP2',
+                label_v3="WRDPRP2",
+                label_v2="PRO2i",
+                description="Second-person pronoun incidence",
+                version="1.0",
+                value=wrdprp2,
+                error=wrdprp2_error
+            ))
 
         # WRDPRP3s
-        try:
-            wrdprp3s = cm_wrdprp3s(sentences, counts=_wrd_counts)
-            wrdprp3s_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP3s: %s", e)
-            wrdprp3s = None
-            wrdprp3s_error = str(e)
-        indices.append(Index(
-            index=90,
-            type_name="Word Information",
-            label_ttlab='WRDPRP3s',
-            label_v3="WRDPRP3s",
-            label_v2="n/a",
-            description="Third-person singular pronoun incidence",
-            value=wrdprp3s,
-            error=wrdprp3s_error
-        ))
+        if "WRDPRP3s" in compute:
+            try:
+                wrdprp3s = cm_wrdprp3s(sentences, counts=_wrd_counts)
+                wrdprp3s_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP3s: %s", e)
+                wrdprp3s = None
+                wrdprp3s_error = str(e)
+            indices.append(Index(
+                index=90,
+                type_name="Word Information",
+                label_ttlab='WRDPRP3s',
+                label_internal='WRDPRP3s',
+                label_v3="WRDPRP3s",
+                label_v2="n/a",
+                description="Third-person singular pronoun incidence",
+                version="1.0",
+                value=wrdprp3s,
+                error=wrdprp3s_error
+            ))
 
         # WRDPRP3p
-        try:
-            wrdprp3p = cm_wrdprp3p(sentences, counts=_wrd_counts)
-            wrdprp3p_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP3p: %s", e)
-            wrdprp3p = None
-            wrdprp3p_error = str(e)
-        indices.append(Index(
-            index=91,
-            type_name="Word Information",
-            label_ttlab='WRDPRP3p',
-            label_v3="WRDPRP3p",
-            label_v2="n/a",
-            description="Third-person plural pronoun incidence",
-            value=wrdprp3p,
-            error=wrdprp3p_error
-        ))
+        if "WRDPRP3p" in compute:
+            try:
+                wrdprp3p = cm_wrdprp3p(sentences, counts=_wrd_counts)
+                wrdprp3p_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP3p: %s", e)
+                wrdprp3p = None
+                wrdprp3p_error = str(e)
+            indices.append(Index(
+                index=91,
+                type_name="Word Information",
+                label_ttlab='WRDPRP3p',
+                label_internal='WRDPRP3p',
+                label_v3="WRDPRP3p",
+                label_v2="n/a",
+                description="Third-person plural pronoun incidence",
+                version="1.0",
+                value=wrdprp3p,
+                error=wrdprp3p_error
+            ))
 
         # WRDFRQc
-        try:
-            # wrdfrqc = cm_wrdfrqc(sentences, lang, "celex")
-            wrdfrqc = None
-            wrdfrqc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQc: %s", e)
-            wrdfrqc = None
-            wrdfrqc_error = str(e)
-        indices.append(Index(
-            index=92,
-            type_name="Word Information",
-            label_ttlab='WRDFRQc',
-            label_v3="WRDFRQc",
-            label_v2="FRCLacwm",
-            description="CELEX word frequency for content words, mean",
-            value=wrdfrqc,
-            error=wrdfrqc_error
-        ))
+        if "WRDFRQc_wiki" in compute:
+            try:
+                wrdfrqc = cm_wrdfrqc(sentences, lang, "wiki-20220301-sample10000")
+                wrdfrqc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFRQc_wiki10000: %s", e)
+                wrdfrqc = None
+                wrdfrqc_error = str(e)
+            indices.append(Index(
+                index=92,
+                type_name="Word Information",
+                label_ttlab="WRDFRQc_wiki",
+                label_internal=f"WRDFRQc_{lang}wiki10000",
+                label_v3="WRDFRQc",
+                label_v2="FRCLacwm",
+                description="Wikipedia word frequency for content words, mean",
+                version="1.0",
+                value=wrdfrqc,
+                error=wrdfrqc_error
+            ))
 
         # WRDFRQa
-        try:
-            # wrdfrqa = cm_wrdfrqa(tokens, lang, "celex")
-            wrdfrqa = None
-            wrdfrqa_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQa: %s", e)
-            wrdfrqa = None
-            wrdfrqa_error = str(e)
-        indices.append(Index(
-            index=93,
-            type_name="Word Information",
-            label_ttlab='WRDFRQa',
-            label_v3="WRDFRQa",
-            label_v2="FRCLaewm",
-            description="CELEX Log frequency for all words, mean",
-            value=wrdfrqa,
-            error=wrdfrqa_error
-        ))
+        if "WRDFRQa_wiki" in compute:
+            try:
+                wrdfrqa = cm_wrdfrqa(tokens, lang, "wiki-20220301-sample10000")
+                wrdfrqa_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFRQa_wiki10000: %s", e)
+                wrdfrqa = None
+                wrdfrqa_error = str(e)
+            indices.append(Index(
+                index=93,
+                type_name="Word Information",
+                label_ttlab="WRDFRQa_wiki",
+                label_internal=f"WRDFRQa_{lang}wiki10000",
+                label_v3="WRDFRQa",
+                label_v2="FRCLaewm",
+                description="Wikipedia Log frequency for all words, mean",
+                version="1.0",
+                value=wrdfrqa,
+                error=wrdfrqa_error
+            ))
 
         # WRDFRQmc
-        try:
-            # wrdfrqmc = cm_wrdfrqmc(sentences, lang, "celex")
-            wrdfrqmc = None
-            wrdfrqmc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQmc: %s", e)
-            wrdfrqmc = None
-            wrdfrqmc_error = str(e)
-        indices.append(Index(
-            index=94,
-            type_name="Word Information",
-            label_ttlab='WRDFRQmc',
-            label_v3="WRDFRQmc",
-            label_v2="FRCLmcsm",
-            description="CELEX Log minimum frequency for content words, mean",
-            value=wrdfrqmc,
-            error=wrdfrqmc_error
-        ))
-
-        # WRDFRQc
-        try:
-            wrdfrqc = cm_wrdfrqc(sentences, lang, "wiki-20220301-sample10000")
-            wrdfrqc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQc_wiki10000: %s", e)
-            wrdfrqc = None
-            wrdfrqc_error = str(e)
-        indices.append(Index(
-            index=92,
-            type_name="Word Information",
-            label_ttlab="WRDFRQc_wiki10000",
-            label_v3="WRDFRQc",
-            label_v2="FRCLacwm",
-            description="Wikipedia word frequency for content words, mean",
-            version="wiki-20220301-sample10000",
-            value=wrdfrqc,
-            error=wrdfrqc_error
-        ))
-
-        # WRDFRQa
-        try:
-            wrdfrqa = cm_wrdfrqa(tokens, lang, "wiki-20220301-sample10000")
-            wrdfrqa_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQa_wiki10000: %s", e)
-            wrdfrqa = None
-            wrdfrqa_error = str(e)
-        indices.append(Index(
-            index=93,
-            type_name="Word Information",
-            label_ttlab="WRDFRQa_wiki10000",
-            label_v3="WRDFRQa",
-            label_v2="FRCLaewm",
-            description="Wikipedia Log frequency for all words, mean",
-            version="wiki-20220301-sample10000",
-            value=wrdfrqa,
-            error=wrdfrqa_error
-        ))
-
-        # WRDFRQmc
-        try:
-            wrdfrqmc = cm_wrdfrqmc(sentences, lang, "wiki-20220301-sample10000")
-            wrdfrqmc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQmc_wiki10000: %s", e)
-            wrdfrqmc = None
-            wrdfrqmc_error = str(e)
-        indices.append(Index(
-            index=94,
-            type_name="Word Information",
-            label_ttlab="WRDFRQmc_wiki10000",
-            label_v3="WRDFRQmc",
-            label_v2="FRCLmcsm",
-            description="Wikipedia Log minimum frequency for content words, mean",
-            version="wiki-20220301-sample10000",
-            value=wrdfrqmc,
-            error=wrdfrqmc_error
-        ))
+        if "WRDFRQmc_wiki" in compute:
+            try:
+                wrdfrqmc = cm_wrdfrqmc(sentences, lang, "wiki-20220301-sample10000")
+                wrdfrqmc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFRQmc_wiki10000: %s", e)
+                wrdfrqmc = None
+                wrdfrqmc_error = str(e)
+            indices.append(Index(
+                index=94,
+                type_name="Word Information",
+                label_ttlab="WRDFRQmc_wiki",
+                label_internal=f"WRDFRQmc_{lang}wiki10000",
+                label_v3="WRDFRQmc",
+                label_v2="FRCLmcsm",
+                description="Wikipedia Log minimum frequency for content words, mean",
+                version="1.0",
+                value=wrdfrqmc,
+                error=wrdfrqmc_error
+            ))
 
         # FV1 fix:  load mrc once and reuse across all 5 WRD* indices.
-        try:
-            _mrc_dict = _load_mrc_database(lang)
-        except Exception as e:
-            logger.error("Error precomputing MRC dict: %s", e)
-            _mrc_dict = None
+        if not compute.isdisjoint(_MRC_INDICES):
+            try:
+                _mrc_dict = _load_mrc_database(lang)
+            except Exception as e:
+                logger.error("Error precomputing MRC dict: %s", e)
+                _mrc_dict = None
 
         # WRDAOAc
         # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdaoac = cm_wrdaoac(sentences, lang, mrc_dict=_mrc_dict)
-            wrdaoac_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDAOAc: %s", e)
-            wrdaoac = None
-            wrdaoac_error = str(e)
-        indices.append(Index(
-            index=95,
-            type_name="Word Information",
-            label_ttlab="WRDAOAc_mrctranslate",
-            label_v3="WRDAOAc",
-            label_v2="WRDAacwm",
-            description="Age of acquisition for content words, mean",
-            value=wrdaoac,
-            error=wrdaoac_error
-        ))
+        if "WRDAOAc" in compute:
+            try:
+                wrdaoac = cm_wrdaoac(sentences, lang, mrc_dict=_mrc_dict)
+                wrdaoac_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDAOAc: %s", e)
+                wrdaoac = None
+                wrdaoac_error = str(e)
+            indices.append(Index(
+                index=95,
+                type_name="Word Information",
+                label_ttlab="WRDAOAc",
+                label_internal="WRDAOAc_mrctranslate" if lang == "de" else "WRDAOAc",
+                label_v3="WRDAOAc",
+                label_v2="WRDAacwm",
+                description="Age of acquisition for content words, mean",
+                version="1.0",
+                value=wrdaoac,
+                error=wrdaoac_error
+            ))
 
         # WRDFAMc
         # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdfamc = cm_wrdfamc(sentences, lang, mrc_dict=_mrc_dict)
-            wrdfamc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFAMc: %s", e)
-            wrdfamc = None
-            wrdfamc_error = str(e)
-        indices.append(Index(
-            index=96,
-            type_name="Word Information",
-            label_ttlab="WRDFAMc_mrctranslate",
-            label_v3="WRDFAMc",
-            label_v2="WRDFacwm",
-            description="Familiarity for content words, mean",
-            value=wrdfamc,
-            error=wrdfamc_error
-        ))
+        if "WRDFAMc" in compute:
+            try:
+                wrdfamc = cm_wrdfamc(sentences, lang, mrc_dict=_mrc_dict)
+                wrdfamc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFAMc: %s", e)
+                wrdfamc = None
+                wrdfamc_error = str(e)
+            indices.append(Index(
+                index=96,
+                type_name="Word Information",
+                label_ttlab="WRDFAMc",
+                label_internal="WRDFAMc_mrctranslate" if lang == "de" else "WRDFAMc",
+                label_v3="WRDFAMc",
+                label_v2="WRDFacwm",
+                description="Familiarity for content words, mean",
+                version="1.0",
+                value=wrdfamc,
+                error=wrdfamc_error
+            ))
 
         # WRDCNCc
         # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdcncc = cm_wrdcncc(sentences, lang, mrc_dict=_mrc_dict)
-            wrdcncc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDCNCc: %s", e)
-            wrdcncc = None
-            wrdcncc_error = str(e)
-        indices.append(Index(
-            index=97,
-            type_name="Word Information",
-            label_ttlab="WRDCNCc_mrctranslate",
-            label_v3="WRDCNCc",
-            label_v2="WRDCacwm",
-            description="Concreteness for content words, mean",
-            value=wrdcncc,
-            error=wrdcncc_error
-        ))
+        if "WRDCNCc" in compute:
+            try:
+                wrdcncc = cm_wrdcncc(sentences, lang, mrc_dict=_mrc_dict)
+                wrdcncc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDCNCc: %s", e)
+                wrdcncc = None
+                wrdcncc_error = str(e)
+            indices.append(Index(
+                index=97,
+                type_name="Word Information",
+                label_ttlab="WRDCNCc",
+                label_internal="WRDCNCc_mrctranslate" if lang == "de" else "WRDCNCc",
+                label_v3="WRDCNCc",
+                label_v2="WRDCacwm",
+                description="Concreteness for content words, mean",
+                version="1.0",
+                value=wrdcncc,
+                error=wrdcncc_error
+            ))
 
         # WRDIMGc
         # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdimgc = cm_wrdimgc(sentences, lang, mrc_dict=_mrc_dict)
-            wrdimgc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDIMGc: %s", e)
-            wrdimgc = None
-            wrdimgc_error = str(e)
-        indices.append(Index(
-            index=98,
-            type_name="Word Information",
-            label_ttlab="WRDIMGc_mrctranslate",
-            label_v3="WRDIMGc",
-            label_v2="WRDIacwm",
-            description="Imagability for content words, mean",
-            value=wrdimgc,
-            error=wrdimgc_error
-        ))
+        if "WRDIMGc" in compute:
+            try:
+                wrdimgc = cm_wrdimgc(sentences, lang, mrc_dict=_mrc_dict)
+                wrdimgc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDIMGc: %s", e)
+                wrdimgc = None
+                wrdimgc_error = str(e)
+            indices.append(Index(
+                index=98,
+                type_name="Word Information",
+                label_ttlab="WRDIMGc",
+                label_internal="WRDIMGc_mrctranslate" if lang == "de" else "WRDIMGc",
+                label_v3="WRDIMGc",
+                label_v2="WRDIacwm",
+                description="Imagability for content words, mean",
+                version="1.0",
+                value=wrdimgc,
+                error=wrdimgc_error
+            ))
 
         # WRDMEAc
         # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdmeac = cm_wrdmeac(sentences, lang, mrc_dict=_mrc_dict)
-            wrdmeac_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDMEAc: %s", e)
-            wrdmeac = None
-            wrdmeac_error = str(e)
-        indices.append(Index(
-            index=99,
-            type_name="Word Information",
-            label_ttlab="WRDMEAc_mrctranslate",
-            label_v3="WRDMEAc",
-            label_v2="WRDMacwm",
-            description="Meaningfulness, Colorado norms, content words, mean",
-            value=wrdmeac,
-            error=wrdmeac_error
-        ))
+        if "WRDMEAc" in compute:
+            try:
+                wrdmeac = cm_wrdmeac(sentences, lang, mrc_dict=_mrc_dict)
+                wrdmeac_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDMEAc: %s", e)
+                wrdmeac = None
+                wrdmeac_error = str(e)
+            indices.append(Index(
+                index=99,
+                type_name="Word Information",
+                label_ttlab="WRDMEAc",
+                label_internal="WRDMEAc_mrctranslate" if lang == "de" else "WRDMEAc",
+                label_v3="WRDMEAc",
+                label_v2="WRDMacwm",
+                description="Meaningfulness, Colorado norms, content words, mean",
+                version="1.0",
+                value=wrdmeac,
+                error=wrdmeac_error
+            ))
 
         # WRDPOLc
-        try:
-            wrdpolc = cm_wrdpolc(sentences, lang)
-            wrdpolc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPOLc: %s", e)
-            wrdpolc = None
-            wrdpolc_error = str(e)
-        indices.append(Index(
-            index=100,
-            type_name="Word Information",
-            label_ttlab=(
-                "WRDPOLc_germanet"
-                if lang == "de"
-                else "WRDPOLc_wordnet"
-            ),
-            label_v3="WRDPOLc",
-            label_v2="POLm",
-            description="Polysemy for content words, mean",
-            value=wrdpolc,
-            error=wrdpolc_error
-        ))
+        if "WRDPOLc" in compute:
+            try:
+                wrdpolc = cm_wrdpolc(sentences, lang)
+                wrdpolc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPOLc: %s", e)
+                wrdpolc = None
+                wrdpolc_error = str(e)
+            indices.append(Index(
+                index=100,
+                type_name="Word Information",
+                label_ttlab="WRDPOLc",
+                label_internal="WRDPOLc_germanet" if lang == "de" else "WRDPOLc",
+                label_v3="WRDPOLc",
+                label_v2="POLm",
+                description="Polysemy for content words, mean",
+                version="1.0",
+                value=wrdpolc,
+                error=wrdpolc_error
+            ))
 
         # Precompute hypernymy values once for WRDHYPn, WRDHYPv and WRDHYPnv.
-        try:
-            _wrdhyp = _calc_wrdhyp(
-                sentences,
-                lang
-            )
-            _wrdhyp_error = None
-        except Exception as e:
-            logger.error(
-                "Error calculating WRDHYP indices: %s",
-                e
-            )
+        if not compute.isdisjoint(_WRDHYP_INDICES):
+            try:
+                _wrdhyp = _calc_wrdhyp(
+                    sentences,
+                    lang
+                )
+                _wrdhyp_error = None
+            except Exception as e:
+                logger.error(
+                    "Error calculating WRDHYP indices: %s",
+                    e
+                )
 
-            _wrdhyp = {
-                "WRDHYPn": None,
-                "WRDHYPv": None,
-                "WRDHYPnv": None,
-            }
+                _wrdhyp = {
+                    "WRDHYPn": None,
+                    "WRDHYPv": None,
+                    "WRDHYPnv": None,
+                }
 
-            _wrdhyp_error = str(e)
+                _wrdhyp_error = str(e)
 
         # WRDHYPn
-        wrdhypn = _wrdhyp["WRDHYPn"]
-        wrdhypn_error = _wrdhyp_error
-        indices.append(Index(
-            index=101,
-            type_name="Word Information",
-            label_ttlab=(
-                "WRDHYPn_germanet"
-                if lang == "de"
-                else "WRDHYPn_wordnet"
-            ),
-            label_v3="WRDHYPn",
-            label_v2="HYNOUNaw",
-            description="Hypernymy for nouns, mean",
-            value=wrdhypn,
-            error=wrdhypn_error
-        ))
+        if "WRDHYPn" in compute:
+            wrdhypn = _wrdhyp["WRDHYPn"]
+            wrdhypn_error = _wrdhyp_error
+            indices.append(Index(
+                index=101,
+                type_name="Word Information",
+                label_ttlab="WRDHYPn",
+                label_internal="WRDHYPn_germanet" if lang == "de" else "WRDHYPn",
+                label_v3="WRDHYPn",
+                label_v2="HYNOUNaw",
+                description="Hypernymy for nouns, mean",
+                version="1.0",
+                value=wrdhypn,
+                error=wrdhypn_error
+            ))
 
         # WRDHYPv
-        wrdhypv = _wrdhyp["WRDHYPv"]
-        wrdhypv_error = _wrdhyp_error
-        indices.append(Index(
-            index=102,
-            type_name="Word Information",
-            label_ttlab=(
-                "WRDHYPv_germanet"
-                if lang == "de"
-                else "WRDHYPv_wordnet"
-            ),
-            label_v3="WRDHYPv",
-            label_v2="HYVERBaw",
-            description="Hypernymy for verbs, mean",
-            value=wrdhypv,
-            error=wrdhypv_error
-        ))
+        if "WRDHYPv" in compute:
+            wrdhypv = _wrdhyp["WRDHYPv"]
+            wrdhypv_error = _wrdhyp_error
+            indices.append(Index(
+                index=102,
+                type_name="Word Information",
+                label_ttlab="WRDHYPv",
+                label_internal="WRDHYPv_germanet" if lang == "de" else "WRDHYPv",
+                label_v3="WRDHYPv",
+                label_v2="HYVERBaw",
+                description="Hypernymy for verbs, mean",
+                version="1.0",
+                value=wrdhypv,
+                error=wrdhypv_error
+            ))
 
         # WRDHYPnv
-        wrdhypnv = _wrdhyp["WRDHYPnv"]
-        wrdhypnv_error = _wrdhyp_error
-        indices.append(Index(
-            index=103,
-            type_name="Word Information",
-            label_ttlab=(
-                "WRDHYPnv_germanet"
-                if lang == "de"
-                else "WRDHYPnv_wordnet"
-            ),
-            label_v3="WRDHYPnv",
-            label_v2="HYPm",
-            description="Hypernymy for nouns and verbs, mean",
-            value=wrdhypnv,
-            error=wrdhypnv_error
-        ))
+        if "WRDHYPnv" in compute:
+            wrdhypnv = _wrdhyp["WRDHYPnv"]
+            wrdhypnv_error = _wrdhyp_error
+            indices.append(Index(
+                index=103,
+                type_name="Word Information",
+                label_ttlab="WRDHYPnv",
+                label_internal="WRDHYPnv_germanet" if lang == "de" else "WRDHYPnv",
+                label_v3="WRDHYPnv",
+                label_v2="HYPm",
+                description="Hypernymy for nouns and verbs, mean",
+                version="1.0",
+                value=wrdhypnv,
+                error=wrdhypnv_error
+            ))
 
         ### Readability
 
@@ -7221,306 +7741,372 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         # provisionally for compatibility and may be revised in a later pass.
 
         # RDFRE
-        try:
-            rdfre = (
-                textstat.flesch_reading_ease(request.text)
-                if has_readability_input else None
-            )
-            rdfre_error = None
-        except Exception as e:
-            logger.error("Error calculating RDFRE: %s", e)
-            rdfre = None
-            rdfre_error = str(e)
-        indices.append(Index(
-            index=104,
-            type_name="Readability",
-            label_ttlab="RDFRE_textstat",
-            label_v3="RDFRE",
-            label_v2="READFRE",
-            description="Flesch Reading Ease",
-            value=rdfre,
-            error=rdfre_error
-        ))
+        if "RDFRE_textstat" in compute:
+            try:
+                rdfre = (
+                    textstat.flesch_reading_ease(request.text)
+                    if has_readability_input else None
+                )
+                rdfre_error = None
+            except Exception as e:
+                logger.error("Error calculating RDFRE: %s", e)
+                rdfre = None
+                rdfre_error = str(e)
+            indices.append(Index(
+                index=104,
+                type_name="Readability",
+                label_ttlab="RDFRE_textstat",
+                label_internal="RDFRE_textstat",
+                label_v3="RDFRE",
+                label_v2="READFRE",
+                description="Flesch Reading Ease",
+                version="1.0",
+                value=rdfre,
+                error=rdfre_error
+            ))
 
         # RDFKGL
-        try:
-            rdfkgl = (
-                textstat.flesch_kincaid_grade(request.text)
-                if has_readability_input else None
-            )
-            rdfkgl_error = None
-        except Exception as e:
-            logger.error("Error calculating RDFKGL: %s", e)
-            rdfkgl = None
-            rdfkgl_error = str(e)
-        indices.append(Index(
-            index=105,
-            type_name="Readability",
-            label_ttlab="RDFKGL_textstat",
-            label_v3="RDFKGL",
-            label_v2="READFKGL",
-            description="Flesch–Kincaid Grade Level",
-            value=rdfkgl,
-            error=rdfkgl_error
-        ))
+        if "RDFKGL_textstat" in compute:
+            try:
+                rdfkgl = (
+                    textstat.flesch_kincaid_grade(request.text)
+                    if has_readability_input else None
+                )
+                rdfkgl_error = None
+            except Exception as e:
+                logger.error("Error calculating RDFKGL: %s", e)
+                rdfkgl = None
+                rdfkgl_error = str(e)
+            indices.append(Index(
+                index=105,
+                type_name="Readability",
+                label_ttlab="RDFKGL_textstat",
+                label_internal="RDFKGL_textstat",
+                label_v3="RDFKGL",
+                label_v2="READFKGL",
+                description="Flesch–Kincaid Grade Level",
+                version="1.0",
+                value=rdfkgl,
+                error=rdfkgl_error
+            ))
 
         # RDFOG
-        try:
-            rdfog = (
-                textstat.gunning_fog(request.text)
-                if has_readability_input else None
-            )
-            rdfog_error = None
-        except Exception as e:
-            logger.error("Error calculating RDFOG: %s", e)
-            rdfog = None
-            rdfog_error = str(e)
-        indices.append(Index(
-            index=1001,
-            type_name="Readability",
-            label_ttlab="RDFOG_textstat",
-            description="Gunning Fog Index",
-            value=rdfog,
-            error=rdfog_error
-        ))
+        if "RDFOG_textstat" in compute:
+            try:
+                rdfog = (
+                    textstat.gunning_fog(request.text)
+                    if has_readability_input else None
+                )
+                rdfog_error = None
+            except Exception as e:
+                logger.error("Error calculating RDFOG: %s", e)
+                rdfog = None
+                rdfog_error = str(e)
+            indices.append(Index(
+                index=1001,
+                type_name="Readability",
+                label_ttlab="RDFOG_textstat",
+                label_internal="RDFOG_textstat",
+                description="Gunning Fog Index",
+                version="1.0",
+                value=rdfog,
+                error=rdfog_error
+            ))
 
         # RDSMOG
-        try:
-            rdsmog = (
-                textstat.smog_index(request.text)
-                if has_readability_input else None
-            )
-            rdsmog_error = None
-        except Exception as e:
-            logger.error("Error calculating RDSMOG: %s", e)
-            rdsmog = None
-            rdsmog_error = str(e)
-        indices.append(Index(
-            index=1002,
-            type_name="Readability",
-            label_ttlab="RDSMOG_textstat",
-            description="SMOG Grade",
-            value=rdsmog,
-            error=rdsmog_error
-        ))
+        if "RDSMOG_textstat" in compute:
+            try:
+                rdsmog = (
+                    textstat.smog_index(request.text)
+                    if has_readability_input else None
+                )
+                rdsmog_error = None
+            except Exception as e:
+                logger.error("Error calculating RDSMOG: %s", e)
+                rdsmog = None
+                rdsmog_error = str(e)
+            indices.append(Index(
+                index=1002,
+                type_name="Readability",
+                label_ttlab="RDSMOG_textstat",
+                label_internal="RDSMOG_textstat",
+                description="SMOG Grade",
+                version="1.0",
+                value=rdsmog,
+                error=rdsmog_error
+            ))
 
         # RDARI
-        try:
-            rdari = (
-                textstat.automated_readability_index(request.text)
-                if has_readability_input else None
-            )
-            rdari_error = None
-        except Exception as e:
-            logger.error("Error calculating RDARI: %s", e)
-            rdari = None
-            rdari_error = str(e)
-        indices.append(Index(
-            index=1003,
-            type_name="Readability",
-            label_ttlab="RDARI_textstat",
-            description="Automated Readability Index",
-            value=rdari,
-            error=rdari_error
-        ))
+        if "RDARI_textstat" in compute:
+            try:
+                rdari = (
+                    textstat.automated_readability_index(request.text)
+                    if has_readability_input else None
+                )
+                rdari_error = None
+            except Exception as e:
+                logger.error("Error calculating RDARI: %s", e)
+                rdari = None
+                rdari_error = str(e)
+            indices.append(Index(
+                index=1003,
+                type_name="Readability",
+                label_ttlab="RDARI_textstat",
+                label_internal="RDARI_textstat",
+                description="Automated Readability Index",
+                version="1.0",
+                value=rdari,
+                error=rdari_error
+            ))
 
         # RDCLI
-        try:
-            rdcli = (
-                textstat.coleman_liau_index(request.text)
-                if has_readability_input else None
-            )
-            rdcli_error = None
-        except Exception as e:
-            logger.error("Error calculating RDCLI: %s", e)
-            rdcli = None
-            rdcli_error = str(e)
-        indices.append(Index(
-            index=1004,
-            type_name="Readability",
-            label_ttlab="RDCLI_textstat",
-            description="Coleman–Liau Index",
-            value=rdcli,
-            error=rdcli_error
-        ))
+        if "RDCLI_textstat" in compute:
+            try:
+                rdcli = (
+                    textstat.coleman_liau_index(request.text)
+                    if has_readability_input else None
+                )
+                rdcli_error = None
+            except Exception as e:
+                logger.error("Error calculating RDCLI: %s", e)
+                rdcli = None
+                rdcli_error = str(e)
+            indices.append(Index(
+                index=1004,
+                type_name="Readability",
+                label_ttlab="RDCLI_textstat",
+                label_internal="RDCLI_textstat",
+                description="Coleman–Liau Index",
+                version="1.0",
+                value=rdcli,
+                error=rdcli_error
+            ))
 
         # RDLW
-        try:
-            rdlw = (
-                textstat.linsear_write_formula(request.text)
-                if has_readability_input else None
-            )
-            rdlw_error = None
-        except Exception as e:
-            logger.error("Error calculating RDLW: %s", e)
-            rdlw = None
-            rdlw_error = str(e)
-        indices.append(Index(
-            index=1005,
-            type_name="Readability",
-            label_ttlab="RDLW_textstat",
-            description="Linsear Write Formula",
-            value=rdlw,
-            error=rdlw_error
-        ))
+        if "RDLW_textstat" in compute:
+            try:
+                rdlw = (
+                    textstat.linsear_write_formula(request.text)
+                    if has_readability_input else None
+                )
+                rdlw_error = None
+            except Exception as e:
+                logger.error("Error calculating RDLW: %s", e)
+                rdlw = None
+                rdlw_error = str(e)
+            indices.append(Index(
+                index=1005,
+                type_name="Readability",
+                label_ttlab="RDLW_textstat",
+                label_internal="RDLW_textstat",
+                description="Linsear Write Formula",
+                version="1.0",
+                value=rdlw,
+                error=rdlw_error
+            ))
 
         # RDDCRS
-        try:
-            rddcrs = (
-                textstat.dale_chall_readability_score(request.text)
-                if has_readability_input else None
-            )
-            rddcrs_error = None
-        except Exception as e:
-            logger.error("Error calculating RDDCRS: %s", e)
-            rddcrs = None
-            rddcrs_error = str(e)
-        indices.append(Index(
-            index=1006,
-            type_name="Readability",
-            label_ttlab="RDDCRS_textstat",
-            description="Dale-Chall Readability Score",
-            value=rddcrs,
-            error=rddcrs_error
-        ))
+        if "RDDCRS_textstat" in compute:
+            try:
+                rddcrs = (
+                    textstat.dale_chall_readability_score(request.text)
+                    if has_readability_input else None
+                )
+                rddcrs_error = None
+            except Exception as e:
+                logger.error("Error calculating RDDCRS: %s", e)
+                rddcrs = None
+                rddcrs_error = str(e)
+            indices.append(Index(
+                index=1006,
+                type_name="Readability",
+                label_ttlab="RDDCRS_textstat",
+                label_internal="RDDCRS_textstat",
+                description="Dale-Chall Readability Score",
+                version="1.0",
+                value=rddcrs,
+                error=rddcrs_error
+            ))
 
         # RDSPACHE
-        try:
-            rdspache = (
-                textstat.spache_readability(request.text)
-                if has_readability_input else None
-            )
-            rdspache_error = None
-        except Exception as e:
-            logger.error("Error calculating RDSPACHE: %s", e)
-            rdspache = None
-            rdspache_error = str(e)
-        indices.append(Index(
-            index=1007,
-            type_name="Readability",
-            label_ttlab="RDSPACHE_textstat",
-            description="Spache Readability Formula",
-            value=rdspache,
-            error=rdspache_error
-        ))
+        if "RDSPACHE_textstat" in compute:
+            try:
+                rdspache = (
+                    textstat.spache_readability(request.text)
+                    if has_readability_input else None
+                )
+                rdspache_error = None
+            except Exception as e:
+                logger.error("Error calculating RDSPACHE: %s", e)
+                rdspache = None
+                rdspache_error = str(e)
+            indices.append(Index(
+                index=1007,
+                type_name="Readability",
+                label_ttlab="RDSPACHE_textstat",
+                label_internal="RDSPACHE_textstat",
+                description="Spache Readability Formula",
+                version="1.0",
+                value=rdspache,
+                error=rdspache_error
+            ))
 
         # RDWSTF1
-        try:
-            rdwstf = (
-                textstat.wiener_sachtextformel(request.text, variant=1)
-                if has_readability_input and lang == "de" else None
-            )
-            rdwstf_error = None
-        except Exception as e:
-            logger.error("Error calculating RDWSTF1: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1008,
-            type_name="Readability",
-            label_ttlab="RDWSTF1_textstat",
-            description="Wiener Sachtextformel 1",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
+        if "RDWSTF1_textstat" in compute:
+            try:
+                rdwstf = (
+                    textstat.wiener_sachtextformel(request.text, variant=1)
+                    if has_readability_input and lang == "de" else None
+                )
+                rdwstf_error = None
+            except Exception as e:
+                logger.error("Error calculating RDWSTF1: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            indices.append(Index(
+                index=1008,
+                type_name="Readability",
+                label_ttlab="RDWSTF1_textstat",
+                label_internal="RDWSTF1_textstat",
+                description="Wiener Sachtextformel 1",
+                version="1.0",
+                value=rdwstf,
+                error=rdwstf_error
+            ))
 
         # RDWSTF2
-        try:
-            rdwstf = (
-                textstat.wiener_sachtextformel(request.text, variant=2)
-                if has_readability_input and lang == "de" else None
-            )
-            rdwstf_error = None
-        except Exception as e:
-            logger.error("Error calculating RDWSTF2: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1009,
-            type_name="Readability",
-            label_ttlab="RDWSTF2_textstat",
-            description="Wiener Sachtextformel 2",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
+        if "RDWSTF2_textstat" in compute:
+            try:
+                rdwstf = (
+                    textstat.wiener_sachtextformel(request.text, variant=2)
+                    if has_readability_input and lang == "de" else None
+                )
+                rdwstf_error = None
+            except Exception as e:
+                logger.error("Error calculating RDWSTF2: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            indices.append(Index(
+                index=1009,
+                type_name="Readability",
+                label_ttlab="RDWSTF2_textstat",
+                label_internal="RDWSTF2_textstat",
+                description="Wiener Sachtextformel 2",
+                version="1.0",
+                value=rdwstf,
+                error=rdwstf_error
+            ))
 
         # RDWSTF3
-        try:
-            rdwstf = (
-                textstat.wiener_sachtextformel(request.text, variant=3)
-                if has_readability_input and lang == "de" else None
-            )
-            rdwstf_error = None
-        except Exception as e:
-            logger.error("Error calculating RDWSTF3: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1010,
-            type_name="Readability",
-            label_ttlab="RDWSTF3_textstat",
-            description="Wiener Sachtextformel 3",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
+        if "RDWSTF3_textstat" in compute:
+            try:
+                rdwstf = (
+                    textstat.wiener_sachtextformel(request.text, variant=3)
+                    if has_readability_input and lang == "de" else None
+                )
+                rdwstf_error = None
+            except Exception as e:
+                logger.error("Error calculating RDWSTF3: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            indices.append(Index(
+                index=1010,
+                type_name="Readability",
+                label_ttlab="RDWSTF3_textstat",
+                label_internal="RDWSTF3_textstat",
+                description="Wiener Sachtextformel 3",
+                version="1.0",
+                value=rdwstf,
+                error=rdwstf_error
+            ))
 
         # RDWSTF4
-        try:
-            rdwstf = (
-                textstat.wiener_sachtextformel(request.text, variant=4)
-                if has_readability_input and lang == "de" else None
-            )
-            rdwstf_error = None
-        except Exception as e:
-            logger.error("Error calculating RDWSTF4: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1011,
-            type_name="Readability",
-            label_ttlab="RDWSTF4_textstat",
-            description="Wiener Sachtextformel 4",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
+        if "RDWSTF4_textstat" in compute:
+            try:
+                rdwstf = (
+                    textstat.wiener_sachtextformel(request.text, variant=4)
+                    if has_readability_input and lang == "de" else None
+                )
+                rdwstf_error = None
+            except Exception as e:
+                logger.error("Error calculating RDWSTF4: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            indices.append(Index(
+                index=1011,
+                type_name="Readability",
+                label_ttlab="RDWSTF4_textstat",
+                label_internal="RDWSTF4_textstat",
+                description="Wiener Sachtextformel 4",
+                version="1.0",
+                value=rdwstf,
+                error=rdwstf_error
+            ))
 
         # RDL2
-        try:
-            rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
-            rdl2_error = None
-        except Exception as e:
-            logger.error("Error calculating RDL2: %s", e)
-            rdl2 = None
-            rdl2_error = str(e)
-        indices.append(Index(
-            index=106,
-            type_name="Readability",
-            label_ttlab="RDL2_synstruta",
-            label_v3="RDL2",
-            label_v2="L2",
-            description="Coh-Metrix L2 Readability",
-            value=rdl2,
-            error=rdl2_error
-        ))
+        if "RDL2_synstruta_wiki" in compute:
+            try:
+                rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
+                rdl2_error = None
+            except Exception as e:
+                logger.error("Error calculating RDL2: %s", e)
+                rdl2 = None
+                rdl2_error = str(e)
+            indices.append(Index(
+                index=106,
+                type_name="Readability",
+                label_ttlab="RDL2_synstruta_wiki",
+                label_internal=f"RDL2_synstruta_{lang}wiki10000",
+                label_v3="RDL2",
+                label_v2="L2",
+                description="Coh-Metrix L2 Readability",
+                version="1.0",
+                value=rdl2,
+                error=rdl2_error
+            ))
 
         # RDL2
-        try:
-            rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
-            rdl2_error = None
-        except Exception as e:
-            logger.error("Error calculating RDL2: %s", e)
-            rdl2 = None
-            rdl2_error = str(e)
-        indices.append(Index(
-            index=106,
-            type_name="Readability",
-            label_ttlab="RDL2_synstrutt",
-            label_v3="RDL2",
-            label_v2="L2",
-            description="Coh-Metrix L2 Readability",
-            value=rdl2,
-            error=rdl2_error
-        ))
+        if "RDL2_synstrutt_wiki" in compute:
+            try:
+                rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
+                rdl2_error = None
+            except Exception as e:
+                logger.error("Error calculating RDL2: %s", e)
+                rdl2 = None
+                rdl2_error = str(e)
+            indices.append(Index(
+                index=106,
+                type_name="Readability",
+                label_ttlab="RDL2_synstrutt_wiki",
+                label_internal=f"RDL2_synstrutt_{lang}wiki10000",
+                label_v3="RDL2",
+                label_v2="L2",
+                description="Coh-Metrix L2 Readability",
+                version="1.0",
+                value=rdl2,
+                error=rdl2_error
+            ))
+
+        ### Text Easability Principal Component Scores (indices 12-27, from the indices above)
+        if TEXT_EASABILITY_TYPE_NAME in compute_groups:
+            try:
+                text_easability = cm_text_easability(indices, lang)
+                text_easability_error = None
+            except Exception as e:
+                logger.error("Error calculating Text Easability components: %s", e)
+                text_easability = {}
+                text_easability_error = str(e)
+            for index in indices:
+                if index.type_name == TEXT_EASABILITY_TYPE_NAME:
+                    # None: undefined for this document (see cm_text_easability)
+                    index.value = text_easability.get(index.label_v3) if text_easability is not None else None
+                    index.error = text_easability_error
+                    # the public label (_clear) is fixed; the model names this language's reference corpus
+                    if lang in text_easability_models:
+                        index.label_internal = index.label_v3 + text_easability_models[lang]["label_suffix"]
+
+        # drop the inputs of derived indices that were computed but not selected
+        indices = [index for index in indices if index.label_ttlab in output]
 
         meta = AnnotationMeta(
             name=settings.annotator_name,
@@ -7539,6 +8125,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         logger.exception(ex)
     finally:
         _SENTENCE_FEATURES.reset(sentence_features_token)  # release this request's sentences
+        _clear_synstrut_caches()  # here, not after SYNSTRUTt, which may be deselected while SYNSTRUTa is computed
 
     logger.debug(meta)
     logger.debug(modification_meta)

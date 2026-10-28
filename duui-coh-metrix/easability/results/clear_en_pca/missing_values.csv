@@ -1,0 +1,49 @@
+measure,missing_documents,missing_share
+1 Syllables per word,0,0.0
+2 Nouns,0,0.0
+3 Verbs,0,0.0
+4 Adjectives,0,0.0
+5 Adverbs,0,0.0
+6 Pronouns,0,0.0
+7 First-person pronouns,0,0.0
+8 Third-person pronouns,0,0.0
+10 Connectives,0,0.0
+11 Causal connectives,0,0.0
+12 Temporal connectives,0,0.0
+13 Logical connectives,0,0.0
+14 Additive connectives,0,0.0
+15 Adversative connectives,0,0.0
+16 Word frequency (logarithm),0,0.0
+17 Content word frequency (logarithm),0,0.0
+18 Minimum word frequency per sentence,0,0.0
+19 Age of acquisition,0,0.0
+20 Meaningfulness,0,0.0
+21 Concreteness,0,0.0
+22 Imagery,0,0.0
+23 Familiarity,0,0.0
+24 Negations,0,0.0
+25 Causal verbs,0,0.0
+"26 Intentional actions, events, and particles",0,0.0
+27 Polysemy—multiple senses of word,0,0.0
+28 Words per sentence,0,0.0
+29 Modifiers per noun phrase,0,0.0
+30 Words before main verb of main clause,0,0.0
+31 Passive constructions,0,0.0
+32 Syntactic similarity—sentences in paragraph,0,0.0
+33 Content word overlap—adjacent sentences,0,0.0
+34 Content word overlap—all sentences,0,0.0
+35 Argument overlap—adjacent sentences,0,0.0
+36 Argument overlap—all sentences,0,0.0
+37 Noun overlap—adjacent sentences,0,0.0
+38 Stem overlap—all sentences,0,0.0
+39 Type-token ratio,0,0.0
+40 Lexical diversity—all words,0,0.0
+42 LSA-givenness versus newness,0,0.0
+43 LSA overlap—adjacent sentences,2,0.0004233700254022015
+44 LSA overlap—all sentences,28,0.0059271803556308214
+45 Dissimilarity of parts of speech between sentences,0,0.0
+46 Dissimilarity of words between sentences,0,0.0
+47 Causal cohesion,793,0.1678662150719729
+49 Verb overlap—adjacent,0,0.0
+50 LSA verb overlap—adjacent sentences,0,0.0
+51 Temporal cohesion,2,0.0004233700254022015
