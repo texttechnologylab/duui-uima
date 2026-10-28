@@ -35,8 +35,8 @@ public class ClearCorpusCohMetrixTest {
 
     // TODO replace with the Docker image before committing/releasing
     private static final String SPACY_URL = "http://geltlin.hucompute.org:9727";
-    // TODO replace with the released image; local build of the working tree (labels of a8dd58b/94c461c)
-    private static final String COHMETRIX_IMAGE = "duui-coh-metrix:easability-dev";
+    // two-layer labels (docs/label-scheme.md); built by src/main/bash/docker_build.sh
+    private static final String COHMETRIX_IMAGE = "docker.texttechnologylab.org/duui-coh-metrix:0.2.0";
 
     /** Corpus, translations and processed corpora (not in the repository, see README). */
     static final Path CLEAR_DIR = Paths.get("/storage/projects/CORE/projects2/coh_metrix/clear_corpus");

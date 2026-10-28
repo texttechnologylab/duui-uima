@@ -21,7 +21,7 @@ explained_variance.csv, assignment.csv, marker_scores.csv, validation.csv, score
 component (see text_easability in duui.py) to --model.
 
 Usage: python pca.py <indices.csv> <output_dir> --model <model.json> --language en --corpus "<description>"
-       --label-suffix _clear
+       --label-suffix _REFIT_CLEAR
 """
 
 import argparse
@@ -55,7 +55,7 @@ GENRE_LITERARY = "Lit"
 def load_measures() -> pd.DataFrame:
     """The available and not excluded 2011 measures."""
     measures = pd.read_csv(MEASURES_FILE, dtype=str, keep_default_na=False)
-    measures = measures[(measures["labels_ttlab"] != "") & (measures["excluded"] == "")]
+    measures = measures[(measures["labels_v3"] != "") & (measures["excluded"] == "")]
     measures["column"] = measures["number"] + " " + measures["measure_2011"]
     return measures.set_index("number")
 
@@ -64,7 +64,7 @@ def input_values(indices: pd.DataFrame, measures: pd.DataFrame) -> pd.DataFrame:
     """One column per measure; measures with multiple labels are summed (missing if one label is missing)."""
     columns = {}
     for m in measures.itertuples():
-        labels = m.labels_ttlab.split(";")
+        labels = m.labels_v3.split(";")
         columns[m.column] = indices[labels].sum(axis=1, min_count=len(labels))
     return pd.DataFrame(columns, index=indices.index)
 
@@ -95,7 +95,7 @@ def main() -> None:
     parser.add_argument("--model", type=Path, required=True, help="model file for the DUUI component")
     parser.add_argument("--language", required=True)
     parser.add_argument("--corpus", required=True, help="description of the reference corpus")
-    parser.add_argument("--label-suffix", required=True, help="label_ttlab suffix of the components, e.g. _clear")
+    parser.add_argument("--label-suffix", required=True, help="label_ttlab suffix of the components, e.g. _REFIT_CLEAR")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -196,7 +196,7 @@ def main() -> None:
                   "at runtime only inputs with missing_documents > 0 may be missing (reference mean), "
                   "otherwise the components are undefined",
         "inputs": [
-            {"measure_number": int(number), "measure": m.measure_2011, "labels_ttlab": m.labels_ttlab.split(";"),
+            {"measure_number": int(number), "measure": m.measure_2011, "labels_v3": m.labels_v3.split(";"),
              "mean": float(mean), "scale": float(scale), "missing_documents": int(missing_documents)}
             for (number, m), mean, scale, missing_documents
             in zip(measures.iterrows(), imputer.statistics_, scaler.scale_, missing["missing_documents"])
@@ -257,8 +257,8 @@ def write_report(args, meta, measures, components, missing, pairs, full, rotated
     loadings, validation."""
     n_components = len(components)
     all_measures = pd.read_csv(MEASURES_FILE, dtype=str, keep_default_na=False)
-    unavailable = all_measures[all_measures["labels_ttlab"] == ""]
-    excluded = all_measures[(all_measures["labels_ttlab"] != "") & (all_measures["excluded"] != "")]
+    unavailable = all_measures[all_measures["labels_v3"] == ""]
+    excluded = all_measures[(all_measures["labels_v3"] != "") & (all_measures["excluded"] != "")]
     variance = (rotated ** 2).sum(axis=0) / len(measure_columns)
     r = []
 

@@ -59,22 +59,12 @@ paragraph mismatches, see `docs/todo.md`; GermaNet V180; 58.5% variance explaine
 - **Deep cohesion** differs (congruence .64, r .30).
 - Missing inputs: causal cohesion undefined in 20.3% (English 16.8%).
 
-## Index labels (change from another session)
+## Index labels
 
-The new label scheme (README, "Index labels") is committed (a8dd58b), but without Text Easability. In that commit the
-PC indices still have the old placeholder labels (`PCNARz_wikipedia`, ..., "Not implemented").
-
-TODO when committing Text Easability:
-
-- Commit the PC label rename `_wikipedia` -> `_clear` in `duui.py` (16 entries) together with `cm_text_easability`,
-  the `post_process` loop that sets `label_internal` from the model's `label_suffix`, and `import json`.
-- README: the "Text Easability reference corpus" section and the `_clear` row of the suffix table.
-- `CohMetrixDockerValidationTest`: normalize `_clear` instead of `_wikipedia`, and replace the "intentionally
-  unimplemented" PC check (it expects NaN and "Not implemented").
-- `.gitignore`, `pom.xml` (commons-csv), Dockerfile (`COPY src/main/resources/easability`).
-- Decide the PC label names first: `_clear` only (current), or rule 3 (inherit the input suffixes, see below)? And
-  `_cleartranslate` as the internal suffix for a German model built from translated CLEAR, or a different corpus
-  name if the German reference corpus is not a translation.
+Since 0.2.0 the two-layer scheme applies (`docs/label-scheme.md`, README "Index labels"): the public PC labels are
+the V3 labels (`PCNARz`), the internal labels come from the model's `label_suffix` (`_REFIT_CLEAR` for English,
+`_REFIT_CLEARtr` for German), and the model inputs (`labels_v3`) are public labels. `extract_indices.py` reads
+`labelV3`, so the CLEAR XMIs must come from 0.2.0 or later. The notes below are the history under the 0.1.x labels.
 
 - `pca_input_measures.csv` and `text_easability_en.json` were renamed to the new public labels
   (`WRDFRQa_wiki10000` -> `WRDFRQa_wiki`, `WRDAOAc_mrctranslate` -> `WRDAOAc`, `WRDPOLc_wordnet` -> `WRDPOLc`,

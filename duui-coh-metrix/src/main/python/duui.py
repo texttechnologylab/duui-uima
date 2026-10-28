@@ -4,6 +4,7 @@ import logging
 import pyphen
 import textstat
 import math
+import re
 import duui_logging
 
 from platform import python_version
@@ -133,6 +134,9 @@ class TextImagerRequest(BaseModel):
     # comma-separated index names (README, "Selecting indices")
     include_indices: Optional[str] = None
     exclude_indices: Optional[str] = None
+    # source of the token vectors, default SPACY (README, "Vectors"), and the spaCy model of the tokens from the CAS
+    vectors: Optional[str] = None
+    vectors_model: Optional[str] = None
 
 
 class AnnotationMeta(BaseModel):
@@ -148,25 +152,21 @@ class DocumentModification(BaseModel):
     comment: str
 
 
-# Index labels (full rules: README.md, "Index labels"):
-#   label_v3        the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g. WRDPOLc;
-#                   None for project-only indices (1001+)
-#   label_v2        the Coh-Metrix 2.x label, e.g. POLm; "n/a" where Coh-Metrix has none, None for project-only indices
-#   label_ttlab     the public TTLab label and unique key: the v3 label, plus a suffix only where the English
-#                   implementation deviates from the original (WRDFRQc_wiki, LSASS1_spacy); the same for all languages
-#   label_internal  the v3 label plus the concrete resource used for this language (WRDPOLc_germanet,
-#                   WRDFRQc_dewiki10000); no suffix where the original resource is used. Always set explicitly, also
-#                   where it equals label_ttlab.
-# label_v3 and the index number repeat only for variants of an ambiguous original definition (RDL2_synstruta_wiki,
-# RDL2_synstrutt_wiki).
+# Index labels (full rules: README.md, "Index labels"; background: docs/label-scheme.md):
+#   label_v3     the public label: the Coh-Metrix 3.0 label (Appendix A of McNamara et al. 2014, numbers 1-106), e.g.
+#                WRDPOLc, or <NAME>_ext for project-only indices (1001+), e.g. RDFOG_ext; unique, the same for all
+#                languages, and the UIMA type
+#   label_ttlab  the internal label: label_v3 plus uppercase groups naming the method and every resource the value
+#                depends on, e.g. WRDPOLc_GN, LSASS1_EMB_SPACYlg, PCNARz_REFIT_CLEARtr; equal to label_v3 for indices
+#                without resources. Language-specific, built per request from INDEX_CATALOG.
+#   label_v2     the Coh-Metrix 2.x label, e.g. POLm; "n/a" where Coh-Metrix has none, None for project-only indices
 # version: the version of the index computation, set explicitly for every index; bump it when the value for the same
 # input changes (README.md, "Index version").
 class Index(BaseModel):
     index: int
     type_name: str
+    label_v3: str
     label_ttlab: str
-    label_internal: str
-    label_v3: Optional[str] = None
     label_v2: Optional[str] = None
     description: str
     value: Optional[float]  # can be None if not applicable or on error
@@ -180,134 +180,142 @@ class Index(BaseModel):
         return v
 
 
-# All indices post_process can emit, in output order: (index, type_name, label_ttlab, label_v3). The public labels are
-# the same for every language, so the selection of indices does not depend on the document language.
-INDEX_CATALOG: List[Tuple[int, str, str, Optional[str]]] = [
-    (1, "Descriptive", "DESPC", "DESPC"),
-    (2, "Descriptive", "DESSC", "DESSC"),
-    (3, "Descriptive", "DESWC", "DESWC"),
-    (4, "Descriptive", "DESPL", "DESPL"),
-    (5, "Descriptive", "DESPLd", "DESPLd"),
-    (6, "Descriptive", "DESSL", "DESSL"),
-    (7, "Descriptive", "DESSLd", "DESSLd"),
-    (8, "Descriptive", "DESWLsy", "DESWLsy"),
-    (9, "Descriptive", "DESWLsyd", "DESWLsyd"),
-    (10, "Descriptive", "DESWLlt", "DESWLlt"),
-    (11, "Descriptive", "DESWLltd", "DESWLltd"),
-    (12, "Text Easability Principal Component Scores", "PCNARz_clear", "PCNARz"),
-    (13, "Text Easability Principal Component Scores", "PCNARp_clear", "PCNARp"),
-    (14, "Text Easability Principal Component Scores", "PCSYNz_clear", "PCSYNz"),
-    (15, "Text Easability Principal Component Scores", "PCSYNp_clear", "PCSYNp"),
-    (16, "Text Easability Principal Component Scores", "PCCNCz_clear", "PCCNCz"),
-    (17, "Text Easability Principal Component Scores", "PCCNCp_clear", "PCCNCp"),
-    (18, "Text Easability Principal Component Scores", "PCREFz_clear", "PCREFz"),
-    (19, "Text Easability Principal Component Scores", "PCREFp_clear", "PCREFp"),
-    (20, "Text Easability Principal Component Scores", "PCDCz_clear", "PCDCz"),
-    (21, "Text Easability Principal Component Scores", "PCDCp_clear", "PCDCp"),
-    (22, "Text Easability Principal Component Scores", "PCVERBz_clear", "PCVERBz"),
-    (23, "Text Easability Principal Component Scores", "PCVERBp_clear", "PCVERBp"),
-    (24, "Text Easability Principal Component Scores", "PCCONNz_clear", "PCCONNz"),
-    (25, "Text Easability Principal Component Scores", "PCCONNp_clear", "PCCONNp"),
-    (26, "Text Easability Principal Component Scores", "PCTEMPz_clear", "PCTEMPz"),
-    (27, "Text Easability Principal Component Scores", "PCTEMPp_clear", "PCTEMPp"),
-    (28, "Referential Cohesion", "CRFNO1", "CRFNO1"),
-    (29, "Referential Cohesion", "CRFAO1", "CRFAO1"),
-    (30, "Referential Cohesion", "CRFSO1", "CRFSO1"),
-    (31, "Referential Cohesion", "CRFNOa", "CRFNOa"),
-    (32, "Referential Cohesion", "CRFAOa", "CRFAOa"),
-    (33, "Referential Cohesion", "CRFSOa", "CRFSOa"),
-    (34, "Referential Cohesion", "CRFCWO1", "CRFCWO1"),
-    (35, "Referential Cohesion", "CRFCWO1d", "CRFCWO1d"),
-    (36, "Referential Cohesion", "CRFCWOa", "CRFCWOa"),
-    (37, "Referential Cohesion", "CRFCWOad", "CRFCWOad"),
-    (38, "LSA", "LSASS1_spacy", "LSASS1"),
-    (39, "LSA", "LSASS1d_spacy", "LSASS1d"),
-    (40, "LSA", "LSASSp_spacy", "LSASSp"),
-    (41, "LSA", "LSASSpd_spacy", "LSASSpd"),
-    (42, "LSA", "LSAPP1_spacy", "LSAPP1"),
-    (43, "LSA", "LSAPP1d_spacy", "LSAPP1d"),
-    (44, "LSA", "LSAGN_spacy", "LSAGN"),
-    (45, "LSA", "LSAGNd_spacy", "LSAGNd"),
-    (46, "Lexical Diversity", "LDTTRc", "LDTTRc"),
-    (47, "Lexical Diversity", "LDTTRa", "LDTTRa"),
-    (48, "Lexical Diversity", "LDMTLDa", "LDMTLDa"),
-    (49, "Lexical Diversity", "LDVOCDa", "LDVOCDa"),
-    (50, "Connectives", "CNCAll_llmlist", "CNCAll"),
-    (51, "Connectives", "CNCCaus_llmlist", "CNCCaus"),
-    (52, "Connectives", "CNCLogic_llmlist", "CNCLogic"),
-    (53, "Connectives", "CNCADC_llmlist", "CNCADC"),
-    (54, "Connectives", "CNCTemp_llmlist", "CNCTemp"),
-    (55, "Connectives", "CNCTempx_llmlist", "CNCTempx"),
-    (56, "Connectives", "CNCAdd_llmlist", "CNCAdd"),
-    (57, "Connectives", "CNCPos_llmlist", "CNCPos"),
-    (58, "Connectives", "CNCNeg_llmlist", "CNCNeg"),
-    (59, "Situation Model", "SMCAUSv_wordnet", "SMCAUSv"),
-    (60, "Situation Model", "SMCAUSvp_wordnet", "SMCAUSvp"),
-    (61, "Situation Model", "SMINTEp_wordnet", "SMINTEp"),
-    (62, "Situation Model", "SMCAUSr_wordnet", "SMCAUSr"),
-    (63, "Situation Model", "SMINTEr_llmlist", "SMINTEr"),
-    (64, "Situation Model", "SMCAUSlsa_spacy", "SMCAUSlsa"),
-    (65, "Situation Model", "SMCAUSwn", "SMCAUSwn"),
-    (66, "Situation Model", "SMTEMP_llmlist", "SMTEMP"),
-    (67, "Syntactic Complexity", "SYNLE", "SYNLE"),
-    (68, "Syntactic Complexity", "SYNNP", "SYNNP"),
-    (69, "Syntactic Complexity", "SYNMEDpos", "SYNMEDpos"),
-    (70, "Syntactic Complexity", "SYNMEDwrd", "SYNMEDwrd"),
-    (71, "Syntactic Complexity", "SYNMEDlem", "SYNMEDlem"),
-    (72, "Syntactic Complexity", "SYNSTRUTa", "SYNSTRUTa"),
-    (73, "Syntactic Complexity", "SYNSTRUTt", "SYNSTRUTt"),
-    (74, "Syntactic Pattern Density", "DRNP", "DRNP"),
-    (75, "Syntactic Pattern Density", "DRVP", "DRVP"),
-    (76, "Syntactic Pattern Density", "DRAP", "DRAP"),
-    (77, "Syntactic Pattern Density", "DRPP", "DRPP"),
-    (78, "Syntactic Pattern Density", "DRPVAL", "DRPVAL"),
-    (79, "Syntactic Pattern Density", "DRNEG_llmlist", "DRNEG"),
-    (80, "Syntactic Pattern Density", "DRGERUND", "DRGERUND"),
-    (81, "Syntactic Pattern Density", "DRINF", "DRINF"),
-    (82, "Word Information", "WRDNOUN", "WRDNOUN"),
-    (83, "Word Information", "WRDVERB", "WRDVERB"),
-    (84, "Word Information", "WRDADJ", "WRDADJ"),
-    (85, "Word Information", "WRDADV", "WRDADV"),
-    (86, "Word Information", "WRDPRO", "WRDPRO"),
-    (87, "Word Information", "WRDPRP1s", "WRDPRP1s"),
-    (88, "Word Information", "WRDPRP1p", "WRDPRP1p"),
-    (89, "Word Information", "WRDPRP2", "WRDPRP2"),
-    (90, "Word Information", "WRDPRP3s", "WRDPRP3s"),
-    (91, "Word Information", "WRDPRP3p", "WRDPRP3p"),
-    (92, "Word Information", "WRDFRQc_wiki", "WRDFRQc"),
-    (93, "Word Information", "WRDFRQa_wiki", "WRDFRQa"),
-    (94, "Word Information", "WRDFRQmc_wiki", "WRDFRQmc"),
-    (95, "Word Information", "WRDAOAc", "WRDAOAc"),
-    (96, "Word Information", "WRDFAMc", "WRDFAMc"),
-    (97, "Word Information", "WRDCNCc", "WRDCNCc"),
-    (98, "Word Information", "WRDIMGc", "WRDIMGc"),
-    (99, "Word Information", "WRDMEAc", "WRDMEAc"),
-    (100, "Word Information", "WRDPOLc", "WRDPOLc"),
-    (101, "Word Information", "WRDHYPn", "WRDHYPn"),
-    (102, "Word Information", "WRDHYPv", "WRDHYPv"),
-    (103, "Word Information", "WRDHYPnv", "WRDHYPnv"),
-    (104, "Readability", "RDFRE_textstat", "RDFRE"),
-    (105, "Readability", "RDFKGL_textstat", "RDFKGL"),
-    (1001, "Readability", "RDFOG_textstat", None),
-    (1002, "Readability", "RDSMOG_textstat", None),
-    (1003, "Readability", "RDARI_textstat", None),
-    (1004, "Readability", "RDCLI_textstat", None),
-    (1005, "Readability", "RDLW_textstat", None),
-    (1006, "Readability", "RDDCRS_textstat", None),
-    (1007, "Readability", "RDSPACHE_textstat", None),
-    (1008, "Readability", "RDWSTF1_textstat", None),
-    (1009, "Readability", "RDWSTF2_textstat", None),
-    (1010, "Readability", "RDWSTF3_textstat", None),
-    (1011, "Readability", "RDWSTF4_textstat", None),
-    (106, "Readability", "RDL2_synstruta_wiki", "RDL2"),
-    (106, "Readability", "RDL2_synstrutt_wiki", "RDL2"),
+# All indices post_process can emit, in output order: (index, type_name, label_v3, label_ttlab template, comparability
+# EN, comparability DE). The templates are filled per request by _ttlab_labels: {wn} WordNet/GermaNet, {causal} and
+# {intentional} the verb inventories (WN, GN, or SEEDlist without GermaNet), {mrc} MRC/MRC translated, {vectors} the
+# token vectors (SPACYlg, ...), {easability} the Text Easability model (_REFIT_CLEAR, ...). Comparability says how the
+# value relates to Coh-Metrix 3.0 (README.md, "Labels and comparability"); {causal_cmp}/{intentional_cmp} follow the inventory.
+INDEX_CATALOG: List[Tuple[int, str, str, str, str, str]] = [
+    (1, "Descriptive", "DESPC", "DESPC", "original", "original"),
+    (2, "Descriptive", "DESSC", "DESSC", "original", "original"),
+    (3, "Descriptive", "DESWC", "DESWC", "original", "original"),
+    (4, "Descriptive", "DESPL", "DESPL", "original", "original"),
+    (5, "Descriptive", "DESPLd", "DESPLd", "original", "original"),
+    (6, "Descriptive", "DESSL", "DESSL", "original", "original"),
+    (7, "Descriptive", "DESSLd", "DESSLd", "original", "original"),
+    (8, "Descriptive", "DESWLsy", "DESWLsy", "original", "original"),
+    (9, "Descriptive", "DESWLsyd", "DESWLsyd", "original", "original"),
+    (10, "Descriptive", "DESWLlt", "DESWLlt", "original", "original"),
+    (11, "Descriptive", "DESWLltd", "DESWLltd", "original", "original"),
+    (12, "Text Easability Principal Component Scores", "PCNARz", "PCNARz{easability}", "refit", "refit"),
+    (13, "Text Easability Principal Component Scores", "PCNARp", "PCNARp{easability}", "refit", "refit"),
+    (14, "Text Easability Principal Component Scores", "PCSYNz", "PCSYNz{easability}", "refit", "refit"),
+    (15, "Text Easability Principal Component Scores", "PCSYNp", "PCSYNp{easability}", "refit", "refit"),
+    (16, "Text Easability Principal Component Scores", "PCCNCz", "PCCNCz{easability}", "refit", "refit"),
+    (17, "Text Easability Principal Component Scores", "PCCNCp", "PCCNCp{easability}", "refit", "refit"),
+    (18, "Text Easability Principal Component Scores", "PCREFz", "PCREFz{easability}", "refit", "refit"),
+    (19, "Text Easability Principal Component Scores", "PCREFp", "PCREFp{easability}", "refit", "refit"),
+    (20, "Text Easability Principal Component Scores", "PCDCz", "PCDCz{easability}", "refit", "refit"),
+    (21, "Text Easability Principal Component Scores", "PCDCp", "PCDCp{easability}", "refit", "refit"),
+    (22, "Text Easability Principal Component Scores", "PCVERBz", "PCVERBz{easability}", "refit", "refit"),
+    (23, "Text Easability Principal Component Scores", "PCVERBp", "PCVERBp{easability}", "refit", "refit"),
+    (24, "Text Easability Principal Component Scores", "PCCONNz", "PCCONNz{easability}", "refit", "refit"),
+    (25, "Text Easability Principal Component Scores", "PCCONNp", "PCCONNp{easability}", "refit", "refit"),
+    (26, "Text Easability Principal Component Scores", "PCTEMPz", "PCTEMPz{easability}", "refit", "refit"),
+    (27, "Text Easability Principal Component Scores", "PCTEMPp", "PCTEMPp{easability}", "refit", "refit"),
+    (28, "Referential Cohesion", "CRFNO1", "CRFNO1", "original", "original"),
+    (29, "Referential Cohesion", "CRFAO1", "CRFAO1", "original", "original"),
+    (30, "Referential Cohesion", "CRFSO1", "CRFSO1", "original", "original"),
+    (31, "Referential Cohesion", "CRFNOa", "CRFNOa", "original", "original"),
+    (32, "Referential Cohesion", "CRFAOa", "CRFAOa", "original", "original"),
+    (33, "Referential Cohesion", "CRFSOa", "CRFSOa", "original", "original"),
+    (34, "Referential Cohesion", "CRFCWO1", "CRFCWO1", "original", "original"),
+    (35, "Referential Cohesion", "CRFCWO1d", "CRFCWO1d", "original", "original"),
+    (36, "Referential Cohesion", "CRFCWOa", "CRFCWOa", "original", "original"),
+    (37, "Referential Cohesion", "CRFCWOad", "CRFCWOad", "original", "original"),
+    (38, "LSA", "LSASS1", "LSASS1_EMB_{vectors}", "emb", "emb"),
+    (39, "LSA", "LSASS1d", "LSASS1d_EMB_{vectors}", "emb", "emb"),
+    (40, "LSA", "LSASSp", "LSASSp_EMB_{vectors}", "emb", "emb"),
+    (41, "LSA", "LSASSpd", "LSASSpd_EMB_{vectors}", "emb", "emb"),
+    (42, "LSA", "LSAPP1", "LSAPP1_EMB_{vectors}", "emb", "emb"),
+    (43, "LSA", "LSAPP1d", "LSAPP1d_EMB_{vectors}", "emb", "emb"),
+    (44, "LSA", "LSAGN", "LSAGN_EMB_{vectors}", "emb", "emb"),
+    (45, "LSA", "LSAGNd", "LSAGNd_EMB_{vectors}", "emb", "emb"),
+    (46, "Lexical Diversity", "LDTTRc", "LDTTRc", "original", "original"),
+    (47, "Lexical Diversity", "LDTTRa", "LDTTRa", "original", "original"),
+    (48, "Lexical Diversity", "LDMTLDa", "LDMTLDa", "original", "original"),
+    (49, "Lexical Diversity", "LDVOCDa", "LDVOCDa", "original", "original"),
+    (50, "Connectives", "CNCAll", "CNCAll_LLMlist", "llmlist", "llmlist"),
+    (51, "Connectives", "CNCCaus", "CNCCaus_LLMlist", "llmlist", "llmlist"),
+    (52, "Connectives", "CNCLogic", "CNCLogic_LLMlist", "llmlist", "llmlist"),
+    (53, "Connectives", "CNCADC", "CNCADC_LLMlist", "llmlist", "llmlist"),
+    (54, "Connectives", "CNCTemp", "CNCTemp_LLMlist", "llmlist", "llmlist"),
+    (55, "Connectives", "CNCTempx", "CNCTempx_LLMlist", "llmlist", "llmlist"),
+    (56, "Connectives", "CNCAdd", "CNCAdd_LLMlist", "llmlist", "llmlist"),
+    (57, "Connectives", "CNCPos", "CNCPos_LLMlist", "llmlist", "llmlist"),
+    (58, "Connectives", "CNCNeg", "CNCNeg_LLMlist", "llmlist", "llmlist"),
+    (59, "Situation Model", "SMCAUSv", "SMCAUSv_{causal}", "original", "{causal_cmp}"),
+    (60, "Situation Model", "SMCAUSvp", "SMCAUSvp_{causal}_LLMlist", "llmlist", "{causal_cmp}, llmlist"),
+    (61, "Situation Model", "SMINTEp", "SMINTEp_{intentional}", "original", "{intentional_cmp}"),
+    (62, "Situation Model", "SMCAUSr", "SMCAUSr_{causal}_LLMlist", "llmlist", "{causal_cmp}, llmlist"),
+    (63, "Situation Model", "SMINTEr", "SMINTEr_{intentional}_LLMlist", "llmlist", "{intentional_cmp}, llmlist"),
+    (64, "Situation Model", "SMCAUSlsa", "SMCAUSlsa_EMB_{vectors}", "emb", "emb"),
+    (65, "Situation Model", "SMCAUSwn", "SMCAUSwn_{wn}", "original", "counterpart"),
+    (66, "Situation Model", "SMTEMP", "SMTEMP_LLMlist", "llmlist", "llmlist"),
+    (67, "Syntactic Complexity", "SYNLE", "SYNLE", "original", "original"),
+    (68, "Syntactic Complexity", "SYNNP", "SYNNP", "original", "original"),
+    (69, "Syntactic Complexity", "SYNMEDpos", "SYNMEDpos", "original", "original"),
+    (70, "Syntactic Complexity", "SYNMEDwrd", "SYNMEDwrd", "original", "original"),
+    (71, "Syntactic Complexity", "SYNMEDlem", "SYNMEDlem", "original", "original"),
+    (72, "Syntactic Complexity", "SYNSTRUTa", "SYNSTRUTa", "original", "original"),
+    (73, "Syntactic Complexity", "SYNSTRUTt", "SYNSTRUTt", "original", "original"),
+    (74, "Syntactic Pattern Density", "DRNP", "DRNP", "original", "original"),
+    (75, "Syntactic Pattern Density", "DRVP", "DRVP", "original", "original"),
+    (76, "Syntactic Pattern Density", "DRAP", "DRAP", "original", "original"),
+    (77, "Syntactic Pattern Density", "DRPP", "DRPP", "original", "original"),
+    (78, "Syntactic Pattern Density", "DRPVAL", "DRPVAL", "original", "original"),
+    (79, "Syntactic Pattern Density", "DRNEG", "DRNEG_LLMlist", "llmlist", "llmlist"),
+    (80, "Syntactic Pattern Density", "DRGERUND", "DRGERUND", "original", "original"),
+    (81, "Syntactic Pattern Density", "DRINF", "DRINF", "original", "original"),
+    (82, "Word Information", "WRDNOUN", "WRDNOUN", "original", "original"),
+    (83, "Word Information", "WRDVERB", "WRDVERB", "original", "original"),
+    (84, "Word Information", "WRDADJ", "WRDADJ", "original", "original"),
+    (85, "Word Information", "WRDADV", "WRDADV", "original", "original"),
+    (86, "Word Information", "WRDPRO", "WRDPRO", "original", "original"),
+    (87, "Word Information", "WRDPRP1s", "WRDPRP1s", "original", "original"),
+    (88, "Word Information", "WRDPRP1p", "WRDPRP1p", "original", "original"),
+    (89, "Word Information", "WRDPRP2", "WRDPRP2", "original", "original"),
+    (90, "Word Information", "WRDPRP3s", "WRDPRP3s", "original", "original"),
+    (91, "Word Information", "WRDPRP3p", "WRDPRP3p", "original", "original"),
+    (92, "Word Information", "WRDFRQc", "WRDFRQc_WIKI", "corpus", "corpus"),
+    (93, "Word Information", "WRDFRQa", "WRDFRQa_WIKI", "corpus", "corpus"),
+    (94, "Word Information", "WRDFRQmc", "WRDFRQmc_WIKI", "corpus", "corpus"),
+    (95, "Word Information", "WRDAOAc", "WRDAOAc_{mrc}", "original", "translated"),
+    (96, "Word Information", "WRDFAMc", "WRDFAMc_{mrc}", "original", "translated"),
+    (97, "Word Information", "WRDCNCc", "WRDCNCc_{mrc}", "original", "translated"),
+    (98, "Word Information", "WRDIMGc", "WRDIMGc_{mrc}", "original", "translated"),
+    (99, "Word Information", "WRDMEAc", "WRDMEAc_{mrc}", "original", "translated"),
+    (100, "Word Information", "WRDPOLc", "WRDPOLc_{wn}", "original", "counterpart"),
+    (101, "Word Information", "WRDHYPn", "WRDHYPn_{wn}", "original", "counterpart"),
+    (102, "Word Information", "WRDHYPv", "WRDHYPv_{wn}", "original", "counterpart"),
+    (103, "Word Information", "WRDHYPnv", "WRDHYPnv_{wn}", "original", "counterpart"),
+    (104, "Readability", "RDFRE", "RDFRE_TEXTSTAT", "original", "counterpart"),
+    (105, "Readability", "RDFKGL", "RDFKGL_TEXTSTAT", "original", "original"),
+    (1001, "Readability", "RDFOG_ext", "RDFOG_ext_TEXTSTAT", "ext", "ext"),
+    (1002, "Readability", "RDSMOG_ext", "RDSMOG_ext_TEXTSTAT", "ext", "ext"),
+    (1003, "Readability", "RDARI_ext", "RDARI_ext_TEXTSTAT", "ext", "ext"),
+    (1004, "Readability", "RDCLI_ext", "RDCLI_ext_TEXTSTAT", "ext", "ext"),
+    (1005, "Readability", "RDLW_ext", "RDLW_ext_TEXTSTAT", "ext", "ext"),
+    (1006, "Readability", "RDDCRS_ext", "RDDCRS_ext_TEXTSTAT", "ext", "ext"),
+    (1007, "Readability", "RDSPACHE_ext", "RDSPACHE_ext_TEXTSTAT", "ext", "ext"),
+    (1008, "Readability", "RDWSTF1_ext", "RDWSTF1_ext_TEXTSTAT", "ext", "ext"),
+    (1009, "Readability", "RDWSTF2_ext", "RDWSTF2_ext_TEXTSTAT", "ext", "ext"),
+    (1010, "Readability", "RDWSTF3_ext", "RDWSTF3_ext_TEXTSTAT", "ext", "ext"),
+    (1011, "Readability", "RDWSTF4_ext", "RDWSTF4_ext_TEXTSTAT", "ext", "ext"),
+    (106, "Readability", "RDL2", "RDL2_WIKI", "corpus", "corpus"),
+    (1012, "Readability", "RDL2t_ext", "RDL2t_ext_WIKI", "ext", "ext"),
 ]
 
-# Indices computed from other indices: label_ttlab -> labels of the inputs. The inputs are computed when the derived
-# index is selected, but only output if they are selected themselves. Text Easability adds its inputs per language.
+# The public labels and the groups must stay distinct when compared case-insensitively (index selection).
+assert len({label_v3.lower() for _, _, label_v3, _, _, _ in INDEX_CATALOG}
+           | {type_name.lower() for _, type_name, _, _, _, _ in INDEX_CATALOG}) \
+       == len(INDEX_CATALOG) + len({type_name for _, type_name, _, _, _, _ in INDEX_CATALOG})
+
+# Indices computed from other indices: label_v3 -> labels of the inputs. The inputs are computed when the derived index
+# is selected, but only output if they are selected themselves. Text Easability adds its inputs per language.
 INDEX_REQUIRES: Dict[str, Tuple[str, ...]] = {
-    "RDL2_synstruta_wiki": ("CRFCWO1", "SYNSTRUTa", "WRDFRQmc_wiki"),
-    "RDL2_synstrutt_wiki": ("CRFCWO1", "SYNSTRUTt", "WRDFRQmc_wiki"),
+    "RDL2": ("CRFCWO1", "SYNSTRUTa", "WRDFRQmc"),
+    "RDL2t_ext": ("CRFCWO1", "SYNSTRUTt", "WRDFRQmc"),
 }
 
 # Indices that share one precomputation in post_process.
@@ -315,7 +323,74 @@ _WRD_COUNT_INDICES = frozenset({"WRDNOUN", "WRDVERB", "WRDADJ", "WRDADV", "WRDPR
                                 "WRDPRP3s", "WRDPRP3p"})
 _MRC_INDICES = frozenset({"WRDAOAc", "WRDFAMc", "WRDCNCc", "WRDIMGc", "WRDMEAc"})
 _WRDHYP_INDICES = frozenset({"WRDHYPn", "WRDHYPv", "WRDHYPnv"})
-_LSA_GIVEN_NEW_INDICES = frozenset({"LSAGN_spacy", "LSAGNd_spacy"})
+_LSA_GIVEN_NEW_INDICES = frozenset({"LSAGN", "LSAGNd"})
+# Indices computed from token vectors (README.md, "Vectors").
+_VECTOR_INDICES = frozenset(label_v3 for _, type_name, label_v3, _, _, _ in INDEX_CATALOG
+                            if type_name == "LSA" or label_v3 == "SMCAUSlsa")
+
+# Token vectors: the vectors parameter chooses the source, the spaCy model size is read from the CAS.
+_VECTOR_GROUP_FORMAT = re.compile(r"^[A-Z][A-Z0-9]*[a-z0-9]*$")
+_SPACY_MODEL_SIZES = ("sm", "md", "lg", "trf")
+
+
+def _vectors_group(vectors: Optional[str], vectors_model: Optional[str]) -> Tuple[str, Optional[str]]:
+    # Returns (label group, error). Only spaCy token vectors are supported: SPACY plus the size of the model that
+    # produced them (de_core_news_lg -> SPACYlg); plain SPACY if the size is unknown.
+    name = (vectors or "SPACY").strip()
+    if not _VECTOR_GROUP_FORMAT.match(name):
+        return "INVALID", f"Invalid vectors \"{name}\": expected an uppercase name with an optional lowercase variant"
+    if not name.startswith("SPACY") or name[len("SPACY"):] not in ("",) + _SPACY_MODEL_SIZES:
+        return name, f"Vectors \"{name}\" are not supported yet, only SPACY"
+    parameter_size = name[len("SPACY"):]
+    model_size = (vectors_model or "").strip().rsplit("_", 1)[-1]
+    if model_size not in _SPACY_MODEL_SIZES:
+        if vectors_model:
+            logger.warning("Unknown spaCy model size in \"%s\"", vectors_model)
+        elif not parameter_size:
+            logger.warning("No spaCy model found for the token vectors, using vectors label SPACY")
+        return name, None
+    if parameter_size and parameter_size != model_size:
+        logger.warning("vectors=%s, but the tokens come from %s; using SPACY%s", name, vectors_model, model_size)
+    return "SPACY" + model_size, None
+
+
+def _label_parts(lang: str, vectors_group: str) -> Dict[str, str]:
+    # The language-specific parts of the label_ttlab templates and the comparability values in INDEX_CATALOG.
+    # German uses the GermaNet resources, all other languages the English ones.
+    german = lang == "de"
+    causal = _de_causal_verbs_source if german else "WN"
+    intentional = _de_intentional_verbs_source if german else "WN"
+    model = text_easability_models.get(lang)
+    return {
+        "wn": "GN" if german else "WN",
+        "causal": causal,
+        "intentional": intentional,
+        "causal_cmp": "seedlist" if causal == "SEEDlist" else "counterpart",
+        "intentional_cmp": "seedlist" if intentional == "SEEDlist" else "counterpart",
+        "mrc": "MRCtr" if german else "MRC",
+        "vectors": vectors_group,
+        "easability": model["label_suffix"] if model else "",
+    }
+
+
+def _ttlab_labels(lang: str, vectors_group: str) -> Dict[str, str]:
+    # label_v3 -> label_ttlab for one request
+    parts = _label_parts(lang, vectors_group)
+    return {label_v3: template.format(**parts) for _, _, label_v3, template, _, _ in INDEX_CATALOG}
+
+
+@lru_cache(maxsize=1)
+def _known_ttlab_labels() -> frozenset:
+    # Every label_ttlab any request can produce, for the unknown-name warning: both languages, both verb inventories,
+    # all spaCy sizes, all Text Easability models.
+    labels = set()
+    for vectors_group in ("SPACY",) + tuple("SPACY" + size for size in _SPACY_MODEL_SIZES):
+        for lang in {"en", "de"} | set(text_easability_models):
+            parts = _label_parts(lang, vectors_group)
+            for verbs in ("WN", "GN", "SEEDlist"):
+                parts.update(causal=verbs, intentional=verbs)
+                labels.update(template.format(**parts) for _, _, _, template, _, _ in INDEX_CATALOG)
+    return frozenset(labels)
 
 
 def _parse_index_names(value: Optional[str]) -> List[str]:
@@ -326,50 +401,61 @@ def _resolve_index_selection(
         include: Optional[str],
         exclude: Optional[str],
         requires: Dict[str, Tuple[str, ...]],
+        ttlab_labels: Dict[str, str],
 ) -> Tuple[Set[str], Set[str]]:
-    # Returns (output, compute) as sets of label_ttlab (README, "Selecting indices"). Names are "*", a group
-    # (type_name), a label_ttlab or a label_v3, case-insensitive. For each index the most specific matching name
-    # decides (index over group over "*"); exclude wins within the same level. An empty include means "*".
-    groups = {type_name.lower() for _, type_name, _, _ in INDEX_CATALOG}
-    index_names: Dict[str, Set[str]] = defaultdict(set)
-    for _, _, label_ttlab, label_v3 in INDEX_CATALOG:
-        index_names[label_ttlab.lower()].add(label_ttlab)
-        if label_v3:
-            index_names[label_v3.lower()].add(label_ttlab)
+    # Returns (output, compute) as sets of label_v3 (README, "Selecting indices"). Names are, from least to most
+    # specific: "*", a group (type_name), a prefix of label_ttlab ending in "*" (a longer prefix is more specific), a
+    # label_v3, a label_ttlab; case-insensitive. For each index the most specific matching name decides; exclude wins
+    # on a tie. An empty include means "*".
+    groups = {type_name.lower() for _, type_name, _, _, _, _ in INDEX_CATALOG}
+    public = {label_v3.lower() for _, _, label_v3, _, _, _ in INDEX_CATALOG}
+    known_ttlab = {label.lower() for label in _known_ttlab_labels() | set(ttlab_labels.values())}
 
-    def classify(names: List[str]) -> Tuple[bool, Set[str], Set[str]]:
-        all_indices, matched_groups, matched_indices = False, set(), set()
+    def check(names: List[str]) -> List[str]:
+        valid = []
         for name in names:
             key = name.lower()
-            if key == "*":
-                all_indices = True
-            elif key in groups:
-                matched_groups.add(key)
-            elif key in index_names:
-                matched_indices |= index_names[key]
-            else:
-                # internal labels (WRDPOLc_germanet) are language-dependent, so only point to the public label
-                prefixes = [known for known in index_names if key.startswith(known + "_")]
-                hint = f" (internal label? use {', '.join(sorted(index_names[max(prefixes, key=len)]))})" if prefixes else ""
-                logger.warning("Ignoring unknown index name \"%s\"%s", name, hint)
-        return all_indices, matched_groups, matched_indices
+            if key == "*" or key in groups or key in public or key in known_ttlab or (
+                    key.endswith("*") and any(label.startswith(key[:-1]) for label in known_ttlab)):
+                valid.append(key)
+                continue
+            # labels of the previous scheme (LSASS1_spacy, RDFOG_textstat): point to the public label
+            stem = key.split("_")[0]
+            candidates = sorted(label_v3 for _, _, label_v3, _, _, _ in INDEX_CATALOG
+                                if label_v3.lower() == stem or label_v3.lower().startswith(stem + "_"))
+            hint = f" (use {', '.join(candidates)})" if candidates else ""
+            logger.warning("Ignoring unknown index name \"%s\"%s", name, hint)
+        return valid
 
-    include_names = _parse_index_names(include)
-    include_all, include_groups, include_indices = classify(include_names)
-    exclude_all, exclude_groups, exclude_indices = classify(_parse_index_names(exclude))
-    include_all = include_all or not include_names
+    def rank(names: List[str], type_name: str, label_v3: str, label_ttlab: str) -> Optional[Tuple[int, int]]:
+        best = None
+        for key in names:
+            if key == "*":
+                match = (0, 0)
+            elif key == label_ttlab.lower():
+                match = (4, 0)
+            elif key == label_v3.lower():
+                match = (3, 0)
+            elif key.endswith("*") and label_ttlab.lower().startswith(key[:-1]):
+                match = (2, len(key) - 1)
+            elif key == type_name.lower():
+                match = (1, 0)
+            else:
+                continue
+            best = match if best is None else max(best, match)
+        return best
+
+    include_names = check(_parse_index_names(include))
+    exclude_names = check(_parse_index_names(exclude))
+    if not _parse_index_names(include):
+        include_names = ["*"]
 
     output = set()
-    for _, type_name, label_ttlab, _ in INDEX_CATALOG:
-        group = type_name.lower()
-        if label_ttlab in exclude_indices:
-            continue
-        if label_ttlab in include_indices:
-            output.add(label_ttlab)
-        elif group in exclude_groups:
-            continue
-        elif group in include_groups or (include_all and not exclude_all):
-            output.add(label_ttlab)
+    for _, type_name, label_v3, _, _, _ in INDEX_CATALOG:
+        included = rank(include_names, type_name, label_v3, ttlab_labels[label_v3])
+        excluded = rank(exclude_names, type_name, label_v3, ttlab_labels[label_v3])
+        if included is not None and (excluded is None or included > excluded):
+            output.add(label_v3)
 
     compute = set(output)
     pending = list(output)
@@ -522,8 +608,12 @@ def get_documentation() -> TextImagerDocumentation:
         },
         docker_container_id="[TODO]",
         parameters={
-            "include_indices": "comma-separated index groups, label_ttlab or label_v3 names, or *; default all",
-            "exclude_indices": "comma-separated index groups, label_ttlab or label_v3 names; default none",
+            "include_indices": "comma-separated index groups, label_v3 or label_ttlab names, label_ttlab prefixes "
+                               "ending in *, or *; default all",
+            "exclude_indices": "comma-separated index groups, label_v3 or label_ttlab names, label_ttlab prefixes "
+                               "ending in *; default none",
+            "vectors": "source of the token vectors for the LSA indices and SMCAUSlsa: SPACY (default; the model "
+                       "size is read from the CAS)",
         },
         capability=capabilities,
         implementation_specific=None,
@@ -550,10 +640,21 @@ def get_input_output() -> TextImagerInputOutput:
 
 @app.get("/v1/indices")
 def get_indices() -> List[Dict[str, Any]]:
-    # The names accepted by include_indices / exclude_indices.
+    # The names accepted by include_indices / exclude_indices, and how each index relates to Coh-Metrix 3.0.
+    # The vector group depends on the document (SPACYlg, ...), so label_ttlab shows it as the prefix SPACY*.
+    labels = {lang: _ttlab_labels(lang, "SPACY*") for lang in ("en", "de")}
+    parts = {lang: _label_parts(lang, "SPACY*") for lang in ("en", "de")}
     return [
-        {"index": index, "type_name": type_name, "label_ttlab": label_ttlab, "label_v3": label_v3}
-        for index, type_name, label_ttlab, label_v3 in INDEX_CATALOG
+        {
+            "index": index,
+            "type_name": type_name,
+            "label_v3": label_v3,
+            "label_ttlab_en": labels["en"][label_v3],
+            "label_ttlab_de": labels["de"][label_v3],
+            "comparable_en": comparable_en.format(**parts["en"]),
+            "comparable_de": comparable_de.format(**parts["de"]),
+        }
+        for index, type_name, label_v3, _, comparable_en, comparable_de in INDEX_CATALOG
     ]
 
 # ============================================================================
@@ -4004,9 +4105,9 @@ _DE_INTENTIONAL_SEED = {"beabsichtigen", "planen", "wollen", "vorhaben", "kontak
 
 _de_causal_verbs_expanded = _germanet_expand_verb_lemmas({"verursachen", "bewirken", "ausl\u00f6sen"})
 _de_intentional_verbs_expanded = _germanet_expand_verb_lemmas({"beabsichtigen", "planen"})
-# Resource actually used for the DE inventories, for label_internal (README "Index labels", rule 4).
-_de_causal_verbs_source = "germanet" if _de_causal_verbs_expanded else "seedlist"
-_de_intentional_verbs_source = "germanet" if _de_intentional_verbs_expanded else "seedlist"
+# Resource actually used for the DE inventories, for label_ttlab (README "Index labels").
+_de_causal_verbs_source = "GN" if _de_causal_verbs_expanded else "SEEDlist"
+_de_intentional_verbs_source = "GN" if _de_intentional_verbs_expanded else "SEEDlist"
 if not _de_causal_verbs_expanded:
     _de_causal_verbs_expanded = set(_DE_CAUSAL_SEED)
     logger.info("DE causal verbs: using %d hardcoded seeds (GermaNet expansion unavailable)",
@@ -5264,10 +5365,10 @@ def _text_easability_requires(lang: str) -> Dict[str, Tuple[str, ...]]:
     model = text_easability_models.get(lang)
     if model is None:
         return {}
-    inputs = tuple(label for measure in model["inputs"] for label in measure["labels_ttlab"])
+    inputs = tuple(label for measure in model["inputs"] for label in measure["labels_v3"])
     return {
-        label_ttlab: inputs
-        for _, type_name, label_ttlab, _ in INDEX_CATALOG
+        label_v3: inputs
+        for _, type_name, label_v3, _, _, _ in INDEX_CATALOG
         if type_name == TEXT_EASABILITY_TYPE_NAME
     }
 
@@ -5284,13 +5385,13 @@ def cm_text_easability(indices: List[Index], lang: str) -> Optional[Dict[str, fl
     model = text_easability_models.get(lang)
     if model is None:
         raise ValueError(f"No Text Easability model for language \"{lang}\"")
-    values = {index.label_ttlab: index.value for index in indices}
+    values = {index.label_v3: index.value for index in indices}
     standardized = []
     for measure in model["inputs"]:
-        unknown = [label for label in measure["labels_ttlab"] if label not in values]
+        unknown = [label for label in measure["labels_v3"] if label not in values]
         if unknown:
             raise KeyError(f"Text Easability input index not found: {', '.join(unknown)}")
-        parts = [values[label] for label in measure["labels_ttlab"]]
+        parts = [values[label] for label in measure["labels_v3"]]
         if any(part is None or math.isnan(part) for part in parts):
             if measure["missing_documents"] == 0:
                 return None
@@ -5321,11 +5422,16 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         lang = (request.language or "").strip().lower()
         textstat.set_lang(lang)
 
+        # label_ttlab of every index for this document (language, verb inventories, vectors, Text Easability model)
+        vectors_group, vectors_error = _vectors_group(request.vectors, request.vectors_model)
+        ttlab_labels = _ttlab_labels(lang, vectors_group)
+
         # output: the selected indices; compute: these plus the inputs of selected derived indices
         index_requires = dict(INDEX_REQUIRES)
         index_requires.update(_text_easability_requires(lang))
-        output, compute = _resolve_index_selection(request.include_indices, request.exclude_indices, index_requires)
-        compute_groups = {type_name for _, type_name, label_ttlab, _ in INDEX_CATALOG if label_ttlab in compute}
+        output, compute = _resolve_index_selection(
+            request.include_indices, request.exclude_indices, index_requires, ttlab_labels)
+        compute_groups = {type_name for _, type_name, label_v3, _, _, _ in INDEX_CATALOG if label_v3 in compute}
 
         sentences = []
         for p in request.paragraphs:
@@ -5381,9 +5487,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1,
                 type_name="Descriptive",
-                label_ttlab='DESPC',
-                label_internal='DESPC',
                 label_v3="DESPC",
+                label_ttlab=ttlab_labels["DESPC"],
                 label_v2="READNP",
                 description="Paragraph count, number of paragraphs",
                 version="1.0",
@@ -5403,9 +5508,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=2,
                 type_name="Descriptive",
-                label_ttlab='DESSC',
-                label_internal='DESSC',
                 label_v3="DESSC",
+                label_ttlab=ttlab_labels["DESSC"],
                 label_v2="READNS",
                 description="Sentence count, number of sentences",
                 version="1.0",
@@ -5425,9 +5529,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=3,
                 type_name="Descriptive",
-                label_ttlab='DESWC',
-                label_internal='DESWC',
                 label_v3="DESWC",
+                label_ttlab=ttlab_labels["DESWC"],
                 label_v2="READNW",
                 description="Word count, number of words",
                 version="1.0",
@@ -5447,9 +5550,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=4,
                 type_name="Descriptive",
-                label_ttlab='DESPL',
-                label_internal='DESPL',
                 label_v3="DESPL",
+                label_ttlab=ttlab_labels["DESPL"],
                 label_v2="READAPL",
                 description="Paragraph length, number of sentences, mean",
                 version="1.0",
@@ -5469,9 +5571,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=5,
                 type_name="Descriptive",
-                label_ttlab='DESPLd',
-                label_internal='DESPLd',
                 label_v3="DESPLd",
+                label_ttlab=ttlab_labels["DESPLd"],
                 label_v2="n/a",
                 description="Paragraph length, number of sentences, standard deviation",
                 version="1.0",
@@ -5491,9 +5592,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=6,
                 type_name="Descriptive",
-                label_ttlab='DESSL',
-                label_internal='DESSL',
                 label_v3="DESSL",
+                label_ttlab=ttlab_labels["DESSL"],
                 label_v2="READASL",
                 description="Sentence length, number of words, mean",
                 version="1.0",
@@ -5513,9 +5613,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=7,
                 type_name="Descriptive",
-                label_ttlab='DESSLd',
-                label_internal='DESSLd',
                 label_v3="DESSLd",
+                label_ttlab=ttlab_labels["DESSLd"],
                 label_v2="n/a",
                 description="Sentence length, number of words, standard deviation",
                 version="1.0",
@@ -5535,9 +5634,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=8,
                 type_name="Descriptive",
-                label_ttlab='DESWLsy',
-                label_internal='DESWLsy',
                 label_v3="DESWLsy",
+                label_ttlab=ttlab_labels["DESWLsy"],
                 label_v2="READASW",
                 description="Word length, number of syllables, mean",
                 version="1.0",
@@ -5557,9 +5655,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=9,
                 type_name="Descriptive",
-                label_ttlab='DESWLsyd',
-                label_internal='DESWLsyd',
                 label_v3="DESWLsyd",
+                label_ttlab=ttlab_labels["DESWLsyd"],
                 label_v2="n/a",
                 description="Word length, number of syllables, standard deviation",
                 version="1.0",
@@ -5579,9 +5676,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=10,
                 type_name="Descriptive",
-                label_ttlab='DESWLlt',
-                label_internal='DESWLlt',
                 label_v3="DESWLlt",
+                label_ttlab=ttlab_labels["DESWLlt"],
                 label_v2="n/a",
                 description="Word length, number of letters, mean",
                 version="1.0",
@@ -5601,9 +5697,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=11,
                 type_name="Descriptive",
-                label_ttlab='DESWLltd',
-                label_internal='DESWLltd',
                 label_v3="DESWLltd",
+                label_ttlab=ttlab_labels["DESWLltd"],
                 label_v2="n/a",
                 description="Word length, number of letters, standard deviation",
                 version="1.0",
@@ -5614,7 +5709,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ### Text Easability Principal Component Scores
 
         # PCNARz
-        if "PCNARz_clear" in compute:
+        if "PCNARz" in compute:
             try:
                 #pcnarz = cm_pcnarz(sentences)
                 pcnarz = None
@@ -5626,9 +5721,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=12,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCNARz_clear",
-                label_internal="PCNARz_clear",
                 label_v3="PCNARz",
+                label_ttlab=ttlab_labels["PCNARz"],
                 label_v2="n/a",
                 description="Text Easability PC Narrativity, z score",
                 version="1.0",
@@ -5637,7 +5731,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCNARp
-        if "PCNARp_clear" in compute:
+        if "PCNARp" in compute:
             try:
                 #pcnarp = cm_pcnarp(sentences)
                 pcnarp = None
@@ -5649,9 +5743,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=13,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCNARp_clear",
-                label_internal="PCNARp_clear",
                 label_v3="PCNARp",
+                label_ttlab=ttlab_labels["PCNARp"],
                 label_v2="n/a",
                 description="Text Easability PC Narrativity, percentile",
                 version="1.0",
@@ -5660,7 +5753,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCSYNz
-        if "PCSYNz_clear" in compute:
+        if "PCSYNz" in compute:
             try:
                 #pcsynz = cm_pcsynz(sentences)
                 pcsynz = None
@@ -5673,9 +5766,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 index=14,
                 type_name="Text Easability Principal Component Scores",
                 label_v3="PCSYNz",
+                label_ttlab=ttlab_labels["PCSYNz"],
                 label_v2="n/a",
-                label_ttlab="PCSYNz_clear",
-                label_internal="PCSYNz_clear",
                 description="Text Easability PC Syntactic simplicity, z score",
                 version="1.0",
                 value=pcsynz,
@@ -5683,7 +5775,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCSYNp
-        if "PCSYNp_clear" in compute:
+        if "PCSYNp" in compute:
             try:
                 #pcsynp = cm_pcsynp(sentences)
                 pcsynp = None
@@ -5695,9 +5787,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=15,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCSYNp_clear",
-                label_internal="PCSYNp_clear",
                 label_v3="PCSYNp",
+                label_ttlab=ttlab_labels["PCSYNp"],
                 label_v2="n/a",
                 description="Text Easability PC Syntactic simplicity, percentile",
                 version="1.0",
@@ -5706,7 +5797,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCNCz
-        if "PCCNCz_clear" in compute:
+        if "PCCNCz" in compute:
             try:
                 #pccncz = cm_pccncz(sentences)
                 pccncz = None
@@ -5718,9 +5809,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=16,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCNCz_clear",
-                label_internal="PCCNCz_clear",
                 label_v3="PCCNCz",
+                label_ttlab=ttlab_labels["PCCNCz"],
                 label_v2="n/a",
                 description="Text Easability PC Word concreteness, z score",
                 version="1.0",
@@ -5729,7 +5819,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCNCp
-        if "PCCNCp_clear" in compute:
+        if "PCCNCp" in compute:
             try:
                 #pccncp = cm_pccncp(sentences)
                 pccncp = None
@@ -5741,9 +5831,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=17,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCNCp_clear",
-                label_internal="PCCNCp_clear",
                 label_v3="PCCNCp",
+                label_ttlab=ttlab_labels["PCCNCp"],
                 label_v2="n/a",
                 description="Text Easability PC Word concreteness, percentile",
                 version="1.0",
@@ -5752,7 +5841,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCREFz
-        if "PCREFz_clear" in compute:
+        if "PCREFz" in compute:
             try:
                 #pcrefz = cm_pcrefz(sentences)
                 pcrefz = None
@@ -5764,9 +5853,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=18,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCREFz_clear",
-                label_internal="PCREFz_clear",
                 label_v3="PCREFz",
+                label_ttlab=ttlab_labels["PCREFz"],
                 label_v2="n/a",
                 description="Text Easability PC Referential cohesion, z score",
                 version="1.0",
@@ -5775,7 +5863,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCREFp
-        if "PCREFp_clear" in compute:
+        if "PCREFp" in compute:
             try:
                 #pcrefp = cm_pcrefp(sentences)
                 pcrefp = None
@@ -5787,9 +5875,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=19,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCREFp_clear",
-                label_internal="PCREFp_clear",
                 label_v3="PCREFp",
+                label_ttlab=ttlab_labels["PCREFp"],
                 label_v2="n/a",
                 description="Text Easability PC Referential cohesion, percentile",
                 version="1.0",
@@ -5798,7 +5885,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCDCz
-        if "PCDCz_clear" in compute:
+        if "PCDCz" in compute:
             try:
                 #pcdcz = cm_pcdcz(sentences)
                 pcdcz = None
@@ -5810,9 +5897,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=20,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCDCz_clear",
-                label_internal="PCDCz_clear",
                 label_v3="PCDCz",
+                label_ttlab=ttlab_labels["PCDCz"],
                 label_v2="n/a",
                 description="Text Easability PC Deep cohesion, z score",
                 version="1.0",
@@ -5821,7 +5907,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCDCp
-        if "PCDCp_clear" in compute:
+        if "PCDCp" in compute:
             try:
                 #pcdcp = cm_pcdcp(sentences)
                 pcdcp = None
@@ -5833,9 +5919,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=21,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCDCp_clear",
-                label_internal="PCDCp_clear",
                 label_v3="PCDCp",
+                label_ttlab=ttlab_labels["PCDCp"],
                 label_v2="n/a",
                 description="Text Easability PC Deep cohesion, percentile",
                 version="1.0",
@@ -5844,7 +5929,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCVERBz
-        if "PCVERBz_clear" in compute:
+        if "PCVERBz" in compute:
             try:
                 #pcverbz = cm_pcverbz(sentences)
                 pcverbz = None
@@ -5856,9 +5941,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=22,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCVERBz_clear",
-                label_internal="PCVERBz_clear",
                 label_v3="PCVERBz",
+                label_ttlab=ttlab_labels["PCVERBz"],
                 label_v2="n/a",
                 description="Text Easability PC Verb cohesion, z score",
                 version="1.0",
@@ -5867,7 +5951,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCVERBp
-        if "PCVERBp_clear" in compute:
+        if "PCVERBp" in compute:
             try:
                 #pcverbp = cm_pcverbp(sentences)
                 pcverbp = None
@@ -5879,9 +5963,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=23,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCVERBp_clear",
-                label_internal="PCVERBp_clear",
                 label_v3="PCVERBp",
+                label_ttlab=ttlab_labels["PCVERBp"],
                 label_v2="n/a",
                 description="Text Easability PC Verb cohesion, percentile",
                 version="1.0",
@@ -5890,7 +5973,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCONNz
-        if "PCCONNz_clear" in compute:
+        if "PCCONNz" in compute:
             try:
                 #pcconnz = cm_pcconnz(sentences)
                 pcconnz = None
@@ -5902,9 +5985,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=24,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCONNz_clear",
-                label_internal="PCCONNz_clear",
                 label_v3="PCCONNz",
+                label_ttlab=ttlab_labels["PCCONNz"],
                 label_v2="n/a",
                 description="Text Easability PC Connectivity, z score",
                 version="1.0",
@@ -5913,7 +5995,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCCONNp
-        if "PCCONNp_clear" in compute:
+        if "PCCONNp" in compute:
             try:
                 #pcconnp = cm_pcconnp(sentences)
                 pcconnp = None
@@ -5925,9 +6007,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=25,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCCONNp_clear",
-                label_internal="PCCONNp_clear",
                 label_v3="PCCONNp",
+                label_ttlab=ttlab_labels["PCCONNp"],
                 label_v2="n/a",
                 description="Text Easability PC Connectivity, percentile",
                 version="1.0",
@@ -5936,7 +6017,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCTEMPz
-        if "PCTEMPz_clear" in compute:
+        if "PCTEMPz" in compute:
             try:
                 #pctempz = cm_pctempz(sentences)
                 pctempz = None
@@ -5948,9 +6029,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=26,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCTEMPz_clear",
-                label_internal="PCTEMPz_clear",
                 label_v3="PCTEMPz",
+                label_ttlab=ttlab_labels["PCTEMPz"],
                 label_v2="n/a",
                 description="Text Easability PC Temporality, z score",
                 version="1.0",
@@ -5959,7 +6039,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # PCTEMPp
-        if "PCTEMPp_clear" in compute:
+        if "PCTEMPp" in compute:
             try:
                 #pctempp = cm_pctempp(sentences)
                 pctempp = None
@@ -5971,9 +6051,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=27,
                 type_name="Text Easability Principal Component Scores",
-                label_ttlab="PCTEMPp_clear",
-                label_internal="PCTEMPp_clear",
                 label_v3="PCTEMPp",
+                label_ttlab=ttlab_labels["PCTEMPp"],
                 label_v2="n/a",
                 description="Text Easability PC Temporality, percentile",
                 version="1.0",
@@ -5995,9 +6074,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=28,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFNO1',
-                label_internal='CRFNO1',
                 label_v3="CRFNO1",
+                label_ttlab=ttlab_labels["CRFNO1"],
                 label_v2="CRFBN1um",
                 description="Noun overlap, adjacent sentences, binary, mean",
                 version="1.0",
@@ -6017,9 +6095,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=29,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFAO1',
-                label_internal='CRFAO1',
                 label_v3="CRFAO1",
+                label_ttlab=ttlab_labels["CRFAO1"],
                 label_v2="CRFBA1um",
                 description="Argument overlap, adjacent sentences, binary, mean",
                 version="1.0",
@@ -6039,9 +6116,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=30,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFSO1',
-                label_internal='CRFSO1',
                 label_v3="CRFSO1",
+                label_ttlab=ttlab_labels["CRFSO1"],
                 label_v2="CRFBS1um",
                 description="Stem overlap, adjacent sentences, binary, mean",
                 version="1.0",
@@ -6061,9 +6137,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=31,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFNOa',
-                label_internal='CRFNOa',
                 label_v3="CRFNOa",
+                label_ttlab=ttlab_labels["CRFNOa"],
                 label_v2="CRFBNaum",
                 description="Noun overlap, all sentences, binary, mean",
                 version="1.0",
@@ -6083,9 +6158,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=32,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFAOa',
-                label_internal='CRFAOa',
                 label_v3="CRFAOa",
+                label_ttlab=ttlab_labels["CRFAOa"],
                 label_v2="CRFBAaum",
                 description="Argument overlap, all sentences, binary, mean",
                 version="1.0",
@@ -6105,9 +6179,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=33,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFSOa',
-                label_internal='CRFSOa',
                 label_v3="CRFSOa",
+                label_ttlab=ttlab_labels["CRFSOa"],
                 label_v2="CRFBSaum",
                 description="Stem overlap, all sentences, binary, mean",
                 version="1.0",
@@ -6127,9 +6200,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=34,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFCWO1',
-                label_internal='CRFCWO1',
                 label_v3="CRFCWO1",
+                label_ttlab=ttlab_labels["CRFCWO1"],
                 label_v2="CRFPC1um",
                 description="Content word overlap, adjacent sentences, proportional, mean",
                 version="1.0",
@@ -6149,9 +6221,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=35,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFCWO1d',
-                label_internal='CRFCWO1d',
                 label_v3="CRFCWO1d",
+                label_ttlab=ttlab_labels["CRFCWO1d"],
                 label_v2="n/a",
                 description="Content word overlap, adjacent sentences, proportional, standard deviation",
                 version="1.0",
@@ -6171,9 +6242,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=36,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFCWOa',
-                label_internal='CRFCWOa',
                 label_v3="CRFCWOa",
+                label_ttlab=ttlab_labels["CRFCWOa"],
                 label_v2="CRFPCaum",
                 description="Content word overlap, all sentences, proportional, mean",
                 version="1.0",
@@ -6193,9 +6263,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=37,
                 type_name="Referential Cohesion",
-                label_ttlab='CRFCWOad',
-                label_internal='CRFCWOad',
                 label_v3="CRFCWOad",
+                label_ttlab=ttlab_labels["CRFCWOad"],
                 label_v2="n/a",
                 description="Content word overlap, all sentences, proportional, standard deviation",
                 version="1.0",
@@ -6223,7 +6292,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 lsa_error = str(e)
 
         # LSASS1
-        if "LSASS1_spacy" in compute:
+        if "LSASS1" in compute:
             try:
                 lsass1 = cm_lsass1(lsa_indices)
                 lsass1_error = None
@@ -6235,9 +6304,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=38,
                 type_name="LSA",
-                label_ttlab="LSASS1_spacy",
-                label_internal="LSASS1_spacy",
                 label_v3="LSASS1",
+                label_ttlab=ttlab_labels["LSASS1"],
                 label_v2="LSAassa",
                 description="LSA overlap, adjacent sentences, mean",
                 version="1.0",
@@ -6246,7 +6314,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSASS1d
-        if "LSASS1d_spacy" in compute:
+        if "LSASS1d" in compute:
             try:
                 lsass1d = cm_lsass1d(lsa_indices)
                 lsass1d_error = None
@@ -6257,9 +6325,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=39,
                 type_name="LSA",
-                label_ttlab="LSASS1d_spacy",
-                label_internal="LSASS1d_spacy",
                 label_v3="LSASS1d",
+                label_ttlab=ttlab_labels["LSASS1d"],
                 label_v2="LSAassd",
                 description="LSA overlap, adjacent sentences, standard deviation",
                 version="1.0",
@@ -6268,7 +6335,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSASSp
-        if "LSASSp_spacy" in compute:
+        if "LSASSp" in compute:
             try:
                 lsassp = cm_lsassp(lsa_indices)
                 lsassp_error = None
@@ -6279,9 +6346,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=40,
                 type_name="LSA",
-                label_ttlab="LSASSp_spacy",
-                label_internal="LSASSp_spacy",
                 label_v3="LSASSp",
+                label_ttlab=ttlab_labels["LSASSp"],
                 label_v2="LSApssa",
                 description="LSA overlap, all sentences in paragraph, mean",
                 version="1.0",
@@ -6290,7 +6356,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSASSpd
-        if "LSASSpd_spacy" in compute:
+        if "LSASSpd" in compute:
             try:
                 lsasspd = cm_lsasspd(lsa_indices)
                 lsasspd_error = None
@@ -6301,9 +6367,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=41,
                 type_name="LSA",
-                label_ttlab="LSASSpd_spacy",
-                label_internal="LSASSpd_spacy",
                 label_v3="LSASSpd",
+                label_ttlab=ttlab_labels["LSASSpd"],
                 label_v2="LSApssd",
                 description="LSA overlap, all sentences in paragraph, standard deviation",
                 version="1.0",
@@ -6312,7 +6377,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSAPP1
-        if "LSAPP1_spacy" in compute:
+        if "LSAPP1" in compute:
             try:
                 lsapp1 = cm_lsapp1(lsa_indices)
                 lsapp1_error = None
@@ -6323,9 +6388,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=42,
                 type_name="LSA",
-                label_ttlab="LSAPP1_spacy",
-                label_internal="LSAPP1_spacy",
                 label_v3="LSAPP1",
+                label_ttlab=ttlab_labels["LSAPP1"],
                 label_v2="LSAppa",
                 description="LSA overlap, adjacent paragraphs, mean",
                 version="1.0",
@@ -6334,7 +6398,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSAPP1d
-        if "LSAPP1d_spacy" in compute:
+        if "LSAPP1d" in compute:
             try:
                 lsapp1d = cm_lsapp1d(lsa_indices)
                 lsapp1d_error = None
@@ -6345,9 +6409,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=43,
                 type_name="LSA",
-                label_ttlab="LSAPP1d_spacy",
-                label_internal="LSAPP1d_spacy",
                 label_v3="LSAPP1d",
+                label_ttlab=ttlab_labels["LSAPP1d"],
                 label_v2="LSAppd",
                 description="LSA overlap, adjacent paragraphs, standard deviation",
                 version="1.0",
@@ -6356,7 +6419,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSAGN
-        if "LSAGN_spacy" in compute:
+        if "LSAGN" in compute:
             try:
                 lsagn = cm_lsagn(lsa_indices)
                 lsagn_error = None
@@ -6367,9 +6430,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=44,
                 type_name="LSA",
-                label_ttlab="LSAGN_spacy",
-                label_internal="LSAGN_spacy",
                 label_v3="LSAGN",
+                label_ttlab=ttlab_labels["LSAGN"],
                 label_v2="LSAGN",
                 description="LSA given/new, sentences, mean",
                 version="1.0",
@@ -6378,7 +6440,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # LSAGNd
-        if "LSAGNd_spacy" in compute:
+        if "LSAGNd" in compute:
             try:
                 lsagnd = cm_lsagnd(lsa_indices)
                 lsagnd_error = None
@@ -6389,9 +6451,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=45,
                 type_name="LSA",
-                label_ttlab="LSAGNd_spacy",
-                label_internal="LSAGNd_spacy",
                 label_v3="LSAGNd",
+                label_ttlab=ttlab_labels["LSAGNd"],
                 label_v2="n/a",
                 description="LSA given/new, sentences, standard deviation",
                 version="1.0",
@@ -6413,9 +6474,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=46,
                 type_name="Lexical Diversity",
-                label_ttlab='LDTTRc',
-                label_internal='LDTTRc',
                 label_v3="LDTTRc",
+                label_ttlab=ttlab_labels["LDTTRc"],
                 label_v2="TYPTOKc",
                 description="Lexical diversity, type-token ratio, content word lemmas",
                 version="1.0",
@@ -6435,9 +6495,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=47,
                 type_name="Lexical Diversity",
-                label_ttlab='LDTTRa',
-                label_internal='LDTTRa',
                 label_v3="LDTTRa",
+                label_ttlab=ttlab_labels["LDTTRa"],
                 label_v2="n/a",
                 description="Lexical diversity, type-token ratio, all words",
                 version="1.0",
@@ -6457,9 +6516,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=48,
                 type_name="Lexical Diversity",
-                label_ttlab='LDMTLDa',
-                label_internal='LDMTLDa',
                 label_v3="LDMTLDa",
+                label_ttlab=ttlab_labels["LDMTLDa"],
                 label_v2="LEXDIVTD",
                 description="Lexical diversity, MTLD, all words",
                 version="1.0",
@@ -6479,9 +6537,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=49,
                 type_name="Lexical Diversity",
-                label_ttlab='LDVOCDa',
-                label_internal='LDVOCDa',
                 label_v3="LDVOCDa",
+                label_ttlab=ttlab_labels["LDVOCDa"],
                 label_v2="LEXDIVVD",
                 description="Lexical diversity, VOCD, all words",
                 version="1.0",
@@ -6500,7 +6557,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 _cnc_counts = None
 
         # CNCAll
-        if "CNCAll_llmlist" in compute:
+        if "CNCAll" in compute:
             try:
                 cncall = cm_cncall(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cncall_error = None
@@ -6511,9 +6568,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=50,
                 type_name="Connectives",
-                label_ttlab="CNCAll_llmlist",
-                label_internal="CNCAll_llmlist",
                 label_v3="CNCAll",
+                label_ttlab=ttlab_labels["CNCAll"],
                 label_v2="CONi",
                 description="All connectives incidence",
                 version="1.0",
@@ -6522,7 +6578,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCCaus
-        if "CNCCaus_llmlist" in compute:
+        if "CNCCaus" in compute:
             try:
                 cnccaus = cm_cnccaus(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cnccaus_error = None
@@ -6533,9 +6589,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=51,
                 type_name="Connectives",
-                label_ttlab="CNCCaus_llmlist",
-                label_internal="CNCCaus_llmlist",
                 label_v3="CNCCaus",
+                label_ttlab=ttlab_labels["CNCCaus"],
                 label_v2="CONCAUSi",
                 description="Causal connectives incidence",
                 version="1.0",
@@ -6544,7 +6599,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCLogic
-        if "CNCLogic_llmlist" in compute:
+        if "CNCLogic" in compute:
             try:
                 cnclogic = cm_cnclogic(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cnclogic_error = None
@@ -6555,9 +6610,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=52,
                 type_name="Connectives",
-                label_ttlab="CNCLogic_llmlist",
-                label_internal="CNCLogic_llmlist",
                 label_v3="CNCLogic",
+                label_ttlab=ttlab_labels["CNCLogic"],
                 label_v2="CONLOGi",
                 description="Logical connectives incidence",
                 version="1.0",
@@ -6566,7 +6620,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCADC
-        if "CNCADC_llmlist" in compute:
+        if "CNCADC" in compute:
             try:
                 cncadc = cm_cncadc(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cncadc_error = None
@@ -6577,9 +6631,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=53,
                 type_name="Connectives",
-                label_ttlab="CNCADC_llmlist",
-                label_internal="CNCADC_llmlist",
                 label_v3="CNCADC",
+                label_ttlab=ttlab_labels["CNCADC"],
                 label_v2="CONADVCONi",
                 description="Adversative and contrastive connectives incidence",
                 version="1.0",
@@ -6588,7 +6641,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCTemp
-        if "CNCTemp_llmlist" in compute:
+        if "CNCTemp" in compute:
             try:
                 cnctemp = cm_cnctemp(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cnctemp_error = None
@@ -6599,9 +6652,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=54,
                 type_name="Connectives",
-                label_ttlab="CNCTemp_llmlist",
-                label_internal="CNCTemp_llmlist",
                 label_v3="CNCTemp",
+                label_ttlab=ttlab_labels["CNCTemp"],
                 label_v2="CONTEMPi",
                 description="Temporal connectives incidence",
                 version="1.0",
@@ -6610,7 +6662,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCTempx
-        if "CNCTempx_llmlist" in compute:
+        if "CNCTempx" in compute:
             try:
                 cnctempx = cm_cnctempx(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cnctempx_error = None
@@ -6621,9 +6673,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=55,
                 type_name="Connectives",
-                label_ttlab="CNCTempx_llmlist",
-                label_internal="CNCTempx_llmlist",
                 label_v3="CNCTempx",
+                label_ttlab=ttlab_labels["CNCTempx"],
                 label_v2="CONTEMPEXi",
                 description="Expanded temporal connectives incidence",
                 version="1.0",
@@ -6632,7 +6683,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCAdd
-        if "CNCAdd_llmlist" in compute:
+        if "CNCAdd" in compute:
             try:
                 cncadd = cm_cncadd(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cncadd_error = None
@@ -6643,9 +6694,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=56,
                 type_name="Connectives",
-                label_ttlab="CNCAdd_llmlist",
-                label_internal="CNCAdd_llmlist",
                 label_v3="CNCAdd",
+                label_ttlab=ttlab_labels["CNCAdd"],
                 label_v2="CONADDi",
                 description="Additive connectives incidence",
                 version="1.0",
@@ -6654,7 +6704,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCPos
-        if "CNCPos_llmlist" in compute:
+        if "CNCPos" in compute:
             try:
                 cncpos = cm_cncpos(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cncpos_error = None
@@ -6665,9 +6715,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=57,
                 type_name="Connectives",
-                label_ttlab="CNCPos_llmlist",
-                label_internal="CNCPos_llmlist",
                 label_v3="CNCPos",
+                label_ttlab=ttlab_labels["CNCPos"],
                 label_v2="n/a",
                 description="Positive connectives incidence",
                 version="1.0",
@@ -6676,7 +6725,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # CNCNeg
-        if "CNCNeg_llmlist" in compute:
+        if "CNCNeg" in compute:
             try:
                 cncneg = cm_cncneg(request.text, lang, tokens_count, connectives=_cnc_counts)
                 cncneg_error = None
@@ -6687,9 +6736,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=58,
                 type_name="Connectives",
-                label_ttlab="CNCNeg_llmlist",
-                label_internal="CNCNeg_llmlist",
                 label_v3="CNCNeg",
+                label_ttlab=ttlab_labels["CNCNeg"],
                 label_v2="n/a",
                 description="Negative connectives incidence",
                 version="1.0",
@@ -6700,7 +6748,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         ### Situation Model
 
         # SMCAUSv
-        if "SMCAUSv_wordnet" in compute:
+        if "SMCAUSv" in compute:
             try:
                 smcausv = cm_smcausv(sentences, lang)
                 smcausv_error = None
@@ -6711,9 +6759,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=59,
                 type_name="Situation Model",
-                label_ttlab="SMCAUSv_wordnet",
-                label_internal=f"SMCAUSv_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSv_wordnet",
                 label_v3="SMCAUSv",
+                label_ttlab=ttlab_labels["SMCAUSv"],
                 label_v2="CAUSV",
                 description="Causal verb incidence",
                 version="1.0",
@@ -6722,7 +6769,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # SMCAUSvp
-        if "SMCAUSvp_wordnet" in compute:
+        if "SMCAUSvp" in compute:
             try:
                 smcausvp = cm_smcausvp(sentences, lang)
                 smcausvp_error = None
@@ -6733,9 +6780,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=60,
                 type_name="Situation Model",
-                label_ttlab="SMCAUSvp_wordnet",
-                label_internal=f"SMCAUSvp_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSvp_wordnet",
                 label_v3="SMCAUSvp",
+                label_ttlab=ttlab_labels["SMCAUSvp"],
                 label_v2="CAUSVP",
                 description="Causal verbs and causal particles incidence",
                 version="1.0",
@@ -6744,7 +6790,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # SMINTEp
-        if "SMINTEp_wordnet" in compute:
+        if "SMINTEp" in compute:
             try:
                 smintep = cm_smintep(sentences, lang)
                 smintep_error = None
@@ -6755,9 +6801,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=61,
                 type_name="Situation Model",
-                label_ttlab="SMINTEp_wordnet",
-                label_internal=f"SMINTEp_{_de_intentional_verbs_source}" if lang == "de" else "SMINTEp_wordnet",
                 label_v3="SMINTEp",
+                label_ttlab=ttlab_labels["SMINTEp"],
                 label_v2="INTEi",
                 description="Intentional verbs incidence",
                 version="1.0",
@@ -6766,7 +6811,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # SMCAUSr
-        if "SMCAUSr_wordnet" in compute:
+        if "SMCAUSr" in compute:
             try:
                 smcausr = cm_smcausr(sentences, lang)
                 smcausr_error = None
@@ -6777,9 +6822,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=62,
                 type_name="Situation Model",
-                label_ttlab="SMCAUSr_wordnet",
-                label_internal=f"SMCAUSr_{_de_causal_verbs_source}" if lang == "de" else "SMCAUSr_wordnet",
                 label_v3="SMCAUSr",
+                label_ttlab=ttlab_labels["SMCAUSr"],
                 label_v2="CAUSC",
                 description="Ratio of causal particles to causal verbs",
                 version="1.0",
@@ -6788,7 +6832,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # SMINTEr
-        if "SMINTEr_llmlist" in compute:
+        if "SMINTEr" in compute:
             try:
                 sminter = cm_sminter(sentences, lang)
                 sminter_error = None
@@ -6799,9 +6843,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=63,
                 type_name="Situation Model",
-                label_ttlab="SMINTEr_llmlist",
-                label_internal=f"SMINTEr_{_de_intentional_verbs_source}_llmlist" if lang == "de" else "SMINTEr_llmlist",
                 label_v3="SMINTEr",
+                label_ttlab=ttlab_labels["SMINTEr"],
                 label_v2="INTEC",
                 description="Ratio of intentional particles to intentional verbs",
                 version="1.0",
@@ -6810,7 +6853,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # SMCAUSlsa
-        if "SMCAUSlsa_spacy" in compute:
+        if "SMCAUSlsa" in compute:
             try:
                 smcauslsa = cm_smcauslsa(sentences)
                 smcauslsa_error = None
@@ -6821,9 +6864,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=64,
                 type_name="Situation Model",
-                label_ttlab="SMCAUSlsa_spacy",
-                label_internal="SMCAUSlsa_spacy",
                 label_v3="SMCAUSlsa",
+                label_ttlab=ttlab_labels["SMCAUSlsa"],
                 label_v2="CAUSLSA",
                 description="LSA verb overlap",
                 version="1.0",
@@ -6843,9 +6885,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=65,
                 type_name="Situation Model",
-                label_ttlab="SMCAUSwn",
-                label_internal="SMCAUSwn_germanet" if lang == "de" else "SMCAUSwn",
                 label_v3="SMCAUSwn",
+                label_ttlab=ttlab_labels["SMCAUSwn"],
                 label_v2="CAUSWN",
                 description="WordNet verb overlap",
                 version="1.0",
@@ -6854,7 +6895,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # SMTEMP
-        if "SMTEMP_llmlist" in compute:
+        if "SMTEMP" in compute:
             try:
                 smtemp = cm_smtemp(sentences, lang)
                 smtemp_error = None
@@ -6865,9 +6906,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=66,
                 type_name="Situation Model",
-                label_ttlab="SMTEMP_llmlist",
-                label_internal="SMTEMP_llmlist",
                 label_v3="SMTEMP",
+                label_ttlab=ttlab_labels["SMTEMP"],
                 label_v2="TEMPta",
                 description="Temporal cohesion, tense and aspect repetition, mean",
                 version="1.0",
@@ -6889,9 +6929,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=67,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNLE',
-                label_internal='SYNLE',
                 label_v3="SYNLE",
+                label_ttlab=ttlab_labels["SYNLE"],
                 label_v2="SYNLE",
                 description="Left embeddedness, words before main verb, mean",
                 version="1.0",
@@ -6911,9 +6950,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=68,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNNP',
-                label_internal='SYNNP',
                 label_v3="SYNNP",
+                label_ttlab=ttlab_labels["SYNNP"],
                 label_v2="SYNNP",
                 description="Number of modifiers per noun phrase, mean",
                 version="1.0",
@@ -6933,9 +6971,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=69,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNMEDpos',
-                label_internal='SYNMEDpos',
                 label_v3="SYNMEDpos",
+                label_ttlab=ttlab_labels["SYNMEDpos"],
                 label_v2="MEDwtm",
                 description="Minimal Edit Distance, part of speech",
                 version="1.0",
@@ -6955,9 +6992,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=70,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNMEDwrd',
-                label_internal='SYNMEDwrd',
                 label_v3="SYNMEDwrd",
+                label_ttlab=ttlab_labels["SYNMEDwrd"],
                 label_v2="MEDawm",
                 description="Minimal Edit Distance, all words",
                 version="1.0",
@@ -6977,9 +7013,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=71,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNMEDlem',
-                label_internal='SYNMEDlem',
                 label_v3="SYNMEDlem",
+                label_ttlab=ttlab_labels["SYNMEDlem"],
                 label_v2="MEDalm",
                 description="Minimal Edit Distance, lemmas",
                 version="1.0",
@@ -6999,9 +7034,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=72,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNSTRUTa',
-                label_internal='SYNSTRUTa',
                 label_v3="SYNSTRUTa",
+                label_ttlab=ttlab_labels["SYNSTRUTa"],
                 label_v2="STRUTa",
                 description="Sentence syntax similarity, adjacent sentences, mean",
                 version="1.0",
@@ -7021,9 +7055,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=73,
                 type_name="Syntactic Complexity",
-                label_ttlab='SYNSTRUTt',
-                label_internal='SYNSTRUTt',
                 label_v3="SYNSTRUTt",
+                label_ttlab=ttlab_labels["SYNSTRUTt"],
                 label_v2="STRUTt",
                 description="Sentence syntax similarity, all combinations, across paragraphs, mean",
                 version="1.0",
@@ -7053,9 +7086,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=74,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRNP',
-                label_internal='DRNP',
                 label_v3="DRNP",
+                label_ttlab=ttlab_labels["DRNP"],
                 label_v2="n/a",
                 description="Noun phrase density, incidence",
                 version="1.0",
@@ -7075,9 +7107,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=75,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRVP',
-                label_internal='DRVP',
                 label_v3="DRVP",
+                label_ttlab=ttlab_labels["DRVP"],
                 label_v2="n/a",
                 description="Verb phrase density, incidence",
                 version="1.0",
@@ -7097,9 +7128,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=76,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRAP',
-                label_internal='DRAP',
                 label_v3="DRAP",
+                label_ttlab=ttlab_labels["DRAP"],
                 label_v2="n/a",
                 description="Adverbial phrase density, incidence",
                 version="1.0",
@@ -7119,9 +7149,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=77,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRPP',
-                label_internal='DRPP',
                 label_v3="DRPP",
+                label_ttlab=ttlab_labels["DRPP"],
                 label_v2="n/a",
                 description="Preposition phrase density, incidence",
                 version="1.0",
@@ -7141,9 +7170,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=78,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRPVAL',
-                label_internal='DRPVAL',
                 label_v3="DRPVAL",
+                label_ttlab=ttlab_labels["DRPVAL"],
                 label_v2="AGLSPSVi",
                 description="Agentless passive voice density, incidence",
                 version="1.0",
@@ -7152,7 +7180,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # DRNEG
-        if "DRNEG_llmlist" in compute:
+        if "DRNEG" in compute:
             try:
                 drneg = cm_drneg(sentences, request.noun_chunks, lang, metrics=_dr_metrics)
                 drneg_error = None
@@ -7163,9 +7191,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=79,
                 type_name="Syntactic Pattern Density",
-                label_ttlab="DRNEG_llmlist",
-                label_internal="DRNEG_llmlist",
                 label_v3="DRNEG",
+                label_ttlab=ttlab_labels["DRNEG"],
                 label_v2="DENNEGi",
                 description="Negation density, incidence",
                 version="1.0",
@@ -7185,9 +7212,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=80,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRGERUND',
-                label_internal='DRGERUND',
                 label_v3="DRGERUND",
+                label_ttlab=ttlab_labels["DRGERUND"],
                 label_v2="GERUNDi",
                 description="Gerund density, incidence",
                 version="1.0",
@@ -7207,9 +7233,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=81,
                 type_name="Syntactic Pattern Density",
-                label_ttlab='DRINF',
-                label_internal='DRINF',
                 label_v3="DRINF",
+                label_ttlab=ttlab_labels["DRINF"],
                 label_v2="INFi",
                 description="Infinitive density, incidence",
                 version="1.0",
@@ -7239,9 +7264,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=82,
                 type_name="Word Information",
-                label_ttlab='WRDNOUN',
-                label_internal='WRDNOUN',
                 label_v3="WRDNOUN",
+                label_ttlab=ttlab_labels["WRDNOUN"],
                 label_v2="NOUNi",
                 description="Noun incidence",
                 version="1.0",
@@ -7261,9 +7285,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=83,
                 type_name="Word Information",
-                label_ttlab='WRDVERB',
-                label_internal='WRDVERB',
                 label_v3="WRDVERB",
+                label_ttlab=ttlab_labels["WRDVERB"],
                 label_v2="VERBi",
                 description="Verb incidence",
                 version="1.0",
@@ -7283,9 +7306,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=84,
                 type_name="Word Information",
-                label_ttlab='WRDADJ',
-                label_internal='WRDADJ',
                 label_v3="WRDADJ",
+                label_ttlab=ttlab_labels["WRDADJ"],
                 label_v2="ADJi",
                 description="Adjective incidence",
                 version="1.0",
@@ -7305,9 +7327,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=85,
                 type_name="Word Information",
-                label_ttlab='WRDADV',
-                label_internal='WRDADV',
                 label_v3="WRDADV",
+                label_ttlab=ttlab_labels["WRDADV"],
                 label_v2="ADVi",
                 description="Adverb incidence",
                 version="1.0",
@@ -7327,9 +7348,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=86,
                 type_name="Word Information",
-                label_ttlab='WRDPRO',
-                label_internal='WRDPRO',
                 label_v3="WRDPRO",
+                label_ttlab=ttlab_labels["WRDPRO"],
                 label_v2="DENPRPi",
                 description="Pronoun incidence",
                 version="1.0",
@@ -7349,9 +7369,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=87,
                 type_name="Word Information",
-                label_ttlab='WRDPRP1s',
-                label_internal='WRDPRP1s',
                 label_v3="WRDPRP1s",
+                label_ttlab=ttlab_labels["WRDPRP1s"],
                 label_v2="n/a",
                 description="First-person singular pronoun incidence",
                 version="1.0",
@@ -7371,9 +7390,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=88,
                 type_name="Word Information",
-                label_ttlab='WRDPRP1p',
-                label_internal='WRDPRP1p',
                 label_v3="WRDPRP1p",
+                label_ttlab=ttlab_labels["WRDPRP1p"],
                 label_v2="n/a",
                 description="First-person plural pronoun incidence",
                 version="1.0",
@@ -7393,9 +7411,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=89,
                 type_name="Word Information",
-                label_ttlab='WRDPRP2',
-                label_internal='WRDPRP2',
                 label_v3="WRDPRP2",
+                label_ttlab=ttlab_labels["WRDPRP2"],
                 label_v2="PRO2i",
                 description="Second-person pronoun incidence",
                 version="1.0",
@@ -7415,9 +7432,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=90,
                 type_name="Word Information",
-                label_ttlab='WRDPRP3s',
-                label_internal='WRDPRP3s',
                 label_v3="WRDPRP3s",
+                label_ttlab=ttlab_labels["WRDPRP3s"],
                 label_v2="n/a",
                 description="Third-person singular pronoun incidence",
                 version="1.0",
@@ -7437,9 +7453,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=91,
                 type_name="Word Information",
-                label_ttlab='WRDPRP3p',
-                label_internal='WRDPRP3p',
                 label_v3="WRDPRP3p",
+                label_ttlab=ttlab_labels["WRDPRP3p"],
                 label_v2="n/a",
                 description="Third-person plural pronoun incidence",
                 version="1.0",
@@ -7448,7 +7463,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # WRDFRQc
-        if "WRDFRQc_wiki" in compute:
+        if "WRDFRQc" in compute:
             try:
                 wrdfrqc = cm_wrdfrqc(sentences, lang, "wiki-20220301-sample10000")
                 wrdfrqc_error = None
@@ -7459,9 +7474,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=92,
                 type_name="Word Information",
-                label_ttlab="WRDFRQc_wiki",
-                label_internal=f"WRDFRQc_{lang}wiki10000",
                 label_v3="WRDFRQc",
+                label_ttlab=ttlab_labels["WRDFRQc"],
                 label_v2="FRCLacwm",
                 description="Wikipedia word frequency for content words, mean",
                 version="1.0",
@@ -7470,7 +7484,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # WRDFRQa
-        if "WRDFRQa_wiki" in compute:
+        if "WRDFRQa" in compute:
             try:
                 wrdfrqa = cm_wrdfrqa(tokens, lang, "wiki-20220301-sample10000")
                 wrdfrqa_error = None
@@ -7481,9 +7495,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=93,
                 type_name="Word Information",
-                label_ttlab="WRDFRQa_wiki",
-                label_internal=f"WRDFRQa_{lang}wiki10000",
                 label_v3="WRDFRQa",
+                label_ttlab=ttlab_labels["WRDFRQa"],
                 label_v2="FRCLaewm",
                 description="Wikipedia Log frequency for all words, mean",
                 version="1.0",
@@ -7492,7 +7505,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # WRDFRQmc
-        if "WRDFRQmc_wiki" in compute:
+        if "WRDFRQmc" in compute:
             try:
                 wrdfrqmc = cm_wrdfrqmc(sentences, lang, "wiki-20220301-sample10000")
                 wrdfrqmc_error = None
@@ -7503,9 +7516,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=94,
                 type_name="Word Information",
-                label_ttlab="WRDFRQmc_wiki",
-                label_internal=f"WRDFRQmc_{lang}wiki10000",
                 label_v3="WRDFRQmc",
+                label_ttlab=ttlab_labels["WRDFRQmc"],
                 label_v2="FRCLmcsm",
                 description="Wikipedia Log minimum frequency for content words, mean",
                 version="1.0",
@@ -7534,9 +7546,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=95,
                 type_name="Word Information",
-                label_ttlab="WRDAOAc",
-                label_internal="WRDAOAc_mrctranslate" if lang == "de" else "WRDAOAc",
                 label_v3="WRDAOAc",
+                label_ttlab=ttlab_labels["WRDAOAc"],
                 label_v2="WRDAacwm",
                 description="Age of acquisition for content words, mean",
                 version="1.0",
@@ -7557,9 +7568,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=96,
                 type_name="Word Information",
-                label_ttlab="WRDFAMc",
-                label_internal="WRDFAMc_mrctranslate" if lang == "de" else "WRDFAMc",
                 label_v3="WRDFAMc",
+                label_ttlab=ttlab_labels["WRDFAMc"],
                 label_v2="WRDFacwm",
                 description="Familiarity for content words, mean",
                 version="1.0",
@@ -7580,9 +7590,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=97,
                 type_name="Word Information",
-                label_ttlab="WRDCNCc",
-                label_internal="WRDCNCc_mrctranslate" if lang == "de" else "WRDCNCc",
                 label_v3="WRDCNCc",
+                label_ttlab=ttlab_labels["WRDCNCc"],
                 label_v2="WRDCacwm",
                 description="Concreteness for content words, mean",
                 version="1.0",
@@ -7603,9 +7612,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=98,
                 type_name="Word Information",
-                label_ttlab="WRDIMGc",
-                label_internal="WRDIMGc_mrctranslate" if lang == "de" else "WRDIMGc",
                 label_v3="WRDIMGc",
+                label_ttlab=ttlab_labels["WRDIMGc"],
                 label_v2="WRDIacwm",
                 description="Imagability for content words, mean",
                 version="1.0",
@@ -7626,9 +7634,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=99,
                 type_name="Word Information",
-                label_ttlab="WRDMEAc",
-                label_internal="WRDMEAc_mrctranslate" if lang == "de" else "WRDMEAc",
                 label_v3="WRDMEAc",
+                label_ttlab=ttlab_labels["WRDMEAc"],
                 label_v2="WRDMacwm",
                 description="Meaningfulness, Colorado norms, content words, mean",
                 version="1.0",
@@ -7648,9 +7655,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=100,
                 type_name="Word Information",
-                label_ttlab="WRDPOLc",
-                label_internal="WRDPOLc_germanet" if lang == "de" else "WRDPOLc",
                 label_v3="WRDPOLc",
+                label_ttlab=ttlab_labels["WRDPOLc"],
                 label_v2="POLm",
                 description="Polysemy for content words, mean",
                 version="1.0",
@@ -7687,9 +7693,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=101,
                 type_name="Word Information",
-                label_ttlab="WRDHYPn",
-                label_internal="WRDHYPn_germanet" if lang == "de" else "WRDHYPn",
                 label_v3="WRDHYPn",
+                label_ttlab=ttlab_labels["WRDHYPn"],
                 label_v2="HYNOUNaw",
                 description="Hypernymy for nouns, mean",
                 version="1.0",
@@ -7704,9 +7709,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=102,
                 type_name="Word Information",
-                label_ttlab="WRDHYPv",
-                label_internal="WRDHYPv_germanet" if lang == "de" else "WRDHYPv",
                 label_v3="WRDHYPv",
+                label_ttlab=ttlab_labels["WRDHYPv"],
                 label_v2="HYVERBaw",
                 description="Hypernymy for verbs, mean",
                 version="1.0",
@@ -7721,9 +7725,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=103,
                 type_name="Word Information",
-                label_ttlab="WRDHYPnv",
-                label_internal="WRDHYPnv_germanet" if lang == "de" else "WRDHYPnv",
                 label_v3="WRDHYPnv",
+                label_ttlab=ttlab_labels["WRDHYPnv"],
                 label_v2="HYPm",
                 description="Hypernymy for nouns and verbs, mean",
                 version="1.0",
@@ -7741,7 +7744,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         # provisionally for compatibility and may be revised in a later pass.
 
         # RDFRE
-        if "RDFRE_textstat" in compute:
+        if "RDFRE" in compute:
             try:
                 rdfre = (
                     textstat.flesch_reading_ease(request.text)
@@ -7755,9 +7758,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=104,
                 type_name="Readability",
-                label_ttlab="RDFRE_textstat",
-                label_internal="RDFRE_textstat",
                 label_v3="RDFRE",
+                label_ttlab=ttlab_labels["RDFRE"],
                 label_v2="READFRE",
                 description="Flesch Reading Ease",
                 version="1.0",
@@ -7766,7 +7768,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDFKGL
-        if "RDFKGL_textstat" in compute:
+        if "RDFKGL" in compute:
             try:
                 rdfkgl = (
                     textstat.flesch_kincaid_grade(request.text)
@@ -7780,9 +7782,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=105,
                 type_name="Readability",
-                label_ttlab="RDFKGL_textstat",
-                label_internal="RDFKGL_textstat",
                 label_v3="RDFKGL",
+                label_ttlab=ttlab_labels["RDFKGL"],
                 label_v2="READFKGL",
                 description="Flesch–Kincaid Grade Level",
                 version="1.0",
@@ -7791,7 +7792,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDFOG
-        if "RDFOG_textstat" in compute:
+        if "RDFOG_ext" in compute:
             try:
                 rdfog = (
                     textstat.gunning_fog(request.text)
@@ -7805,8 +7806,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1001,
                 type_name="Readability",
-                label_ttlab="RDFOG_textstat",
-                label_internal="RDFOG_textstat",
+                label_v3="RDFOG_ext",
+                label_ttlab=ttlab_labels["RDFOG_ext"],
                 description="Gunning Fog Index",
                 version="1.0",
                 value=rdfog,
@@ -7814,7 +7815,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDSMOG
-        if "RDSMOG_textstat" in compute:
+        if "RDSMOG_ext" in compute:
             try:
                 rdsmog = (
                     textstat.smog_index(request.text)
@@ -7828,8 +7829,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1002,
                 type_name="Readability",
-                label_ttlab="RDSMOG_textstat",
-                label_internal="RDSMOG_textstat",
+                label_v3="RDSMOG_ext",
+                label_ttlab=ttlab_labels["RDSMOG_ext"],
                 description="SMOG Grade",
                 version="1.0",
                 value=rdsmog,
@@ -7837,7 +7838,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDARI
-        if "RDARI_textstat" in compute:
+        if "RDARI_ext" in compute:
             try:
                 rdari = (
                     textstat.automated_readability_index(request.text)
@@ -7851,8 +7852,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1003,
                 type_name="Readability",
-                label_ttlab="RDARI_textstat",
-                label_internal="RDARI_textstat",
+                label_v3="RDARI_ext",
+                label_ttlab=ttlab_labels["RDARI_ext"],
                 description="Automated Readability Index",
                 version="1.0",
                 value=rdari,
@@ -7860,7 +7861,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDCLI
-        if "RDCLI_textstat" in compute:
+        if "RDCLI_ext" in compute:
             try:
                 rdcli = (
                     textstat.coleman_liau_index(request.text)
@@ -7874,8 +7875,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1004,
                 type_name="Readability",
-                label_ttlab="RDCLI_textstat",
-                label_internal="RDCLI_textstat",
+                label_v3="RDCLI_ext",
+                label_ttlab=ttlab_labels["RDCLI_ext"],
                 description="Coleman–Liau Index",
                 version="1.0",
                 value=rdcli,
@@ -7883,7 +7884,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDLW
-        if "RDLW_textstat" in compute:
+        if "RDLW_ext" in compute:
             try:
                 rdlw = (
                     textstat.linsear_write_formula(request.text)
@@ -7897,8 +7898,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1005,
                 type_name="Readability",
-                label_ttlab="RDLW_textstat",
-                label_internal="RDLW_textstat",
+                label_v3="RDLW_ext",
+                label_ttlab=ttlab_labels["RDLW_ext"],
                 description="Linsear Write Formula",
                 version="1.0",
                 value=rdlw,
@@ -7906,7 +7907,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDDCRS
-        if "RDDCRS_textstat" in compute:
+        if "RDDCRS_ext" in compute:
             try:
                 rddcrs = (
                     textstat.dale_chall_readability_score(request.text)
@@ -7920,8 +7921,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1006,
                 type_name="Readability",
-                label_ttlab="RDDCRS_textstat",
-                label_internal="RDDCRS_textstat",
+                label_v3="RDDCRS_ext",
+                label_ttlab=ttlab_labels["RDDCRS_ext"],
                 description="Dale-Chall Readability Score",
                 version="1.0",
                 value=rddcrs,
@@ -7929,7 +7930,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDSPACHE
-        if "RDSPACHE_textstat" in compute:
+        if "RDSPACHE_ext" in compute:
             try:
                 rdspache = (
                     textstat.spache_readability(request.text)
@@ -7943,8 +7944,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1007,
                 type_name="Readability",
-                label_ttlab="RDSPACHE_textstat",
-                label_internal="RDSPACHE_textstat",
+                label_v3="RDSPACHE_ext",
+                label_ttlab=ttlab_labels["RDSPACHE_ext"],
                 description="Spache Readability Formula",
                 version="1.0",
                 value=rdspache,
@@ -7952,7 +7953,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDWSTF1
-        if "RDWSTF1_textstat" in compute:
+        if "RDWSTF1_ext" in compute:
             try:
                 rdwstf = (
                     textstat.wiener_sachtextformel(request.text, variant=1)
@@ -7966,8 +7967,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1008,
                 type_name="Readability",
-                label_ttlab="RDWSTF1_textstat",
-                label_internal="RDWSTF1_textstat",
+                label_v3="RDWSTF1_ext",
+                label_ttlab=ttlab_labels["RDWSTF1_ext"],
                 description="Wiener Sachtextformel 1",
                 version="1.0",
                 value=rdwstf,
@@ -7975,7 +7976,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDWSTF2
-        if "RDWSTF2_textstat" in compute:
+        if "RDWSTF2_ext" in compute:
             try:
                 rdwstf = (
                     textstat.wiener_sachtextformel(request.text, variant=2)
@@ -7989,8 +7990,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1009,
                 type_name="Readability",
-                label_ttlab="RDWSTF2_textstat",
-                label_internal="RDWSTF2_textstat",
+                label_v3="RDWSTF2_ext",
+                label_ttlab=ttlab_labels["RDWSTF2_ext"],
                 description="Wiener Sachtextformel 2",
                 version="1.0",
                 value=rdwstf,
@@ -7998,7 +7999,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDWSTF3
-        if "RDWSTF3_textstat" in compute:
+        if "RDWSTF3_ext" in compute:
             try:
                 rdwstf = (
                     textstat.wiener_sachtextformel(request.text, variant=3)
@@ -8012,8 +8013,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1010,
                 type_name="Readability",
-                label_ttlab="RDWSTF3_textstat",
-                label_internal="RDWSTF3_textstat",
+                label_v3="RDWSTF3_ext",
+                label_ttlab=ttlab_labels["RDWSTF3_ext"],
                 description="Wiener Sachtextformel 3",
                 version="1.0",
                 value=rdwstf,
@@ -8021,7 +8022,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDWSTF4
-        if "RDWSTF4_textstat" in compute:
+        if "RDWSTF4_ext" in compute:
             try:
                 rdwstf = (
                     textstat.wiener_sachtextformel(request.text, variant=4)
@@ -8035,8 +8036,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=1011,
                 type_name="Readability",
-                label_ttlab="RDWSTF4_textstat",
-                label_internal="RDWSTF4_textstat",
+                label_v3="RDWSTF4_ext",
+                label_ttlab=ttlab_labels["RDWSTF4_ext"],
                 description="Wiener Sachtextformel 4",
                 version="1.0",
                 value=rdwstf,
@@ -8044,7 +8045,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             ))
 
         # RDL2
-        if "RDL2_synstruta_wiki" in compute:
+        if "RDL2" in compute:
             try:
                 rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqmc)
                 rdl2_error = None
@@ -8055,9 +8056,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             indices.append(Index(
                 index=106,
                 type_name="Readability",
-                label_ttlab="RDL2_synstruta_wiki",
-                label_internal=f"RDL2_synstruta_{lang}wiki10000",
                 label_v3="RDL2",
+                label_ttlab=ttlab_labels["RDL2"],
                 label_v2="L2",
                 description="Coh-Metrix L2 Readability",
                 version="1.0",
@@ -8065,8 +8065,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 error=rdl2_error
             ))
 
-        # RDL2
-        if "RDL2_synstrutt_wiki" in compute:
+        # RDL2t_ext
+        if "RDL2t_ext" in compute:
             try:
                 rdl2 = cm_rdl2(crfcwo1, synstrutt, wrdfrqmc)
                 rdl2_error = None
@@ -8075,17 +8075,28 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 rdl2 = None
                 rdl2_error = str(e)
             indices.append(Index(
-                index=106,
+                index=1012,
                 type_name="Readability",
-                label_ttlab="RDL2_synstrutt_wiki",
-                label_internal=f"RDL2_synstrutt_{lang}wiki10000",
-                label_v3="RDL2",
-                label_v2="L2",
-                description="Coh-Metrix L2 Readability",
+                label_v3="RDL2t_ext",
+                label_ttlab=ttlab_labels["RDL2t_ext"],
+                label_v2=None,
+                description="Coh-Metrix L2 Readability with SYNSTRUTt instead of SYNSTRUTa",
                 version="1.0",
                 value=rdl2,
                 error=rdl2_error
             ))
+
+        # unsupported vectors, or no token has a vector (e.g. a spaCy trf model): the vector indices are undefined, not 0;
+        # before Text Easability, which uses them as inputs
+        if vectors_error is None and not compute.isdisjoint(_VECTOR_INDICES) and not any(
+                t.has_vector and t.vector for t in tokens):
+            vectors_error = f"No token vectors ({vectors_group})"
+            logger.warning("%s: the LSA indices and SMCAUSlsa are undefined", vectors_error)
+        if vectors_error is not None:
+            for index in indices:
+                if index.label_v3 in _VECTOR_INDICES:
+                    index.value = None
+                    index.error = vectors_error
 
         ### Text Easability Principal Component Scores (indices 12-27, from the indices above)
         if TEXT_EASABILITY_TYPE_NAME in compute_groups:
@@ -8101,12 +8112,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     # None: undefined for this document (see cm_text_easability)
                     index.value = text_easability.get(index.label_v3) if text_easability is not None else None
                     index.error = text_easability_error
-                    # the public label (_clear) is fixed; the model names this language's reference corpus
-                    if lang in text_easability_models:
-                        index.label_internal = index.label_v3 + text_easability_models[lang]["label_suffix"]
 
         # drop the inputs of derived indices that were computed but not selected
-        indices = [index for index in indices if index.label_ttlab in output]
+        indices = [index for index in indices if index.label_v3 in output]
 
         meta = AnnotationMeta(
             name=settings.annotator_name,

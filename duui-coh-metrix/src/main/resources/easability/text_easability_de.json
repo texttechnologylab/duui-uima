@@ -2,7 +2,7 @@
  "name": "Text Easability components",
  "language": "de",
  "reference_corpus": "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, translated into German with Kolibri-1 Q4_K_M (translation_kolibri-1-q4km), 4669 of 4724 excerpts (without truncated translations and paragraph mismatches)",
- "label_suffix": "_cleartranslate",
+ "label_suffix": "_REFIT_CLEARtr",
  "documents": 4669,
  "created_at": "2026-10-27T10:00:56+00:00",
  "method": "PCA on standardized inputs (missing values: reference mean), Varimax rotation; z = standardized inputs @ weights; percentile = share of reference texts with a lower z; at runtime only inputs with missing_documents > 0 may be missing (reference mean), otherwise the components are undefined",
@@ -10,7 +10,7 @@
   {
    "measure_number": 1,
    "measure": "Syllables per word",
-   "labels_ttlab": [
+   "labels_v3": [
     "DESWLsy"
    ],
    "mean": 1.7832819790854555,
@@ -20,7 +20,7 @@
   {
    "measure_number": 2,
    "measure": "Nouns",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDNOUN"
    ],
    "mean": 240.50672051776738,
@@ -30,7 +30,7 @@
   {
    "measure_number": 3,
    "measure": "Verbs",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDVERB"
    ],
    "mean": 119.30841740144932,
@@ -40,7 +40,7 @@
   {
    "measure_number": 4,
    "measure": "Adjectives",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDADJ"
    ],
    "mean": 58.62989853362929,
@@ -50,7 +50,7 @@
   {
    "measure_number": 5,
    "measure": "Adverbs",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDADV"
    ],
    "mean": 90.30213310282852,
@@ -60,7 +60,7 @@
   {
    "measure_number": 6,
    "measure": "Pronouns",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDPRO"
    ],
    "mean": 94.57929216019043,
@@ -70,7 +70,7 @@
   {
    "measure_number": 7,
    "measure": "First-person pronouns",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDPRP1s",
     "WRDPRP1p"
    ],
@@ -81,7 +81,7 @@
   {
    "measure_number": 8,
    "measure": "Third-person pronouns",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDPRP3s",
     "WRDPRP3p"
    ],
@@ -92,8 +92,8 @@
   {
    "measure_number": 10,
    "measure": "Connectives",
-   "labels_ttlab": [
-    "CNCAll_llmlist"
+   "labels_v3": [
+    "CNCAll"
    ],
    "mean": 65.85173612532049,
    "scale": 20.932839281307135,
@@ -102,8 +102,8 @@
   {
    "measure_number": 11,
    "measure": "Causal connectives",
-   "labels_ttlab": [
-    "CNCCaus_llmlist"
+   "labels_v3": [
+    "CNCCaus"
    ],
    "mean": 9.115871067863532,
    "scale": 8.319138845911633,
@@ -112,8 +112,8 @@
   {
    "measure_number": 12,
    "measure": "Temporal connectives",
-   "labels_ttlab": [
-    "CNCTemp_llmlist"
+   "labels_v3": [
+    "CNCTemp"
    ],
    "mean": 6.165203491831749,
    "scale": 6.961527256629882,
@@ -122,8 +122,8 @@
   {
    "measure_number": 13,
    "measure": "Logical connectives",
-   "labels_ttlab": [
-    "CNCLogic_llmlist"
+   "labels_v3": [
+    "CNCLogic"
    ],
    "mean": 39.90290646909505,
    "scale": 16.85619828642121,
@@ -132,8 +132,8 @@
   {
    "measure_number": 14,
    "measure": "Additive connectives",
-   "labels_ttlab": [
-    "CNCAdd_llmlist"
+   "labels_v3": [
+    "CNCAdd"
    ],
    "mean": 38.50001523086774,
    "scale": 16.89104149661304,
@@ -142,8 +142,8 @@
   {
    "measure_number": 15,
    "measure": "Adversative connectives",
-   "labels_ttlab": [
-    "CNCADC_llmlist"
+   "labels_v3": [
+    "CNCADC"
    ],
    "mean": 6.022017671608728,
    "scale": 6.1850074979748335,
@@ -152,8 +152,8 @@
   {
    "measure_number": 16,
    "measure": "Word frequency (logarithm)",
-   "labels_ttlab": [
-    "WRDFRQa_wiki"
+   "labels_v3": [
+    "WRDFRQa"
    ],
    "mean": 2.5084986702123935,
    "scale": 0.13514668997303203,
@@ -162,8 +162,8 @@
   {
    "measure_number": 17,
    "measure": "Content word frequency (logarithm)",
-   "labels_ttlab": [
-    "WRDFRQc_wiki"
+   "labels_v3": [
+    "WRDFRQc"
    ],
    "mean": 157.12378406423483,
    "scale": 65.10999241123811,
@@ -172,8 +172,8 @@
   {
    "measure_number": 18,
    "measure": "Minimum word frequency per sentence",
-   "labels_ttlab": [
-    "WRDFRQmc_wiki"
+   "labels_v3": [
+    "WRDFRQmc"
    ],
    "mean": 0.2179408693585345,
    "scale": 0.2668596326337418,
@@ -182,7 +182,7 @@
   {
    "measure_number": 19,
    "measure": "Age of acquisition",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDAOAc"
    ],
    "mean": 343.10657047826885,
@@ -192,7 +192,7 @@
   {
    "measure_number": 20,
    "measure": "Meaningfulness",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDMEAc"
    ],
    "mean": 434.6318263193809,
@@ -202,7 +202,7 @@
   {
    "measure_number": 21,
    "measure": "Concreteness",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDCNCc"
    ],
    "mean": 410.20289512099987,
@@ -212,7 +212,7 @@
   {
    "measure_number": 22,
    "measure": "Imagery",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDIMGc"
    ],
    "mean": 433.31902083262736,
@@ -222,7 +222,7 @@
   {
    "measure_number": 23,
    "measure": "Familiarity",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDFAMc"
    ],
    "mean": 552.6444417900229,
@@ -232,8 +232,8 @@
   {
    "measure_number": 24,
    "measure": "Negations",
-   "labels_ttlab": [
-    "DRNEG_llmlist"
+   "labels_v3": [
+    "DRNEG"
    ],
    "mean": 10.283993854343626,
    "scale": 10.135358075987899,
@@ -242,8 +242,8 @@
   {
    "measure_number": 25,
    "measure": "Causal verbs",
-   "labels_ttlab": [
-    "SMCAUSv_wordnet"
+   "labels_v3": [
+    "SMCAUSv"
    ],
    "mean": 10.748082396438898,
    "scale": 8.896982716213483,
@@ -252,8 +252,8 @@
   {
    "measure_number": 26,
    "measure": "Intentional actions, events, and particles",
-   "labels_ttlab": [
-    "SMINTEp_wordnet"
+   "labels_v3": [
+    "SMINTEp"
    ],
    "mean": 5.337835552401239,
    "scale": 6.923765778687499,
@@ -262,7 +262,7 @@
   {
    "measure_number": 27,
    "measure": "Polysemy\u2014multiple senses of word",
-   "labels_ttlab": [
+   "labels_v3": [
     "WRDPOLc"
    ],
    "mean": 3.5019892116473823,
@@ -272,7 +272,7 @@
   {
    "measure_number": 28,
    "measure": "Words per sentence",
-   "labels_ttlab": [
+   "labels_v3": [
     "DESSL"
    ],
    "mean": 17.544378346731623,
@@ -282,7 +282,7 @@
   {
    "measure_number": 29,
    "measure": "Modifiers per noun phrase",
-   "labels_ttlab": [
+   "labels_v3": [
     "SYNNP"
    ],
    "mean": 0.9643923148235736,
@@ -292,7 +292,7 @@
   {
    "measure_number": 30,
    "measure": "Words before main verb of main clause",
-   "labels_ttlab": [
+   "labels_v3": [
     "SYNLE"
    ],
    "mean": 3.5541569255156777,
@@ -302,7 +302,7 @@
   {
    "measure_number": 31,
    "measure": "Passive constructions",
-   "labels_ttlab": [
+   "labels_v3": [
     "DRPVAL"
    ],
    "mean": 8.593369893606567,
@@ -312,7 +312,7 @@
   {
    "measure_number": 32,
    "measure": "Syntactic similarity\u2014sentences in paragraph",
-   "labels_ttlab": [
+   "labels_v3": [
     "SYNSTRUTa"
    ],
    "mean": 0.08771304962589836,
@@ -322,7 +322,7 @@
   {
    "measure_number": 33,
    "measure": "Content word overlap\u2014adjacent sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "CRFCWO1"
    ],
    "mean": 0.08411841374004093,
@@ -332,7 +332,7 @@
   {
    "measure_number": 34,
    "measure": "Content word overlap\u2014all sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "CRFCWOa"
    ],
    "mean": 0.06903012410247109,
@@ -342,7 +342,7 @@
   {
    "measure_number": 35,
    "measure": "Argument overlap\u2014adjacent sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "CRFAO1"
    ],
    "mean": 0.47016692957846207,
@@ -352,7 +352,7 @@
   {
    "measure_number": 36,
    "measure": "Argument overlap\u2014all sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "CRFAOa"
    ],
    "mean": 0.41313880972113043,
@@ -362,7 +362,7 @@
   {
    "measure_number": 37,
    "measure": "Noun overlap\u2014adjacent sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "CRFNO1"
    ],
    "mean": 0.24425977887095426,
@@ -372,7 +372,7 @@
   {
    "measure_number": 38,
    "measure": "Stem overlap\u2014all sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "CRFSOa"
    ],
    "mean": 0.4153970108393576,
@@ -382,7 +382,7 @@
   {
    "measure_number": 39,
    "measure": "Type-token ratio",
-   "labels_ttlab": [
+   "labels_v3": [
     "LDTTRc"
    ],
    "mean": 0.8209830655005721,
@@ -392,7 +392,7 @@
   {
    "measure_number": 40,
    "measure": "Lexical diversity\u2014all words",
-   "labels_ttlab": [
+   "labels_v3": [
     "LDMTLDa"
    ],
    "mean": 123.74150222134926,
@@ -402,8 +402,8 @@
   {
    "measure_number": 42,
    "measure": "LSA-givenness versus newness",
-   "labels_ttlab": [
-    "LSAGN_spacy"
+   "labels_v3": [
+    "LSAGN"
    ],
    "mean": 0.43196056064717653,
    "scale": 0.0355284812541038,
@@ -412,8 +412,8 @@
   {
    "measure_number": 43,
    "measure": "LSA overlap\u2014adjacent sentences",
-   "labels_ttlab": [
-    "LSASS1_spacy"
+   "labels_v3": [
+    "LSASS1"
    ],
    "mean": 0.49701628618643223,
    "scale": 0.08282429864803226,
@@ -422,8 +422,8 @@
   {
    "measure_number": 44,
    "measure": "LSA overlap\u2014all sentences",
-   "labels_ttlab": [
-    "LSASSp_spacy"
+   "labels_v3": [
+    "LSASSp"
    ],
    "mean": 0.4858822968280539,
    "scale": 0.08251228628900956,
@@ -432,7 +432,7 @@
   {
    "measure_number": 45,
    "measure": "Dissimilarity of parts of speech between sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "SYNMEDpos"
    ],
    "mean": 0.6966495171664553,
@@ -442,7 +442,7 @@
   {
    "measure_number": 46,
    "measure": "Dissimilarity of words between sentences",
-   "labels_ttlab": [
+   "labels_v3": [
     "SYNMEDwrd"
    ],
    "mean": 0.9140463206426508,
@@ -452,8 +452,8 @@
   {
    "measure_number": 47,
    "measure": "Causal cohesion",
-   "labels_ttlab": [
-    "SMCAUSr_wordnet"
+   "labels_v3": [
+    "SMCAUSr"
    ],
    "mean": 0.11608731864588931,
    "scale": 0.2883601194631021,
@@ -462,7 +462,7 @@
   {
    "measure_number": 49,
    "measure": "Verb overlap\u2014adjacent",
-   "labels_ttlab": [
+   "labels_v3": [
     "SMCAUSwn"
    ],
    "mean": 0.02319948575101778,
@@ -472,8 +472,8 @@
   {
    "measure_number": 50,
    "measure": "LSA verb overlap\u2014adjacent sentences",
-   "labels_ttlab": [
-    "SMCAUSlsa_spacy"
+   "labels_v3": [
+    "SMCAUSlsa"
    ],
    "mean": 0.34092332405225956,
    "scale": 0.05038345689448051,
@@ -482,8 +482,8 @@
   {
    "measure_number": 51,
    "measure": "Temporal cohesion",
-   "labels_ttlab": [
-    "SMTEMP_llmlist"
+   "labels_v3": [
+    "SMTEMP"
    ],
    "mean": 0.9157474293059126,
    "scale": 0.09652618391185402,
