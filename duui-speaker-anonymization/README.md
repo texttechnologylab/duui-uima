@@ -128,7 +128,7 @@ Findings of the Association for Computational Linguistics: EMNLP 2023,
 }
 
 @misc{wolf2026duuispeakeranonymization,
-  author       = {Wolf, Tim},
+  author       = {Wolf, Tim and Abusaleh, Ali and Abrami, Giuseppe and Mehler, Alexander},
   title        = {Speaker Anonymization as {DUUI} Component},
   year         = {2026},
   howpublished = {\url{https://github.com/texttechnologylab/duui-uima/tree/main/duui-speaker-anonymization}}
