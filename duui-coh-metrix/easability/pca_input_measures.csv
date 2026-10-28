@@ -1,4 +1,4 @@
-number,group,measure_2011,labels_ttlab,excluded,note
+number,group,measure_2011,labels_v3,excluded,note
 1,Words,Syllables per word,DESWLsy,,
 2,Words,Nouns,WRDNOUN,,
 3,Words,Verbs,WRDVERB,,
@@ -8,23 +8,23 @@ number,group,measure_2011,labels_ttlab,excluded,note
 7,Words,First-person pronouns,WRDPRP1s;WRDPRP1p,,sum of singular and plural incidence
 8,Words,Third-person pronouns,WRDPRP3s;WRDPRP3p,,sum of singular and plural incidence
 9,Words,Ratio of function words to content words,,,not implemented in Coh-Metrix 3.0
-10,Words,Connectives,CNCAll_llmlist,,
-11,Words,Causal connectives,CNCCaus_llmlist,,
-12,Words,Temporal connectives,CNCTemp_llmlist,,
-13,Words,Logical connectives,CNCLogic_llmlist,,
-14,Words,Additive connectives,CNCAdd_llmlist,,
-15,Words,Adversative connectives,CNCADC_llmlist,,
-16,Words,Word frequency (logarithm),WRDFRQa_wiki,,Wikipedia instead of CELEX
-17,Words,Content word frequency (logarithm),WRDFRQc_wiki,,Wikipedia instead of CELEX; 3.0 index is not logarithmic
-18,Words,Minimum word frequency per sentence,WRDFRQmc_wiki,,Wikipedia instead of CELEX; content words only in 3.0
+10,Words,Connectives,CNCAll,,
+11,Words,Causal connectives,CNCCaus,,
+12,Words,Temporal connectives,CNCTemp,,
+13,Words,Logical connectives,CNCLogic,,
+14,Words,Additive connectives,CNCAdd,,
+15,Words,Adversative connectives,CNCADC,,
+16,Words,Word frequency (logarithm),WRDFRQa,,Wikipedia instead of CELEX
+17,Words,Content word frequency (logarithm),WRDFRQc,,Wikipedia instead of CELEX; 3.0 index is not logarithmic
+18,Words,Minimum word frequency per sentence,WRDFRQmc,,Wikipedia instead of CELEX; content words only in 3.0
 19,Words,Age of acquisition,WRDAOAc,,
 20,Words,Meaningfulness,WRDMEAc,,
 21,Words,Concreteness,WRDCNCc,,
 22,Words,Imagery,WRDIMGc,,
 23,Words,Familiarity,WRDFAMc,,
-24,Words,Negations,DRNEG_llmlist,,
-25,Words,Causal verbs,SMCAUSv_wordnet,,
-26,Words,"Intentional actions, events, and particles",SMINTEp_wordnet,,
+24,Words,Negations,DRNEG,,
+25,Words,Causal verbs,SMCAUSv,,
+26,Words,"Intentional actions, events, and particles",SMINTEp,,
 27,Words,Polysemy—multiple senses of word,WRDPOLc,,
 28,Sentence structure,Words per sentence,DESSL,,
 29,Sentence structure,Modifiers per noun phrase,SYNNP,,
@@ -40,15 +40,15 @@ number,group,measure_2011,labels_ttlab,excluded,note
 39,Connections between sentences,Type-token ratio,LDTTRc,,3.0 has content words (LDTTRc) and all words (LDTTRa)
 40,Connections between sentences,Lexical diversity—all words,LDMTLDa,,3.0 has MTLD (LDMTLDa) and VOCD (LDVOCDa)
 41,Connections between sentences,Lexical diversity—verbs,,,not implemented in Coh-Metrix 3.0
-42,Connections between sentences,LSA-givenness versus newness,LSAGN_spacy,,spaCy vectors instead of TASA LSA space
-43,Connections between sentences,LSA overlap—adjacent sentences,LSASS1_spacy,,spaCy vectors instead of TASA LSA space
-44,Connections between sentences,LSA overlap—all sentences,LSASSp_spacy,,spaCy vectors instead of TASA LSA space; 3.0 is all sentences in paragraph
+42,Connections between sentences,LSA-givenness versus newness,LSAGN,,spaCy vectors instead of TASA LSA space
+43,Connections between sentences,LSA overlap—adjacent sentences,LSASS1,,spaCy vectors instead of TASA LSA space
+44,Connections between sentences,LSA overlap—all sentences,LSASSp,,spaCy vectors instead of TASA LSA space; 3.0 is all sentences in paragraph
 45,Connections between sentences,Dissimilarity of parts of speech between sentences,SYNMEDpos,,
 46,Connections between sentences,Dissimilarity of words between sentences,SYNMEDwrd,,
-47,Connections between sentences,Causal cohesion,SMCAUSr_wordnet,,
-48,Connections between sentences,Intentional cohesion,SMINTEr_llmlist,"intentional verbs probably undercounted, undefined for 71% of CLEAR (see OPEN_QUESTIONS.md)",
+47,Connections between sentences,Causal cohesion,SMCAUSr,,
+48,Connections between sentences,Intentional cohesion,SMINTEr,"intentional verbs probably undercounted, undefined for 71% of CLEAR (see OPEN_QUESTIONS.md)",
 49,Connections between sentences,Verb overlap—adjacent,SMCAUSwn,,
-50,Connections between sentences,LSA verb overlap—adjacent sentences,SMCAUSlsa_spacy,,spaCy vectors instead of TASA LSA space
-51,Connections between sentences,Temporal cohesion,SMTEMP_llmlist,,
+50,Connections between sentences,LSA verb overlap—adjacent sentences,SMCAUSlsa,,spaCy vectors instead of TASA LSA space
+51,Connections between sentences,Temporal cohesion,SMTEMP,,
 52,Connections between sentences,Verb tense repetition,,,3.0 combines tense and aspect repetition in SMTEMP (measure 51)
 53,Connections between sentences,Verb aspect repetition,,,3.0 combines tense and aspect repetition in SMTEMP (measure 51)

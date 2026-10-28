@@ -47,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class ClearCorpusTextEasabilityTest {
 
-    // TODO replace with the released image
-    private static final String COHMETRIX_IMAGE = "duui-coh-metrix:easability-dev";
+    // two-layer labels (docs/label-scheme.md); built by src/main/bash/docker_build.sh
+    private static final String COHMETRIX_IMAGE = "docker.texttechnologylab.org/duui-coh-metrix:0.2.0";
 
     private static final int SAMPLE_STEP = 100;
     private static final double TOLERANCE = 1e-6;
@@ -56,13 +56,12 @@ public class ClearCorpusTextEasabilityTest {
     private static final String INDEX_TYPE = "org.texttechnologylab.uima.type.cohmetrix.Index";
     private static final String META_TYPE = "org.texttechnologylab.annotation.AnnotatorMetaData";
     private static final String TYPE_NAME = "Text Easability Principal Component Scores";
-    private static final String LABEL_SUFFIX = "_clear";
     private static final List<String> SELECTED = List.of("PCNARz", "PCSYNp");
 
     @Test
     public void componentScoresMatchPca() throws Exception {
         check(ClearCorpusCohMetrixTest.CLEAR_DIR.resolve("xmi_en"), Paths.get("easability/results/clear_en_pca/scores.csv"),
-                "_clear", COHMETRIX_IMAGE, false);
+                "_REFIT_CLEAR", COHMETRIX_IMAGE, false);
     }
 
     @Test
@@ -72,7 +71,7 @@ public class ClearCorpusTextEasabilityTest {
         try (GermanetCohMetrixContainer container = new GermanetCohMetrixContainer(COHMETRIX_IMAGE)) {
             check(ClearCorpusCohMetrixTest.germanXmiLocation(translation),
                     Paths.get("easability/results/clear_de_" + name + "_pca/scores.csv"),
-                    "_cleartranslate", container.url(), true);
+                    "_REFIT_CLEARtr", container.url(), true);
         }
     }
 
@@ -121,8 +120,8 @@ public class ClearCorpusTextEasabilityTest {
                     FeatureStructure z = components.get(header);
                     FeatureStructure p = components.get(percentileLabel);
                     assertNull(string(z, "error"), id + " " + header);
-                    assertEquals(header + LABEL_SUFFIX, string(z, "labelTTLab"), id);
-                    assertEquals(header + internalSuffix, string(z, "labelInternal"), id);
+                    assertEquals(header, string(z, "labelV3"), id);
+                    assertEquals(header + internalSuffix, string(z, "labelTTLab"), id);
                     assertEquals(Double.parseDouble(expected.get(header)), value(z), TOLERANCE, id + " " + header);
                     assertTrue(value(p) >= 0 && value(p) <= 100, id + " " + percentileLabel);
                 }

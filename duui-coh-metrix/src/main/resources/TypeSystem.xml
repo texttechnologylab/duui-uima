@@ -72,17 +72,12 @@
                 </featureDescription>
                 <featureDescription>
                     <name>labelTTLab</name>
-                    <description>Public TTLab label and unique key: the Coh-Metrix 3.0 label plus a suffix where the English implementation deviates from the original; identical for all languages.</description>
-                    <rangeTypeName>uima.cas.String</rangeTypeName>
-                </featureDescription>
-                <featureDescription>
-                    <name>labelInternal</name>
-                    <description>Internal TTLab label: the Coh-Metrix 3.0 label plus the concrete resource used for this language.</description>
+                    <description>Internal TTLab label: labelV3 plus the method and every resource the value depends on for this document, e.g. WRDPOLc_GN or LSASS1_EMB_SPACYlg.</description>
                     <rangeTypeName>uima.cas.String</rangeTypeName>
                 </featureDescription>
                 <featureDescription>
                     <name>labelV3</name>
-                    <description>Coh-Metrix 3.0 label.</description>
+                    <description>Public label: the Coh-Metrix 3.0 label, or NAME_ext for indices that Coh-Metrix 3.0 does not have; identical for all languages.</description>
                     <rangeTypeName>uima.cas.String</rangeTypeName>
                 </featureDescription>
                 <featureDescription>
@@ -698,58 +693,63 @@
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDFOG_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDFOG_ext</name>
             <description>Reports the Gunning Fog Index of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDSMOG_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDSMOG_ext</name>
             <description>Reports the Simple Measure of Gobbledygook index of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDARI_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDARI_ext</name>
             <description>Reports the Automated Readability Index of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDCLI_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDCLI_ext</name>
             <description>Reports the Coleman-Liau Index of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDLW_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDLW_ext</name>
             <description>Reports the Linsear Write Formula score of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDDCRS_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDDCRS_ext</name>
             <description>Reports the Dale-Chall Readability Score of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDSPACHE_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDSPACHE_ext</name>
             <description>Reports the Spache Readability Formula score of the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF1_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF1_ext</name>
             <description>Reports variant 1 of the Wiener Sachtextformel for the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF2_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF2_ext</name>
             <description>Reports variant 2 of the Wiener Sachtextformel for the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF3_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF3_ext</name>
             <description>Reports variant 3 of the Wiener Sachtextformel for the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
         <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF4_textstat</name>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDWSTF4_ext</name>
             <description>Reports variant 4 of the Wiener Sachtextformel for the text.</description>
+            <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>org.texttechnologylab.uima.type.cohmetrix.RDL2t_ext</name>
+            <description>Reports the Coh-Metrix second-language readability score with the syntactic similarity of all sentences (SYNSTRUTt) instead of adjacent sentences (SYNSTRUTa).</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
     </types>

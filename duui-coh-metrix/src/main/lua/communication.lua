@@ -8,24 +8,19 @@ NounChunk = luajava.bindClass("org.texttechnologylab.uima.type.spacy.SpacyNounCh
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 Paragraph = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph")
 Dependency = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency")
+-- optional: only needed to read the spaCy model of the token vectors
+local spacy_meta_ok, SpacyAnnotatorMetaData = pcall(
+    luajava.bindClass, "org.texttechnologylab.annotation.SpacyAnnotatorMetaData")
 
 COHMETRIX_TYPE_PREFIX = "org.texttechnologylab.uima.type.cohmetrix."
 
--- The concrete UIMA type follows the stable Coh-Metrix 3 label. Project-only
--- indices without a V3 label use their TTLab label instead.
+-- The concrete UIMA type is the public label: the Coh-Metrix 3 label, or
+-- <NAME>_ext for project-only indices.
 function resolveIndexTypeName(index)
     local label = index["label_v3"]
 
-    if label == nil
-        or label == ""
-        or string.lower(label) == "n/a"
-        or label == "-"
-    then
-        label = index["label_ttlab"]
-    end
-
     if label == nil or label == "" then
-        error("Cannot resolve Coh-Metrix UIMA type: both label_v3 and label_ttlab are missing")
+        error("Cannot resolve Coh-Metrix UIMA type: label_v3 is missing")
     end
 
     -- All generated type names are based on labels and must be valid UIMA
@@ -55,6 +50,35 @@ function setOptionalStringFeature(feature_structure, feature, value)
     if value ~= nil then
         feature_structure:setStringValue(feature, value)
     end
+end
+
+-- The spaCy model of the token vectors (e.g. de_core_news_lg): the
+-- SpacyAnnotatorMetaData that references the first SpacyToken (duui-spacy
+-- writes one per token). nil if there is none.
+function spacyVectorsModel(inputCas)
+    if not spacy_meta_ok then
+        return nil
+    end
+    local tokens_it = JCasUtil:select(inputCas, Token):iterator()
+    if not tokens_it:hasNext() then
+        return nil
+    end
+    local first = tokens_it:next()
+    local metas_it = JCasUtil:select(inputCas, SpacyAnnotatorMetaData):iterator()
+    while metas_it:hasNext() do
+        local meta = metas_it:next()
+        local reference = meta:getReference()
+        -- Lua proxies may not keep object identity, so compare with equals,
+        -- then by type and span
+        if reference ~= nil and (reference:equals(first) or (
+            reference:getType():getName() == first:getType():getName()
+            and reference:getBegin() == first:getBegin()
+            and reference:getEnd() == first:getEnd()
+        )) then
+            return meta:getModelName()
+        end
+    end
+    return nil
 end
 
 function serialize(inputCas, outputStream, parameters)
@@ -211,6 +235,9 @@ function serialize(inputCas, outputStream, parameters)
         -- optional, comma-separated index names (README, "Selecting indices")
         include_indices = parameters["include_indices"],
         exclude_indices = parameters["exclude_indices"],
+        -- optional source of the token vectors (README, "Vectors"), default SPACY
+        vectors = parameters["vectors"],
+        vectors_model = spacyVectorsModel(inputCas),
     }))
 end
 
@@ -252,7 +279,6 @@ function deserialize(inputCas, inputStream)
             local index_feature = requireFeature(index_type, "index")
             local type_name_feature = requireFeature(index_type, "typeName")
             local label_ttlab_feature = requireFeature(index_type, "labelTTLab")
-            local label_internal_feature = requireFeature(index_type, "labelInternal")
             local label_v3_feature = requireFeature(index_type, "labelV3")
             local label_v2_feature = requireFeature(index_type, "labelV2")
             local description_feature = requireFeature(index_type, "description")
@@ -263,7 +289,6 @@ function deserialize(inputCas, inputStream)
             index_anno:setIntValue(index_feature, index["index"])
             setOptionalStringFeature(index_anno, type_name_feature, index["type_name"])
             setOptionalStringFeature(index_anno, label_ttlab_feature, index["label_ttlab"])
-            setOptionalStringFeature(index_anno, label_internal_feature, index["label_internal"])
             setOptionalStringFeature(index_anno, label_v3_feature, index["label_v3"])
             setOptionalStringFeature(index_anno, label_v2_feature, index["label_v2"])
             setOptionalStringFeature(index_anno, description_feature, index["description"])

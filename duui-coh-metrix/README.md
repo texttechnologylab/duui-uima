@@ -1,11 +1,12 @@
 # Coh-Metrix Text Cohesion Analysis [WIP]
 
 DUUI implementation of Coh-Metrix 3.0 for English and German. The component
-computes up to 121 index records over pre-annotated UIMA documents, including
+computes up to 118 index records over pre-annotated UIMA documents, including
 descriptive, referential-cohesion, LSA, lexical-diversity, connective,
 situation-model, syntactic-complexity, word-information, and readability
-measures. The output also includes explicitly named TTLab alternatives where
-the available data source or implementation differs from Coh-Metrix 3.0.
+measures. Every index carries its Coh-Metrix 3.0 label and an internal label
+that names the resources used where they differ from or replace those of
+Coh-Metrix 3.0 (see [Index labels](#index-labels)).
 
 ## Prerequisites and preprocessing
 
@@ -29,8 +30,9 @@ The validated pipeline uses the following upstream components:
   Syntok supplies paragraph boundaries while the existing spaCy sentence
   annotations are retained.
 
-Token vectors are required for the `LSA*` indices and `SMCAUSlsa`. If no usable
-vector or comparison can be constructed, the affected result is `None`.
+Token vectors are required for the `LSA*` indices and `SMCAUSlsa` (see
+[Vectors](#vectors)). If no usable vector or comparison can be constructed, the
+affected result is `None`.
 
 ## Bundled and optional resources
 
@@ -65,8 +67,8 @@ indices are calculated. Words not covered by the resource are excluded rather
 than assigned an artificial frequency of zero.
 
 These resources replace the non-public CELEX data used by the original
-Coh-Metrix implementation. Consequently, the corresponding TTLab indices use
-the `_wiki` label suffix (`_enwiki10000` / `_dewiki10000` internally, see
+Coh-Metrix implementation. Consequently, the corresponding indices carry the
+`WIKI` group in their internal label (`WRDFRQc_WIKI`, see
 [Index labels](#index-labels)) and their absolute values are not directly
 comparable with CELEX-based Coh-Metrix output.
 
@@ -103,6 +105,24 @@ dictionaries bundled with `pyphen==0.17.2`. Differences between Pyphen
 hyphenation and human syllabification are treated as a known external-resource
 limitation.
 
+### textstat
+
+The readability formulas (`RDFRE`, `RDFKGL` and the project-only `RD*_ext`
+indices) use the textstat fork
+[felixvoll/textstat](https://github.com/felixvoll/textstat/tree/cohmetrix-de),
+tag `v0.7.12-post2`. Apart from a German easy-word list and a UTF-8 fix for
+loading it, it is identical to textstat 0.7.12. textstat gets the raw text and
+does its own sentence and word splitting, so its counts can differ from the
+other indices. Its language-specific behaviour belongs to the library and is
+not part of the labels (`TEXTSTAT` in every language):
+
+| Index                           | Language-specific part                                                                                      |
+|---------------------------------|-------------------------------------------------------------------------------------------------------------|
+| RDFRE                           | German uses Amstad's constants (180, 1, 58.5) instead of Flesch's                                           |
+| RDFOG_ext, RDDCRS_ext, RDSPACHE_ext | "Difficult words" from a per-language easy-word list; the German list (2,579 words, the fork's addition) is a translation and manual adaptation of the English Dale-Chall/Spache list |
+| RDFKGL, RDSMOG_ext, RDLW_ext, RDWSTF1–4_ext | Only syllable counting: Pyphen for German, the CMU Pronouncing Dictionary with Pyphen as fallback for English |
+| RDARI_ext, RDCLI_ext            | None (characters, words, sentences)                                                                         |
+
 ### Text Easability reference corpus
 
 The Text Easability components (`PC*`, indices 12-27) are a first test. The
@@ -123,8 +143,8 @@ and open questions are in `easability/`.
 The German reference corpus is CLEAR translated into German
 (`translation_eval/translate_clear.py`; first version Kolibri-1 Q4_K_M, 4,669
 of 4,724 excerpts without truncated translations and paragraph mismatches),
-with its own PCA and model (`text_easability_de.json`, internal label suffix
-`_cleartranslate`). The German inputs include GermaNet indices (polysemy, verb
+with its own PCA and model (`text_easability_de.json`, internal label groups
+`_REFIT_CLEARtr`). The German inputs include GermaNet indices (polysemy, verb
 overlap), so without GermaNet the German components are `None`.
 `easability/compare_models.py` compares the English and German components
 (congruence of the loadings, correlation of the scores of the same excerpts).
@@ -143,7 +163,7 @@ python easability/extract_indices.py $CLEAR/xmi_en $CLEAR/indices_en.csv
 python easability/pca.py $CLEAR/indices_en.csv easability/results/clear_en_pca \
     --model src/main/resources/easability/text_easability_en.json --language en \
     --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, 4724 excerpts" \
-    --label-suffix _clear
+    --label-suffix _REFIT_CLEAR
 ```
 
 `pca.py` writes the model and, to `easability/results/clear_en_pca/`, a
@@ -166,7 +186,7 @@ python easability/pca.py $CLEAR/indices_de_kolibri-1-q4km.csv \
     easability/results/clear_de_kolibri-1-q4km_pca \
     --model src/main/resources/easability/text_easability_de.json --language de \
     --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, translated into German with Kolibri-1 Q4_K_M (translation_kolibri-1-q4km), 4669 of 4724 excerpts (without truncated translations and paragraph mismatches)" \
-    --label-suffix _cleartranslate
+    --label-suffix _REFIT_CLEARtr
 python easability/compare_models.py easability/results/clear_en_pca \
     easability/results/clear_de_kolibri-1-q4km_pca \
     easability/results/clear_en_vs_de_kolibri-1-q4km --name-a EN --name-b DE
@@ -189,8 +209,8 @@ Some resource-backed indices use available-case evaluation: uncovered items
 are excluded and a value is calculated from the remaining valid observations.
 If too few valid observations remain, the result is `None`/`Double.NaN`.
 
-The Wiener Sachtextformel indices `RDWSTF1_textstat` through
-`RDWSTF4_textstat` are defined for German only. For English and other
+The Wiener Sachtextformel indices `RDWSTF1_ext` through
+`RDWSTF4_ext` are defined for German only. For English and other
 languages, these four indices are not applicable and therefore return
 `None`/`Double.NaN` instead of a numeric value. This behavior is already
 visible in the completed English validation reports; no separate label or
@@ -198,98 +218,125 @@ single-purpose WSTF testcase is required.
 
 ## Index labels
 
-Every index record carries four labels. Follow the rules below when adding or
-changing an index. `label_ttlab` and `label_internal` are required and set
-explicitly in every `Index(...)` call.
+Every index record carries three labels. Follow the rules below when adding or
+changing an index. The background and the decisions behind the scheme are in
+[`docs/label-scheme.md`](docs/label-scheme.md).
 
-| Field (Python / UIMA)              | Meaning                                                                                                                                                       | Unique per output |
-|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|
-| `label_v3` / `labelV3`             | Original Coh-Metrix 3.0 label from `docs/coh-metrix-30-indices.md`. Identifies *what* is measured. `None` for project-only indices.                           | No, see rule 5    |
-| `label_v2` / `labelV2`             | Coh-Metrix 2.0 label from the same table; `n/a` where the table has none. `None` for project-only indices.                                                   | No, see rule 5    |
-| `label_ttlab` / `labelTTLab`       | Public TTLab label for use in analyses: the V3 label, plus a suffix only where the English implementation deviates from the original. Identical for all languages. | Yes               |
-| `label_internal` / `labelInternal` | Internal TTLab label: V3 label plus the concrete resource suffix for this language; no suffix where the original resource is used. May differ between languages. Always set, also where it equals `label_ttlab`, so either label can be used on its own. | Yes               |
+| Field (Python / UIMA)        | Meaning                                                                                                                                                         | Unique per output |
+|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|
+| `label_v3` / `labelV3`       | **Public label.** The Coh-Metrix 3.0 label from `docs/coh-metrix-30-indices.md`, or `<NAME>_ext` for indices Coh-Metrix 3.0 does not have. Identical for all languages; the UIMA type. | Yes |
+| `label_ttlab` / `labelTTLab` | **Internal label.** The public label plus groups naming the method and every resource the value depends on for this document, e.g. `WRDPOLc_GN`. May differ between languages and documents. | Yes |
+| `label_v2` / `labelV2`       | Coh-Metrix 2.0 label from the same table, as a reference; `n/a` where the table has none, `None` for project-only indices.                                       | No                |
+
+`INDEX_CATALOG` in `duui.py` lists every index with its public label, the
+template of its internal label and its comparability (below); the `Index(...)`
+calls take the internal label from it (`ttlab_labels`).
 
 ### Rules
 
-1. **When an implementation deviates.** Ask: *if our NLP preprocessing were
-   perfect, would we reproduce the original Coh-Metrix value?*
-   - No, because we use a different corpus, lexicon, word list, embedding
-     model, formula or library: it deviates and gets a suffix.
-   - Yes, and the only differences come from preprocessing (sentence
-     boundaries, tokens, lemmas, POS, morphology, dependencies, noun chunks,
-     Pyphen syllable counts): no suffix.
-
-   For `label_ttlab` the test is applied to the English implementation
-   (rule 2); for `label_internal` it is applied to each language's own
-   implementation.
-2. **The public label follows the English implementation.** Coh-Metrix is
-   defined on English, so `label_ttlab` gets a suffix only if the English
-   implementation deviates from the original. Another language that uses its
-   counterpart of the English resource measures the same concept and keeps
-   the same public label; its concrete resource appears only in
-   `label_internal`. This includes translated resources, because they are
-   built on the same data. `label_ttlab` is therefore identical for all
-   languages. Examples:
-   - `WRDPOLc` (public): internally `WRDPOLc` for English (Princeton WordNet,
-     as in the original) and `WRDPOLc_germanet` for German.
-   - `WRDAOAc` (public): internally `WRDAOAc` for English (original MRC
-     database) and `WRDAOAc_mrctranslate` for German (MRC translated with
-     DeepL).
-   - `WRDFRQc_wiki` (public): English deviates (Wikipedia instead of CELEX);
-     internally `WRDFRQc_enwiki10000` for English and `WRDFRQc_dewiki10000`
-     for German.
-3. **Derived indices inherit deviations.** An index computed from other
-   indices carries the suffixes of its inputs. Example: `RDL2` uses
-   `WRDFRQmc`, so it carries the Wikipedia suffix.
-4. **The internal label names what was actually used at runtime.** If a
-   resource is unavailable and a fallback is used, `label_internal` names the
-   fallback, not the intended resource; `label_ttlab` stays aligned. Example:
-   without GermaNet, the German causal/intentional verb inventories use seed
-   lists, so `label_internal` uses `_seedlist` instead of `_germanet`.
-5. **V3 and V2 labels repeat only for genuine variants.** If the original
-   definition is ambiguous, all variants keep the V3/V2 label and `index`
-   number and are told apart by a variant suffix in `label_ttlab` and
-   `label_internal`. Example: the RDL2 formula only says `SYNSTRUT`, so both
-   `RDL2_synstruta_*` and `RDL2_synstrutt_*` have V3 `RDL2`.
-6. **No placeholders.** If the original resource is unavailable, emit only the
+1. **Public label.** The V3 label exactly as in Coh-Metrix 3.0. The only
+   suffix is `_ext` (lowercase), for project-only indices: `index` 1001 and
+   above, `label_v2` `None`. Example: `RDFOG_ext`.
+2. **Internal label.** Always the public label plus zero or more groups:
+   `<public>[_<GROUP>...]`. Indices without any resource have no groups
+   (`DESWC`).
+3. **Groups** are written like Coh-Metrix labels: an uppercase core with an
+   optional lowercase variant (`SPACYlg`, `CLEARtr`, `LLMlist`), without
+   underscores or hyphens. The method comes first (`REFIT`, `EMB`), then the
+   data the value depends on, in input order (`SMCAUSvp_WN_LLMlist`: verbs,
+   then particles).
+4. **Name every resource**, including the original one (English `WN`,
+   `MRC`): every lexicon, list, corpus, model or library the value depends
+   on. Preprocessing (sentence boundaries, tokens, lemmas, POS, morphology,
+   dependencies, noun chunks, Pyphen syllable counts) is not named; it is
+   documented in the CAS metadata of the preprocessing components.
+5. **No language codes.** Where the resource differs by language, its name
+   says so (`WN`/`GN`, `CLEAR`/`CLEARtr`, `MRC`/`MRCtr`). Resources of the same
+   kind (`LLMlist`, `WIKI`, `TEXTSTAT`) get the same name in every language;
+   the document language is in the CAS. How a library handles each language
+   is part of the library (see [textstat](#textstat)).
+6. **No model names, no resource versions.** For spaCy vectors only the model
+   size goes into the label (`SPACYsm`, `SPACYmd`, `SPACYlg`, `SPACYtrf`). A
+   new version of a resource (Wikipedia sample, LLM list, MRC translation)
+   bumps the index `version`, not the label.
+7. **What was used at runtime.** If a fallback is used, the internal label
+   names it. Example: without GermaNet, the German causal/intentional verb
+   inventories use seed lists: `SMCAUSv_SEEDlist` instead of `SMCAUSv_GN`.
+8. **Derived indices** (RDL2, PC*) name the resources of their inputs
+   (`RDL2_WIKI`).
+9. **No placeholders.** If the original resource is unavailable, emit only the
    substitute, under the original V3 label. Never emit a record that is always
    `None` just to occupy the original label. Example: there is no CELEX
-   `WRDFRQc`, only `WRDFRQc_wiki`.
-7. **Project-only indices** (no Coh-Metrix equivalent) have `label_v3` and
-   `label_v2` set to `None`, an `index` of 1001 or above, and always a suffix.
-   Example: `RDFOG_textstat`.
-8. **Suffix order:** `<V3 label>_<variant>_<resource>`, for example
-   `RDL2_synstruta_wiki`.
-9. **UIMA type.** The CAS type is `org.texttechnologylab.uima.type.cohmetrix.<label_v3>`,
-   or `<label_ttlab>` for project-only indices. Language variants and rule-5
-   variants share one type and are distinguished by `labelTTLab`. A new
-   project-only index needs a matching type in `TypeSystem.xml`.
-10. **Suffixes name the kind of resource, not the tool or vendor.** Examples:
-    `_llmlist` for a word list generated with an LLM (not the model name),
-    `_mrctranslate` for a translated resource (not the translation service),
-    `_textstat` for the library (not the language-specific formula it uses
-    internally, such as Amstad's Flesch variant for German).
+   `WRDFRQc`; `WRDFRQc` is the Wikipedia variant (`WRDFRQc_WIKI`).
+10. **UIMA type.** The CAS type is
+    `org.texttechnologylab.uima.type.cohmetrix.<label_v3>`. A new index needs
+    a matching type in `TypeSystem.xml`.
 
-### Suffixes
+### Groups
 
-Public suffixes describe how the English implementation deviates from the
-original and are the same for all languages; internal suffixes name the
-concrete resource per language.
+| Group      | Kind   | Meaning                                                                                          |
+|------------|--------|--------------------------------------------------------------------------------------------------|
+| `REFIT`    | method | Model fitted again on another reference corpus (Text Easability PCA)                             |
+| `EMB`      | method | Vector space instead of the TASA LSA space                                                       |
+| `CLEAR`    | data   | CLEAR corpus, reference corpus of the English Text Easability model                              |
+| `CLEARtr`  | data   | CLEAR translated into German, reference corpus of the German model                               |
+| `SPACYxx`  | data   | spaCy token vectors from a model of size `xx` (`sm`, `md`, `lg`, `trf`); `SPACY` if unknown (see [Vectors](#vectors)) |
+| `LLMlist`  | data   | Word list generated with an LLM                                                                  |
+| `WN`       | data   | Princeton WordNet                                                                                |
+| `GN`       | data   | GermaNet                                                                                         |
+| `SEEDlist` | data   | Hand-written seed list (fallback without GermaNet)                                               |
+| `MRC`      | data   | MRC Psycholinguistic Database                                                                    |
+| `MRCtr`    | data   | MRC translated into German                                                                       |
+| `WIKI`     | data   | Word frequencies from a Wikipedia sample instead of CELEX                                        |
+| `TEXTSTAT` | data   | Computed with the textstat library                                                               |
 
-| Public (`label_ttlab`) | English implementation (original)              | Internal EN      | Internal DE          |
-|------------------------|------------------------------------------------|------------------|----------------------|
-| *(none)*               | Princeton WordNet (same)                       | *(none)*         | `_germanet`          |
-| *(none)*               | MRC database (same)                            | *(none)*         | `_mrctranslate`      |
-| `_wiki`                | Wikipedia sample (CELEX)                       | `_enwiki10000`   | `_dewiki10000`       |
-| `_clear`               | CLEAR corpus (TASA)                            | `_clear`         | `_cleartranslate`    |
-| `_spacy`               | spaCy vectors (TASA LSA space)                 | `_spacy`         | `_spacy`             |
-| `_textstat`            | textstat library (Coh-Metrix formulas)         | `_textstat`      | `_textstat`          |
-| `_llmlist`             | LLM-generated word lists (Coh-Metrix lists)    | `_llmlist`       | `_llmlist`           |
+### Labels and comparability
 
-Adding a language changes only internal labels, as long as its resources are
-counterparts of the English ones. Example: a French wordnet keeps the public
-label `WRDPOLc` and gets the internal label `WRDPOLc_<resource name>`. A new
-public suffix is only needed when the English implementation changes.
+The internal label names what was used, but not whether the value is
+comparable to Coh-Metrix 3.0. That is the comparability column, per language
+(also returned by `GET /v1/indices`):
+
+| Value         | Meaning                                                                               |
+|---------------|---------------------------------------------------------------------------------------|
+| `original`    | Same method and resource as Coh-Metrix 3.0; differences come only from preprocessing |
+| `counterpart` | The language's counterpart of the original resource or formula (GermaNet, Amstad)    |
+| `translated`  | The original resource, translated                                                     |
+| `corpus`      | Another corpus than the original (Wikipedia instead of CELEX)                         |
+| `llmlist`     | A word list generated with an LLM instead of the original list                        |
+| `emb`         | Another vector space than the TASA LSA space                                          |
+| `refit`       | The model fitted again on another reference corpus                                    |
+| `seedlist`    | A hand-written fallback list                                                          |
+| `ext`         | Not in Coh-Metrix 3.0                                                                 |
+
+German values are never directly comparable to English norms, also where the
+column says `original`.
+
+| Indices                                                                            | Public      | Internal EN           | Internal DE                                    | Comparable EN | Comparable DE          |
+|------------------------------------------------------------------------------------|-------------|-----------------------|------------------------------------------------|---------------|------------------------|
+| DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p                        | V3          | same as public        | same as public                                 | original      | original               |
+| PC* (16)                                                                           | `PCNARz`    | `PCNARz_REFIT_CLEAR`  | `PCNARz_REFIT_CLEARtr`                         | refit         | refit                  |
+| LSA* (8), SMCAUSlsa                                                                | `LSASS1`    | `LSASS1_EMB_SPACYlg`  | `LSASS1_EMB_SPACYlg`                           | emb           | emb                    |
+| CNC* (9), SMTEMP, DRNEG                                                            | `CNCAll`    | `CNCAll_LLMlist`      | `CNCAll_LLMlist`                               | llmlist       | llmlist                |
+| SMCAUSv, SMINTEp                                                                   | `SMCAUSv`   | `SMCAUSv_WN`          | `SMCAUSv_GN` / `SMCAUSv_SEEDlist`              | original      | counterpart / seedlist |
+| SMCAUSvp, SMCAUSr, SMINTEr                                                         | `SMCAUSvp`  | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist  | counterpart / seedlist, llmlist |
+| SMCAUSwn, WRDPOLc, WRDHYPn/v/nv                                                    | `WRDPOLc`   | `WRDPOLc_WN`          | `WRDPOLc_GN`                                   | original      | counterpart            |
+| WRDAOAc, WRDFAMc, WRDCNCc, WRDIMGc, WRDMEAc                                        | `WRDAOAc`   | `WRDAOAc_MRC`         | `WRDAOAc_MRCtr`                                | original      | translated             |
+| WRDFRQc, WRDFRQa, WRDFRQmc                                                         | `WRDFRQc`   | `WRDFRQc_WIKI`        | `WRDFRQc_WIKI`                                 | corpus        | corpus                 |
+| RDFRE                                                                              | `RDFRE`     | `RDFRE_TEXTSTAT`      | `RDFRE_TEXTSTAT`                               | original      | counterpart            |
+| RDFKGL                                                                             | `RDFKGL`    | `RDFKGL_TEXTSTAT`     | `RDFKGL_TEXTSTAT`                              | original      | original               |
+| RDFOG, RDSMOG, RDARI, RDCLI, RDLW, RDDCRS, RDSPACHE, RDWSTF1–4 (all `_ext`)        | `RDFOG_ext` | `RDFOG_ext_TEXTSTAT`  | `RDFOG_ext_TEXTSTAT`                           | ext           | ext                    |
+| RDL2 (with SYNSTRUTa)                                                              | `RDL2`      | `RDL2_WIKI`           | `RDL2_WIKI`                                    | corpus        | corpus                 |
+| RDL2 with SYNSTRUTt instead of SYNSTRUTa                                           | `RDL2t_ext` | `RDL2t_ext_WIKI`      | `RDL2t_ext_WIKI`                               | ext           | ext                    |
+
+Rows with several indices show the first one; the others follow the same
+pattern (`LSAGNd_EMB_SPACYlg`, `DRNEG_LLMlist`, `WRDHYPv_GN`, ...). Other
+languages than German use the English resources. RDL2 (Crossley, Greenfield &
+McNamara 2008) only says "syntactic similarity"; the variant with the
+adjacent-sentence measure SYNSTRUTa matches its other adjacent-sentence inputs
+and keeps `RDL2`, the variant with SYNSTRUTt is the project-only `RDL2t_ext`.
+
+Adding a language changes only internal labels: a French wordnet keeps the
+public label `WRDPOLc` and gets a new group, e.g. `WRDPOLc_WOLF`.
 
 ### Index version
 
@@ -381,22 +428,27 @@ new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:
     .withParameter("exclude_indices", "DESPC,LSAGN,LSAGNd")
 ```
 
-Both take a comma-separated list of names, matched case-insensitively:
+Both take a comma-separated list of names, matched case-insensitively, from
+least to most specific:
 
-- `*`: all indices;
-- an index group (the `type_name`, e.g. `Descriptive`, `LSA`, `Word Information`);
-- a single index, by its public label `label_ttlab` (`LSAGN_spacy`) or its V3
-  label (`LSAGN`). The V3 label `RDL2` selects both RDL2 variants.
+1. `*`: all indices;
+2. an index group (the `type_name`, e.g. `Descriptive`, `LSA`, `Word Information`);
+3. a prefix of the internal label, ending in `*`: `RDL2*` (RDL2 and
+   `RDL2t_ext`), `PCNAR*`, `LSAGN*` (LSAGN and LSAGNd), `WRDPOLc_G*`;
+4. a public label (`LSAGN`, `RDFOG_ext`);
+5. an internal label (`WRDPOLc_GN`, `LSASS1_EMB_SPACYlg`).
 
-Only these language-independent names are accepted, so the same parameters
-select the same indices in a mixed-language corpus: `exclude_indices=WRDPOLc`
-removes polysemy for English (WordNet) and German (GermaNet). Internal labels
-such as `WRDPOLc_germanet` are not accepted. `GET /v1/indices` lists all
-indices with their group, public and V3 label.
+A name without `*` is exact: `LSAGN` does not select `LSAGNd`. Prefixes are
+matched against the internal label, which starts with the public label, so
+`WRDPOLc*` selects polysemy in every language, while `WRDPOLc_G*` or
+`WRDPOLc_GN` only match German documents. Public labels and groups select the
+same indices in a mixed-language corpus. `GET /v1/indices` lists all indices
+with their group, public label, internal label per language (vectors as
+`SPACY*`) and comparability.
 
-For each index, the most specific matching name decides: a single index beats
-its group, a group beats `*`. If an index is named in both lists on the same
-level, it is excluded. An empty `include_indices` means `*`. Examples:
+For each index, the most specific matching name decides; among prefixes, the
+longer one. If the most specific match is in both lists, the index is
+excluded. An empty `include_indices` means `*`. Examples:
 
 | `include_indices` | `exclude_indices`      | Result                                  |
 |-------------------|------------------------|-----------------------------------------|
@@ -406,15 +458,47 @@ level, it is excluded. An empty `include_indices` means `*`. Examples:
 | `DESWC,LSAGN`     |                        | only DESWC and LSAGN                    |
 | `*,DESWC`         | `Descriptive`          | all except Descriptive, but with DESWC  |
 | `DESWC`           | `Descriptive`          | only DESWC                              |
+| `RD*`             | `RDL2*`                | Readability without RDL2 and RDL2t_ext  |
+| `Readability`     | `*_ext`                | all Readability: `*` only works at the end, so `*_ext` is an unknown name (warning) |
 
 Indices computed from other indices (`RDL2`, the Text Easability components)
 compute their inputs as well, but the inputs are only output if they are
-selected themselves. Unknown names are logged as a warning and ignored; for an
-internal label the warning names the public label to use. If
+selected themselves. Unknown names are logged as a warning and ignored; for a
+label of the previous scheme (e.g. `LSASS1_spacy`) the warning names the
+public label to use. A name that only exists in another language (e.g.
+`WRDPOLc_GN` in an English document) selects nothing, without a warning. If
 `include_indices` contains only unknown names, nothing is computed.
 
 Skipping indices also skips their shared preprocessing, e.g. the LSA vectors,
 connective counts or hypernymy lookups.
+
+### Vectors
+
+The LSA indices and `SMCAUSlsa` use token vectors. The optional parameter
+`vectors` chooses their source:
+
+```java
+new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:latest")
+    .withParameter("vectors", "SPACY")
+```
+
+- `SPACY` (default): the vectors of the `SpacyToken` annotations. The model
+  size goes into the internal label (`LSASS1_EMB_SPACYlg`) and is read from the
+  CAS: the Lua layer sends the `modelName` of the `SpacyAnnotatorMetaData` that
+  references the first `SpacyToken` (the layout of the `duui-spacy`
+  component), and its last part (`sm`, `md`, `lg`, `trf`) is the size. Without
+  that metadata the group is `SPACY` and a warning is logged. A size in the
+  parameter (`SPACYlg`) is only used when the CAS has none; if the CAS says
+  otherwise, the CAS wins and a warning is logged.
+- Other names are reserved for vectors from the user's own embedding
+  annotation (not supported yet): the LSA indices are `None` with an error.
+
+The size matters: a spaCy `sm` model has no static word vectors, so spaCy
+returns rows of the contextual `doc.tensor` instead. A `trf` model returns no
+token vectors at all. If no token of a document has a vector, the component
+logs a warning and the LSA indices and `SMCAUSlsa` are `None` with the error
+`No token vectors (<group>)`. Single tokens without a vector (words outside
+the model's vocabulary) are normal and are skipped.
 
 ### Component logging
 

@@ -1,7 +1,8 @@
 """Collect the Coh-Metrix indices of a directory of DUUI output XMIs into one CSV.
 
 One row per document: the document id, all MetaDataStringFields (for CLEAR the corpus columns, see
-DUUIClearCorpusReader) and one column per index, keyed by labelTTLab (NaN stays NaN).
+DUUIClearCorpusReader) and one column per index, keyed by the public label labelV3 (NaN stays NaN). Needs XMIs of version 0.2.0 or
+later (two-layer labels, docs/label-scheme.md).
 
 Usage: python extract_indices.py <xmi_dir> <output.csv>
 """
@@ -25,7 +26,7 @@ def read_document(path: Path, typesystem: cassis.TypeSystem) -> dict:
     for field in cas.select(METADATA_FIELD_TYPE):
         row["meta_" + field.get("key")] = field.get("value")
     for index in cas.select(INDEX_TYPE):
-        label = index.get("labelTTLab")
+        label = index.get("labelV3")
         if label in row:
             raise ValueError(f"{path}: duplicate index label {label}")
         row[label] = index.get("value")

@@ -66,9 +66,11 @@ public class CohMetrixDockerValidationTest {
 //            "duui-coh-metrix:review-fixes-20260909";
 //    static final String DOCKER_IMAGE =
 //            "docker.texttechnologylab.org/duui-coh-metrix:0.1.2";
-    // TODO replace with the released image; local build of the working tree (new labels, Text Easability)
+//    static final String DOCKER_IMAGE =
+//            "duui-coh-metrix:easability-dev";
+    // two-layer labels (docs/label-scheme.md); built by src/main/bash/docker_build.sh
     static final String DOCKER_IMAGE =
-            "duui-coh-metrix:easability-dev";
+            "docker.texttechnologylab.org/duui-coh-metrix:0.2.0";
 
     /**
      * Optional host path to the licensed GermaNet XML directory.
@@ -107,11 +109,10 @@ public class CohMetrixDockerValidationTest {
     /**
      * Text Easability models (easability/pca.py, text_easability_<language>.json),
      * also baked into the image. The PC scores are recomputed from the
-     * component's own input indices; the public label suffix is the same for
-     * all languages, the internal one is the model's label_suffix.
+     * component's own input indices; the public labels are the V3 labels, the
+     * internal ones carry the model's label_suffix.
      */
     static final Path TEXT_EASABILITY_MODELS = Path.of("src/main/resources/easability");
-    static final String TEXT_EASABILITY_SUFFIX = "_clear";
     static final double TEXT_EASABILITY_TOLERANCE = 1e-9;
 
     static DUUIComposer composer;
@@ -373,8 +374,8 @@ public class CohMetrixDockerValidationTest {
         textEasabilityModel(language).getJSONArray("components").forEach(component -> {
             for (String key : List.of("label_v3_z", "label_v3_p")) {
                 String label = ((JSONObject) component).getString(key);
-                assertTrue(result.values().containsKey(label + TEXT_EASABILITY_SUFFIX),
-                        () -> "Docker output does not contain " + label + TEXT_EASABILITY_SUFFIX);
+                assertTrue(result.values().containsKey(label),
+                        () -> "Docker output does not contain " + label);
             }
         });
         result.values().forEach((label, ignored) -> {
@@ -421,7 +422,7 @@ public class CohMetrixDockerValidationTest {
                     for (int i = 0; i < standardized.length; i++) {
                         JSONObject input = model.getJSONArray("inputs").getJSONObject(i);
                         double sum = 0;
-                        for (Object label : input.getJSONArray("labels_ttlab")) {
+                        for (Object label : input.getJSONArray("labels_v3")) {
                             sum += requireCleanResult(result, (String) label);
                         }
                         if (Double.isNaN(sum)) {
@@ -433,8 +434,8 @@ public class CohMetrixDockerValidationTest {
 
                     for (Object entry : model.getJSONArray("components")) {
                         JSONObject component = (JSONObject) entry;
-                        String zLabel = component.getString("label_v3_z") + TEXT_EASABILITY_SUFFIX;
-                        String pLabel = component.getString("label_v3_p") + TEXT_EASABILITY_SUFFIX;
+                        String zLabel = component.getString("label_v3_z");
+                        String pLabel = component.getString("label_v3_p");
                         double z = requireCleanResult(result, zLabel);
                         double p = requireCleanResult(result, pLabel);
                         String internal = component.getString("label_v3_z") + internalSuffix;
@@ -648,8 +649,6 @@ public class CohMetrixDockerValidationTest {
         Type indexType = requireType(cas, INDEX_TYPE);
         Feature labelV3 = requireFeature(indexType, "labelV3");
         Feature labelTTLab = requireFeature(indexType, "labelTTLab");
-        // labelInternal was added after 0.1.2; older images do not have it.
-        Feature labelInternal = indexType.getFeatureByBaseName("labelInternal");
         Feature valueFeature = requireFeature(indexType, "value");
         Feature errorFeature = indexType.getFeatureByBaseName("error");
 
@@ -659,12 +658,10 @@ public class CohMetrixDockerValidationTest {
         for (FeatureStructure index : indexed(cas, indexType)) {
             String v3 = index.getStringValue(labelV3);
             String ttlab = index.getStringValue(labelTTLab);
-            String internal = labelInternal == null ? null : index.getStringValue(labelInternal);
             double value = index.getDoubleValue(valueFeature);
             String error = errorFeature == null ? null : index.getStringValue(errorFeature);
 
             putLabel(values, errors, ttlab, value, error, false);
-            putLabel(values, errors, internal, value, error, false);
             putLabel(values, errors, v3, value, error, true);
         }
 
