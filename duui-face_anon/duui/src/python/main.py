@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
 from io import BytesIO
 import logging
+import threading
+import time
 from typing import Optional, Dict, List
 
 from pydantic import BaseModel
@@ -37,9 +40,6 @@ from utils.video import process_video
 # --- duui communication classes
 logger: Optional[logging.Logger] = None
 device: Optional[torch.device] = None
-pipe: Optional[StableDiffusionReferenceNetPipeline] = None
-generator: Optional[torch.Generator] = None
-fa: Optional[face_alignment.FaceAlignment] = None
 
 # -- static typesystem --
 typesystem_filename = 'resources/typesystem_face_anon.xml'
@@ -54,7 +54,7 @@ def single_aligned_face(source_image,
                         guidance_scale,
                         anonymization_degree,
                         height,
-                        width, vis_input, generator)-> Image:
+                        width, vis_input, generator, pipe)-> Image:
     """
 
     :param source_image: image to be anonymized
@@ -92,7 +92,9 @@ def multiple_aligned_face(
         inference_steps,
         guidance_scale,
         anonymization_degree,
-        generator
+        generator,
+        pipe,
+        fa
 )->Image:
     """
 
@@ -128,7 +130,8 @@ def swap_faces(
         width,
         height,
         vis_input,
-        generator
+        generator,
+        pipe
 ):
     """
 
@@ -143,7 +146,6 @@ def swap_faces(
     :return:
     """""
     # generate an image that swaps faces
-    assert pipe is not None
     with torch.no_grad():
         swap_image = pipe(
             source_image=source_image,
@@ -241,51 +243,119 @@ def init():
 
 
 
-def load_pipeline(clip_model, diffusion_model, seed, token):
-    global pipe, generator, fa
-    if pipe is not None:
-        del pipe
-        torch.cuda.empty_cache()
+class _PipelineCache:
+    """LRU cache of loaded pipelines that also unloads entries idle longer than their ``ttl`` seconds.
+
+    ``ttl`` and ``maxsize`` come from the request (DUUI parameters ``model_ttl_seconds`` and
+    ``model_cache_size``); the values of the latest request using a model apply to it.
+    """
+
+    def __init__(self) -> None:
+        self._entries: OrderedDict[tuple, list] = OrderedDict()  # key -> [pipeline, last_used, ttl]
+        self._lock = threading.RLock()
+        self._sweeper: Optional[threading.Thread] = None
+
+    def get(self, key: tuple, loader, ttl: int, maxsize: int):
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                entry = [loader(), 0.0, ttl]
+                self._entries[key] = entry
+            while len(self._entries) > max(1, maxsize):
+                old_key, _ = self._entries.popitem(last=False)
+                logger.info("Unloading pipeline (cache full): %s", old_key)
+                self._release()
+            entry[1] = time.monotonic()
+            entry[2] = ttl
+            self._entries.move_to_end(key)
+            self._start_sweeper()
+            return entry[0]
+
+    def evict_expired(self) -> None:
+        now = time.monotonic()
+        with self._lock:
+            expired = [k for k, (_, last_used, ttl) in self._entries.items() if 0 < ttl < now - last_used]
+            for key in expired:
+                logger.info("Unloading pipeline (idle > %ds): %s", self._entries[key][2], key)
+                del self._entries[key]
+            if expired:
+                self._release()
+
+    def _next_interval(self) -> int:
+        with self._lock:
+            ttls = [ttl for _, _, ttl in self._entries.values() if ttl > 0]
+        return min(60, max(1, min(ttls) // 2)) if ttls else 60
+
+    def _start_sweeper(self) -> None:
+        if self._sweeper is not None:
+            return
+
+        def run() -> None:
+            while True:
+                time.sleep(self._next_interval())
+                try:
+                    self.evict_expired()
+                except Exception:
+                    logger.exception("Pipeline TTL sweep failed")
+
+        self._sweeper = threading.Thread(target=run, name="pipeline-ttl-sweeper", daemon=True)
+        self._sweeper.start()
+
+    @staticmethod
+    def _release() -> None:
         gc.collect()
-    # SFD (likely best results, but slower)
-    fa = face_alignment.FaceAlignment(
-        face_alignment.LandmarksType.TWO_D, face_detector="sfd"
-    )
-    face_model_id = "hkung/face-anon-simple"
-    unet = UNet2DConditionModel.from_pretrained(
-        face_model_id, subfolder="unet", use_safetensors=True, token=token, torch_dtype=torch.float16
-    )
-    referencenet = ReferenceNetModel.from_pretrained(
-        face_model_id, subfolder="referencenet", use_safetensors=True, token=token, torch_dtype=torch.float16
-    )
-    conditioning_referencenet = ReferenceNetModel.from_pretrained(
-        face_model_id, subfolder="conditioning_referencenet", use_safetensors=True, token=token, torch_dtype=torch.float16
-    )
-    vae = AutoencoderKL.from_pretrained(
-        diffusion_model, subfolder="vae", use_safetensors=True,token=token, torch_dtype=torch.float16
-    )
-    scheduler = DDPMScheduler.from_pretrained(
-        diffusion_model, subfolder="scheduler", use_safetensors=True, token=token)
-
-    feature_extractor = CLIPImageProcessor.from_pretrained(
-        clip_model, use_safetensors=True, token=token, torch_dtype=torch.float16
-    )
-    image_encoder = CLIPVisionModel.from_pretrained(
-        clip_model, use_safetensors=True, token=token, torch_dtype=torch.float16
-    )
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
-    pipe = StableDiffusionReferenceNetPipeline(
-        unet=unet,
-        referencenet=referencenet,
-        conditioning_referencenet=conditioning_referencenet,
-        vae=vae,
-        feature_extractor=feature_extractor,
-        image_encoder=image_encoder,
-        scheduler=scheduler,
-    )
-    pipe = pipe.to("cuda")
-    generator = torch.Generator(device="cuda").manual_seed(seed)
+_pipelines = _PipelineCache()
+
+
+def load_pipeline(clip_model, diffusion_model, token, ttl, maxsize):
+    """Return a cached ``(pipe, fa)`` tuple for the given models, loading it if needed."""
+    def load():
+        logger.info("Loading pipeline: clip_model=%s diffusion_model=%s", clip_model, diffusion_model)
+        # SFD (likely best results, but slower)
+        fa = face_alignment.FaceAlignment(
+            face_alignment.LandmarksType.TWO_D, face_detector="sfd"
+        )
+        face_model_id = "hkung/face-anon-simple"
+        unet = UNet2DConditionModel.from_pretrained(
+            face_model_id, subfolder="unet", use_safetensors=True, token=token, torch_dtype=torch.float16
+        )
+        referencenet = ReferenceNetModel.from_pretrained(
+            face_model_id, subfolder="referencenet", use_safetensors=True, token=token, torch_dtype=torch.float16
+        )
+        conditioning_referencenet = ReferenceNetModel.from_pretrained(
+            face_model_id, subfolder="conditioning_referencenet", use_safetensors=True, token=token, torch_dtype=torch.float16
+        )
+        vae = AutoencoderKL.from_pretrained(
+            diffusion_model, subfolder="vae", use_safetensors=True,token=token, torch_dtype=torch.float16
+        )
+        scheduler = DDPMScheduler.from_pretrained(
+            diffusion_model, subfolder="scheduler", use_safetensors=True, token=token)
+
+        feature_extractor = CLIPImageProcessor.from_pretrained(
+            clip_model, use_safetensors=True, token=token, torch_dtype=torch.float16
+        )
+        image_encoder = CLIPVisionModel.from_pretrained(
+            clip_model, use_safetensors=True, token=token, torch_dtype=torch.float16
+        )
+
+
+        pipe = StableDiffusionReferenceNetPipeline(
+            unet=unet,
+            referencenet=referencenet,
+            conditioning_referencenet=conditioning_referencenet,
+            vae=vae,
+            feature_extractor=feature_extractor,
+            image_encoder=image_encoder,
+            scheduler=scheduler,
+        )
+        pipe = pipe.to("cuda")
+        return pipe, fa
+
+    return _pipelines.get((clip_model, diffusion_model), load, ttl=ttl, maxsize=maxsize)
 
 
 # === the container
@@ -298,7 +368,7 @@ app = FastAPI(
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     title="duui-face_anon",
     description="Implementation of [WACV 2025] 'Face Anonymization Made Simple' for DUUI.",
-    version="0.1",
+    version="0.2",
     contact={
         "name": "Coco Sittardt, TTLab Team",
         "url": "https://texttechnologylab.org",
@@ -418,14 +488,15 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
             raise ValueError(
                 f"You have passed a total number of {len(images)} images. To swap you need to pass exactly 2.")
         requires_pipeline = anon_type != "redact" and (images or videos)
+        pipe = fa = generator = None
         if requires_pipeline:
-            load_pipeline(clip_model, diffusion_model, seed, hf_token)
+            pipe, fa = load_pipeline(
+                clip_model, diffusion_model, hf_token,
+                ttl=request.model_ttl_seconds, maxsize=request.model_cache_size,
+            )
+            generator = torch.Generator(device="cuda").manual_seed(seed)
         # selection between the different anon types:
         # options: single_align, multiple_align, swap, redact
-
-        generator = None
-        if requires_pipeline:
-            generator = torch.Generator(device="cuda").manual_seed(seed)
 
         for img in images:
             # these can be "None" and will then be set later in the loop, UNLESS predefined height / width is passed
@@ -453,7 +524,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
 
                 output = single_aligned_face(source_image, inference_steps=inference_steps,
                                              guidance_scale=guidance, anonymization_degree=anon_degree, height=height,
-                                             width=width, vis_input=vis_input, generator=generator)
+                                             width=width, vis_input=vis_input, generator=generator, pipe=pipe)
 
             elif anon_type == "multiple_align":
                 if height != width:
@@ -466,7 +537,9 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     inference_steps=inference_steps,
                     guidance_scale=guidance,
                     anonymization_degree=anon_degree,
-                    generator=generator
+                    generator=generator,
+                    pipe=pipe,
+                    fa=fa
                 )
 
 
@@ -481,7 +554,8 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     width=width,
                     height=height,
                     vis_input=vis_input,
-                    generator=generator
+                    generator=generator,
+                    pipe=pipe
                 )
 
 
@@ -558,6 +632,7 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     width=width,
                     vis_input=False,
                     generator=generator,
+                    pipe=pipe,
                 )
             if anon_type == "multiple_align":
                 return multiple_aligned_face(
@@ -567,6 +642,8 @@ def post_process(request:DUUIRequest)-> DUUIResponse:
                     guidance_scale=guidance,
                     anonymization_degree=anon_degree,
                     generator=generator,
+                    pipe=pipe,
+                    fa=fa,
                 )
             raise ValueError(f"Unsupported video anon_type: {anon_type}")
 
