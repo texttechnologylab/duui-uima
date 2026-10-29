@@ -28,12 +28,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * benepar_de2, written to {@link SpacyToken#getBeneparLabels()} (labels of the constituents that consist of exactly
  * this token; null if there is none).
  *
- * <p>Needs the spaCy service on {@code localhost:9714} (Docker image, or {@code uvicorn textimager_duui_spacy:app}),
- * as the other tests here. Uses {@code model_variant=large} (de_core_news_lg / en_core_web_lg). Memory: de_core_news_lg
+ * <p>Needs the spaCy service with benepar (image built with {@code TEXTIMAGER_SPACY_WITH_BENEPAR=true}, or
+ * {@code uvicorn textimager_duui_spacy:app}), URL from the system property {@code spacy.url} (default
+ * {@code http://localhost:9714}). Uses {@code model_variant=large} (de_core_news_lg / en_core_web_lg). Memory: de_core_news_lg
  * with benepar_de2 needs up to ~6 GB while loading; with less RAM start the service with
  * {@code TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=1}.
  */
 public class SpaCyBeneparTest {
+    private static final String SPACY_URL = System.getProperty("spacy.url", "http://localhost:9714");
     static JCas cas;
 
     @BeforeAll
@@ -55,7 +57,7 @@ public class SpaCyBeneparTest {
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
         composer.addDriver(new DUUIRemoteDriver());
-        composer.add(new DUUIRemoteDriver.Component("http://localhost:9714")
+        composer.add(new DUUIRemoteDriver.Component(SPACY_URL)
                 .withParameter("use_benepar", String.valueOf(useBenepar))
                 .withParameter("model_variant", "large")
                 .build()
