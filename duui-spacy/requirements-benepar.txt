@@ -1,8 +1,10 @@
-# benepar (parameter use_benepar), installed with --no-deps after requirements.txt, only in the multi-model image
-# (Dockerfile). torch: CPU build from the PyTorch index. benepar 0.2.0 needs transformers 4.30.x (transformers 5
-# removed build_inputs_with_special_tokens; from 4.31 benepar_de2 fails on embeddings.position_ids), which needs
-# tokenizers 0.13.x (wheels only up to Python 3.11) and protobuf 3.20.x.
+# benepar (parameter use_benepar), installed with --no-deps after requirements.txt, only in images built with
+# TEXTIMAGER_SPACY_WITH_BENEPAR=true. Resolved by pip (2026-10-30) on top of requirements.txt from: benepar,
+# transformers==4.30.2, protobuf<4, torch (CPU build from the PyTorch index). benepar 0.2.0 needs transformers 4.30.x
+# (transformers 5 removed build_inputs_with_special_tokens; from 4.31 benepar_de2 fails on embeddings.position_ids),
+# which needs protobuf 3.20.x and tokenizers 0.13.x (wheels only up to Python 3.11).
 --extra-index-url https://download.pytorch.org/whl/cpu
+accelerate==1.15.0
 benepar==0.2.0
 cloudpickle==3.1.2
 defusedxml==0.7.1
@@ -15,6 +17,7 @@ mpmath==1.3.0
 networkx==3.6.1
 nltk==3.10.4
 protobuf==3.20.3
+psutil==7.2.2
 PyYAML==6.0.3
 regex==2026.9.29
 safetensors==0.8.0
