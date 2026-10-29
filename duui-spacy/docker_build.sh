@@ -17,10 +17,16 @@ export TEXTIMAGER_SPACY_VARIANT=
 
 # extra name
 export TEXTIMAGER_SPACY_NAME_EXTRA=-en-de
-#export TEXTIMAGER_SPACY_NAME_EXTRA=-benepar-en-de-fr
+
+# benepar (constituency parser, parameter use_benepar): "true" adds the benepar stack (requirements-benepar.txt, torch)
+# and its models (en, de) to the image, and "-benepar" to the image name
+export TEXTIMAGER_SPACY_WITH_BENEPAR=false
+if [ "${TEXTIMAGER_SPACY_WITH_BENEPAR}" = "true" ]; then
+  TEXTIMAGER_SPACY_NAME_EXTRA=-benepar${TEXTIMAGER_SPACY_NAME_EXTRA}
+fi
 
 export TEXTIMAGER_SPACY_ANNOTATOR_NAME=duui-spacy${TEXTIMAGER_SPACY_VARIANT}${TEXTIMAGER_SPACY_NAME_EXTRA}
-export TEXTIMAGER_SPACY_ANNOTATOR_VERSION=0.6.0
+export TEXTIMAGER_SPACY_ANNOTATOR_VERSION=0.7.0
 export TEXTIMAGER_SPACY_LOG_LEVEL=DEBUG
 export TEXTIMAGER_SPACY_MODEL_CACHE_SIZE=3
 
@@ -31,6 +37,7 @@ docker build \
   --build-arg TEXTIMAGER_SPACY_ANNOTATOR_NAME \
   --build-arg TEXTIMAGER_SPACY_ANNOTATOR_VERSION \
   --build-arg TEXTIMAGER_SPACY_LOG_LEVEL \
+  --build-arg TEXTIMAGER_SPACY_WITH_BENEPAR \
   -t ${DOCKER_REGISTRY}${TEXTIMAGER_SPACY_ANNOTATOR_NAME}:${TEXTIMAGER_SPACY_ANNOTATOR_VERSION} \
   -f src/main/docker/Dockerfile \
   .

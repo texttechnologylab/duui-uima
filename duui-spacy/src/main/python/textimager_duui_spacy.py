@@ -94,12 +94,98 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = {
 }
 TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings.variant])
 
-# benepar models
+# benepar models (benepar 0.2.0, the latest release; downloaded in the Dockerfile)
 # TODO configurable
 BENEPAR_MODELS = {
-    # "en": "benepar_en3",
-    # "de": "benepar_de2",
+    "en": "benepar_en3",
+    "de": "benepar_de2",
 }
+
+# spaCy factory name of the benepar component used here, see register_benepar_component()
+BENEPAR_COMPONENT = "benepar_skip_long_sentences"
+benepar_component_registered = False
+
+
+def register_benepar_component():
+    """
+    Register benepar's spaCy component in a variant that skips the sentences benepar cannot parse.
+
+    benepar rejects a sentence with more than 512 sub-word tokens of its transformer model (ValueError), and its own
+    component then fails for the whole document. This variant parses all sentences at once as benepar does and, only
+    if that fails, sentence by sentence, skipping (and logging) every sentence that raises the ValueError. The tokens
+    of skipped sentences get no constituents (their POS tags stay spaCy's); the start/end token indices of the skipped
+    sentences are stored in Doc._.benepar_skipped_sentences.
+
+    benepar's finalize() marks tokens without constituents with -1 in loc_to_constituent, which would make the label
+    lookup of the token before a skipped sentence search an empty range (NonConstituentException); these entries are
+    therefore set to the position of the next constituent.
+
+    Imported lazily, as benepar is only installed in images built with TEXTIMAGER_SPACY_WITH_BENEPAR=true
+    (docker_build.sh), not in the others and not in the single model images.
+    """
+    global benepar_component_registered
+    if benepar_component_registered:
+        return
+
+    try:
+        import benepar  # noqa: F401 registers benepar's extensions (Token._.labels, Span._.parse_string, ...)
+    except ImportError as ex:
+        raise Exception("benepar is not installed in this image (build it with TEXTIMAGER_SPACY_WITH_BENEPAR=true)") from ex
+    from benepar.integrations.spacy_plugin import BeneparComponent, PartialConstituentData, SentenceWrapper
+    from spacy.language import Language
+
+    Doc.set_extension("benepar_skipped_sentences", default=None, force=True)
+
+    class BeneparSkipLongSentences(BeneparComponent):
+        def _parse(self, sents):
+            return list(self._parser.parse(
+                [SentenceWrapper(sent) for sent in sents],
+                return_compressed=True,
+                subbatch_max_tokens=self.subbatch_max_tokens,
+            ))
+
+        def __call__(self, doc):
+            sents = list(doc.sents)
+            try:
+                parsed_sents, parses = sents, self._parse(sents)
+            except ValueError:
+                parsed_sents, parses = [], []
+                for sent in sents:
+                    try:
+                        parses.extend(self._parse([sent]))
+                        parsed_sents.append(sent)
+                    except ValueError as ex:
+                        logger.warning("benepar: skipping sentence (tokens %d-%d): %s", sent.start, sent.end, ex)
+
+            # as BeneparComponent.__call__, for the parsed sentences
+            constituent_data = PartialConstituentData()
+            for sent, parse in zip(parsed_sents, parses):
+                constituent_data.starts.append(parse.starts + sent.start)
+                constituent_data.ends.append(parse.ends + sent.start)
+                constituent_data.labels.append(parse.labels)
+                if parse.tags is not None and not self.disable_tagger:
+                    for i, tag_id in enumerate(parse.tags):
+                        sent[i].tag_ = self._tag_from_index[tag_id]
+            data = constituent_data.finalize(doc, self._label_from_index)
+
+            next_position = len(data.ends)
+            for i in range(len(data.loc_to_constituent) - 1, -1, -1):
+                if data.loc_to_constituent[i] < 0:
+                    data.loc_to_constituent[i] = next_position
+                else:
+                    next_position = data.loc_to_constituent[i]
+
+            doc._._constituent_data = data
+            parsed_starts = {sent.start for sent in parsed_sents}
+            doc._.benepar_skipped_sentences = [(sent.start, sent.end) for sent in sents if sent.start not in parsed_starts]
+            return doc
+
+    # same config as benepar's own factory "benepar" (benepar's default: its POS tags replace spaCy's)
+    @Language.factory(BENEPAR_COMPONENT, default_config={"subbatch_max_tokens": 500, "disable_tagger": False})
+    def create_benepar_skip_long_sentences(nlp, name, model: str, subbatch_max_tokens: int, disable_tagger: bool):
+        return BeneparSkipLongSentences(model, subbatch_max_tokens=subbatch_max_tokens, disable_tagger=disable_tagger)
+
+    benepar_component_registered = True
 
 # spaCy models
 # Supporting the efficient and accurate variants
@@ -133,16 +219,17 @@ SPACY_MODELS = {
         # "uk": "uk_core_news_sm",    # Ukrainian
         "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
-    "accuracy": {
+    # "accuracy" (trf models): not in the image, they need spacy-curated-transformers, which is not installed
+    # "accuracy": {
         # "ca": "ca_core_news_trf",
         # "zh": "zh_core_web_trf",
         # "hr": "hr_core_news_lg",
         # "da": "da_core_news_trf",
         # "nl": "nl_core_news_lg",
-        "en": "en_core_web_trf",
+    #     "en": "en_core_web_trf",
         # "fi": "fi_core_news_lg",
         # "fr": "fr_dep_news_trf",
-        "de": "de_dep_news_trf",
+    #     "de": "de_dep_news_trf",
         # "el": "el_core_news_lg",
         # "it": "it_core_news_lg",
         # "ja": "ja_core_news_trf",
@@ -158,8 +245,8 @@ SPACY_MODELS = {
         # "es": "es_dep_news_trf",
         # "sv": "sv_core_news_lg",
         # "uk": "uk_core_news_trf",
-        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
-    },
+    #     "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+    # },
     "large": {
         "en": "en_core_web_lg",
         "de": "de_core_news_lg",
@@ -267,7 +354,7 @@ class Token(BaseModel):
     is_digit: bool = None
     is_ascii: bool = None
     is_alpha: bool = None
-    benepar_labels: Optional[Tuple[str]] = None
+    benepar_labels: Optional[Tuple[str, ...]] = None
 
 
 # Dependency
@@ -448,12 +535,12 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
 
     logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
     if use_benepar:
-        # imported lazily, as benepar is not installed in the single model images
-        import benepar
-        # TODO check for model availability
+        if model_lang not in BENEPAR_MODELS:
+            raise Exception(f"No benepar model for language \"{model_lang}\" (available: {', '.join(sorted(BENEPAR_MODELS))})")
+        register_benepar_component()
         bnepar_model = BENEPAR_MODELS[model_lang]
         logger.info("benepar model: %s (based on lang %s)", bnepar_model, model_lang)
-        nlp.add_pipe("benepar", config={"model": bnepar_model})
+        nlp.add_pipe(BENEPAR_COMPONENT, config={"model": bnepar_model})
 
     return nlp
 
@@ -890,6 +977,14 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 # Token, Lemma, POS, Morphology
                 cas_tokens = {}
                 token_ind = 0
+                # tokens of sentences benepar skipped (too long) get no benepar labels
+                benepar_skipped_tokens = set()
+                if use_benepar:
+                    for skipped_start, skipped_end in doc._.benepar_skipped_sentences or []:
+                        benepar_skipped_tokens.update(range(skipped_start, skipped_end))
+                    if benepar_skipped_tokens:
+                        logger.warning("benepar: %d sentences (%d tokens) skipped",
+                                       len(doc._.benepar_skipped_sentences), len(benepar_skipped_tokens))
                 logger.debug("Writing Tokens...")
                 for token in doc:
                     if not token.is_space:
@@ -997,7 +1092,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                         )
 
                         # benepar
-                        if use_benepar:
+                        if use_benepar and token.i not in benepar_skipped_tokens:
                             current_token.benepar_labels = token._.labels
 
                         tokens.append(current_token)
