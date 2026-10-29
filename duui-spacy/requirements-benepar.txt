@@ -1,0 +1,26 @@
+# benepar (parameter use_benepar), installed with --no-deps after requirements.txt, only in the multi-model image
+# (Dockerfile). torch: CPU build from the PyTorch index. benepar 0.2.0 needs transformers 4.30.x (transformers 5
+# removed build_inputs_with_special_tokens; from 4.31 benepar_de2 fails on embeddings.position_ids), which needs
+# tokenizers 0.13.x (wheels only up to Python 3.11) and protobuf 3.20.x.
+--extra-index-url https://download.pytorch.org/whl/cpu
+benepar==0.2.0
+cloudpickle==3.1.2
+defusedxml==0.7.1
+filelock==4.2.4
+fsspec==2026.9.0
+hf-xet==1.7.1
+huggingface_hub==0.36.2
+joblib==1.6.0
+mpmath==1.3.0
+networkx==3.6.1
+nltk==3.10.4
+protobuf==3.20.3
+PyYAML==6.0.3
+regex==2026.9.29
+safetensors==0.8.0
+sentencepiece==0.2.2
+sympy==1.14.0
+tokenizers==0.13.3
+torch-struct==0.5
+torch==2.15.0+cpu
+transformers==4.30.2

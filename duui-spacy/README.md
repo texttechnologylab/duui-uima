@@ -2,6 +2,10 @@
 
 DUUI component for multi-task NLP annotation using [spaCy](https://spacy.io/).
 
+Versions: spaCy 3.8.18 with the models 3.8.0 (`*_core_*_sm`, `*_core_*_lg`, `xx_ent_wiki_sm`; parameter
+`model_variant`: `efficiency` (default, sm) or `large` (lg)), Python 3.11. The transformer models (`accuracy`) are not
+included. All packages are pinned in `requirements.txt`.
+
 # How To Use
 
 For using duui-spacy as a DUUI image it is necessary to use the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechnologylab/DockerUnifiedUIMAInterface).
@@ -46,7 +50,8 @@ with Self-Attention and Pre-Training", ACL 2019, https://aclanthology.org/P19-13
   (logged as a warning): its tokens get no labels and keep spaCy's tags; all other sentences are parsed.
 - Memory: loading `de_core_news_lg` with `benepar_de2` needs up to ~6 GB, and takes about a minute on the first
   request; use a DUUI timeout above that (`withTimeout`, in seconds).
-- Dependencies are pinned in `requirements.txt` (benepar 0.2.0 needs transformers 4.30.x, so Python 3.11).
+- Dependencies are pinned in `requirements-benepar.txt`, installed only in the multi-model image (benepar 0.2.0 needs
+  transformers 4.30.x, so Python 3.11).
 - Test: `SpaCyBeneparTest` (service on `localhost:9714`).
 
 ### Pretokenized input
@@ -58,8 +63,8 @@ boundaries of the given tokens. The given `Token`s are not changed: annotations 
 from a DUUI segment, so changes to them would be lost with a segmentation strategy. Afterwards the CAS contains both the
 `Token` and the `SpacyToken` for every token; remove the plain tokens if needed (e.g. with `duui-remove-annotations`).
 
-With `use_existing_sentences`, the parser keeps the given sentence boundaries (checked with spaCy 3.7.2,
-`de_core_news_lg` and `en_core_web_lg`).
+With `use_existing_sentences`, the parser keeps the given sentence boundaries (checked with spaCy 3.8.18,
+`de_core_news_lg` and `en_core_web_lg` 3.8.0).
 
 # Cite
 

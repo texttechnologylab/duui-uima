@@ -12,6 +12,9 @@ EXPOSE 9714
 RUN pip install pip setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
+# benepar stack (only in this multi-model image, not in the single model images)
+COPY ./requirements-benepar.txt ./requirements-benepar.txt
+RUN pip install --no-deps -r requirements-benepar.txt
 
 # languages/models
 # - efficiency
@@ -44,9 +47,9 @@ RUN python -m spacy download "xx_ent_wiki_sm"
 RUN python -m spacy download "en_core_web_lg"
 RUN python -m spacy download "de_core_news_lg"
 #RUN python -m spacy download "fr_core_news_lg"
-# - accuracy
-RUN python -m spacy download "en_core_web_trf"
-RUN python -m spacy download "de_dep_news_trf"
+# - accuracy: not in the image (the trf models need spacy-curated-transformers, which is not installed)
+#RUN python -m spacy download "en_core_web_trf"
+#RUN python -m spacy download "de_dep_news_trf"
 #RUN python -m spacy download "ca_core_news_trf"
 #RUN python -m spacy download "zh_core_web_trf"
 #RUN python -m spacy download "hr_core_news_lg"
