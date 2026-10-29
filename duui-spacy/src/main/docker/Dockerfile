@@ -12,9 +12,6 @@ EXPOSE 9714
 RUN pip install pip setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
-# benepar stack (only in this multi-model image, not in the single model images)
-COPY ./requirements-benepar.txt ./requirements-benepar.txt
-RUN pip install --no-deps -r requirements-benepar.txt
 
 # languages/models
 # - efficiency
@@ -73,9 +70,15 @@ RUN python -m spacy download "de_core_news_lg"
 #RUN python -m spacy download "sv_core_news_lg"
 #RUN python -m spacy download "uk_core_news_trf"
 
-# benepar models (parameter use_benepar=true; benepar_en3_large is not used)
-RUN python -c "import benepar; benepar.download('benepar_en3')"
-RUN python -c "import benepar; benepar.download('benepar_de2')"
+# benepar (parameter use_benepar=true), only if built with TEXTIMAGER_SPACY_WITH_BENEPAR=true (docker_build.sh): its
+# packages and models (benepar_en3_large is not used); after the spaCy models so that a change here does not rebuild
+# their layers. Not in the single model images.
+ARG TEXTIMAGER_SPACY_WITH_BENEPAR="false"
+COPY ./requirements-benepar.txt ./requirements-benepar.txt
+RUN if [ "$TEXTIMAGER_SPACY_WITH_BENEPAR" = "true" ]; then \
+      pip install --no-deps -r requirements-benepar.txt \
+      && python -c "import benepar; benepar.download('benepar_en3'); benepar.download('benepar_de2')"; \
+    fi
 
 # meta data
 ARG TEXTIMAGER_SPACY_ANNOTATOR_NAME="textimager-duui-spacy"

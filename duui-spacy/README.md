@@ -50,8 +50,10 @@ with Self-Attention and Pre-Training", ACL 2019, https://aclanthology.org/P19-13
   (logged as a warning): its tokens get no labels and keep spaCy's tags; all other sentences are parsed.
 - Memory: loading `de_core_news_lg` with `benepar_de2` needs up to ~6 GB, and takes about a minute on the first
   request; use a DUUI timeout above that (`withTimeout`, in seconds).
-- Dependencies are pinned in `requirements-benepar.txt`, installed only in the multi-model image (benepar 0.2.0 needs
-  transformers 4.30.x, so Python 3.11).
+- Only in images built with `TEXTIMAGER_SPACY_WITH_BENEPAR=true` in `docker_build.sh` (default `false`; the image name
+  then gets `-benepar`, e.g. `duui-spacy-benepar-en-de`). With `use_benepar`, other images log the error "benepar is
+  not installed" and return no annotations for the document. Dependencies
+  are pinned in `requirements-benepar.txt` (benepar 0.2.0 needs transformers 4.30.x, so Python 3.11).
 - Test: `SpaCyBeneparTest` (service on `localhost:9714`).
 
 ### Pretokenized input

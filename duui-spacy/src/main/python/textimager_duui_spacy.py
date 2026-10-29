@@ -120,13 +120,17 @@ def register_benepar_component():
     lookup of the token before a skipped sentence search an empty range (NonConstituentException); these entries are
     therefore set to the position of the next constituent.
 
-    Imported lazily, as benepar is not installed in the single model images.
+    Imported lazily, as benepar is only installed in images built with TEXTIMAGER_SPACY_WITH_BENEPAR=true
+    (docker_build.sh), not in the others and not in the single model images.
     """
     global benepar_component_registered
     if benepar_component_registered:
         return
 
-    import benepar  # noqa: F401 registers benepar's extensions (Token._.labels, Span._.parse_string, ...)
+    try:
+        import benepar  # noqa: F401 registers benepar's extensions (Token._.labels, Span._.parse_string, ...)
+    except ImportError as ex:
+        raise Exception("benepar is not installed in this image (build it with TEXTIMAGER_SPACY_WITH_BENEPAR=true)") from ex
     from benepar.integrations.spacy_plugin import BeneparComponent, PartialConstituentData, SentenceWrapper
     from spacy.language import Language
 
