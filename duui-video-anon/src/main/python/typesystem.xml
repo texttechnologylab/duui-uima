@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+    <types>
+        <typeDescription>
+            <name>org.texttechnologylab.annotation.type.Video</name>
+            <description>Video carried as Base64 in src.</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription><name>src</name><rangeTypeName>uima.cas.String</rangeTypeName></featureDescription>
+                <featureDescription><name>length</name><rangeTypeName>uima.cas.Double</rangeTypeName></featureDescription>
+                <featureDescription><name>fps</name><rangeTypeName>uima.cas.Double</rangeTypeName></featureDescription>
+                <featureDescription><name>mimetype</name><rangeTypeName>uima.cas.String</rangeTypeName></featureDescription>
+            </features>
+        </typeDescription>
+    </types>
+</typeSystemDescription>
