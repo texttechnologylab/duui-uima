@@ -62,6 +62,7 @@ UIMA_TYPE_MORPH = "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.Morphol
 UIMA_TYPE_DEPENDENCY = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency"
 UIMA_TYPE_DEPENDENCY_ROOT = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT"
 UIMA_TYPE_NAMED_ENTITY = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity"
+UIMA_TYPE_WORD_EMBEDDING = "org.texttechnologylab.uima.type.WordEmbedding"
 
 # validate variant setting
 VARIANT_SETTINGS = {
@@ -336,7 +337,7 @@ class Token(BaseModel):
     like_url: bool = None
     url_parts: Union[None, dict] = None
     has_vector: bool = None
-    vector: List[float] = None
+    vector: Optional[List[float]] = None
     like_num: bool = None
     is_stop: bool = None
     is_oov: bool = None
@@ -403,6 +404,10 @@ class TextImagerResponse(BaseModel):
     modification_meta: Optional[DocumentModification] = None
     # Whether the document was pre-tokenized
     is_pretokenized: bool
+    # Token vectors (Token.vector) go to SpacyToken.vector instead of WordEmbedding annotations
+    vectors_in_spacytoken: bool = False
+    # WordEmbedding.shortName
+    vectors_short_name: Optional[str] = None
 
 
 # Capabilities
@@ -650,6 +655,12 @@ def get_documentation() -> TextImagerDocumentation:
             "write_types": TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES,
             # Strict language checking, if True the language must be available, on False the multilanguage model is used
             "strict_language_check": [True, False],
+            # Write the token vectors (WordEmbedding, one per token with a vector), they are large
+            "write_vectors": [True, False],
+            # Write the token vectors into SpacyToken.vector (and all of them, as before 0.8.0) instead of WordEmbedding
+            "vectors_in_spacytoken": [False, True],
+            # Short name of the vector space in WordEmbedding.shortName, default SPACY + model size (e.g. SPACYlg)
+            "vectors_short_name": "SPACY<size>",
             # Split large input texts to prevent dramatic increase of time and resources
             # Note: Splitting is performed on sentence boundaries, if possible, else on "."
             "split_large_texts": [True, False],
@@ -690,7 +701,9 @@ def get_typesystem() -> Response:
 def get_input_output() -> TextImagerInputOutput:
     # TODO for now, just use all and ignore parameters
     ins = TEXTIMAGER_ANNOTATOR_INPUT_TYPES
-    outs = TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES
+    outs = set(TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES)
+    if settings.variant == "":
+        outs.add(UIMA_TYPE_WORD_EMBEDDING)
 
     return TextImagerInputOutput(
         inputs=ins,
@@ -737,6 +750,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     meta = None
     modification_meta = None
     is_pretokenized = False
+    vectors_in_spacytoken = False
+    vectors_short_name = None
 
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
@@ -763,12 +778,18 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # Load model, this is cached
         use_benepar = request.parameters.get("use_benepar", "false").lower() == "true"
+        write_vectors = str(request.parameters.get("write_vectors", "true")).lower() == "true"
+        vectors_in_spacytoken = str(request.parameters.get("vectors_in_spacytoken", "false")).lower() == "true"
         nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant, use_benepar)
         if nlp is None:
             raise Exception(f"spaCy model \"{model_name}\" could not be loaded: {nlp_err}")
 
         # Get meta data on spaCy and used model
         spacy_meta = nlp.meta
+
+        # default: SPACY and the model size, the last part of the model name (core_news_lg -> SPACYlg)
+        vectors_short_name = request.parameters.get("vectors_short_name") \
+            or "SPACY" + spacy_meta["name"].rsplit("_", 1)[-1]
 
         # Split large texts if needed and allowed
         # TODO test splitting!
@@ -1069,7 +1090,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                             url_parts=parse_url(token.text) if token.like_url else None,
 
                             has_vector=token.has_vector,
-                            vector=token.vector,
+                            # WordEmbedding only for tokens with a vector (spaCy returns zeros for the others),
+                            # SpacyToken.vector for all tokens as before
+                            vector=token.vector.tolist() if write_vectors and (token.has_vector or vectors_in_spacytoken) else None,
 
                             like_num=token.like_num,
 
@@ -1187,5 +1210,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         noun_chunks=noun_chunks,
         meta=meta,
         modification_meta=modification_meta,
-        is_pretokenized=is_pretokenized
+        is_pretokenized=is_pretokenized,
+        vectors_in_spacytoken=vectors_in_spacytoken,
+        vectors_short_name=vectors_short_name
     )

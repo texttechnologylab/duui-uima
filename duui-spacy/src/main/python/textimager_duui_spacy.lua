@@ -152,6 +152,10 @@ function deserialize(inputCas, inputStream)
     -- existed before are not merged back from a DUUI segment, so changing the given tokens would be lost
     -- Save all tokens, to allow for retrieval in dependencies
     local all_tokens = {}
+    -- Token vectors: WordEmbedding annotations (default) or SpacyToken.vector (parameter vectors_in_spacytoken)
+    local vectors_in_spacytoken = results["vectors_in_spacytoken"]
+    -- Model of the WordEmbeddings, created with the first one
+    local vectors_model = nil
     for i, token in ipairs(results["tokens"]) do
         -- Save current token
         local token_anno = nil
@@ -183,7 +187,7 @@ function deserialize(inputCas, inputStream)
             token_anno:setIsAscii(token["is_ascii"])
             token_anno:setIsAlpha(token["is_alpha"])
 
-            if token["vector"] ~= nil then
+            if vectors_in_spacytoken and token["vector"] ~= nil then
                 local vector_length = #token["vector"]
                 token_anno:setVector(luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length))
                 for vector_ind, vector_val in ipairs(token["vector"]) do
@@ -232,6 +236,48 @@ function deserialize(inputCas, inputStream)
             -- Create meta data for this token
             local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", inputCas)
             meta_anno:setReference(token_anno)
+            meta_anno:setName(meta["name"])
+            meta_anno:setVersion(meta["version"])
+            meta_anno:setModelName(meta["modelName"])
+            meta_anno:setModelVersion(meta["modelVersion"])
+            meta_anno:setSpacyVersion(meta["spacyVersion"])
+            meta_anno:setModelLang(meta["modelLang"])
+            meta_anno:setModelSpacyVersion(meta["modelSpacyVersion"])
+            meta_anno:setModelSpacyGitVersion(meta["modelSpacyGitVersion"])
+            meta_anno:addToIndexes()
+        end
+
+        if not vectors_in_spacytoken and token["vector"] ~= nil then
+            if vectors_model == nil then
+                vectors_model = luajava.newInstance("org.texttechnologylab.annotation.MetaData", inputCas)
+                -- spaCy's release name of the model, e.g. de_core_news_lg-3.8.0 (modelName is core_news_lg)
+                vectors_model:setSource(meta["modelLang"] .. "_" .. meta["modelName"] .. "-" .. meta["modelVersion"])
+                vectors_model:setLang(meta["modelLang"])
+                vectors_model:addToIndexes()
+            end
+
+            local vector_length = #token["vector"]
+            local vector_array = luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length)
+            for vector_ind, vector_val in ipairs(token["vector"]) do
+                -- Note: Lua starts counting at 1, but Java at 0
+                vector_array:set(vector_ind-1, vector_val)
+            end
+
+            local embedding_anno = luajava.newInstance("org.texttechnologylab.uima.type.WordEmbedding", inputCas)
+            embedding_anno:setBegin(token["begin"])
+            embedding_anno:setEnd(token["end"])
+            embedding_anno:setEmbedding(vector_array)
+            embedding_anno:setModelReference(vectors_model)
+            -- the SpacyToken, if tokens are written
+            if token_anno ~= nil then
+                embedding_anno:setReference(token_anno)
+            end
+            embedding_anno:setOov(token["is_oov"])
+            embedding_anno:setShortName(results["vectors_short_name"])
+            embedding_anno:addToIndexes()
+
+            local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", inputCas)
+            meta_anno:setReference(embedding_anno)
             meta_anno:setName(meta["name"])
             meta_anno:setVersion(meta["version"])
             meta_anno:setModelName(meta["modelName"])

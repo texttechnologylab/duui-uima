@@ -17,6 +17,7 @@ import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.segmentation.DUUISegmentationStrategyByAnnotation;
 import org.texttechnologylab.annotation.SpacyAnnotatorMetaData;
+import org.texttechnologylab.uima.type.WordEmbedding;
 import org.texttechnologylab.uima.type.spacy.SpacyNounChunk;
 import org.texttechnologylab.uima.type.spacy.SpacyToken;
 
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -150,6 +152,10 @@ public class SpaCyPretokenizedTest {
         assertEquals(givenTokens.size(), spacyTokens.size());
         Set<Integer> tokenBegins = new HashSet<>();
         Set<Integer> tokenEnds = new HashSet<>();
+        Map<SpacyToken, WordEmbedding> embeddingOf = new IdentityHashMap<>();
+        for (WordEmbedding embedding : JCasUtil.select(cas, WordEmbedding.class)) {
+            embeddingOf.put((SpacyToken) embedding.getReference(), embedding);
+        }
         int withVector = 0;
         for (int i = 0; i < spacyTokens.size(); i++) {
             SpacyToken token = spacyTokens.get(i);
@@ -171,8 +177,13 @@ public class SpaCyPretokenizedTest {
             if (letters) {
                 assertFalse(token.getIsPunct(), "is_punct of " + covered);
             }
-            if (token.getHasVector()) {
-                assertTrue(token.getVector().size() > 0);
+            // vectors as WordEmbedding (default), one per token with a vector, same offsets
+            WordEmbedding embedding = embeddingOf.get(token);
+            assertEquals(token.getHasVector(), embedding != null, "WordEmbedding of " + covered);
+            if (embedding != null) {
+                assertTrue(embedding.getEmbedding().size() > 0);
+                assertEquals(token.getBegin(), embedding.getBegin());
+                assertEquals(token.getEnd(), embedding.getEnd());
                 withVector++;
             }
             // lemma, POS and morphology annotations have the token's offsets
@@ -305,13 +316,19 @@ public class SpaCyPretokenizedTest {
             assertEquals(e.getIsStop(), a.getIsStop(), what);
             assertEquals(e.getLikeNum(), a.getLikeNum(), what);
             assertEquals(e.getHasVector(), a.getHasVector(), what);
-            if (e.getHasVector()) {
-                assertEquals(e.getVector().size(), a.getVector().size(), what);
-                for (int v = 0; v < e.getVector().size(); v++) {
-                    assertEquals(e.getVector().get(v), a.getVector().get(v), what);
-                }
-            }
+            assertEquals(e.getIsOov(), a.getIsOov(), what);
             assertEquals(e.getParent().getBegin(), a.getParent().getBegin(), what + " head");
+        }
+        List<WordEmbedding> expectedVectors = new ArrayList<>(JCasUtil.select(normal, WordEmbedding.class));
+        List<WordEmbedding> actualVectors = new ArrayList<>(JCasUtil.select(pretokenized, WordEmbedding.class));
+        assertEquals(expectedVectors.size(), actualVectors.size());
+        for (int i = 0; i < expectedVectors.size(); i++) {
+            WordEmbedding e = expectedVectors.get(i);
+            WordEmbedding a = actualVectors.get(i);
+            String what = "vector " + i + " \"" + e.getCoveredText() + "\"";
+            assertEquals(e.getBegin(), a.getBegin(), what);
+            assertEquals(e.getOov(), a.getOov(), what);
+            assertArrayEquals(e.getEmbedding().toArray(), a.getEmbedding().toArray(), what);
         }
         assertEquals(spans(normal, NamedEntity.class), spans(pretokenized, NamedEntity.class));
         assertEquals(spans(normal, SpacyNounChunk.class), spans(pretokenized, SpacyNounChunk.class));

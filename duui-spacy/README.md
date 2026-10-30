@@ -33,6 +33,25 @@ composer.add(
 | `use_existing_tokens` | If `"true"`, read existing `Token` annotations (exactly this type, not its subtypes such as `SpacyToken`) as input instead of raw text | `false` |
 | `use_existing_sentences` | If `"true"` (requires `use_existing_tokens`), also read existing `Sentence` annotations to set sentence boundaries; spaCy then writes no sentences | `false` |
 | `use_benepar` | If `"true"`, add the Berkeley Neural Parser (benepar) to the spaCy pipeline (languages `de`, `en`), see below | `false` |
+| `write_vectors` | If `"false"`, write no token vectors (they are large: e.g. 300 floats per token with the `lg` models) | `true` |
+| `vectors_short_name` | `WordEmbedding.shortName`: short name of the vector space, chosen freely, e.g. to select the vectors in Coh-Metrix (parameter `vectors`, part of the index labels) | `SPACY` + model size, e.g. `SPACYlg` |
+| `vectors_in_spacytoken` | If `"true"`, write the token vectors into `SpacyToken.vector` (as before 0.8.0) instead of `WordEmbedding` annotations | `false` |
+
+### Token vectors
+
+Since 0.8.0, the token vectors are written as `org.texttechnologylab.uima.type.WordEmbedding` annotations (a subtype of
+`Embedding`), so other tools (e.g. fastText) can provide them in the same type:
+
+- One `WordEmbedding` per token that has a vector in the model (`token.has_vector`), with the token's begin/end;
+  tokens without a vector get none.
+- `embedding`: the vector; `reference`: the `SpacyToken` (not set if tokens are not written); `oov`: spaCy's
+  `token.is_oov`; `shortName`: the parameter `vectors_short_name` (default `SPACY` + model size, e.g.
+  `SPACYlg`); `ModelReference`: one `MetaData` per document with the model's release name (`Source`, e.g.
+  `de_core_news_lg-3.8.0`) and language (`Lang`);
+  and a `SpacyAnnotatorMetaData` as for every other annotation.
+- `SpacyToken.vector` is not set. `SpacyToken.hasVector` and `SpacyToken.isOov` are still set.
+- With `vectors_in_spacytoken`, the vectors are written into `SpacyToken.vector` for every token (zeros for tokens
+  without a vector) and no `WordEmbedding`s are written.
 
 ### Constituency parsing with benepar
 
