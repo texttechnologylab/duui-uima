@@ -134,8 +134,12 @@ class TextImagerRequest(BaseModel):
     # comma-separated index names (README, "Selecting indices")
     include_indices: Optional[str] = None
     exclude_indices: Optional[str] = None
-    # source of the token vectors, default SPACY (README, "Vectors"), and the spaCy model of the tokens from the CAS
+    # source of the token vectors (README, "Vectors"): WordEmbedding (vectors = their shortName, vectors_available =
+    # all shortNames in the CAS, comma-separated) or SpacyToken (vectors = the parameter, default SPACY, and the spaCy
+    # model of the tokens from the CAS)
+    vectors_source: Optional[str] = None
     vectors: Optional[str] = None
+    vectors_available: Optional[str] = None
     vectors_model: Optional[str] = None
 
 
@@ -328,14 +332,31 @@ _LSA_GIVEN_NEW_INDICES = frozenset({"LSAGN", "LSAGNd"})
 _VECTOR_INDICES = frozenset(label_v3 for _, type_name, label_v3, _, _, _ in INDEX_CATALOG
                             if type_name == "LSA" or label_v3 == "SMCAUSlsa")
 
-# Token vectors: the vectors parameter chooses the source, the spaCy model size is read from the CAS.
+# Token vectors: the shortName of the WordEmbeddings is the label group; without WordEmbeddings SpacyToken.vector, the
+# spaCy model size is read from the CAS.
 _VECTOR_GROUP_FORMAT = re.compile(r"^[A-Z][A-Z0-9]*[a-z0-9]*$")
 _SPACY_MODEL_SIZES = ("sm", "md", "lg", "trf")
 
 
-def _vectors_group(vectors: Optional[str], vectors_model: Optional[str]) -> Tuple[str, Optional[str]]:
-    # Returns (label group, error). Only spaCy token vectors are supported: SPACY plus the size of the model that
-    # produced them (de_core_news_lg -> SPACYlg); plain SPACY if the size is unknown.
+def _vectors_group(vectors: Optional[str], vectors_model: Optional[str], vectors_source: Optional[str] = None,
+                   vectors_available: Optional[str] = None) -> Tuple[str, Optional[str]]:
+    # Returns (label group, error).
+    if vectors_source == "WordEmbedding":
+        # the shortName chosen by the producer or user is the group, whatever tool made the vectors
+        if not vectors:
+            if vectors_available:
+                return "INVALID", (f"Token vectors of several vector spaces in the CAS ({vectors_available}), "
+                                   "choose one with the parameter vectors")
+            return "INVALID", "The WordEmbeddings in the CAS have no shortName"
+        name = vectors.strip()
+        if not _VECTOR_GROUP_FORMAT.match(name):
+            return "INVALID", (f"Invalid vectors \"{name}\": expected an uppercase name with an optional "
+                               "lowercase variant")
+        if name not in (vectors_available or "").split(","):
+            logger.warning("vectors=%s, but the WordEmbeddings in the CAS are %s", name, vectors_available)
+        return name, None
+    # SpacyToken.vector: SPACY plus the size of the model that produced them (de_core_news_lg -> SPACYlg); plain
+    # SPACY if the size is unknown.
     name = (vectors or "SPACY").strip()
     if not _VECTOR_GROUP_FORMAT.match(name):
         return "INVALID", f"Invalid vectors \"{name}\": expected an uppercase name with an optional lowercase variant"
@@ -612,8 +633,10 @@ def get_documentation() -> TextImagerDocumentation:
                                "ending in *, or *; default all",
             "exclude_indices": "comma-separated index groups, label_v3 or label_ttlab names, label_ttlab prefixes "
                                "ending in *; default none",
-            "vectors": "source of the token vectors for the LSA indices and SMCAUSlsa: SPACY (default; the model "
-                       "size is read from the CAS)",
+            "vectors": "token vectors for the LSA indices and SMCAUSlsa: the shortName of the WordEmbedding "
+                       "annotations (default: the only one in the CAS), e.g. SPACYlg; it becomes part of the label. "
+                       "Without WordEmbeddings: the SpacyToken vectors, SPACY (default; the model size is read from "
+                       "the CAS)",
         },
         capability=capabilities,
         implementation_specific=None,
@@ -641,9 +664,9 @@ def get_input_output() -> TextImagerInputOutput:
 @app.get("/v1/indices")
 def get_indices() -> List[Dict[str, Any]]:
     # The names accepted by include_indices / exclude_indices, and how each index relates to Coh-Metrix 3.0.
-    # The vector group depends on the document (SPACYlg, ...), so label_ttlab shows it as the prefix SPACY*.
-    labels = {lang: _ttlab_labels(lang, "SPACY*") for lang in ("en", "de")}
-    parts = {lang: _label_parts(lang, "SPACY*") for lang in ("en", "de")}
+    # The vector group depends on the document (SPACYlg, ...), so label_ttlab shows it as *.
+    labels = {lang: _ttlab_labels(lang, "*") for lang in ("en", "de")}
+    parts = {lang: _label_parts(lang, "*") for lang in ("en", "de")}
     return [
         {
             "index": index,
@@ -5423,7 +5446,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         textstat.set_lang(lang)
 
         # label_ttlab of every index for this document (language, verb inventories, vectors, Text Easability model)
-        vectors_group, vectors_error = _vectors_group(request.vectors, request.vectors_model)
+        vectors_group, vectors_error = _vectors_group(request.vectors, request.vectors_model, request.vectors_source,
+                                                      request.vectors_available)
         ttlab_labels = _ttlab_labels(lang, vectors_group)
 
         # output: the selected indices; compute: these plus the inputs of selected derived indices

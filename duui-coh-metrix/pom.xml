@@ -17,7 +17,7 @@
         <ttlab.duui.version>0b0879032b981a872117f91c087a884cf6d1b2dc</ttlab.duui.version>
 <!--        <ttlab.typesystem.version>3.0.10</ttlab.typesystem.version>-->
 <!--        <ttlab.typesystem.version>68246f604c5b5603fb345f3acfb741b5e1c66eb0</ttlab.typesystem.version>-->
-        <ttlab.typesystem.version>9b5630a1cc563f688318f796c2db5a99d76f8834</ttlab.typesystem.version>
+        <ttlab.typesystem.version>5524fd823d77dda4022bedbc7313ce738c1f33f2</ttlab.typesystem.version>
     </properties>
 
     <build>
