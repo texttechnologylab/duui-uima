@@ -258,7 +258,9 @@ calls take the internal label from it (`ttlab_labels`).
 6. **No model names, no resource versions.** For spaCy vectors only the model
    size goes into the label (`SPACYsm`, `SPACYmd`, `SPACYlg`, `SPACYtrf`). A
    new version of a resource (Wikipedia sample, LLM list, MRC translation)
-   bumps the index `version`, not the label.
+   bumps the index `version`, not the label. Exception: the name of the token
+   vectors is not chosen by this component but by the tool or user that wrote
+   them (`WordEmbedding.shortName`, see [Vectors](#vectors)).
 7. **What was used at runtime.** If a fallback is used, the internal label
    names it. Example: without GermaNet, the German causal/intentional verb
    inventories use seed lists: `SMCAUSv_SEEDlist` instead of `SMCAUSv_GN`.
@@ -280,7 +282,7 @@ calls take the internal label from it (`ttlab_labels`).
 | `EMB`      | method | Vector space instead of the TASA LSA space                                                       |
 | `CLEAR`    | data   | CLEAR corpus, reference corpus of the English Text Easability model                              |
 | `CLEARtr`  | data   | CLEAR translated into German, reference corpus of the German model                               |
-| `SPACYxx`  | data   | spaCy token vectors from a model of size `xx` (`sm`, `md`, `lg`, `trf`); `SPACY` if unknown (see [Vectors](#vectors)) |
+| `SPACYxx`  | data   | spaCy token vectors from a model of size `xx` (`sm`, `md`, `lg`, `trf`); `SPACY` if unknown; other token vectors: their `shortName` (see [Vectors](#vectors)) |
 | `LLMlist`  | data   | Word list generated with an LLM                                                                  |
 | `WN`       | data   | Princeton WordNet                                                                                |
 | `GN`       | data   | GermaNet                                                                                         |
@@ -474,24 +476,42 @@ connective counts or hypernymy lookups.
 
 ### Vectors
 
-The LSA indices and `SMCAUSlsa` use token vectors. The optional parameter
-`vectors` chooses their source:
+The LSA indices and `SMCAUSlsa` use token vectors. They are read from the
+`WordEmbedding` annotations (`org.texttechnologylab.uima.type.WordEmbedding`,
+one per token, same span as the token), e.g. written by `duui-spacy` (since
+0.8.0) or any other tool. Each `WordEmbedding` has a `shortName`, the name of
+its vector space, chosen by the tool or user that wrote it (`duui-spacy`:
+`SPACY` + model size, e.g. `SPACYlg`, parameter `vectors_short_name`). The
+optional parameter `vectors` selects them by this name:
 
 ```java
 new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:latest")
-    .withParameter("vectors", "SPACY")
+    .withParameter("vectors", "SPACYlg")
 ```
 
-- `SPACY` (default): the vectors of the `SpacyToken` annotations. The model
-  size goes into the internal label (`LSASS1_EMB_SPACYlg`) and is read from the
-  CAS: the Lua layer sends the `modelName` of the `SpacyAnnotatorMetaData` that
-  references the first `SpacyToken` (the layout of the `duui-spacy`
-  component), and its last part (`sm`, `md`, `lg`, `trf`) is the size. Without
-  that metadata the group is `SPACY` and a warning is logged. A size in the
-  parameter (`SPACYlg`) is only used when the CAS has none; if the CAS says
-  otherwise, the CAS wins and a warning is logged.
-- Other names are reserved for vectors from the user's own embedding
-  annotation (not supported yet): the LSA indices are `None` with an error.
+- The name goes unchanged into the internal label (`LSASS1_EMB_SPACYlg`), so it
+  must be an uppercase name with an optional lowercase variant
+  (`[A-Z][A-Z0-9]*[a-z0-9]*`). This component needs no change for vectors of a
+  new tool or model.
+- Without the parameter, the only `shortName` in the CAS is used. If the CAS
+  has vectors of several names, the LSA indices and `SMCAUSlsa` are `None`
+  with an error that lists them; set `vectors` then.
+- A name that is not in the CAS gives the error `No token vectors (<name>)`.
+
+CASes without `WordEmbedding` annotations (e.g. from `duui-spacy` before
+0.8.0, or with `vectors_in_spacytoken`) use the vectors of the `SpacyToken`
+annotations, as before:
+
+- `SPACY` (default): the model size goes into the internal label
+  (`LSASS1_EMB_SPACYlg`) and is read from the CAS: the Lua layer sends the
+  `modelName` of the `SpacyAnnotatorMetaData` that references the first
+  `SpacyToken` (the layout of the `duui-spacy` component), and its last part
+  (`sm`, `md`, `lg`, `trf`) is the size. Without that metadata the group is
+  `SPACY` and a warning is logged. A size in the parameter (`SPACYlg`) is only
+  used when the CAS has none; if the CAS says otherwise, the CAS wins and a
+  warning is logged.
+- Other names are not supported for `SpacyToken` vectors: the LSA indices are
+  `None` with an error.
 
 The size matters: a spaCy `sm` model has no static word vectors, so spaCy
 returns rows of the contextual `doc.tensor` instead. A `trf` model returns no

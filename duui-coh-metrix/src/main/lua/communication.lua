@@ -11,6 +11,10 @@ Dependency = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.de
 -- optional: only needed to read the spaCy model of the token vectors
 local spacy_meta_ok, SpacyAnnotatorMetaData = pcall(
     luajava.bindClass, "org.texttechnologylab.annotation.SpacyAnnotatorMetaData")
+-- optional: token vectors as WordEmbedding annotations (type systems without it
+-- only have SpacyToken.vector)
+local word_embedding_ok, WordEmbedding = pcall(
+    luajava.bindClass, "org.texttechnologylab.uima.type.WordEmbedding")
 
 COHMETRIX_TYPE_PREFIX = "org.texttechnologylab.uima.type.cohmetrix."
 
@@ -81,7 +85,56 @@ function spacyVectorsModel(inputCas)
     return nil
 end
 
+-- The token vectors from the WordEmbedding annotations (README, "Vectors"):
+-- those whose shortName is the vectors parameter, or, without the parameter,
+-- of the only shortName in the CAS. Returns nil if the CAS has no
+-- WordEmbedding (then SpacyToken.vector is used), else a table with the
+-- chosen name (nil if the parameter is missing and the CAS has several or no
+-- names), all names in the CAS (comma-separated) and the vectors (FloatArray)
+-- by token span "begin:end".
+function wordEmbeddings(inputCas, requested)
+    if not word_embedding_ok then
+        return nil
+    end
+    local embeddings_it = JCasUtil:select(inputCas, WordEmbedding):iterator()
+    if not embeddings_it:hasNext() then
+        return nil
+    end
+    local seen = {}
+    local names = {}
+    while embeddings_it:hasNext() do
+        local name = embeddings_it:next():getShortName()
+        if name ~= nil and not seen[name] then
+            seen[name] = true
+            names[#names + 1] = name
+        end
+    end
+    local chosen = requested
+    if chosen == nil or chosen == "" then
+        chosen = nil
+        if #names == 1 then
+            chosen = names[1]
+        end
+    end
+    local by_span = {}
+    if chosen ~= nil then
+        embeddings_it = JCasUtil:select(inputCas, WordEmbedding):iterator()
+        while embeddings_it:hasNext() do
+            local embedding = embeddings_it:next()
+            if embedding:getShortName() == chosen then
+                by_span[embedding:getBegin() .. ":" .. embedding:getEnd()] = embedding:getEmbedding()
+            end
+        end
+    end
+    return {
+        name = chosen,
+        names = table.concat(names, ","),
+        by_span = by_span,
+    }
+end
+
 function serialize(inputCas, outputStream, parameters)
+    local embeddings = wordEmbeddings(inputCas, parameters["vectors"])
     local paragraphs = {}
     local paragraphs_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Paragraph)):listIterator()
     while paragraphs_it:hasNext() do
@@ -182,10 +235,17 @@ function serialize(inputCas, outputStream, parameters)
 				end
 
                 local vector = nil
-                local has_vector = token:getHasVector()
+                local vector_array = nil
+                if embeddings ~= nil then
+                    vector_array = embeddings.by_span[token:getBegin() .. ":" .. token:getEnd()]
+                elseif token:getHasVector() then
+                    -- nil if duui-spacy wrote no vectors (write_vectors=false)
+                    vector_array = token:getVector()
+                end
+                local has_vector = vector_array ~= nil
                 if has_vector then
                     vector = {}
-                    local vector_it = token:getVector():iterator();
+                    local vector_it = vector_array:iterator();
                     while vector_it:hasNext() do
                         local vec = vector_it:next()
                         vector[#vector + 1] = vec
@@ -235,9 +295,13 @@ function serialize(inputCas, outputStream, parameters)
         -- optional, comma-separated index names (README, "Selecting indices")
         include_indices = parameters["include_indices"],
         exclude_indices = parameters["exclude_indices"],
-        -- optional source of the token vectors (README, "Vectors"), default SPACY
-        vectors = parameters["vectors"],
-        vectors_model = spacyVectorsModel(inputCas),
+        -- source of the token vectors (README, "Vectors"): the shortName of the
+        -- WordEmbeddings, or without WordEmbeddings SpacyToken.vector with the
+        -- optional parameter (default SPACY) and the spaCy model
+        vectors_source = embeddings ~= nil and "WordEmbedding" or "SpacyToken",
+        vectors = embeddings ~= nil and embeddings.name or parameters["vectors"],
+        vectors_available = embeddings ~= nil and embeddings.names or nil,
+        vectors_model = embeddings == nil and spacyVectorsModel(inputCas) or nil,
     }))
 end
 
