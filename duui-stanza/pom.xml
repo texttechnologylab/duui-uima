@@ -12,7 +12,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <ttlab.duui.version>1.5.7</ttlab.duui.version>
-        <ttlab.typesystem.version>5524fd823d77dda4022bedbc7313ce738c1f33f2</ttlab.typesystem.version>
+        <ttlab.typesystem.version>57c2fc4249fc611d17341c4466ee2e22493410d6</ttlab.typesystem.version>
     </properties>
 
     <repositories>
@@ -37,6 +37,14 @@
             <groupId>com.github.texttechnologylab</groupId>
             <artifactId>DockerUnifiedUIMAInterface</artifactId>
             <version>${ttlab.duui.version}</version>
+            <!-- DUUI brings an older upstream type system (e.g. AnnotationClass:attributes as FSList); the fork below
+                 defines the types (as in duui-coh-metrix) -->
+            <exclusions>
+                <exclusion>
+                    <groupId>com.github.texttechnologylab</groupId>
+                    <artifactId>UIMATypeSystem</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
