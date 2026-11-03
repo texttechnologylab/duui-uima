@@ -12,13 +12,15 @@ and runs only the steps they need. This file owns everything around it:
 - the routes of a DUUI component, and `/v1/indices`.
 """
 import logging
+from pathlib import Path
 import re
 import unicodedata
 from functools import lru_cache
 from platform import python_version
 from sys import version as sys_version
 from time import time
-from typing import Any, Dict, List, Optional, Set, Tuple
+from collections import defaultdict
+from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 
 import duui_logging
 from cassis import load_typesystem
@@ -137,11 +139,11 @@ INDEX_CATALOG: List[Tuple[int, str, str, str, str, str, Optional[str]]] = [
     (56, "Connectives", "CNCAdd", "CNCAdd_{connectives}", "counterpart", "counterpart", "CONADDi"),
     (57, "Connectives", "CNCPos", "CNCPos_{connectives}", "counterpart", "counterpart", "n/a"),
     (58, "Connectives", "CNCNeg", "CNCNeg_{connectives}", "counterpart", "counterpart", "n/a"),
-    (59, "Situation Model", "SMCAUSv", "SMCAUSv_{wn}", "original", "counterpart", "CAUSV"),
-    (60, "Situation Model", "SMCAUSvp", "SMCAUSvp_{wn}_{connectives}", "counterpart", "counterpart", "CAUSVP"),
-    (61, "Situation Model", "SMINTEp", "SMINTEp_{wn}", "original", "counterpart", "INTEi"),
-    (62, "Situation Model", "SMCAUSr", "SMCAUSr_{wn}_{connectives}", "counterpart", "counterpart", "CAUSC"),
-    (63, "Situation Model", "SMINTEr", "SMINTEr_{wn}", "original", "counterpart", "INTEC"),
+    (59, "Situation Model", "SMCAUSv", "SMCAUSv_{verbs}", "original", "counterpart", "CAUSV"),
+    (60, "Situation Model", "SMCAUSvp", "SMCAUSvp_{verbs}_{connectives}", "counterpart", "counterpart", "CAUSVP"),
+    (61, "Situation Model", "SMINTEp", "SMINTEp_{verbs}", "original", "counterpart", "INTEi"),
+    (62, "Situation Model", "SMCAUSr", "SMCAUSr_{verbs}_{connectives}", "counterpart", "counterpart", "CAUSC"),
+    (63, "Situation Model", "SMINTEr", "SMINTEr_{verbs}_LLMlist", "original", "counterpart", "INTEC"),
     (64, "Situation Model", "SMCAUSlsa", "SMCAUSlsa_EMB_{vectors}", "emb", "emb", "CAUSLSA"),
     (65, "Situation Model", "SMCAUSwn", "SMCAUSwn_{wn}", "original", "counterpart", "CAUSWN"),
     (66, "Situation Model", "SMTEMP", "SMTEMP_{temporal}", "llmlist", "llmlist", "TEMPta"),
@@ -189,33 +191,38 @@ INDEX_CATALOG: List[Tuple[int, str, str, str, str, str, Optional[str]]] = [
     (1003, "Readability", "RDARI_ext", "RDARI_ext", "ext", "ext", None),
     (1004, "Readability", "RDCLI_ext", "RDCLI_ext", "ext", "ext", None),
     (1005, "Readability", "RDLW_ext", "RDLW_ext", "ext", "ext", None),
-    (1006, "Readability", "RDDCRS_ext", "RDDCRS_ext_TEXTSTAT", "ext", "ext", None),
-    (1007, "Readability", "RDSPACHE_ext", "RDSPACHE_ext_TEXTSTAT", "ext", "ext", None),
+    (1006, "Readability", "RDDCRS_ext", "RDDCRS_ext_TEXTSTATlist", "ext", "ext", None),
+    (1007, "Readability", "RDSPACHE_ext", "RDSPACHE_ext_TEXTSTATlist", "ext", "ext", None),
     (1008, "Readability", "RDWSTF1_ext", "RDWSTF1_ext", "ext", "ext", None),
     (1009, "Readability", "RDWSTF2_ext", "RDWSTF2_ext", "ext", "ext", None),
     (1010, "Readability", "RDWSTF3_ext", "RDWSTF3_ext", "ext", "ext", None),
     (1011, "Readability", "RDWSTF4_ext", "RDWSTF4_ext", "ext", "ext", None),
     (106, "Readability", "RDL2", "RDL2_SUBTLEX", "corpus", "corpus", "L2"),
 ]
-_CATALOG_BY_INDEX = {entry[0]: entry for entry in INDEX_CATALOG}
 
 # The public labels and the groups must stay distinct when compared case-insensitively (index selection).
 assert len({label_v3.lower() for _, _, label_v3, *_ in INDEX_CATALOG}
            | {type_name.lower() for _, type_name, *_ in INDEX_CATALOG}) \
        == len(INDEX_CATALOG) + len({type_name for _, type_name, *_ in INDEX_CATALOG})
 
-# The resource groups of each language (map to the core's own labels: label_map.json of coh-metrix_resurrection). Every resource
-# is named, Coh-Metrix's own included (WN, MRC); the core has no fallback, so a missing resource gives None, not another label.
+# The resource groups of each language. Every resource is named, Coh-Metrix's own included (WN, MRC). What depends on the
+# container (GermaNet mounted or not) is filled in by _groups: the German verb inventories are GermaNet or, without it, the
+# seed lists (README rule 7), and SMTEMP uses GermaNet for the German progressive only if it is there.
 _GROUPS = {
-    "de": {"wn": "GN", "connectives": "DIMLEX", "temporal": "LLMlist_GN", "aoa": "BIRCHENOUGH", "mrc": "MRCtr",
-           "concreteness": "KOEPER", "imagery": "KOEPER", "easability": "REFIT_REFv1"},
-    "en": {"wn": "WN", "connectives": "DIMLEXeng_GUM", "temporal": "LLMlist", "aoa": "KUPERMAN", "mrc": "MRC",
-           "concreteness": "BRYSBAERT", "imagery": "MRC", "easability": "REFIT_REFa"},
+    "de": {"wn": "GN", "connectives": "DIMLEX", "aoa": "BIRCHENOUGH", "mrc": "MRCtr", "concreteness": "KOEPER",
+           "imagery": "KOEPER", "easability": "REFIT_REFv1", "clear": "CLEARtr"},
+    "en": {"wn": "WN", "verbs": "WN", "connectives": "DIMLEXeng_GUM", "temporal": "LLMlist", "aoa": "KUPERMAN", "mrc": "MRC",
+           "concreteness": "BRYSBAERT", "imagery": "MRC", "easability": "REFIT_REFa", "clear": "CLEAR"},
 }
 
-# version of every index: the computation of Coh-Metrix 0.4.0-py (duui-coh-metrix 0.2.0 had 1.0 for its own computation; the
-# values differ for the same text, since this core reads UD and changed most indices, see the core's README)
-INDEX_VERSION = "2.0"
+
+def _groups(lang: str, verbs: Optional[str] = None, germanet: Optional[bool] = None) -> Dict[str, str]:
+    parts = dict(_GROUPS[lang])
+    if lang == "de":
+        parts["verbs"] = verbs or core.GERMAN_VERB_INVENTORY
+        has_germanet = core.germanet is not None if germanet is None else germanet
+        parts["temporal"] = "LLMlist_GN" if has_germanet else "LLMlist"
+    return parts
 
 
 # ------------------------------------------------------------------ the core's results as index records
@@ -258,7 +265,7 @@ DESCRIPTIONS: Dict[str, Any] = {
     "LSASSpd": "LSA overlap, all sentences in paragraph, standard deviation",
     "LSAPP1": "LSA overlap, adjacent paragraphs, mean",
     "LSAPP1d": "LSA overlap, adjacent paragraphs, standard deviation",
-    "LSAGN": "LSA given/new, sentences, mean",
+    "LSAGN": "LSA given/new, sentences, mean (the first sentence counts as 0, so the value depends on the number of sentences)",
     "LSAGNd": "LSA given/new, sentences, standard deviation",
     "LDTTRc": "Lexical diversity, type-token ratio, content word lemmas",
     "LDTTRa": "Lexical diversity, type-token ratio, all words",
@@ -294,7 +301,7 @@ DESCRIPTIONS: Dict[str, Any] = {
     "DRPP": "Preposition phrase density, incidence",
     "DRPVAL": "Agentless passive voice density, incidence",
     "DRNEG": "Negation density, incidence",
-    "DRGERUND": "Gerund density, incidence",
+    "DRGERUND": "Gerund density (-ing verb forms), incidence",
     "DRINF": "Infinitive density, incidence",
     "WRDNOUN": "Noun incidence",
     "WRDVERB": "Verb incidence",
@@ -392,6 +399,142 @@ def _easability(results: Dict[str, Tuple[Optional[float], Optional[str]]], lang:
     return {key: (scores.get(key), error) for key in EASABILITY_KEYS}
 
 # The token vectors (README, "Vectors"): their name is a label group, e.g. SPACYlg.
+# ------------------------------------------------------------------ records: the indices and their variants
+# Variants (decision 2026-11-02): further records of an index computed with another resource or method, each with its own
+# label_ttlab (README rules 4, 7) and core key "<key>@<variant>": (index, core key, label_ttlab template, comparability EN,
+# comparability DE, languages). They follow their index in the output; users choose with include_indices / exclude_indices.
+_ALL = ("de", "en")
+VARIANTS: List[Tuple[int, str, str, str, str, Tuple[str, ...]]] = [
+    # the Wikipedia samples shipped with the component (0.2.0), log10 as the main frequencies
+    *[(i, f"{k}@WIKI", f"{k}_WIKI", "corpus", "corpus", _ALL) for i, k in ((92, "WRDFRQc"), (93, "WRDFRQa"), (94, "WRDFRQmc"))],
+    (106, "RDL2@WIKI", "RDL2_WIKI", "corpus", "corpus", _ALL),
+    # the LLM-generated connective lists and the 0.2.0 counting
+    *[(i, f"{k}@LLMlist", f"{k}_LLMlist", "llmlist", "llmlist", _ALL) for i, k in (
+        (50, "CNCAll"), (51, "CNCCaus"), (52, "CNCLogic"), (53, "CNCADC"), (54, "CNCTemp"), (55, "CNCTempx"), (56, "CNCAdd"),
+        (57, "CNCPos"), (58, "CNCNeg"))],
+    (60, "SMCAUSvp@LLMlist", "SMCAUSvp_{verbs}_LLMlist", "llmlist", "counterpart, llmlist", _ALL),
+    (62, "SMCAUSr@LLMlist", "SMCAUSr_{verbs}_LLMlist", "llmlist", "counterpart, llmlist", _ALL),
+    # the MRC database (German: translated) where the main record uses other norms
+    (95, "WRDAOAc@MRC", "WRDAOAc_{mrc}", "original", "translated", _ALL),
+    (97, "WRDCNCc@MRC", "WRDCNCc_{mrc}", "original", "translated", _ALL),
+    (98, "WRDIMGc@MRC", "WRDIMGc_{mrc}", "original", "translated", ("de",)),   # English WRDIMGc is MRC already
+    # the readability formulas of the textstat library on the text (0.2.0)
+    (104, "RDFRE@TEXTSTAT", "RDFRE_TEXTSTAT", "original", "counterpart", _ALL),
+    (105, "RDFKGL@TEXTSTAT", "RDFKGL_TEXTSTAT", "original", "original", _ALL),
+    *[(i, f"{k}@TEXTSTAT", f"{k}_ext_TEXTSTAT", "ext", "ext", _ALL) for i, k in (
+        (1001, "RDFOG"), (1002, "RDSMOG"), (1003, "RDARI"), (1004, "RDCLI"), (1005, "RDLW"), (1006, "RDDCRS"),
+        (1007, "RDSPACHE"), (1008, "RDWSTF1"), (1009, "RDWSTF2"), (1010, "RDWSTF3"), (1011, "RDWSTF4"))],
+    # the Text Easability models fitted on CLEAR (English) / translated CLEAR (German) with 0.2.0's values: None until they are
+    # refitted on the current values (decision 2026-11-02)
+    *[(number, f"{key}@CLEAR", f"{key}_REFIT_{{clear}}", "refit", "refit", _ALL)
+      for number, (key, _) in enumerate(_EASABILITY_INDICES, start=12)],
+]
+CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR for German) has duui-coh-metrix 0.2.0's index "
+                 "values as inputs; it is not used until it is refitted on the current ones")
+
+
+class Record(NamedTuple):
+    index: int
+    type_name: str
+    label_v3: str
+    template: str
+    comparable_en: str
+    comparable_de: str
+    label_v2: Optional[str]
+    key: str                    # the core key ("WRDFRQc", "WRDFRQc@WIKI")
+    languages: Tuple[str, ...]
+
+
+def _records() -> List[Record]:
+    variants = defaultdict(list)
+    for index, key, template, comparable_en, comparable_de, languages in VARIANTS:
+        variants[index].append((key, template, comparable_en, comparable_de, languages))
+    out = []
+    for index, type_name, label_v3, template, comparable_en, comparable_de, label_v2 in INDEX_CATALOG:
+        out.append(Record(index, type_name, label_v3, template, comparable_en, comparable_de, label_v2,
+                          CORE_KEY_BY_INDEX[index], _ALL))
+        for key, v_template, v_en, v_de, languages in variants.pop(index, []):
+            out.append(Record(index, type_name, label_v3, v_template, v_en, v_de, label_v2, key, languages))
+    assert not variants, variants
+    return out
+
+
+RECORDS = _records()
+RECORD_BY_KEY = {r.key: r for r in RECORDS}
+
+# version of each record's computation (README, "Index version"): 0.2.0 had "1.0" everywhere. "2.0": the meaning changed
+# (another formula, unit or definition); "1.1": the values change, the meaning stays (fixes and edge cases of PR #305, e.g.
+# sentences without a word dropped, hyphenated words); "1.0": a new record (a new label_ttlab), or computed as in 0.2.0.
+_MAJOR = {"WRDFRQc", "WRDFRQc@WIKI", "RDL2", "RDL2@WIKI", "SYNNP", "DRPVAL", "DRINF", "SMCAUSr", "SMCAUSr@LLMlist",
+          "SMINTEr"}
+_NEW = ({k for k in CORE_KEY_BY_INDEX.values() if k in _CONNECTIVE_KEYS} | {"SMCAUSvp", "WRDFRQa", "WRDFRQmc", "WRDAOAc",
+        "WRDCNCc", "RDFRE", "RDFKGL"} | set(_PROJECT_ONLY_KEYS) | set(EASABILITY_KEYS)
+        | {r.key for r in RECORDS if r.key.endswith(("@LLMlist", "@TEXTSTAT", "@CLEAR"))} - {"SMCAUSvp@LLMlist", "SMCAUSr@LLMlist"})
+VERSIONS = {r.key: "2.0" if r.key in _MAJOR else "1.0" if r.key in _NEW else "1.1" for r in RECORDS}
+
+# label_ttlab is unique per output (README, "Index labels"): checked for both languages, with and without GermaNet
+for _lang in _ALL:
+    for _verbs, _germanet in (("GN", True), ("SEEDlist", False)):
+        _labels = [r.template.format(**dict(_groups(_lang, _verbs, _germanet), vectors="SPACYlg"))
+                   for r in RECORDS if _lang in r.languages]
+        assert len(_labels) == len(set(_labels)), sorted(l for l in _labels if _labels.count(l) > 1)
+
+
+def _description(record: Record, lang: str) -> str:
+    base, _, variant = record.key.partition("@")
+    if base in EASABILITY_KEYS:
+        return _easability_description(base, lang, clear=variant == "CLEAR")
+    description = DESCRIPTIONS[base]
+    if isinstance(description, dict):
+        description = description[lang]
+    if variant == "WIKI" and base.startswith("WRDFRQ"):
+        return description.replace("SUBTLEX-DE", "Wikipedia").replace("SUBTLEX-US", "Wikipedia")
+    suffix = {"WIKI": " (frequencies: Wikipedia sample)", "LLMlist": " (LLM-generated lists)",
+              "MRC": " (MRC Psycholinguistic Database" + (", translated)" if lang == "de" else ")"),
+              "TEXTSTAT": " (textstat library)"}.get(variant, "")
+    return description + suffix
+
+
+_EASABILITY_BOOK_NAMES = {"PCNAR": "Narrativity", "PCSYN": "Syntactic simplicity", "PCCNC": "Word concreteness",
+                          "PCREF": "Referential cohesion", "PCDC": "Deep cohesion", "PCVERB": "Verb cohesion",
+                          "PCCONN": "Connectivity", "PCTEMP": "Temporality"}
+
+
+def _easability_description(key: str, lang: str, clear: bool) -> str:
+    """the Coh-Metrix 3.0 name of the component (App. A, ch. 5, Graesser et al. 2011); for the refitted models REFv1 / REFa,
+    where a component carries other markers, the model's own name too (decision D2, provisional): the model file's `name`"""
+    code, kind = key[:-1], "z score" if key.endswith("z") else "percentile"
+    name = _EASABILITY_BOOK_NAMES[code]
+    model = None if clear else core.easability_models.get(lang)
+    own = next((c["name"] for c in (model or {}).get("components", []) if c.get("label_v3_z") == code + "z"), None)
+    if own and own != name:
+        name = f"{name} (in this model: {own})"
+    return f"Text Easability PC {name}, {kind}"
+
+
+def _missing_resources(lang: str) -> Dict[str, str]:
+    """label group -> the resource of the container that is not there (user-supplied, README "Resources supplied by the
+    user"); a record of such a group without a value gets this as its error instead of a bare None"""
+    found = lambda path: bool(path) and Path(path).is_file()
+    st, missing = core.settings, {}
+    if core.germanet is None:
+        missing["GN"] = "GermaNet (volume src/main/resources/germanet)"
+    if lang == "de":
+        checks = (("DIMLEX", core.dimlex_entries is not None, "DiMLex", "DIMLEX_PATH"),
+                  ("SUBTLEX", found(st.subtlex_de_path), "SUBTLEX-DE", "SUBTLEX_DE_PATH"),
+                  ("KOEPER", found(st.koeper_path), "the Köper & Schulte im Walde norms", "KOEPER_PATH"),
+                  ("BIRCHENOUGH", found(st.birchenough_path), "the Birchenough et al. norms", "BIRCHENOUGH_PATH"))
+    else:
+        checks = (("DIMLEXeng", core.dimlex_en_entries is not None, "DiMLex-Eng", "DIMLEX_EN_PATH"),
+                  ("SUBTLEX", found(st.subtlex_us_path), "SUBTLEX-US", "SUBTLEX_US_PATH"),
+                  ("BRYSBAERT", found(st.brysbaert_path), "the Brysbaert et al. norms", "BRYSBAERT_PATH"),
+                  ("KUPERMAN", found(st.kuperman_path), "the Kuperman et al. norms", "KUPERMAN_PATH"))
+    for group, ok, name, env in checks:
+        if not ok:
+            missing[group] = f"{name} (DUUI_COH_METRIX_{env})"
+    return missing
+
+
 _VECTOR_GROUP_FORMAT = re.compile(r"^[A-Z][A-Z0-9]*[a-z0-9]*$")
 _SPACY_MODEL_SIZES = ("sm", "md", "lg", "trf")
 _VECTOR_INDICES = frozenset(label_v3 for _, type_name, label_v3, *_ in INDEX_CATALOG
@@ -437,17 +580,19 @@ def _vectors_group(vectors: Optional[str], vectors_model: Optional[str], vectors
     return "SPACY" + model_size, None
 
 
-def _ttlab_labels(lang: str, vectors_group: str) -> Dict[str, str]:
-    # label_v3 -> label_ttlab for one request
-    parts = dict(_GROUPS[lang], vectors=vectors_group)
-    return {label_v3: template.format(**parts) for _, _, label_v3, template, *_ in INDEX_CATALOG}
+def _ttlab_labels(lang: str, vectors_group: str, verbs: Optional[str] = None,
+                  germanet: Optional[bool] = None) -> Dict[str, str]:
+    # record key -> label_ttlab for one request (the records of this language)
+    parts = dict(_groups(lang, verbs, germanet), vectors=vectors_group)
+    return {r.key: r.template.format(**parts) for r in RECORDS if lang in r.languages}
 
 
 @lru_cache(maxsize=1)
 def _known_ttlab_labels() -> frozenset:
-    # every label_ttlab a request can produce with spaCy vectors, for the unknown-name warning
+    # every label_ttlab a request can produce with spaCy vectors, with and without GermaNet, for the unknown-name warning
     return frozenset(label for lang in _GROUPS for size in ("",) + _SPACY_MODEL_SIZES
-                     for label in _ttlab_labels(lang, "SPACY" + size).values())
+                     for verbs, germanet in (("GN", True), ("SEEDlist", False))
+                     for label in _ttlab_labels(lang, "SPACY" + size, verbs, germanet).values())
 
 
 def _parse_index_names(value: Optional[str]) -> List[str]:
@@ -455,11 +600,11 @@ def _parse_index_names(value: Optional[str]) -> List[str]:
 
 
 def _resolve_index_selection(include: Optional[str], exclude: Optional[str], ttlab_labels: Dict[str, str]) -> Set[str]:
-    # The selected indices as a set of label_v3 (README, "Selecting indices"); as in duui-coh-metrix 0.2.0. Names are, from least
+    # The selected records as a set of record keys (README, "Selecting indices"); as in duui-coh-metrix 0.2.0. Names are, from least
     # to most specific: "*", a group (type_name), a prefix of label_ttlab ending in "*" (a longer prefix is more specific), a
     # label_v3, a label_ttlab; case-insensitive. For each index the most specific matching name decides; exclude wins on a tie.
-    # An empty include means "*". The core computes every index (the Text Easability components need most of them as inputs);
-    # the selection decides what is output.
+    # An empty include means "*". A label_v3 selects every record of the index (its variants too). Only the selected records
+    # and what they need are computed.
     groups = {type_name.lower() for _, type_name, *_ in INDEX_CATALOG}
     public = {label_v3.lower() for _, _, label_v3, *_ in INDEX_CATALOG}
     known_ttlab = {label.lower() for label in _known_ttlab_labels() | set(ttlab_labels.values())}
@@ -500,11 +645,13 @@ def _resolve_index_selection(include: Optional[str], exclude: Optional[str], ttl
     include_names = check(_parse_index_names(include)) if _parse_index_names(include) else ["*"]
     exclude_names = check(_parse_index_names(exclude))
     output = set()
-    for _, type_name, label_v3, *_ in INDEX_CATALOG:
-        included = rank(include_names, type_name, label_v3, ttlab_labels[label_v3])
-        excluded = rank(exclude_names, type_name, label_v3, ttlab_labels[label_v3])
+    for r in RECORDS:
+        if r.key not in ttlab_labels:
+            continue
+        included = rank(include_names, r.type_name, r.label_v3, ttlab_labels[r.key])
+        excluded = rank(exclude_names, r.type_name, r.label_v3, ttlab_labels[r.key])
         if included is not None and (excluded is None or included > excluded):
-            output.add(label_v3)
+            output.add(r.key)
     logger.debug("Selected indices: %d", len(output))
     return output
 
@@ -619,7 +766,7 @@ class TextImagerInputOutput(BaseModel):
 
 
 def _is_punct(text: str) -> bool:
-    # spaCy's lexical IS_PUNCT (spacy/lang/lex_attrs.py), as the reference preprocessing sets it (cohmetrix/preprocess.py)
+    # spaCy's lexical IS_PUNCT (spacy/lang/lex_attrs.py), as the reference preprocessing sets it (docs/preprocess.py)
     return all(unicodedata.category(c).startswith("P") for c in text)
 
 
@@ -721,22 +868,22 @@ def get_input_output() -> TextImagerInputOutput:
 
 @app.get("/v1/indices")
 def get_indices() -> List[Dict[str, Any]]:
-    # The names accepted by include_indices / exclude_indices, and how each index relates to Coh-Metrix 3.0. The vector group
-    # depends on the document (SPACYlg, ...), so label_ttlab shows it as *.
+    # The records (indices and their variants): the names accepted by include_indices / exclude_indices, and how each relates
+    # to Coh-Metrix 3.0. The vector group depends on the document (SPACYlg, ...), so label_ttlab shows it as *.
     labels = {lang: _ttlab_labels(lang, "*") for lang in _GROUPS}
     return [
         {
-            "index": index,
-            "type_name": type_name,
-            "label_v3": label_v3,
-            "label_v2": label_v2,
-            "label_ttlab_en": labels["en"][label_v3],
-            "label_ttlab_de": labels["de"][label_v3],
-            "comparable_en": comparable_en,
-            "comparable_de": comparable_de,
-            "version": INDEX_VERSION,
+            "index": r.index,
+            "type_name": r.type_name,
+            "label_v3": r.label_v3,
+            "label_v2": r.label_v2,
+            "label_ttlab_en": labels["en"].get(r.key),
+            "label_ttlab_de": labels["de"].get(r.key),
+            "comparable_en": r.comparable_en if "en" in r.languages else None,
+            "comparable_de": r.comparable_de if "de" in r.languages else None,
+            "version": VERSIONS[r.key],
         }
-        for index, type_name, label_v3, _, comparable_en, comparable_de, label_v2 in INDEX_CATALOG
+        for r in RECORDS
     ]
 
 
@@ -755,41 +902,46 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     vectors_group, vectors_error = _vectors_group(request.vectors, request.vectors_model, request.vectors_source,
                                                   request.vectors_available)
     ttlab_labels = _ttlab_labels(lang, vectors_group)
-    output = _resolve_index_selection(request.include_indices, request.exclude_indices, ttlab_labels)
+    output = {key for key in _resolve_index_selection(request.include_indices, request.exclude_indices, ttlab_labels)
+              if key.partition("@")[0] not in NOT_EMITTED.get(lang, ())}
     core_request = _core_request(request, lang, vectors_group)
 
-    # the core keys of the selected indices; the Text Easability components need their model's inputs
-    selected = {CORE_KEY_BY_INDEX[index] for index, _, label_v3, *_ in INDEX_CATALOG if label_v3 in output}
-    wanted = selected - EASABILITY_KEYS
-    if selected & EASABILITY_KEYS:
+    # the core keys of the selected records; the Text Easability components (main models) need their model's inputs, the
+    # CLEAR ones are not computed
+    pc_main = output & EASABILITY_KEYS
+    wanted = {key for key in output if key not in EASABILITY_KEYS and not key.endswith("@CLEAR")}
+    if pc_main:
         wanted |= _model_inputs(lang)
     results = core.compute(core_request, wanted)
-    if selected & EASABILITY_KEYS:
+    if pc_main:
         try:
             results.update(_easability(results, lang, core_request.vectors))
         except Exception as e:
             logger.exception(e)
             results.update({key: (None, f"not computed: {e}") for key in EASABILITY_KEYS})
+    results.update({key: (None, CLEAR_PENDING) for key in output if key.endswith("@CLEAR")})
 
     # unsupported vectors, or no token has a vector (e.g. a spaCy trf model): the vector indices are undefined, not 0
-    if vectors_error is None and not output.isdisjoint(_VECTOR_INDICES) and not any(
+    if vectors_error is None and any(RECORD_BY_KEY[k].label_v3 in _VECTOR_INDICES for k in output) and not any(
             t.has_vector and t.vector for p in request.paragraphs for s in p.sentences for t in s.tokens):
         vectors_error = f"No token vectors ({vectors_group})"
         logger.warning("%s: the LSA indices and SMCAUSlsa are undefined", vectors_error)
 
+    missing = _missing_resources(lang)
     indices = []
-    for index, type_name, label_v3, _, _, _, label_v2 in INDEX_CATALOG:
-        key = CORE_KEY_BY_INDEX[index]
-        if label_v3 not in output or key in NOT_EMITTED.get(lang, ()):
+    for r in RECORDS:
+        if r.key not in output:
             continue
-        value, error = results.get(key, (None, "not computed"))
-        if vectors_error is not None and label_v3 in _VECTOR_INDICES:
+        value, error = results.get(r.key, (None, "not computed"))
+        if value is None and error is None:
+            absent = [missing[g] for g in ttlab_labels[r.key].split("_")[1:] if g in missing]
+            if absent:
+                error = "resource not available: " + ", ".join(absent)
+        if vectors_error is not None and r.label_v3 in _VECTOR_INDICES:
             value, error = None, vectors_error
-        description = DESCRIPTIONS[key]
-        if isinstance(description, dict):
-            description = description[lang]
-        indices.append(Index(index=index, type_name=type_name, label_v3=label_v3, label_ttlab=ttlab_labels[label_v3],
-                             label_v2=label_v2, description=description, version=INDEX_VERSION, value=value, error=error))
+        indices.append(Index(index=r.index, type_name=r.type_name, label_v3=r.label_v3, label_ttlab=ttlab_labels[r.key],
+                             label_v2=r.label_v2, description=_description(r, lang), version=VERSIONS[r.key],
+                             value=value, error=error))
 
     meta = AnnotationMeta(name=settings.annotator_name, version=settings.annotator_version,
                           modelName=settings.annotator_name, modelVersion=settings.annotator_version)
