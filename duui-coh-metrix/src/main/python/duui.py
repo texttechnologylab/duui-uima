@@ -1,17 +1,18 @@
-"""DUUI layer of Coh-Metrix 0.4.0-py.
+"""DUUI layer of Coh-Metrix (duui-coh-metrix).
 
-The indices are computed by `cohmetrix_core.py`, an unchanged copy of `cohmetrix/core.py` of coh-metrix_resurrection (Coh-Metrix
-0.4.0-py: German and English read in Universal Dependencies). This file only adds what DUUI needs, with the interface of
-duui-coh-metrix 0.2.0:
+The indices are computed by `cohmetrix_core.py` (the computation of Coh-Metrix 0.4.0-py, German and English read in Universal
+Dependencies, PR #305), which only computes: `compute(request, wanted)` gives {key: (value, error)} for the wanted index keys
+and runs only the steps they need. This file owns everything around it:
 - the index catalog with the two-layer labels (`label_v3` public, `label_ttlab` internal with uppercase resource groups; README,
-  "Index labels"); the core keeps its own labels, the map between both is `label_map.json` of coh-metrix_resurrection;
-- `include_indices` / `exclude_indices` (README, "Selecting indices");
+  "Index labels"), the descriptions, and which indices are emitted;
+- `include_indices` / `exclude_indices` (README, "Selecting indices"), mapped to the core keys the selection needs;
+- the Text Easability components from the computed inputs (the core's model functions);
+- every selected index gets a value or an error;
 - the token vectors from WordEmbedding annotations or SpacyToken.vector (README, "Vectors");
 - the routes of a DUUI component, and `/v1/indices`.
 """
 import logging
 import re
-import threading
 import unicodedata
 from functools import lru_cache
 from platform import python_version
@@ -55,8 +56,6 @@ try:
 except ImportError:  # imported outside the package (tests)
     import cohmetrix_core as core
 
-# The core keeps per-text caches in module state, so one request at a time (CPU-bound: threads would not run in parallel anyway).
-_CORE_LOCK = threading.Lock()
 
 TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = []
 
@@ -217,6 +216,180 @@ _GROUPS = {
 # version of every index: the computation of Coh-Metrix 0.4.0-py (duui-coh-metrix 0.2.0 had 1.0 for its own computation; the
 # values differ for the same text, since this core reads UD and changed most indices, see the core's README)
 INDEX_VERSION = "2.0"
+
+
+# ------------------------------------------------------------------ the core's results as index records
+# The core key of each catalog index (the core computes by these keys: "DESPC", ..., "RDFOG"; PC* are computed here), and the
+# description of each index (from the core's records of 0.4.0-py; the frequency indices name their corpus per language).
+CORE_KEY_BY_INDEX: Dict[int, str] = {"1": "DESPC", "2": "DESSC", "3": "DESWC", "4": "DESPL", "5": "DESPLd", "6": "DESSL", "7": "DESSLd", "8": "DESWLsy", "9": "DESWLsyd", "10": "DESWLlt", "11": "DESWLltd", "28": "CRFNO1", "29": "CRFAO1", "30": "CRFSO1", "31": "CRFNOa", "32": "CRFAOa", "33": "CRFSOa", "34": "CRFCWO1", "35": "CRFCWO1d", "36": "CRFCWOa", "37": "CRFCWOad", "38": "LSASS1", "39": "LSASS1d", "40": "LSASSp", "41": "LSASSpd", "42": "LSAPP1", "43": "LSAPP1d", "44": "LSAGN", "45": "LSAGNd", "46": "LDTTRc", "47": "LDTTRa", "48": "LDMTLDa", "49": "LDVOCDa", "50": "CNCAll", "51": "CNCCaus", "52": "CNCLogic", "53": "CNCADC", "54": "CNCTemp", "55": "CNCTempx", "56": "CNCAdd", "57": "CNCPos", "58": "CNCNeg", "59": "SMCAUSv", "60": "SMCAUSvp", "61": "SMINTEp", "62": "SMCAUSr", "63": "SMINTEr", "64": "SMCAUSlsa", "65": "SMCAUSwn", "66": "SMTEMP", "67": "SYNLE", "68": "SYNNP", "69": "SYNMEDpos", "70": "SYNMEDwrd", "71": "SYNMEDlem", "72": "SYNSTRUTa", "73": "SYNSTRUTt", "74": "DRNP", "75": "DRVP", "76": "DRAP", "77": "DRPP", "78": "DRPVAL", "79": "DRNEG", "80": "DRGERUND", "81": "DRINF", "82": "WRDNOUN", "83": "WRDVERB", "84": "WRDADJ", "85": "WRDADV", "86": "WRDPRO", "87": "WRDPRP1s", "88": "WRDPRP1p", "89": "WRDPRP2", "90": "WRDPRP3s", "91": "WRDPRP3p", "92": "WRDFRQc", "93": "WRDFRQa", "94": "WRDFRQmc", "95": "WRDAOAc", "96": "WRDFAMc", "97": "WRDCNCc", "98": "WRDIMGc", "99": "WRDMEAc", "100": "WRDPOLc", "101": "WRDHYPn", "102": "WRDHYPv", "103": "WRDHYPnv", "104": "RDFRE", "105": "RDFKGL", "1001": "RDFOG", "1002": "RDSMOG", "1003": "RDARI", "1004": "RDCLI", "1005": "RDLW", "1006": "RDDCRS", "1007": "RDSPACHE", "1008": "RDWSTF1", "1009": "RDWSTF2", "1010": "RDWSTF3", "1011": "RDWSTF4", "106": "RDL2"}
+_EASABILITY_NAMES = [("PCNAR", "Narrativity"), ("PCSYN", "Syntactic simplicity"), ("PCCNC", "Word concreteness"),
+                     ("PCREF", "Referential cohesion"), ("PCDC", "Deep cohesion"), ("PCVERB", "Semantic overlap"),
+                     ("PCCONN", "Connectivity"), ("PCTEMP", "Third-person narration")]
+_EASABILITY_INDICES = [(f"{code}{kind}", f"Text Easability PC {name}, {'z score' if kind == 'z' else 'percentile'}")
+                       for code, name in _EASABILITY_NAMES for kind in "zp"]
+CORE_KEY_BY_INDEX = {int(index): key for index, key in CORE_KEY_BY_INDEX.items()}
+CORE_KEY_BY_INDEX.update({number: key for number, (key, _) in enumerate(_EASABILITY_INDICES, start=12)})
+EASABILITY_KEYS = frozenset(key for key, _ in _EASABILITY_INDICES)
+DESCRIPTIONS: Dict[str, Any] = {
+    "DESPC": "Paragraph count, number of paragraphs",
+    "DESSC": "Sentence count, number of sentences",
+    "DESWC": "Word count, number of words",
+    "DESPL": "Paragraph length, number of sentences, mean",
+    "DESPLd": "Paragraph length, number of sentences, standard deviation",
+    "DESSL": "Sentence length, number of words, mean",
+    "DESSLd": "Sentence length, number of words, standard deviation",
+    "DESWLsy": "Word length, number of syllables, mean",
+    "DESWLsyd": "Word length, number of syllables, standard deviation",
+    "DESWLlt": "Word length, number of letters, mean",
+    "DESWLltd": "Word length, number of letters, standard deviation",
+    "CRFNO1": "Noun overlap, adjacent sentences, binary, mean",
+    "CRFAO1": "Argument overlap, adjacent sentences, binary, mean",
+    "CRFSO1": "Stem overlap, adjacent sentences, binary, mean",
+    "CRFNOa": "Noun overlap, all sentences, binary, mean",
+    "CRFAOa": "Argument overlap, all sentences, binary, mean",
+    "CRFSOa": "Stem overlap, all sentences, binary, mean",
+    "CRFCWO1": "Content word overlap, adjacent sentences, proportional, mean",
+    "CRFCWO1d": "Content word overlap, adjacent sentences, proportional, standard deviation",
+    "CRFCWOa": "Content word overlap, all sentences, proportional, mean",
+    "CRFCWOad": "Content word overlap, all sentences, proportional, standard deviation",
+    "LSASS1": "LSA overlap, adjacent sentences, mean",
+    "LSASS1d": "LSA overlap, adjacent sentences, standard deviation",
+    "LSASSp": "LSA overlap, all sentences in paragraph, mean",
+    "LSASSpd": "LSA overlap, all sentences in paragraph, standard deviation",
+    "LSAPP1": "LSA overlap, adjacent paragraphs, mean",
+    "LSAPP1d": "LSA overlap, adjacent paragraphs, standard deviation",
+    "LSAGN": "LSA given/new, sentences, mean",
+    "LSAGNd": "LSA given/new, sentences, standard deviation",
+    "LDTTRc": "Lexical diversity, type-token ratio, content word lemmas",
+    "LDTTRa": "Lexical diversity, type-token ratio, all words",
+    "LDMTLDa": "Lexical diversity, MTLD, all words",
+    "LDVOCDa": "Lexical diversity, VOCD, all words",
+    "CNCAll": "All connectives incidence",
+    "CNCCaus": "Causal connectives incidence",
+    "CNCLogic": "Logical connectives incidence",
+    "CNCADC": "Adversative and contrastive connectives incidence",
+    "CNCTemp": "Temporal connectives incidence",
+    "CNCTempx": "Expanded temporal connectives incidence",
+    "CNCAdd": "Additive connectives incidence",
+    "CNCPos": "Positive connectives incidence",
+    "CNCNeg": "Negative connectives incidence",
+    "SMCAUSv": "Causal verb incidence",
+    "SMCAUSvp": "Causal verbs and causal particles incidence",
+    "SMINTEp": "Intentional verbs incidence",
+    "SMCAUSr": "Ratio of causal particles to causal verbs",
+    "SMINTEr": "Ratio of intentional particles to intentional verbs",
+    "SMCAUSlsa": "LSA verb overlap",
+    "SMCAUSwn": "WordNet verb overlap",
+    "SMTEMP": "Temporal cohesion, tense and aspect repetition, mean",
+    "SYNLE": "Left embeddedness, words before main verb, mean",
+    "SYNNP": "Number of modifiers per noun phrase, mean",
+    "SYNMEDpos": "Minimal Edit Distance, part of speech",
+    "SYNMEDwrd": "Minimal Edit Distance, all words",
+    "SYNMEDlem": "Minimal Edit Distance, lemmas",
+    "SYNSTRUTa": "Sentence syntax similarity, adjacent sentences, mean",
+    "SYNSTRUTt": "Sentence syntax similarity, all combinations, across paragraphs, mean",
+    "DRNP": "Noun phrase density, incidence",
+    "DRVP": "Verb phrase density, incidence",
+    "DRAP": "Adverbial phrase density, incidence",
+    "DRPP": "Preposition phrase density, incidence",
+    "DRPVAL": "Agentless passive voice density, incidence",
+    "DRNEG": "Negation density, incidence",
+    "DRGERUND": "Gerund density, incidence",
+    "DRINF": "Infinitive density, incidence",
+    "WRDNOUN": "Noun incidence",
+    "WRDVERB": "Verb incidence",
+    "WRDADJ": "Adjective incidence",
+    "WRDADV": "Adverb incidence",
+    "WRDPRO": "Pronoun incidence",
+    "WRDPRP1s": "First-person singular pronoun incidence",
+    "WRDPRP1p": "First-person plural pronoun incidence",
+    "WRDPRP2": "Second-person pronoun incidence",
+    "WRDPRP3s": "Third-person singular pronoun incidence",
+    "WRDPRP3p": "Third-person plural pronoun incidence",
+    "WRDFRQc": {
+        "de": "SUBTLEX-DE Log frequency for content words, mean",
+        "en": "SUBTLEX-US Log frequency for content words, mean"
+    },
+    "WRDFRQa": {
+        "de": "SUBTLEX-DE Log frequency for all words, mean",
+        "en": "SUBTLEX-US Log frequency for all words, mean"
+    },
+    "WRDFRQmc": {
+        "de": "SUBTLEX-DE Log minimum frequency for content words, mean",
+        "en": "SUBTLEX-US Log minimum frequency for content words, mean"
+    },
+    "WRDAOAc": "Age of acquisition for content words, mean",
+    "WRDFAMc": "Familiarity for content words, mean",
+    "WRDCNCc": "Concreteness for content words, mean",
+    "WRDIMGc": "Imagability for content words, mean",
+    "WRDMEAc": "Meaningfulness, Colorado norms, content words, mean",
+    "WRDPOLc": "Polysemy for content words, mean",
+    "WRDHYPn": "Hypernymy for nouns, mean",
+    "WRDHYPv": "Hypernymy for verbs, mean",
+    "WRDHYPnv": "Hypernymy for nouns and verbs, mean",
+    "RDFRE": "Flesch Reading Ease",
+    "RDFKGL": "Flesch–Kincaid Grade Level",
+    "RDFOG": "Gunning Fog Index",
+    "RDSMOG": "SMOG Grade",
+    "RDARI": "Automated Readability Index",
+    "RDCLI": "Coleman–Liau Index",
+    "RDLW": "Linsear Write Formula",
+    "RDDCRS": "Dale-Chall Readability Score",
+    "RDSPACHE": "Spache Readability Formula",
+    "RDWSTF1": "Wiener Sachtextformel 1",
+    "RDWSTF2": "Wiener Sachtextformel 2",
+    "RDWSTF3": "Wiener Sachtextformel 3",
+    "RDWSTF4": "Wiener Sachtextformel 4",
+    "RDL2": "Coh-Metrix L2 Readability"
+}
+DESCRIPTIONS.update({key: description for key, description in _EASABILITY_INDICES})
+
+# never emitted, because always None (README rule 9): German has no gerund, the Wiener Sachtextformel is a German formula
+NOT_EMITTED = {"de": {"DRGERUND"}, "en": {"RDWSTF1", "RDWSTF2", "RDWSTF3", "RDWSTF4"}}
+
+# The names under which the Text Easability models know their inputs: the core key plus the resource of the language (as
+# fitted). A model gets only inputs computed with its resources, otherwise its components are None.
+_LSA_KEYS = ["LSASS1", "LSASS1d", "LSASSp", "LSASSpd", "LSAPP1", "LSAPP1d", "LSAGN", "LSAGNd", "SMCAUSlsa"]
+_FREQUENCY_KEYS = ["WRDFRQc", "WRDFRQa", "WRDFRQmc", "RDL2"]
+_CONNECTIVE_KEYS = ["CNCAll", "CNCCaus", "CNCLogic", "CNCADC", "CNCTemp", "CNCTempx", "CNCAdd", "CNCPos", "CNCNeg"]
+_PROJECT_ONLY_KEYS = ["RDFOG", "RDSMOG", "RDARI", "RDCLI", "RDLW", "RDDCRS", "RDSPACHE", "RDWSTF1", "RDWSTF2", "RDWSTF3", "RDWSTF4"]
+_GERMANET_KEYS = ["WRDPOLc", "WRDHYPn", "WRDHYPv", "WRDHYPnv", "SMCAUSwn", "SMCAUSv", "SMINTEp", "SMINTEr"]
+_MODEL_INPUT_SUFFIX = {
+    "de": {**dict.fromkeys(_LSA_KEYS, "spacy"), **dict.fromkeys(_FREQUENCY_KEYS, "subtlexde"),
+           **dict.fromkeys(_CONNECTIVE_KEYS, "dimlex"), "SMTEMP": "llmlist_germanet", "DRNEG": "llmlist",
+           **dict.fromkeys(_GERMANET_KEYS, "germanet"), "SMCAUSvp": "germanet_dimlex", "SMCAUSr": "germanet_dimlex",
+           "WRDAOAc": "birchenough", "WRDCNCc": "koeper", "WRDIMGc": "koeper", "WRDFAMc": "mrctranslate",
+           "WRDMEAc": "mrctranslate", **dict.fromkeys(_PROJECT_ONLY_KEYS, "ext")},
+    "en": {**dict.fromkeys(_LSA_KEYS, "spacy"), **dict.fromkeys(_FREQUENCY_KEYS, "subtlexus"), "SMTEMP": "llmlist",
+           "DRNEG": "llmlist", "WRDCNCc": "brysbaert", "WRDAOAc": "kuperman", **dict.fromkeys(_CONNECTIVE_KEYS, "dimlexeng_gum"),
+           "SMCAUSvp": "dimlexeng_gum", "SMCAUSr": "dimlexeng_gum", **dict.fromkeys(_PROJECT_ONLY_KEYS, "ext")},
+}
+
+
+def _model_input_label(key: str, lang: str, vectors: Optional[str]) -> str:
+    suffix = _MODEL_INPUT_SUFFIX.get(lang, {}).get(key)
+    if suffix == "spacy" and vectors:
+        suffix = f"spacy-{vectors}"
+    return f"{key}_{suffix}" if suffix else key
+
+
+def _model_inputs(lang: str) -> Set[str]:
+    """the core keys the Text Easability model of the language needs"""
+    model = core.easability_models.get(lang)
+    if not model:
+        return set()
+    return {label.split("_", 1)[0] for m in model["inputs"] for label in m["labels_internal"]}
+
+
+def _easability(results: Dict[str, Tuple[Optional[float], Optional[str]]], lang: str,
+                vectors: Optional[str]) -> Dict[str, Tuple[Optional[float], Optional[str]]]:
+    """the 16 Text Easability components from the computed inputs (the core's model functions)"""
+    model = core.easability_models.get(lang)
+    if not model:
+        return {key: (None, "no Text Easability model") for key in EASABILITY_KEYS}
+    values = {_model_input_label(key, lang, vectors): value for key, (value, _) in results.items()}
+    scores, error = core._easability_scores(values, model)
+    return {key: (scores.get(key), error) for key in EASABILITY_KEYS}
 
 # The token vectors (README, "Vectors"): their name is a label group, e.g. SPACYlg.
 _VECTOR_GROUP_FORMAT = re.compile(r"^[A-Z][A-Z0-9]*[a-z0-9]*$")
@@ -575,6 +748,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     # the reason (the core's _language and _check_labels)
     try:
         lang = core._language(request)
+        core._check_labels(request)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -584,11 +758,18 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     output = _resolve_index_selection(request.include_indices, request.exclude_indices, ttlab_labels)
     core_request = _core_request(request, lang, vectors_group)
 
-    with _CORE_LOCK:
+    # the core keys of the selected indices; the Text Easability components need their model's inputs
+    selected = {CORE_KEY_BY_INDEX[index] for index, _, label_v3, *_ in INDEX_CATALOG if label_v3 in output}
+    wanted = selected - EASABILITY_KEYS
+    if selected & EASABILITY_KEYS:
+        wanted |= _model_inputs(lang)
+    results = core.compute(core_request, wanted)
+    if selected & EASABILITY_KEYS:
         try:
-            core_response = core.post_process(core_request)
-        except ValueError as e:
-            raise HTTPException(status_code=422, detail=str(e))
+            results.update(_easability(results, lang, core_request.vectors))
+        except Exception as e:
+            logger.exception(e)
+            results.update({key: (None, f"not computed: {e}") for key in EASABILITY_KEYS})
 
     # unsupported vectors, or no token has a vector (e.g. a spaCy trf model): the vector indices are undefined, not 0
     if vectors_error is None and not output.isdisjoint(_VECTOR_INDICES) and not any(
@@ -597,15 +778,18 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         logger.warning("%s: the LSA indices and SMCAUSlsa are undefined", vectors_error)
 
     indices = []
-    for i in core_response.indices:
-        index, type_name, label_v3, _, _, _, label_v2 = _CATALOG_BY_INDEX[i.index]
-        if label_v3 not in output:
+    for index, type_name, label_v3, _, _, _, label_v2 in INDEX_CATALOG:
+        key = CORE_KEY_BY_INDEX[index]
+        if label_v3 not in output or key in NOT_EMITTED.get(lang, ()):
             continue
-        value, error = i.value, i.error
+        value, error = results.get(key, (None, "not computed"))
         if vectors_error is not None and label_v3 in _VECTOR_INDICES:
             value, error = None, vectors_error
+        description = DESCRIPTIONS[key]
+        if isinstance(description, dict):
+            description = description[lang]
         indices.append(Index(index=index, type_name=type_name, label_v3=label_v3, label_ttlab=ttlab_labels[label_v3],
-                             label_v2=label_v2, description=i.description, version=INDEX_VERSION, value=value, error=error))
+                             label_v2=label_v2, description=description, version=INDEX_VERSION, value=value, error=error))
 
     meta = AnnotationMeta(name=settings.annotator_name, version=settings.annotator_version,
                           modelName=settings.annotator_name, modelVersion=settings.annotator_version)

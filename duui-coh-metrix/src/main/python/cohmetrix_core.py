@@ -1,8 +1,13 @@
+"""The computation of the Coh-Metrix indices (Coh-Metrix 0.4.0-py core, PR #305): German and English read in Universal
+Dependencies. `compute(request, wanted)` gives {key: (value, error)} for the wanted index keys and runs only the steps they
+need (KEY_BLOCK, BLOCK_DEPS). Labels, variants, the Text Easability components and the service are in duui.py. Resources are
+read at import from the paths in `settings` (environment variables DUUI_COH_METRIX_*_PATH of the container)."""
 import bisect
 import csv
 import json
 import re
 import logging
+import threading
 import pyphen
 import textstat
 import math
@@ -10,6 +15,7 @@ import math
 from platform import python_version
 from sys import version as sys_version
 from time import perf_counter, time
+from contextvars import ContextVar
 from typing import List, Optional, Dict, Tuple, Set, Any
 
 from pydantic import BaseModel, validator
@@ -42,18 +48,26 @@ RESOURCES = Path(__file__).resolve().parent.parent / "resources"
 import nltk as _nltk
 _nltk.data.path.insert(0, str(RESOURCES / "nltk_data"))
 
+# NLTK's WordNet reader is not thread-safe: it loads lazily, and synset lookups seek and read on shared file handles, so
+# concurrent requests read each other's lines. The reader is loaded completely here, and its methods that read the files during
+# a request run under one lock (everything else, and every index that does not use WordNet, stays concurrent).
+try:
+    wn.ensure_loaded()
+except LookupError:   # without the NLTK data (outside the image): the WordNet indices fail on their own
+    pass
+else:
+    _WORDNET_LOCK = threading.RLock()
+    for _name in ("synset_from_pos_and_offset", "lemma_count", "lemma_from_key", "index_sense", "all_eng_synsets",
+                  "_data_file", "_load_lang_data"):
+        def _locked(*args, _method=getattr(wn, _name), **kwargs):
+            with _WORDNET_LOCK:
+                return _method(*args, **kwargs)
+        setattr(wn, _name, _locked)
+
 class Settings:
     """the container's settings (environment variables DUUI_COH_METRIX_*), with defaults for running without it"""
     def __init__(self):
         env = lambda k, d=None: os.environ.get("DUUI_COH_METRIX_" + k.upper(), d)
-        self.annotator_name = env("annotator_name", "coh-metrix-resurrection")
-        # 0.4.0 (2026-11-01; the user: 0.4.0 "ok"): points 1-3 after the code review (CODE_REVIEW_20261031.md), values change in
-        # both languages, the easability models refitted on them (refv1-ud-rr-cr2, refa-en-rr-gn-cr2) and two components renamed
-        # ("1. ok"); "0.4.0-dev" was the code of the reference runs for that refit, with 0.3.0's models. 0.3.0 (2026-10-31; the
-        # user: "bump"): the code-review fixes, values change in both languages, and the easability models refitted on them;
-        # 0.2.0 (2026-10-29): label / label_internal, easability
-        self.annotator_version = env("annotator_version", "0.4.0-py")
-        self.log_level = env("log_level", "INFO")
         self.germanet_path = env("germanet_path", "/data/GermaNet/GN_V180_XML")
         self.dimlex_path = env("dimlex_path", "/data/CORE/export/t0/dimlex/DimLex.xml")
         # English connectives (ENGLISH_PLAN.md step 2, 2026-10-29): DiMLex-Eng and the connective weights estimated on GUM
@@ -91,11 +105,7 @@ class Settings:
 
 settings = Settings()
 
-logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
-logger.info("TTLab TextImager DUUI Coh-Metrix")
-logger.info("Name: %s", settings.annotator_name)
-logger.info("Version: %s", settings.annotator_version)
 
 # LSA configuration
 logger.info(
@@ -109,15 +119,7 @@ if settings.lsa_use_truncated_svd:
         settings.lsa_svd_components
     )
 
-TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES = [
-]
 
-TEXTIMAGER_ANNOTATOR_INPUT_TYPES = [
-    "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence",
-    "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token",
-    "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma",
-    "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency",
-]
 
 SUPPORTED_LANGS = ["de", "en"]   # was [] ("all"): the syllables, the norms and every rule since the UD ports are German or English
 # Language codes the core accepts (code review 2026-10-31): before, only case and spaces were normalised, so "de-DE" or "deu"
@@ -180,46 +182,14 @@ class TextImagerRequest(BaseModel):
     vectors: Optional[str] = None   # the spaCy model whose word vectors the tokens carry (2026-10-29; names the LSA indices' vectors)
 
 
-class AnnotationMeta(BaseModel):
-    name: str
-    version: str
-    modelName: str
-    modelVersion: str
 
 
-class DocumentModification(BaseModel):
-    user: str
-    timestamp: int
-    comment: str
 
 
-class Index(BaseModel):
-    index: int
-    type_name: str
-    label: str            # public (2026-10-29, _labels); until then label_ttlab, label_v3, label_v2 (label_map.json)
-    label_internal: str
-    description: str
-    value: Optional[float]  # can be None if not applicable or on error
-    error: Optional[str]    # fill with error message if applicable
-    version: Optional[str] = None
-
-    @validator('value')
-    def value_must_be_finite(cls, v):
-        if v is not None and (math.isinf(v) or math.isnan(v)):
-            logger.debug("index value %s replaced by None", v)   # was print() on stdout, the CLI's stream (code review 2026-10-31)
-            return None
-        return v
 
 
-class TextImagerResponse(BaseModel):
-    indices: List[Index]
-    meta: Optional[AnnotationMeta]
-    modification_meta: Optional[DocumentModification]
 
 
-class TextImagerCapability(BaseModel):
-    supported_languages: List[str]
-    reproducible: bool
 
 
 # Annotation sufficiency helpers. A finite zero is only meaningful if the
@@ -267,20 +237,8 @@ def _has_analyzable_verbal_predicate(sentence: Sentence) -> bool:
     )
 
 
-class TextImagerDocumentation(BaseModel):
-    annotator_name: str
-    version: str
-    implementation_lang: Optional[str]
-    meta: Optional[dict]
-    docker_container_id: Optional[str]
-    parameters: Optional[dict]
-    capability: TextImagerCapability
-    implementation_specific: Optional[str]
 
 
-class TextImagerInputOutput(BaseModel):
-    inputs: List[str]
-    outputs: List[str]
 
 
 if settings.germanet_path:
@@ -728,15 +686,48 @@ ud_stem_content_pos = {"NOUN","PROPN","VERB","ADJ","ADV","PRON",}
 
 # speed (resurrection, 2026-10-22): the overlap indices over all sentence pairs (CRF*a) recomputed each sentence's annotation check
 # and word sets once per pair (1.4 million pairs on a page of 1,668 sentences). They are now computed once per sentence and request,
-# with the same expressions as before; post_process clears the cache. The entry keeps the sentence itself, so a reused id() cannot hit.
-_SENTENCE_FEATURES: Dict[int, Tuple[Any, dict]] = {}
+# with the same expressions as before; compute() resets the cache. The entry keeps the sentence itself, so a reused id() cannot hit.
+class _PerRequestDict:
+    """a dict per request: concurrent requests (FastAPI runs each in a thread with its own context) do not see each other's
+    entries; compute() resets it before and after each text"""
+
+    def __init__(self, name: str):
+        self._var: ContextVar = ContextVar(name, default=None)
+
+    def _dict(self) -> dict:
+        d = self._var.get()
+        if d is None:
+            d = {}
+            self._var.set(d)
+        return d
+
+    def reset(self) -> None:
+        self._var.set({})
+
+    def clear(self) -> None:
+        self._dict().clear()
+
+    def get(self, key, default=None):
+        return self._dict().get(key, default)
+
+    def __getitem__(self, key):
+        return self._dict()[key]
+
+    def __setitem__(self, key, value):
+        self._dict()[key] = value
+
+    def __contains__(self, key):
+        return key in self._dict()
+
+
+_SENTENCE_FEATURES = _PerRequestDict("_SENTENCE_FEATURES")   # {id(sentence): (sentence, features)}
 
 # speed (code review 2026-10-31, proposal 7): steps several indices share run once per text: the DiMLex pass of a sentence (CNC*,
 # SMCAUSvp, SMCAUSr: three times before), the situation-model data and verb counts (SMCAUSv, SMCAUSvp, SMINTEp, SMCAUSr,
 # SMINTEr, SMCAUSlsa, SMCAUSwn: seven and five times), the syllables (DESWLsy, DESWLsyd), the lexical-diversity words (four LD*)
-# and the all-pairs content-word overlap (CRFCWOa, CRFCWOad). No caller changes what it gets. post_process empties the memo
+# and the all-pairs content-word overlap (CRFCWOa, CRFCWOad). No caller changes what it gets. compute() resets the memo
 # before and after each text; an entry keeps its key objects, so a reused id() cannot hit.
-_TEXT_MEMO: Dict[tuple, Tuple[tuple, Any]] = {}
+_TEXT_MEMO = _PerRequestDict("_TEXT_MEMO")   # {key: (key objects, value)}
 
 
 def _memo(name: str, objects: tuple, extra, compute):
@@ -1122,13 +1113,19 @@ def cm_ldmtlda(tokens: List[Token]) -> Optional[float]:
 
 # LAY: VOCD — vocabulary diversity via random-sample curve fitting.
 # ↑ Higher = more varied vocabulary. Reliable.
+_VOCD_LOCK = threading.Lock()
+
+
 def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
     tokens_alpha, _, _ = _lexical_diversity_tokens(tokens)
     # no word repeated: the curve cannot be fitted and vocd returns D of about 10^6 (code review 2026-10-31); undefined
     if not tokens_alpha or len(set(tokens_alpha)) == len(tokens_alpha):
         return None
     lex = LexicalRichness(tokens_alpha, preprocessor=None, tokenizer=None)
-    return lex.vocd()
+    # lexicalrichness seeds and draws from Python's global random generator (random.seed(42), random.sample): concurrent
+    # requests would interleave their draws and the value would no longer be reproducible
+    with _VOCD_LOCK:
+        return lex.vocd()
 
 # ============================================================================
 # SYNTACTIC COMPLEXITY (SYN*) — "How complex and consistent is sentence structure?"
@@ -1253,57 +1250,8 @@ def _check_labels(request) -> None:
                          f"(Stanza, cohmetrix.preprocess.DEFAULTS['{lang}'])")
 
 
-# Index labels (2026-10-29; LABELS_PROPOSAL.md, label_map.json). `label` is public: the Coh-Metrix 3.0 label, plus a suffix for the
-# kind of deviation from the original where there is one; the same for every language (duui-coh-metrix's rule for its public
-# label, with the suffixes the user chose). `label_internal` adds the resource this language used (none where it is the
-# original's). Until 2026-10-29 the output had label_ttlab (with resource suffixes), label_v3 and label_v2.
-_LSA_KEYS = ["LSASS1", "LSASS1d", "LSASSp", "LSASSpd", "LSAPP1", "LSAPP1d", "LSAGN", "LSAGNd", "SMCAUSlsa"]
-_FREQUENCY_KEYS = ["WRDFRQc", "WRDFRQa", "WRDFRQmc", "RDL2"]   # RDL2 is computed from WRDFRQc (inherits its suffix)
-_CONNECTIVE_KEYS = ["CNCAll", "CNCCaus", "CNCLogic", "CNCADC", "CNCTemp", "CNCTempx", "CNCAdd", "CNCPos", "CNCNeg"]
-_PROJECT_ONLY_KEYS = ["RDFOG", "RDSMOG", "RDARI", "RDCLI", "RDLW", "RDDCRS", "RDSPACHE", "RDWSTF1", "RDWSTF2", "RDWSTF3", "RDWSTF4"]
-# the names used here (2026-11-01; the user: "1. ok"): two components carry another name than Coh-Metrix 3.0's, because the
-# markers of Coh-Metrix's name do not load on them in our models; the labels (PCVERB*, PCTEMP*) stay Coh-Metrix's
-# (easability/components.csv: name and name_cm3): PCVERB "Semantic overlap" (Coh-Metrix: Verb cohesion), PCTEMP "Third-person
-# narration" (Temporality)
-_EASABILITY_NAMES = [("PCNAR", "Narrativity"), ("PCSYN", "Syntactic simplicity"), ("PCCNC", "Word concreteness"),
-                     ("PCREF", "Referential cohesion"), ("PCDC", "Deep cohesion"), ("PCVERB", "Semantic overlap"),
-                     ("PCCONN", "Connectivity"), ("PCTEMP", "Third-person narration")]
-_EASABILITY_INDICES = [(f"{code}{kind}", f"Text Easability PC {name}, {'z score' if kind == 'z' else 'percentile'}")
-                       for code, name in _EASABILITY_NAMES for kind in "zp"]
-_EASABILITY_KEYS = [key for key, _ in _EASABILITY_INDICES]
-_PUBLIC_SUFFIX = {**dict.fromkeys(_LSA_KEYS, "embedding"),          # a vector space other than the TASA LSA space
-                  **dict.fromkeys(_FREQUENCY_KEYS, "corpus"),       # frequencies from another corpus than CELEX
-                  **dict.fromkeys(_CONNECTIVE_KEYS, "lexicon"),     # another connective lexicon than Coh-Metrix's lists
-                  "SMTEMP": "llmlist", "DRNEG": "llmlist",          # word lists generated with an LLM
-                  **dict.fromkeys(_EASABILITY_KEYS, "refit"),       # the component model fitted again, on another corpus
-                  **dict.fromkeys(_PROJECT_ONLY_KEYS, "ext")}       # not a Coh-Metrix 3.0 index
-_GERMANET_KEYS = ["WRDPOLc", "WRDHYPn", "WRDHYPv", "WRDHYPnv", "SMCAUSwn", "SMCAUSv", "SMINTEp", "SMINTEr"]
-_INTERNAL_SUFFIX = {
-    "de": {**dict.fromkeys(_LSA_KEYS, "spacy"), **dict.fromkeys(_FREQUENCY_KEYS, "subtlexde"),
-           **dict.fromkeys(_CONNECTIVE_KEYS, "dimlex"), "SMTEMP": "llmlist_germanet", "DRNEG": "llmlist",
-           **dict.fromkeys(_GERMANET_KEYS, "germanet"), "SMCAUSvp": "germanet_dimlex", "SMCAUSr": "germanet_dimlex",
-           "WRDAOAc": "birchenough", "WRDCNCc": "koeper", "WRDIMGc": "koeper", "WRDFAMc": "mrctranslate",
-           "WRDMEAc": "mrctranslate", **dict.fromkeys(_PROJECT_ONLY_KEYS, "ext")},
-    "en": {**dict.fromkeys(_LSA_KEYS, "spacy"), **dict.fromkeys(_FREQUENCY_KEYS, "subtlexus"), "SMTEMP": "llmlist",
-           "DRNEG": "llmlist", "WRDCNCc": "brysbaert", "WRDAOAc": "kuperman", **dict.fromkeys(_CONNECTIVE_KEYS, "dimlexeng_gum"),
-           "SMCAUSvp": "dimlexeng_gum", "SMCAUSr": "dimlexeng_gum", **dict.fromkeys(_PROJECT_ONLY_KEYS, "ext")},
-}
-# never emitted, because always None (duui-coh-metrix rule 6): German has no gerund, and the Wiener Sachtextformel is a German
-# formula (2026-10-29; English CNC*, SMCAUSvp, SMCAUSr are back with DiMLex-Eng the same day; the English PC* with the English
-# easability model 2026-10-30)
-_NOT_EMITTED = {"de": {"DRGERUND"}, "en": {"RDWSTF1", "RDWSTF2", "RDWSTF3", "RDWSTF4"}}
 
 
-def _labels(key: str, lang: str, vectors: Optional[str] = None) -> Dict[str, str]:
-    """`label` and `label_internal` of the index `key` (its Coh-Metrix 3.0 label, or the name of a project-only index)."""
-    public = _PUBLIC_SUFFIX.get(key)
-    if key in _EASABILITY_KEYS:
-        internal = easability_models[lang]["model_id"] if easability_models.get(lang) else None
-    else:
-        internal = _INTERNAL_SUFFIX.get(lang, {}).get(key)
-    if internal == "spacy" and vectors:
-        internal = f"spacy-{vectors}"
-    return {"label": f"{key}_{public}" if public else key, "label_internal": f"{key}_{internal}" if internal else key}
 
 
 # Text Easability components (2026-10-29; the user: "model should be built into the core"): the German model fitted on reference
@@ -3136,7 +3084,7 @@ def cm_wrdhypnv(sentences: List[Sentence], lang: str) -> Optional[float]:
     return _calc_wrdhyp(sentences, lang)["WRDHYPnv"]
 
 # OBSOLETE since 2026-10-27 (user: keep the old lists for comparison): the CNC* indices count DiMLex connectives now (see
-# "CONNECTIVES from DiMLex" below). This list and `_count_connectives_obsolete` are no longer used by `post_process`; they
+# "CONNECTIVES from DiMLex" below). This list and `_count_connectives_obsolete` are no longer used by `compute`; they
 # stay so that old and new values can be compared on the same texts. Problems found (German): "aus" (a preposition) was 52%
 # of the causal hits, "da"/"bis"/"seit"/"während" mostly not connectives, frequent connectives missing
 # (/data/CORE/export/t0/coh_metrix/connectives_check_20261027/README.md).
@@ -3311,7 +3259,7 @@ def _count_connectives_obsolete(
     lang: str,
     total_words: int
 ) -> Dict[str, float]:
-    # OBSOLETE since 2026-10-27, kept for comparison (see connectives_list_obsolete); not used by post_process.
+    # OBSOLETE since 2026-10-27, kept for comparison (see connectives_list_obsolete); not used by compute.
 
     raw_counts = {
         "CNCAll": 0,
@@ -6092,27 +6040,8 @@ def cm_smtemp(sentences: List[Sentence], lang: str) -> Optional[float]:
     smtemp = sum(pair_scores) / len(pair_scores)
     return round(smtemp, 3)
 
-# Timing (2026-10-31; the user: "detailed timing measures for each component ... an extensive timing profile"): post_process
-# notes the time at a checkpoint before each index (lap("<label>")), before the shared precomputations (L1, L2, L11; and since
-# the afternoon of 2026-10-31 also the LSA vectors, the word norms, hypernymy and the readability formulas), the easability
-# scores and the response; each span is charged to the checkpoint that opened it ("setup": from the label check to
-# the first index). A cache filled by one index (e.g. the sentence features) is charged to the first index that fills it.
-# The seconds of the last call are in `last_timing`; the index code and its values are untouched.
-last_timing: dict = {}
 
 
-class _Laps:
-    def __init__(self):
-        self.t, self.name, self.spans = perf_counter(), "setup", {}
-
-    def __call__(self, name: str) -> None:
-        t = perf_counter()
-        self.spans[self.name] = self.spans.get(self.name, 0.0) + t - self.t
-        self.t, self.name = t, name
-
-    def seconds(self) -> dict:
-        self("end")
-        return {k: round(v, 6) for k, v in self.spans.items()}
 
 
 def warm_up(language: str) -> None:
@@ -6158,21 +6087,17 @@ def versions_record(language: str) -> dict:
             "easability_model": Path(model).name, "easability_model_sha256": _sha256(model), "resources": resources}
 
 
-def post_process(request: TextImagerRequest) -> TextImagerResponse:
-    modification_timestamp_seconds = int(time())
-
-    indices = []
-    meta = None
-    modification_meta = None
-
-    # before the try below, which logs any error and returns the indices computed so far: pre-UD input and other languages
-    # must stop the request
-    _check_labels(request)
-    lang = _language(request)   # "de" or "en" ("de-DE", "deu" ..., code review 2026-10-31)
-    lap = _Laps()
-
+def compute(request: TextImagerRequest, wanted: Optional[Set[str]] = None) -> Dict[str, Tuple[Optional[float], Optional[str]]]:
+    """the values of the indices `wanted` (core keys, e.g. "DESPC", "RDFOG"; None: all) for one text: {key: (value, error)}.
+    Only the blocks the wanted indices need are computed (BLOCK_DEPS). An error inside an index sets that index's error; an
+    error outside the indices sets it for every wanted index not computed yet. Labels, variants and the Text Easability
+    components are the DUUI layer's (duui.py)."""
+    lang = _language(request)   # "de" or "en"
+    results: Dict[str, Tuple[Optional[float], Optional[str]]] = {}
+    active = _active_blocks(wanted)
+    _SENTENCE_FEATURES.reset()
+    _TEXT_MEMO.reset()
     try:
-        labels = lambda key: _labels(key, lang, request.vectors)
         _SENTENCE_FEATURES.clear()
         _TEXT_MEMO.clear()
 
@@ -6245,1989 +6170,1587 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         ### Descriptive
 
-        lap("DESPC")
-        # DESPC
-        try:
-            despc = cm_despc(request.paragraphs)
-            despc_error = None
-        except Exception as e:
-            logger.error("Error calculating DESPC: %s", e)
-            despc = None
-            despc_error = str(e)
-        indices.append(Index(
-            index=1,
-            type_name="Descriptive",
-            **labels("DESPC"),
-            description="Paragraph count, number of paragraphs",
-            value=despc,
-            error=despc_error
-        ))
-
-        lap("DESSC")
-        # DESSC
-        try:
-            dessc = cm_dessc(request.paragraphs)
-            dessc_error = None
-        except Exception as e:
-            logger.error("Error calculating DESSC: %s", e)
-            dessc = None
-            dessc_error = str(e)
-        indices.append(Index(
-            index=2,
-            type_name="Descriptive",
-            **labels("DESSC"),
-            description="Sentence count, number of sentences",
-            value=dessc,
-            error=dessc_error
-        ))
-
-        lap("DESWC")
-        # DESWC
-        try:
-            deswc = cm_deswc(request.paragraphs)
-            deswc_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWC: %s", e)
-            deswc = None
-            deswc_error = str(e)
-        indices.append(Index(
-            index=3,
-            type_name="Descriptive",
-            **labels("DESWC"),
-            description="Word count, number of words",
-            value=deswc,
-            error=deswc_error
-        ))
-
-        lap("DESPL")
-        # DESPL
-        try:
-            despl = cm_despl(request.paragraphs)
-            despl_error = None
-        except Exception as e:
-            logger.error("Error calculating DESPL: %s", e)
-            despl = None
-            despl_error = str(e)
-        indices.append(Index(
-            index=4,
-            type_name="Descriptive",
-            **labels("DESPL"),
-            description="Paragraph length, number of sentences, mean",
-            value=despl,
-            error=despl_error
-        ))
-
-        lap("DESPLd")
-        # DESPLd
-        try:
-            despld = cm_despld(request.paragraphs)
-            despld_error = None
-        except Exception as e:
-            logger.error("Error calculating DESPLd: %s", e)
-            despld = None
-            despld_error = str(e)
-        indices.append(Index(
-            index=5,
-            type_name="Descriptive",
-            **labels("DESPLd"),
-            description="Paragraph length, number of sentences, standard deviation",
-            value=despld,
-            error=despld_error
-        ))
-
-        lap("DESSL")
-        # DESSL
-        try:
-            dessl = cm_dessl(request.paragraphs)
-            dessl_error = None
-        except Exception as e:
-            logger.error("Error calculating DESSL: %s", e)
-            dessl = None
-            dessl_error = str(e)
-        indices.append(Index(
-            index=6,
-            type_name="Descriptive",
-            **labels("DESSL"),
-            description="Sentence length, number of words, mean",
-            value=dessl,
-            error=dessl_error
-        ))
-
-        lap("DESSLd")
-        # DESSLd
-        try:
-            dessld = cm_dessld(request.paragraphs)
-            dessld_error = None
-        except Exception as e:
-            logger.error("Error calculating DESSLd: %s", e)
-            dessld = None
-            dessld_error = str(e)
-        indices.append(Index(
-            index=7,
-            type_name="Descriptive",
-            **labels("DESSLd"),
-            description="Sentence length, number of words, standard deviation",
-            value=dessld,
-            error=dessld_error
-        ))
-
-        lap("DESWLsy")
-        # DESWLsy
-        try:
-            deswlsy = cm_deswlsy(tokens, lang)
-            deswlsy_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLsy: %s", e)
-            deswlsy = None
-            deswlsy_error = str(e)
-        indices.append(Index(
-            index=8,
-            type_name="Descriptive",
-            **labels("DESWLsy"),
-            description="Word length, number of syllables, mean",
-            value=deswlsy,
-            error=deswlsy_error
-        ))
-
-        lap("DESWLsyd")
-        # DESWLsyd
-        try:
-            deswlsyd = cm_deswlsyd(tokens, lang)
-            deswlsyd_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLsyd: %s", e)
-            deswlsyd = None
-            deswlsyd_error = str(e)
-        indices.append(Index(
-            index=9,
-            type_name="Descriptive",
-            **labels("DESWLsyd"),
-            description="Word length, number of syllables, standard deviation",
-            value=deswlsyd,
-            error=deswlsyd_error
-        ))
-
-        lap("DESWLlt")
-        # DESWLlt
-        try:
-            deswllt = cm_deswllt(request.paragraphs)
-            deswllt_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLlt: %s", e)
-            deswllt = None
-            deswllt_error = str(e)
-        indices.append(Index(
-            index=10,
-            type_name="Descriptive",
-            **labels("DESWLlt"),
-            description="Word length, number of letters, mean",
-            value=deswllt,
-            error=deswllt_error
-        ))
-
-        lap("DESWLltd")
-        # DESWLltd
-        try:
-            deswlltd = cm_deswlltd(request.paragraphs)
-            deswlltd_error = None
-        except Exception as e:
-            logger.error("Error calculating DESWLltd: %s", e)
-            deswlltd = None
-            deswlltd_error = str(e)
-        indices.append(Index(
-            index=11,
-            type_name="Descriptive",
-            **labels("DESWLltd"),
-            description="Word length, number of letters, standard deviation",
-            value=deswlltd,
-            error=deswlltd_error
-        ))
-
-        ### Text Easability Principal Component Scores
-
-        # PCNARz ... PCTEMPp: filled in at the end, once their inputs are computed
-        for number, (key, description) in enumerate(_EASABILITY_INDICES, start=12):
-            indices.append(Index(index=number, type_name="Text Easability Principal Component Scores", **labels(key),
-                                 description=description, value=None, error=None))
-
-        ### Referential Cohesion
-
-        lap("CRFNO1")
-        # CRFNO1
-        try:
-            crfno1 = cm_crfno1(sentences)
-            crfno1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFNO1: %s", e)
-            crfno1 = None
-            crfno1_error = str(e)
-        indices.append(Index(
-            index=28,
-            type_name="Referential Cohesion",
-            **labels("CRFNO1"),
-            description="Noun overlap, adjacent sentences, binary, mean",
-            value=crfno1,
-            error=crfno1_error
-        ))
-
-        lap("CRFAO1")
-        # CRFAO1
-        try:
-            crfao1 = cm_crfao1(sentences)
-            crfao1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFAO1: %s", e)
-            crfao1 = None
-            crfao1_error = str(e)
-        indices.append(Index(
-            index=29,
-            type_name="Referential Cohesion",
-            **labels("CRFAO1"),
-            description="Argument overlap, adjacent sentences, binary, mean",
-            value=crfao1,
-            error=crfao1_error
-        ))
-
-        lap("CRFSO1")
-        # CRFSO1
-        try:
-            crfso1 = cm_crfso1(sentences)
-            crfso1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFSO1: %s", e)
-            crfso1 = None
-            crfso1_error = str(e)
-        indices.append(Index(
-            index=30,
-            type_name="Referential Cohesion",
-            **labels("CRFSO1"),
-            description="Stem overlap, adjacent sentences, binary, mean",
-            value=crfso1,
-            error=crfso1_error
-        ))
-
-        lap("CRFNOa")
-        # CRFNOa
-        try:
-            crfnoa = cm_crfnoa(sentences)
-            crfnoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFNOa: %s", e)
-            crfnoa = None
-            crfnoa_error = str(e)
-        indices.append(Index(
-            index=31,
-            type_name="Referential Cohesion",
-            **labels("CRFNOa"),
-            description="Noun overlap, all sentences, binary, mean",
-            value=crfnoa,
-            error=crfnoa_error
-        ))
-
-        lap("CRFAOa")
-        # CRFAOa
-        try:
-            crfaoa = cm_crfaoa(sentences)
-            crfaoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFAOa: %s", e)
-            crfaoa = None
-            crfaoa_error = str(e)
-        indices.append(Index(
-            index=32,
-            type_name="Referential Cohesion",
-            **labels("CRFAOa"),
-            description="Argument overlap, all sentences, binary, mean",
-            value=crfaoa,
-            error=crfaoa_error
-        ))
-
-        lap("CRFSOa")
-        # CRFSOa
-        try:
-            crfsoa = cm_crfsoa(sentences)
-            crfsoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFSOa: %s", e)
-            crfsoa = None
-            crfsoa_error = str(e)
-        indices.append(Index(
-            index=33,
-            type_name="Referential Cohesion",
-            **labels("CRFSOa"),
-            description="Stem overlap, all sentences, binary, mean",
-            value=crfsoa,
-            error=crfsoa_error
-        ))
-
-        lap("CRFCWO1")
-        # CRFCWO1
-        try:
-            crfcwo1 = cm_crfcwo1(sentences)
-            crfcwo1_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWO1: %s", e)
-            crfcwo1 = None
-            crfcwo1_error = str(e)
-        indices.append(Index(
-            index=34,
-            type_name="Referential Cohesion",
-            **labels("CRFCWO1"),
-            description="Content word overlap, adjacent sentences, proportional, mean",
-            value=crfcwo1,
-            error=crfcwo1_error
-        ))
-
-        lap("CRFCWO1d")
-        # CRFCWO1d
-        try:
-            crfcwo1d = cm_crfcwo1d(sentences)
-            crfcwo1d_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWO1d: %s", e)
-            crfcwo1d = None
-            crfcwo1d_error = str(e)
-        indices.append(Index(
-            index=35,
-            type_name="Referential Cohesion",
-            **labels("CRFCWO1d"),
-            description="Content word overlap, adjacent sentences, proportional, standard deviation",
-            value=crfcwo1d,
-            error=crfcwo1d_error
-        ))
-
-        lap("CRFCWOa")
-        # CRFCWOa
-        try:
-            crfcwoa = cm_crfcwoa(sentences)
-            crfcwoa_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWOa: %s", e)
-            crfcwoa = None
-            crfcwoa_error = str(e)
-        indices.append(Index(
-            index=36,
-            type_name="Referential Cohesion",
-            **labels("CRFCWOa"),
-            description="Content word overlap, all sentences, proportional, mean",
-            value=crfcwoa,
-            error=crfcwoa_error
-        ))
-
-        lap("CRFCWOad")
-        # CRFCWOad
-        try:
-            crfcwoad = cm_crfcwoad(sentences)
-            crfcwoad_error = None
-        except Exception as e:
-            logger.error("Error calculating CRFCWOad: %s", e)
-            crfcwoad = None
-            crfcwoad_error = str(e)
-        indices.append(Index(
-            index=37,
-            type_name="Referential Cohesion",
-            **labels("CRFCWOad"),
-            description="Content word overlap, all sentences, proportional, standard deviation",
-            value=crfcwoad,
-            error=crfcwoad_error
-        ))
-
-        ### Lexical Diversity
-
-        lap("LSA shared")
-        try:
-            token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
-            lsa_indices = _lsa_cohesion_indices(
-                token_vectors,
-                token_words,
-                tokens_vector_length,
-                n_components=settings.lsa_svd_components,
-                use_truncated_svd=settings.lsa_use_truncated_svd
-            )
-            lsa_error = None
-        except Exception as e:
-            logger.error("Error calculating LSA: %s", e)
-            lsa_indices = None
-            lsa_error = str(e)
-
-        lap("LSASS1")
-        # LSASS1
-        try:
-            lsass1 = cm_lsass1(lsa_indices)
-            lsass1_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASS1: %s", e)
-            lsass1 = None
-            # M7 fix: guard against None + str when the outer LSA step succeeded.
-            lsass1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)
-        indices.append(Index(
-            index=38,
-            type_name="LSA",
-            **labels("LSASS1"),
-            description="LSA overlap, adjacent sentences, mean",
-            value=lsass1,
-            error=lsass1_error
-        ))
-
-        lap("LSASS1d")
-        # LSASS1d
-        try:
-            lsass1d = cm_lsass1d(lsa_indices)
-            lsass1d_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASS1d: %s", e)
-            lsass1d = None
-            lsass1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=39,
-            type_name="LSA",
-            **labels("LSASS1d"),
-            description="LSA overlap, adjacent sentences, standard deviation",
-            value=lsass1d,
-            error=lsass1d_error
-        ))
-
-        lap("LSASSp")
-        # LSASSp
-        try:
-            lsassp = cm_lsassp(lsa_indices)
-            lsassp_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASSp: %s", e)
-            lsassp = None
-            lsassp_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=40,
-            type_name="LSA",
-            **labels("LSASSp"),
-            description="LSA overlap, all sentences in paragraph, mean",
-            value=lsassp,
-            error=lsassp_error
-        ))
-
-        lap("LSASSpd")
-        # LSASSpd
-        try:
-            lsasspd = cm_lsasspd(lsa_indices)
-            lsasspd_error = None
-        except Exception as e:
-            logger.error("Error calculating LSASSpd: %s", e)
-            lsasspd = None
-            lsasspd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=41,
-            type_name="LSA",
-            **labels("LSASSpd"),
-            description="LSA overlap, all sentences in paragraph, standard deviation",
-            value=lsasspd,
-            error=lsasspd_error
-        ))
-
-        lap("LSAPP1")
-        # LSAPP1
-        try:
-            lsapp1 = cm_lsapp1(lsa_indices)
-            lsapp1_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAPP1: %s", e)
-            lsapp1 = None
-            lsapp1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=42,
-            type_name="LSA",
-            **labels("LSAPP1"),
-            description="LSA overlap, adjacent paragraphs, mean",
-            value=lsapp1,
-            error=lsapp1_error
-        ))
-
-        lap("LSAPP1d")
-        # LSAPP1d
-        try:
-            lsapp1d = cm_lsapp1d(lsa_indices)
-            lsapp1d_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAPP1d: %s", e)
-            lsapp1d = None
-            lsapp1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=43,
-            type_name="LSA",
-            **labels("LSAPP1d"),
-            description="LSA overlap, adjacent paragraphs, standard deviation",
-            value=lsapp1d,
-            error=lsapp1d_error
-        ))
-
-        lap("LSAGN")
-        # LSAGN
-        try:
-            lsagn = cm_lsagn(lsa_indices)
-            lsagn_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAGN: %s", e)
-            lsagn = None
-            lsagn_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=44,
-            type_name="LSA",
-            **labels("LSAGN"),
-            description="LSA given/new, sentences, mean",
-            value=lsagn,
-            error=lsagn_error
-        ))
-
-        lap("LSAGNd")
-        # LSAGNd
-        try:
-            lsagnd = cm_lsagnd(lsa_indices)
-            lsagnd_error = None
-        except Exception as e:
-            logger.error("Error calculating LSAGNd: %s", e)
-            lsagnd = None
-            lsagnd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
-        indices.append(Index(
-            index=45,
-            type_name="LSA",
-            **labels("LSAGNd"),
-            description="LSA given/new, sentences, standard deviation",
-            value=lsagnd,
-            error=lsagnd_error
-        ))
-
-        ### Lexical Diversity
-
-        lap("LDTTRc")
-        # LDTTRc
-        try:
-            ldttrc = cm_ldttrc(tokens)
-            ldttrc_error = None
-        except Exception as e:
-            logger.error("Error calculating LDTTRc: %s", e)
-            ldttrc = None
-            ldttrc_error = str(e)
-        indices.append(Index(
-            index=46,
-            type_name="Lexical Diversity",
-            **labels("LDTTRc"),
-            description="Lexical diversity, type-token ratio, content word lemmas",
-            value=ldttrc,
-            error=ldttrc_error
-        ))
-
-        lap("LDTTRa")
-        # LDTTRa
-        try:
-            ldttra = cm_ldttra(tokens)
-            ldttra_error = None
-        except Exception as e:
-            logger.error("Error calculating LDTTRa: %s", e)
-            ldttra = None
-            ldttra_error = str(e)
-        indices.append(Index(
-            index=47,
-            type_name="Lexical Diversity",
-            **labels("LDTTRa"),
-            description="Lexical diversity, type-token ratio, all words",
-            value=ldttra,
-            error=ldttra_error
-        ))
-
-        lap("LDMTLDa")
-        # LDMTLDa
-        try:
-            ldmtlda = cm_ldmtlda(tokens)
-            ldmtlda_error = None
-        except Exception as e:
-            logger.error("Error calculating LDMTLDa: %s", e)
-            ldmtlda = None
-            ldmtlda_error = str(e)
-        indices.append(Index(
-            index=48,
-            type_name="Lexical Diversity",
-            **labels("LDMTLDa"),
-            description="Lexical diversity, MTLD, all words",
-            value=ldmtlda,
-            error=ldmtlda_error
-        ))
-
-        lap("LDVOCDa")
-        # LDVOCDa
-        try:
-            ldvocda = cm_ldvocda(tokens)
-            ldvocda_error = None
-        except Exception as e:
-            logger.error("Error calculating LDVOCDa: %s", e)
-            ldvocda = None
-            ldvocda_error = str(e)
-        indices.append(Index(
-            index=49,
-            type_name="Lexical Diversity",
-            **labels("LDVOCDa"),
-            description="Lexical diversity, VOCD, all words",
-            value=ldvocda,
-            error=ldvocda_error
-        ))
-
-        ### Connectives
-
-        lap("CNC shared")
-        # L1: compute connective counts once and reuse across all 9 CNC* indices.
-        try:
-            _cnc_counts = _count_connectives(sentences, lang, tokens_count)
-        except Exception as e:
-            logger.error("Error precomputing connective counts: %s", e)
-            _cnc_counts = None
-
-        lap("CNCAll")
-        # CNCAll
-        try:
-            cncall = cm_cncall(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cncall_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCAll: %s", e)
-            cncall = None
-            cncall_error = str(e)
-        indices.append(Index(
-            index=50,
-            type_name="Connectives",
-            **labels("CNCAll"),
-            description="All connectives incidence",
-            value=cncall,
-            error=cncall_error
-        ))
-
-        lap("CNCCaus")
-        # CNCCaus
-        try:
-            cnccaus = cm_cnccaus(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cnccaus_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCCaus: %s", e)
-            cnccaus = None
-            cnccaus_error = str(e)
-        indices.append(Index(
-            index=51,
-            type_name="Connectives",
-            **labels("CNCCaus"),
-            description="Causal connectives incidence",
-            value=cnccaus,
-            error=cnccaus_error
-        ))
-
-        lap("CNCLogic")
-        # CNCLogic
-        try:
-            cnclogic = cm_cnclogic(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cnclogic_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCLogic: %s", e)
-            cnclogic = None
-            cnclogic_error = str(e)
-        indices.append(Index(
-            index=52,
-            type_name="Connectives",
-            **labels("CNCLogic"),
-            description="Logical connectives incidence",
-            value=cnclogic,
-            error=cnclogic_error
-        ))
-
-        lap("CNCADC")
-        # CNCADC
-        try:
-            cncadc = cm_cncadc(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cncadc_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCADC: %s", e)
-            cncadc = None
-            cncadc_error = str(e)
-        indices.append(Index(
-            index=53,
-            type_name="Connectives",
-            **labels("CNCADC"),
-            description="Adversative and contrastive connectives incidence",
-            value=cncadc,
-            error=cncadc_error
-        ))
-
-        lap("CNCTemp")
-        # CNCTemp
-        try:
-            cnctemp = cm_cnctemp(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cnctemp_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCTemp: %s", e)
-            cnctemp = None
-            cnctemp_error = str(e)
-        indices.append(Index(
-            index=54,
-            type_name="Connectives",
-            **labels("CNCTemp"),
-            description="Temporal connectives incidence",
-            value=cnctemp,
-            error=cnctemp_error
-        ))
-
-        lap("CNCTempx")
-        # CNCTempx
-        try:
-            cnctempx = cm_cnctempx(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cnctempx_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCTempx: %s", e)
-            cnctempx = None
-            cnctempx_error = str(e)
-        indices.append(Index(
-            index=55,
-            type_name="Connectives",
-            **labels("CNCTempx"),
-            description="Expanded temporal connectives incidence",
-            value=cnctempx,
-            error=cnctempx_error
-        ))
-
-        lap("CNCAdd")
-        # CNCAdd
-        try:
-            cncadd = cm_cncadd(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cncadd_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCAdd: %s", e)
-            cncadd = None
-            cncadd_error = str(e)
-        indices.append(Index(
-            index=56,
-            type_name="Connectives",
-            **labels("CNCAdd"),
-            description="Additive connectives incidence",
-            value=cncadd,
-            error=cncadd_error
-        ))
-
-        lap("CNCPos")
-        # CNCPos
-        try:
-            cncpos = cm_cncpos(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cncpos_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCPos: %s", e)
-            cncpos = None
-            cncpos_error = str(e)
-        indices.append(Index(
-            index=57,
-            type_name="Connectives",
-            **labels("CNCPos"),
-            description="Positive connectives incidence",
-            value=cncpos,
-            error=cncpos_error
-        ))
-
-        lap("CNCNeg")
-        # CNCNeg
-        try:
-            cncneg = cm_cncneg(sentences, lang, tokens_count, connectives=_cnc_counts)
-            cncneg_error = None
-        except Exception as e:
-            logger.error("Error calculating CNCNeg: %s", e)
-            cncneg = None
-            cncneg_error = str(e)
-        indices.append(Index(
-            index=58,
-            type_name="Connectives",
-            **labels("CNCNeg"),
-            description="Negative connectives incidence",
-            value=cncneg,
-            error=cncneg_error
-        ))
-
-        ### Situation Model
-
-        lap("SMCAUSv")
-        # SMCAUSv
-        try:
-            smcausv = cm_smcausv(sentences, lang)
-            smcausv_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSv: %s", e)
-            smcausv = None
-            smcausv_error = str(e)
-        indices.append(Index(
-            index=59,
-            type_name="Situation Model",
-            **labels("SMCAUSv"),
-            description="Causal verb incidence",
-            value=smcausv,
-            error=smcausv_error
-        ))
-
-        lap("SMCAUSvp")
-        # SMCAUSvp
-        try:
-            smcausvp = cm_smcausvp(sentences, lang)
-            smcausvp_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSvp: %s", e)
-            smcausvp = None
-            smcausvp_error = str(e)
-        indices.append(Index(
-            index=60,
-            type_name="Situation Model",
-            **labels("SMCAUSvp"),
-            description="Causal verbs and causal particles incidence",
-            value=smcausvp,
-            error=smcausvp_error
-        ))
-
-        lap("SMINTEp")
-        # SMINTEp
-        try:
-            smintep = cm_smintep(sentences, lang)
-            smintep_error = None
-        except Exception as e:
-            logger.error("Error calculating SMINTEp: %s", e)
-            smintep = None
-            smintep_error = str(e)
-        indices.append(Index(
-            index=61,
-            type_name="Situation Model",
-            **labels("SMINTEp"),
-            description="Intentional verbs incidence",
-            value=smintep,
-            error=smintep_error
-        ))
-
-        lap("SMCAUSr")
-        # SMCAUSr
-        try:
-            smcausr = cm_smcausr(sentences, lang)
-            smcausr_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSr: %s", e)
-            smcausr = None
-            smcausr_error = str(e)
-        indices.append(Index(
-            index=62,
-            type_name="Situation Model",
-            **labels("SMCAUSr"),
-            description="Ratio of causal particles to causal verbs",
-            value=smcausr,
-            error=smcausr_error
-        ))
-
-        lap("SMINTEr")
-        # SMINTEr
-        try:
-            sminter = cm_sminter(sentences, lang)
-            sminter_error = None
-        except Exception as e:
-            logger.error("Error calculating SMINTEr: %s", e)
-            sminter = None
-            sminter_error = str(e)
-        indices.append(Index(
-            index=63,
-            type_name="Situation Model",
-            **labels("SMINTEr"),
-            description="Ratio of intentional particles to intentional verbs",
-            value=sminter,
-            error=sminter_error
-        ))
-
-        lap("SMCAUSlsa")
-        # SMCAUSlsa
-        try:
-            smcauslsa = cm_smcauslsa(sentences)
-            smcauslsa_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSlsa: %s", e)
-            smcauslsa = None
-            smcauslsa_error = str(e)
-        indices.append(Index(
-            index=64,
-            type_name="Situation Model",
-            **labels("SMCAUSlsa"),
-            description="LSA verb overlap",
-            value=smcauslsa,
-            error=smcauslsa_error
-        ))
-
-        lap("SMCAUSwn")
-        # SMCAUSwn
-        try:
-            smcauswn = cm_smcauswn(sentences, lang)
-            smcauswn_error = None
-        except Exception as e:
-            logger.error("Error calculating SMCAUSwn: %s", e)
-            smcauswn = None
-            smcauswn_error = str(e)
-        indices.append(Index(
-            index=65,
-            type_name="Situation Model",
-            **labels("SMCAUSwn"),
-            description="WordNet verb overlap",
-            value=smcauswn,
-            error=smcauswn_error
-        ))
-
-        lap("SMTEMP")
-        # SMTEMP
-        try:
-            smtemp = cm_smtemp(sentences, lang)
-            smtemp_error = None
-        except Exception as e:
-            logger.error("Error calculating SMTEMP: %s", e)
-            smtemp = None
-            smtemp_error = str(e)
-        indices.append(Index(
-            index=66,
-            type_name="Situation Model",
-            **labels("SMTEMP"),
-            description="Temporal cohesion, tense and aspect repetition, mean",
-            value=smtemp,
-            error=smtemp_error
-        ))
-
-        ### Syntactic Complexity
-
-        lap("SYNLE")
-        # SYNLE
-        try:
-            synle = cm_synle(sentences, lang)
-            synle_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNLE: %s", e)
-            synle = None
-            synle_error = str(e)
-        indices.append(Index(
-            index=67,
-            type_name="Syntactic Complexity",
-            **labels("SYNLE"),
-            description="Left embeddedness, words before main verb, mean",
-            value=synle,
-            error=synle_error
-        ))
-
-        lap("SYNNP")
-        # SYNNP
-        try:
-            synnp = cm_synnp(sentences, noun_chunks, lang)
-            synnp_error = None
-            if noun_chunks_error:
-                synnp, synnp_error = None, noun_chunks_error
-        except Exception as e:
-            logger.error("Error calculating SYNNP: %s", e)
-            synnp = None
-            synnp_error = str(e)
-        indices.append(Index(
-            index=68,
-            type_name="Syntactic Complexity",
-            **labels("SYNNP"),
-            description="Number of modifiers per noun phrase, mean",
-            value=synnp,
-            error=synnp_error
-        ))
-
-        lap("SYNMEDpos")
-        # SYNMEDpos
-        try:
-            synmedpos = cm_synmedpos(sentences)
-            synmedpos_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNMEDpos: %s", e)
-            synmedpos = None
-            synmedpos_error = str(e)
-        indices.append(Index(
-            index=69,
-            type_name="Syntactic Complexity",
-            **labels("SYNMEDpos"),
-            description="Minimal Edit Distance, part of speech",
-            value=synmedpos,
-            error=synmedpos_error
-        ))
-
-        lap("SYNMEDwrd")
-        # SYNMEDwrd
-        try:
-            synmedwrd = cm_synmedwrd(sentences)
-            synmedwrd_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNMEDwrd: %s", e)
-            synmedwrd = None
-            synmedwrd_error = str(e)
-        indices.append(Index(
-            index=70,
-            type_name="Syntactic Complexity",
-            **labels("SYNMEDwrd"),
-            description="Minimal Edit Distance, all words",
-            value=synmedwrd,
-            error=synmedwrd_error
-        ))
-
-        lap("SYNMEDlem")
-        # SYNMEDlem
-        try:
-            synmedlem = cm_synmedlem(sentences)
-            synmedlem_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNMEDlem: %s", e)
-            synmedlem = None
-            synmedlem_error = str(e)
-        indices.append(Index(
-            index=71,
-            type_name="Syntactic Complexity",
-            **labels("SYNMEDlem"),
-            description="Minimal Edit Distance, lemmas",
-            value=synmedlem,
-            error=synmedlem_error
-        ))
-
-        lap("SYNSTRUTa")
-        # SYNSTRUTa
-        synstrut_trees = _TreeInterner()        # the text's trees, interned once for SYNSTRUTa and SYNSTRUTt
-        try:
-            synstruta = cm_synstruta(sentences, synstrut_trees)
-            synstruta_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNSTRUTa: %s", e)
-            synstruta = None
-            synstruta_error = str(e)
-        indices.append(Index(
-            index=72,
-            type_name="Syntactic Complexity",
-            **labels("SYNSTRUTa"),
-            description="Sentence syntax similarity, adjacent sentences, mean",
-            value=synstruta,
-            error=synstruta_error
-        ))
-
-        lap("SYNSTRUTt")
-        # SYNSTRUTt
-        try:
-            synstrutt = cm_synstrutt(request.paragraphs, synstrut_trees)
-            synstrutt_error = None
-        except Exception as e:
-            logger.error("Error calculating SYNSTRUTt: %s", e)
-            synstrutt = None
-            synstrutt_error = str(e)
-        indices.append(Index(
-            index=73,
-            type_name="Syntactic Complexity",
-            **labels("SYNSTRUTt"),
-            description="Sentence syntax similarity, all combinations, across paragraphs, mean",
-            value=synstrutt,
-            error=synstrutt_error
-        ))
-
-        ### Syntactic Pattern Density
-
-        lap("DR shared")
-        # L2: compute count_metrics once and reuse across all 8 DR* indices.
-        try:
-            _dr_metrics = _count_metrics(sentences, noun_chunks, lang)
-        except Exception as e:
-            logger.error("Error precomputing DR metrics: %s", e)
-            _dr_metrics = None
-
-        lap("DRNP")
-        # DRNP
-        try:
-            drnp = cm_drnp(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drnp_error = None
-            if noun_chunks_error:
-                drnp, drnp_error = None, noun_chunks_error
-        except Exception as e:
-            logger.error("Error calculating DRNP: %s", e)
-            drnp = None
-            drnp_error = str(e)
-        indices.append(Index(
-            index=74,
-            type_name="Syntactic Pattern Density",
-            **labels("DRNP"),
-            description="Noun phrase density, incidence",
-            value=drnp,
-            error=drnp_error
-        ))
-
-        lap("DRVP")
-        # DRVP
-        try:
-            drvp = cm_drvp(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drvp_error = None
-        except Exception as e:
-            logger.error("Error calculating DRVP: %s", e)
-            drvp = None
-            drvp_error = str(e)
-        indices.append(Index(
-            index=75,
-            type_name="Syntactic Pattern Density",
-            **labels("DRVP"),
-            description="Verb phrase density, incidence",
-            value=drvp,
-            error=drvp_error
-        ))
-
-        lap("DRAP")
-        # DRAP
-        try:
-            drap = cm_drap(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drap_error = None
-        except Exception as e:
-            logger.error("Error calculating DRAP: %s", e)
-            drap = None
-            drap_error = str(e)
-        indices.append(Index(
-            index=76,
-            type_name="Syntactic Pattern Density",
-            **labels("DRAP"),
-            description="Adverbial phrase density, incidence",
-            value=drap,
-            error=drap_error
-        ))
-
-        lap("DRPP")
-        # DRPP
-        try:
-            drpp = cm_drpp(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drpp_error = None
-        except Exception as e:
-            logger.error("Error calculating DRPP: %s", e)
-            drpp = None
-            drpp_error = str(e)
-        indices.append(Index(
-            index=77,
-            type_name="Syntactic Pattern Density",
-            **labels("DRPP"),
-            description="Preposition phrase density, incidence",
-            value=drpp,
-            error=drpp_error
-        ))
-
-        lap("DRPVAL")
-        # DRPVAL
-        try:
-            drpval = cm_drpval(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drpval_error = None
-        except Exception as e:
-            logger.error("Error calculating DRPVAL: %s", e)
-            drpval = None
-            drpval_error = str(e)
-        indices.append(Index(
-            index=78,
-            type_name="Syntactic Pattern Density",
-            **labels("DRPVAL"),
-            description="Agentless passive voice density, incidence",
-            value=drpval,
-            error=drpval_error
-        ))
-
-        lap("DRNEG")
-        # DRNEG
-        try:
-            drneg = cm_drneg(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drneg_error = None
-        except Exception as e:
-            logger.error("Error calculating DRNEG: %s", e)
-            drneg = None
-            drneg_error = str(e)
-        indices.append(Index(
-            index=79,
-            type_name="Syntactic Pattern Density",
-            **labels("DRNEG"),
-            description="Negation density, incidence",
-            value=drneg,
-            error=drneg_error
-        ))
-
-        lap("DRGERUND")
-        # DRGERUND
-        try:
-            drgerund = cm_drgerund(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drgerund_error = None
-        except Exception as e:
-            logger.error("Error calculating DRGERUND: %s", e)
-            drgerund = None
-            drgerund_error = str(e)
-        indices.append(Index(
-            index=80,
-            type_name="Syntactic Pattern Density",
-            **labels("DRGERUND"),
-            description="Gerund density, incidence",
-            value=drgerund,
-            error=drgerund_error
-        ))
-
-        lap("DRINF")
-        # DRINF
-        try:
-            drinf = cm_drinf(sentences, noun_chunks, lang, metrics=_dr_metrics)
-            drinf_error = None
-        except Exception as e:
-            logger.error("Error calculating DRINF: %s", e)
-            drinf = None
-            drinf_error = str(e)
-        indices.append(Index(
-            index=81,
-            type_name="Syntactic Pattern Density",
-            **labels("DRINF"),
-            description="Infinitive density, incidence",
-            value=drinf,
-            error=drinf_error
-        ))
-
-        ### Word Information
-
-        lap("WRD shared")
-        # L11: compute WRD* counter dict once and reuse across all 10 WRD* indices.
-        try:
-            _wrd_counts = _wrd_precompute(sentences)
-        except Exception as e:
-            logger.error("Error precomputing WRD counts: %s", e)
-            _wrd_counts = None
-
-        lap("WRDNOUN")
-        # WRDNOUN
-        try:
-            wrdnoun = cm_wrdnoun(sentences, counts=_wrd_counts)
-            wrdnoun_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDNOUN: %s", e)
-            wrdnoun = None
-            wrdnoun_error = str(e)
-        indices.append(Index(
-            index=82,
-            type_name="Word Information",
-            **labels("WRDNOUN"),
-            description="Noun incidence",
-            value=wrdnoun,
-            error=wrdnoun_error
-        ))
-
-        lap("WRDVERB")
-        # WRDVERB
-        try:
-            wrdverb = cm_wrdverb(sentences, counts=_wrd_counts)
-            wrdverb_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDVERB: %s", e)
-            wrdverb = None
-            wrdverb_error = str(e)
-        indices.append(Index(
-            index=83,
-            type_name="Word Information",
-            **labels("WRDVERB"),
-            description="Verb incidence",
-            value=wrdverb,
-            error=wrdverb_error
-        ))
-
-        lap("WRDADJ")
-        # WRDADJ
-        try:
-            wrdadj = cm_wrdadj(sentences, counts=_wrd_counts)
-            wrdadj_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDADJ: %s", e)
-            wrdadj = None
-            wrdadj_error = str(e)
-        indices.append(Index(
-            index=84,
-            type_name="Word Information",
-            **labels("WRDADJ"),
-            description="Adjective incidence",
-            value=wrdadj,
-            error=wrdadj_error
-        ))
-
-        lap("WRDADV")
-        # WRDADV
-        try:
-            wrdadv = cm_wrdadv(sentences, counts=_wrd_counts)
-            wrdadv_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDADV: %s", e)
-            wrdadv = None
-            wrdadv_error = str(e)
-        indices.append(Index(
-            index=85,
-            type_name="Word Information",
-            **labels("WRDADV"),
-            description="Adverb incidence",
-            value=wrdadv,
-            error=wrdadv_error
-        ))
-
-        lap("WRDPRO")
-        # WRDPRO
-        try:
-            wrdpro = cm_wrdpro(sentences, counts=_wrd_counts)
-            wrdpro_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRO: %s", e)
-            wrdpro = None
-            wrdpro_error = str(e)
-        indices.append(Index(
-            index=86,
-            type_name="Word Information",
-            **labels("WRDPRO"),
-            description="Pronoun incidence",
-            value=wrdpro,
-            error=wrdpro_error
-        ))
-
-        lap("WRDPRP1s")
-        # WRDPRP1s
-        try:
-            wrdprp1s = cm_wrdprp1s(sentences, counts=_wrd_counts)
-            wrdprp1s_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP1s: %s", e)
-            wrdprp1s = None
-            wrdprp1s_error = str(e)
-        indices.append(Index(
-            index=87,
-            type_name="Word Information",
-            **labels("WRDPRP1s"),
-            description="First-person singular pronoun incidence",
-            value=wrdprp1s,
-            error=wrdprp1s_error
-        ))
-
-        lap("WRDPRP1p")
-        # WRDPRP1p
-        try:
-            wrdprp1p = cm_wrdprp1p(sentences, counts=_wrd_counts)
-            wrdprp1p_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP1p: %s", e)
-            wrdprp1p = None
-            wrdprp1p_error = str(e)
-        indices.append(Index(
-            index=88,
-            type_name="Word Information",
-            **labels("WRDPRP1p"),
-            description="First-person plural pronoun incidence",
-            value=wrdprp1p,
-            error=wrdprp1p_error
-        ))
-
-        lap("WRDPRP2")
-        # WRDPRP2
-        try:
-            wrdprp2 = cm_wrdprp2(sentences, counts=_wrd_counts)
-            wrdprp2_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP2: %s", e)
-            wrdprp2 = None
-            wrdprp2_error = str(e)
-        indices.append(Index(
-            index=89,
-            type_name="Word Information",
-            **labels("WRDPRP2"),
-            description="Second-person pronoun incidence",
-            value=wrdprp2,
-            error=wrdprp2_error
-        ))
-
-        lap("WRDPRP3s")
-        # WRDPRP3s
-        try:
-            wrdprp3s = cm_wrdprp3s(sentences, counts=_wrd_counts)
-            wrdprp3s_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP3s: %s", e)
-            wrdprp3s = None
-            wrdprp3s_error = str(e)
-        indices.append(Index(
-            index=90,
-            type_name="Word Information",
-            **labels("WRDPRP3s"),
-            description="Third-person singular pronoun incidence",
-            value=wrdprp3s,
-            error=wrdprp3s_error
-        ))
-
-        lap("WRDPRP3p")
-        # WRDPRP3p
-        try:
-            wrdprp3p = cm_wrdprp3p(sentences, counts=_wrd_counts)
-            wrdprp3p_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPRP3p: %s", e)
-            wrdprp3p = None
-            wrdprp3p_error = str(e)
-        indices.append(Index(
-            index=91,
-            type_name="Word Information",
-            **labels("WRDPRP3p"),
-            description="Third-person plural pronoun incidence",
-            value=wrdprp3p,
-            error=wrdprp3p_error
-        ))
-
-        # word frequencies: SUBTLEX-DE for German since fix B2 (2026-10-28), the Wikipedia sample for English
-        _freq_source = _FREQUENCY_SOURCE.get(lang, "wiki-20220301-sample10000")
-        _freq_name = {"subtlex-de": "SUBTLEX-DE", "subtlex-us": "SUBTLEX-US"}.get(_freq_source, "Wikipedia")
-
-        lap("WRDFRQc")
-        # WRDFRQc
-        try:
-            wrdfrqc = cm_wrdfrqc(sentences, lang, _freq_source)
-            wrdfrqc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQc: %s", e)
-            wrdfrqc = None
-            wrdfrqc_error = str(e)
-        indices.append(Index(
-            index=92,
-            type_name="Word Information",
-            **labels("WRDFRQc"),
-            description=_freq_name + " Log frequency for content words, mean",
-            version=_freq_source,
-            value=wrdfrqc,
-            error=wrdfrqc_error
-        ))
-
-        lap("WRDFRQa")
-        # WRDFRQa
-        try:
-            wrdfrqa = cm_wrdfrqa(tokens, lang, _freq_source)
-            wrdfrqa_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQa: %s", e)
-            wrdfrqa = None
-            wrdfrqa_error = str(e)
-        indices.append(Index(
-            index=93,
-            type_name="Word Information",
-            **labels("WRDFRQa"),
-            description=_freq_name + " Log frequency for all words, mean",
-            version=_freq_source,
-            value=wrdfrqa,
-            error=wrdfrqa_error
-        ))
-
-        lap("WRDFRQmc")
-        # WRDFRQmc
-        try:
-            wrdfrqmc = cm_wrdfrqmc(sentences, lang, _freq_source)
-            wrdfrqmc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFRQmc: %s", e)
-            wrdfrqmc = None
-            wrdfrqmc_error = str(e)
-        indices.append(Index(
-            index=94,
-            type_name="Word Information",
-            **labels("WRDFRQmc"),
-            description=_freq_name + " Log minimum frequency for content words, mean",
-            version=_freq_source,
-            value=wrdfrqmc,
-            error=wrdfrqmc_error
-        ))
-
-        # FV1 fix:  load mrc once and reuse across all 5 WRD* indices.
-        lap("MRC shared")
-        try:
-            _mrc_dict = _load_norms(lang)    # German: fix B1
-        except Exception as e:
-            logger.error("Error precomputing MRC dict: %s", e)
-            _mrc_dict = None
-
-        lap("WRDAOAc")
-        # WRDAOAc
-        # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdaoac = cm_wrdaoac(sentences, lang, mrc_dict=_mrc_dict)
-            wrdaoac_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDAOAc: %s", e)
-            wrdaoac = None
-            wrdaoac_error = str(e)
-        indices.append(Index(
-            index=95,
-            type_name="Word Information",
-            **labels("WRDAOAc"),
-            description="Age of acquisition for content words, mean",
-            value=wrdaoac,
-            error=wrdaoac_error
-        ))
-
-        lap("WRDFAMc")
-        # WRDFAMc
-        # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdfamc = cm_wrdfamc(sentences, lang, mrc_dict=_mrc_dict)
-            wrdfamc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDFAMc: %s", e)
-            wrdfamc = None
-            wrdfamc_error = str(e)
-        indices.append(Index(
-            index=96,
-            type_name="Word Information",
-            **labels("WRDFAMc"),
-            description="Familiarity for content words, mean",
-            value=wrdfamc,
-            error=wrdfamc_error
-        ))
-
-        lap("WRDCNCc")
-        # WRDCNCc
-        # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdcncc = cm_wrdcncc(sentences, lang, mrc_dict=_mrc_dict)
-            wrdcncc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDCNCc: %s", e)
-            wrdcncc = None
-            wrdcncc_error = str(e)
-        indices.append(Index(
-            index=97,
-            type_name="Word Information",
-            **labels("WRDCNCc"),
-            description="Concreteness for content words, mean",
-            value=wrdcncc,
-            error=wrdcncc_error
-        ))
-
-        lap("WRDIMGc")
-        # WRDIMGc
-        # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdimgc = cm_wrdimgc(sentences, lang, mrc_dict=_mrc_dict)
-            wrdimgc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDIMGc: %s", e)
-            wrdimgc = None
-            wrdimgc_error = str(e)
-        indices.append(Index(
-            index=98,
-            type_name="Word Information",
-            **labels("WRDIMGc"),
-            description="Imagability for content words, mean",
-            value=wrdimgc,
-            error=wrdimgc_error
-        ))
-
-        lap("WRDMEAc")
-        # WRDMEAc
-        # FV1 fix: Include mrc_dict in function call if loaded successfully
-        try:
-            wrdmeac = cm_wrdmeac(sentences, lang, mrc_dict=_mrc_dict)
-            wrdmeac_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDMEAc: %s", e)
-            wrdmeac = None
-            wrdmeac_error = str(e)
-        indices.append(Index(
-            index=99,
-            type_name="Word Information",
-            **labels("WRDMEAc"),
-            description="Meaningfulness, Colorado norms, content words, mean",
-            value=wrdmeac,
-            error=wrdmeac_error
-        ))
-
-        lap("WRDPOLc")
-        # WRDPOLc
-        try:
-            wrdpolc = cm_wrdpolc(sentences, lang)
-            wrdpolc_error = None
-        except Exception as e:
-            logger.error("Error calculating WRDPOLc: %s", e)
-            wrdpolc = None
-            wrdpolc_error = str(e)
-        indices.append(Index(
-            index=100,
-            type_name="Word Information",
-            **labels("WRDPOLc"),
-            description="Polysemy for content words, mean",
-            value=wrdpolc,
-            error=wrdpolc_error
-        ))
-
-        # Precompute hypernymy values once for WRDHYPn, WRDHYPv and WRDHYPnv.
-        lap("HYP shared")
-        try:
-            _wrdhyp = _calc_wrdhyp(
-                sentences,
-                lang
-            )
-            _wrdhyp_error = None
-        except Exception as e:
-            logger.error(
-                "Error calculating WRDHYP indices: %s",
-                e
-            )
-
-            _wrdhyp = {
-                "WRDHYPn": None,
-                "WRDHYPv": None,
-                "WRDHYPnv": None,
-            }
-
-            _wrdhyp_error = str(e)
-
-        lap("WRDHYPn")
-        # WRDHYPn
-        wrdhypn = _wrdhyp["WRDHYPn"]
-        wrdhypn_error = _wrdhyp_error
-        indices.append(Index(
-            index=101,
-            type_name="Word Information",
-            **labels("WRDHYPn"),
-            description="Hypernymy for nouns, mean",
-            value=wrdhypn,
-            error=wrdhypn_error
-        ))
-
-        lap("WRDHYPv")
-        # WRDHYPv
-        wrdhypv = _wrdhyp["WRDHYPv"]
-        wrdhypv_error = _wrdhyp_error
-        indices.append(Index(
-            index=102,
-            type_name="Word Information",
-            **labels("WRDHYPv"),
-            description="Hypernymy for verbs, mean",
-            value=wrdhypv,
-            error=wrdhypv_error
-        ))
-
-        lap("WRDHYPnv")
-        # WRDHYPnv
-        wrdhypnv = _wrdhyp["WRDHYPnv"]
-        wrdhypnv_error = _wrdhyp_error
-        indices.append(Index(
-            index=103,
-            type_name="Word Information",
-            **labels("WRDHYPnv"),
-            description="Hypernymy for nouns and verbs, mean",
-            value=wrdhypnv,
-            error=wrdhypnv_error
-        ))
-
-        ### Readability
-
-        # NOTE(L4): RDFRE and RDFKGL were calculated through textstat on the raw
-        # document text; Coh-Metrix 3.0 defines them from its own DESSL and DESWLsy.
-        # Since fix A2 (2026-10-28) all readability formulas use the request's own
-        # sentences, words and syllables (_readability_scores). Labels (user
-        # 2026-10-28): RDFRE and RDFKGL now follow Coh-Metrix 3.0 and carry its
-        # labels; the 11 formulas outside 3.0 carry "_ext" (upstream rule 7, our
-        # LABEL_SUGGESTION.md) instead of "_textstat".
-        lap("RD shared")
-        try:
-            _rd = _readability_scores(request.paragraphs, lang) if has_readability_input else {}
-            _rd_error = None
-        except Exception as e:
-            logger.error("Error calculating the readability formulas: %s", e)
-            _rd, _rd_error = {}, str(e)
-
-        lap("RDFRE")
-        # RDFRE
-        try:
-            rdfre = _rd.get("FRE")
-            rdfre_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDFRE: %s", e)
-            rdfre = None
-            rdfre_error = str(e)
-        indices.append(Index(
-            index=104,
-            type_name="Readability",
-            **labels("RDFRE"),
-            description="Flesch Reading Ease",
-            value=rdfre,
-            error=rdfre_error
-        ))
-
-        lap("RDFKGL")
-        # RDFKGL
-        try:
-            rdfkgl = _rd.get("FKGL")
-            rdfkgl_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDFKGL: %s", e)
-            rdfkgl = None
-            rdfkgl_error = str(e)
-        indices.append(Index(
-            index=105,
-            type_name="Readability",
-            **labels("RDFKGL"),
-            description="Flesch–Kincaid Grade Level",
-            value=rdfkgl,
-            error=rdfkgl_error
-        ))
-
-        lap("RDFOG")
-        # RDFOG
-        try:
-            rdfog = _rd.get("FOG")
-            rdfog_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDFOG: %s", e)
-            rdfog = None
-            rdfog_error = str(e)
-        indices.append(Index(
-            index=1001,
-            type_name="Readability",
-            **labels("RDFOG"),
-            description="Gunning Fog Index",
-            value=rdfog,
-            error=rdfog_error
-        ))
-
-        lap("RDSMOG")
-        # RDSMOG
-        try:
-            rdsmog = _rd.get("SMOG")
-            rdsmog_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDSMOG: %s", e)
-            rdsmog = None
-            rdsmog_error = str(e)
-        indices.append(Index(
-            index=1002,
-            type_name="Readability",
-            **labels("RDSMOG"),
-            description="SMOG Grade",
-            value=rdsmog,
-            error=rdsmog_error
-        ))
-
-        lap("RDARI")
-        # RDARI
-        try:
-            rdari = _rd.get("ARI")
-            rdari_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDARI: %s", e)
-            rdari = None
-            rdari_error = str(e)
-        indices.append(Index(
-            index=1003,
-            type_name="Readability",
-            **labels("RDARI"),
-            description="Automated Readability Index",
-            value=rdari,
-            error=rdari_error
-        ))
-
-        lap("RDCLI")
-        # RDCLI
-        try:
-            rdcli = _rd.get("CLI")
-            rdcli_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDCLI: %s", e)
-            rdcli = None
-            rdcli_error = str(e)
-        indices.append(Index(
-            index=1004,
-            type_name="Readability",
-            **labels("RDCLI"),
-            description="Coleman–Liau Index",
-            value=rdcli,
-            error=rdcli_error
-        ))
-
-        lap("RDLW")
-        # RDLW
-        try:
-            rdlw = _rd.get("LW")
-            rdlw_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDLW: %s", e)
-            rdlw = None
-            rdlw_error = str(e)
-        indices.append(Index(
-            index=1005,
-            type_name="Readability",
-            **labels("RDLW"),
-            description="Linsear Write Formula",
-            value=rdlw,
-            error=rdlw_error
-        ))
-
-        lap("RDDCRS")
-        # RDDCRS
-        try:
-            rddcrs = _rd.get("DCRS")
-            rddcrs_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDDCRS: %s", e)
-            rddcrs = None
-            rddcrs_error = str(e)
-        indices.append(Index(
-            index=1006,
-            type_name="Readability",
-            **labels("RDDCRS"),
-            description="Dale-Chall Readability Score",
-            value=rddcrs,
-            error=rddcrs_error
-        ))
-
-        lap("RDSPACHE")
-        # RDSPACHE
-        try:
-            rdspache = _rd.get("SPACHE")
-            rdspache_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDSPACHE: %s", e)
-            rdspache = None
-            rdspache_error = str(e)
-        indices.append(Index(
-            index=1007,
-            type_name="Readability",
-            **labels("RDSPACHE"),
-            description="Spache Readability Formula",
-            value=rdspache,
-            error=rdspache_error
-        ))
-
-        lap("RDWSTF1")
-        # RDWSTF1
-        try:
-            rdwstf = _rd.get("WSTF1") if lang == "de" else None
-            rdwstf_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDWSTF1: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1008,
-            type_name="Readability",
-            **labels("RDWSTF1"),
-            description="Wiener Sachtextformel 1",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
-
-        lap("RDWSTF2")
-        # RDWSTF2
-        try:
-            rdwstf = _rd.get("WSTF2") if lang == "de" else None
-            rdwstf_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDWSTF2: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1009,
-            type_name="Readability",
-            **labels("RDWSTF2"),
-            description="Wiener Sachtextformel 2",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
-
-        lap("RDWSTF3")
-        # RDWSTF3
-        try:
-            rdwstf = _rd.get("WSTF3") if lang == "de" else None
-            rdwstf_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDWSTF3: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1010,
-            type_name="Readability",
-            **labels("RDWSTF3"),
-            description="Wiener Sachtextformel 3",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
-
-        lap("RDWSTF4")
-        # RDWSTF4
-        try:
-            rdwstf = _rd.get("WSTF4") if lang == "de" else None
-            rdwstf_error = _rd_error
-        except Exception as e:
-            logger.error("Error calculating RDWSTF4: %s", e)
-            rdwstf = None
-            rdwstf_error = str(e)
-        indices.append(Index(
-            index=1011,
-            type_name="Readability",
-            **labels("RDWSTF4"),
-            description="Wiener Sachtextformel 4",
-            value=rdwstf,
-            error=rdwstf_error
-        ))
-
-        lap("RDL2")
-        # RDL2
-        try:
-            # 2026-10-28 (user): the frequency term is WRDFRQc (log since then), not WRDFRQmc; RDL2_synstrutt removed
-            rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqc)
-            rdl2_error = None
-        except Exception as e:
-            logger.error("Error calculating RDL2: %s", e)
-            rdl2 = None
-            rdl2_error = str(e)
-        indices.append(Index(
-            index=106,
-            type_name="Readability",
-            **labels("RDL2"),
-            description="Coh-Metrix L2 Readability",
-            value=rdl2,
-            error=rdl2_error
-        ))
-
-        lap("PC")
-        # the Text Easability components (12-27) from this text's other indices, with the model of the text's language
-        if lang in easability_models:
-            model = easability_models[lang]
-            setting = "easability_model_path" + ("" if lang == "de" else f"_{lang}")
-            pc_scores, pc_error = ((_easability_scores({i.label_internal: i.value for i in indices}, model))
-                                   if model else ({}, f"no Text Easability model ({setting})"))
-            for i in indices:
-                key = i.label.split("_", 1)[0]
-                if key in _EASABILITY_KEYS:
-                    i.value, i.error = pc_scores.get(key), pc_error
-
-        lap("response")
-        meta = AnnotationMeta(
-            name=settings.annotator_name,
-            version=settings.annotator_version,
-            modelName=settings.annotator_name,
-            modelVersion=settings.annotator_version
-        )
-
-        modification_meta = DocumentModification(
-            user=settings.annotator_name,
-            timestamp=modification_timestamp_seconds,
-            comment=f"{settings.annotator_name} ({settings.annotator_version})"
-        )
+        if "DESPC" in active:
+            # DESPC
+            try:
+                despc = cm_despc(request.paragraphs)
+                despc_error = None
+            except Exception as e:
+                logger.error("Error calculating DESPC: %s", e)
+                despc = None
+                despc_error = str(e)
+            results["DESPC"] = (despc, despc_error)
+
+        if "DESSC" in active:
+            # DESSC
+            try:
+                dessc = cm_dessc(request.paragraphs)
+                dessc_error = None
+            except Exception as e:
+                logger.error("Error calculating DESSC: %s", e)
+                dessc = None
+                dessc_error = str(e)
+            results["DESSC"] = (dessc, dessc_error)
+
+        if "DESWC" in active:
+            # DESWC
+            try:
+                deswc = cm_deswc(request.paragraphs)
+                deswc_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWC: %s", e)
+                deswc = None
+                deswc_error = str(e)
+            results["DESWC"] = (deswc, deswc_error)
+
+        if "DESPL" in active:
+            # DESPL
+            try:
+                despl = cm_despl(request.paragraphs)
+                despl_error = None
+            except Exception as e:
+                logger.error("Error calculating DESPL: %s", e)
+                despl = None
+                despl_error = str(e)
+            results["DESPL"] = (despl, despl_error)
+
+        if "DESPLd" in active:
+            # DESPLd
+            try:
+                despld = cm_despld(request.paragraphs)
+                despld_error = None
+            except Exception as e:
+                logger.error("Error calculating DESPLd: %s", e)
+                despld = None
+                despld_error = str(e)
+            results["DESPLd"] = (despld, despld_error)
+
+        if "DESSL" in active:
+            # DESSL
+            try:
+                dessl = cm_dessl(request.paragraphs)
+                dessl_error = None
+            except Exception as e:
+                logger.error("Error calculating DESSL: %s", e)
+                dessl = None
+                dessl_error = str(e)
+            results["DESSL"] = (dessl, dessl_error)
+
+        if "DESSLd" in active:
+            # DESSLd
+            try:
+                dessld = cm_dessld(request.paragraphs)
+                dessld_error = None
+            except Exception as e:
+                logger.error("Error calculating DESSLd: %s", e)
+                dessld = None
+                dessld_error = str(e)
+            results["DESSLd"] = (dessld, dessld_error)
+
+        if "DESWLsy" in active:
+            # DESWLsy
+            try:
+                deswlsy = cm_deswlsy(tokens, lang)
+                deswlsy_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLsy: %s", e)
+                deswlsy = None
+                deswlsy_error = str(e)
+            results["DESWLsy"] = (deswlsy, deswlsy_error)
+
+        if "DESWLsyd" in active:
+            # DESWLsyd
+            try:
+                deswlsyd = cm_deswlsyd(tokens, lang)
+                deswlsyd_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLsyd: %s", e)
+                deswlsyd = None
+                deswlsyd_error = str(e)
+            results["DESWLsyd"] = (deswlsyd, deswlsyd_error)
+
+        if "DESWLlt" in active:
+            # DESWLlt
+            try:
+                deswllt = cm_deswllt(request.paragraphs)
+                deswllt_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLlt: %s", e)
+                deswllt = None
+                deswllt_error = str(e)
+            results["DESWLlt"] = (deswllt, deswllt_error)
+
+        if "DESWLltd" in active:
+            # DESWLltd
+            try:
+                deswlltd = cm_deswlltd(request.paragraphs)
+                deswlltd_error = None
+            except Exception as e:
+                logger.error("Error calculating DESWLltd: %s", e)
+                deswlltd = None
+                deswlltd_error = str(e)
+            results["DESWLltd"] = (deswlltd, deswlltd_error)
+
+            ### Text Easability Principal Component Scores
+
+            # PCNARz ... PCTEMPp: filled in at the end, once their inputs are computed
+
+            ### Referential Cohesion
+
+        if "CRFNO1" in active:
+            # CRFNO1
+            try:
+                crfno1 = cm_crfno1(sentences)
+                crfno1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFNO1: %s", e)
+                crfno1 = None
+                crfno1_error = str(e)
+            results["CRFNO1"] = (crfno1, crfno1_error)
+
+        if "CRFAO1" in active:
+            # CRFAO1
+            try:
+                crfao1 = cm_crfao1(sentences)
+                crfao1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFAO1: %s", e)
+                crfao1 = None
+                crfao1_error = str(e)
+            results["CRFAO1"] = (crfao1, crfao1_error)
+
+        if "CRFSO1" in active:
+            # CRFSO1
+            try:
+                crfso1 = cm_crfso1(sentences)
+                crfso1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFSO1: %s", e)
+                crfso1 = None
+                crfso1_error = str(e)
+            results["CRFSO1"] = (crfso1, crfso1_error)
+
+        if "CRFNOa" in active:
+            # CRFNOa
+            try:
+                crfnoa = cm_crfnoa(sentences)
+                crfnoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFNOa: %s", e)
+                crfnoa = None
+                crfnoa_error = str(e)
+            results["CRFNOa"] = (crfnoa, crfnoa_error)
+
+        if "CRFAOa" in active:
+            # CRFAOa
+            try:
+                crfaoa = cm_crfaoa(sentences)
+                crfaoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFAOa: %s", e)
+                crfaoa = None
+                crfaoa_error = str(e)
+            results["CRFAOa"] = (crfaoa, crfaoa_error)
+
+        if "CRFSOa" in active:
+            # CRFSOa
+            try:
+                crfsoa = cm_crfsoa(sentences)
+                crfsoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFSOa: %s", e)
+                crfsoa = None
+                crfsoa_error = str(e)
+            results["CRFSOa"] = (crfsoa, crfsoa_error)
+
+        if "CRFCWO1" in active:
+            # CRFCWO1
+            try:
+                crfcwo1 = cm_crfcwo1(sentences)
+                crfcwo1_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWO1: %s", e)
+                crfcwo1 = None
+                crfcwo1_error = str(e)
+            results["CRFCWO1"] = (crfcwo1, crfcwo1_error)
+
+        if "CRFCWO1d" in active:
+            # CRFCWO1d
+            try:
+                crfcwo1d = cm_crfcwo1d(sentences)
+                crfcwo1d_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWO1d: %s", e)
+                crfcwo1d = None
+                crfcwo1d_error = str(e)
+            results["CRFCWO1d"] = (crfcwo1d, crfcwo1d_error)
+
+        if "CRFCWOa" in active:
+            # CRFCWOa
+            try:
+                crfcwoa = cm_crfcwoa(sentences)
+                crfcwoa_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWOa: %s", e)
+                crfcwoa = None
+                crfcwoa_error = str(e)
+            results["CRFCWOa"] = (crfcwoa, crfcwoa_error)
+
+        if "CRFCWOad" in active:
+            # CRFCWOad
+            try:
+                crfcwoad = cm_crfcwoad(sentences)
+                crfcwoad_error = None
+            except Exception as e:
+                logger.error("Error calculating CRFCWOad: %s", e)
+                crfcwoad = None
+                crfcwoad_error = str(e)
+            results["CRFCWOad"] = (crfcwoad, crfcwoad_error)
+
+            ### Lexical Diversity
+
+        if "LSA shared" in active:
+            try:
+                token_vectors, token_words = _get_paragraph_token_vectors(request.paragraphs)
+                lsa_indices = _lsa_cohesion_indices(
+                    token_vectors,
+                    token_words,
+                    tokens_vector_length,
+                    n_components=settings.lsa_svd_components,
+                    use_truncated_svd=settings.lsa_use_truncated_svd
+                )
+                lsa_error = None
+            except Exception as e:
+                logger.error("Error calculating LSA: %s", e)
+                lsa_indices = None
+                lsa_error = str(e)
+
+        if "LSASS1" in active:
+            # LSASS1
+            try:
+                lsass1 = cm_lsass1(lsa_indices)
+                lsass1_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASS1: %s", e)
+                lsass1 = None
+                # M7 fix: guard against None + str when the outer LSA step succeeded.
+                lsass1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)
+            results["LSASS1"] = (lsass1, lsass1_error)
+
+        if "LSASS1d" in active:
+            # LSASS1d
+            try:
+                lsass1d = cm_lsass1d(lsa_indices)
+                lsass1d_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASS1d: %s", e)
+                lsass1d = None
+                lsass1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSASS1d"] = (lsass1d, lsass1d_error)
+
+        if "LSASSp" in active:
+            # LSASSp
+            try:
+                lsassp = cm_lsassp(lsa_indices)
+                lsassp_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASSp: %s", e)
+                lsassp = None
+                lsassp_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSASSp"] = (lsassp, lsassp_error)
+
+        if "LSASSpd" in active:
+            # LSASSpd
+            try:
+                lsasspd = cm_lsasspd(lsa_indices)
+                lsasspd_error = None
+            except Exception as e:
+                logger.error("Error calculating LSASSpd: %s", e)
+                lsasspd = None
+                lsasspd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSASSpd"] = (lsasspd, lsasspd_error)
+
+        if "LSAPP1" in active:
+            # LSAPP1
+            try:
+                lsapp1 = cm_lsapp1(lsa_indices)
+                lsapp1_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAPP1: %s", e)
+                lsapp1 = None
+                lsapp1_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSAPP1"] = (lsapp1, lsapp1_error)
+
+        if "LSAPP1d" in active:
+            # LSAPP1d
+            try:
+                lsapp1d = cm_lsapp1d(lsa_indices)
+                lsapp1d_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAPP1d: %s", e)
+                lsapp1d = None
+                lsapp1d_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSAPP1d"] = (lsapp1d, lsapp1d_error)
+
+        if "LSAGN" in active:
+            # LSAGN
+            try:
+                lsagn = cm_lsagn(lsa_indices)
+                lsagn_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAGN: %s", e)
+                lsagn = None
+                lsagn_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSAGN"] = (lsagn, lsagn_error)
+
+        if "LSAGNd" in active:
+            # LSAGNd
+            try:
+                lsagnd = cm_lsagnd(lsa_indices)
+                lsagnd_error = None
+            except Exception as e:
+                logger.error("Error calculating LSAGNd: %s", e)
+                lsagnd = None
+                lsagnd_error = ((lsa_error + "\n") if lsa_error else "") + str(e)  # M7
+            results["LSAGNd"] = (lsagnd, lsagnd_error)
+
+            ### Lexical Diversity
+
+        if "LDTTRc" in active:
+            # LDTTRc
+            try:
+                ldttrc = cm_ldttrc(tokens)
+                ldttrc_error = None
+            except Exception as e:
+                logger.error("Error calculating LDTTRc: %s", e)
+                ldttrc = None
+                ldttrc_error = str(e)
+            results["LDTTRc"] = (ldttrc, ldttrc_error)
+
+        if "LDTTRa" in active:
+            # LDTTRa
+            try:
+                ldttra = cm_ldttra(tokens)
+                ldttra_error = None
+            except Exception as e:
+                logger.error("Error calculating LDTTRa: %s", e)
+                ldttra = None
+                ldttra_error = str(e)
+            results["LDTTRa"] = (ldttra, ldttra_error)
+
+        if "LDMTLDa" in active:
+            # LDMTLDa
+            try:
+                ldmtlda = cm_ldmtlda(tokens)
+                ldmtlda_error = None
+            except Exception as e:
+                logger.error("Error calculating LDMTLDa: %s", e)
+                ldmtlda = None
+                ldmtlda_error = str(e)
+            results["LDMTLDa"] = (ldmtlda, ldmtlda_error)
+
+        if "LDVOCDa" in active:
+            # LDVOCDa
+            try:
+                ldvocda = cm_ldvocda(tokens)
+                ldvocda_error = None
+            except Exception as e:
+                logger.error("Error calculating LDVOCDa: %s", e)
+                ldvocda = None
+                ldvocda_error = str(e)
+            results["LDVOCDa"] = (ldvocda, ldvocda_error)
+
+            ### Connectives
+
+        if "CNC shared" in active:
+            # L1: compute connective counts once and reuse across all 9 CNC* indices.
+            try:
+                _cnc_counts = _count_connectives(sentences, lang, tokens_count)
+            except Exception as e:
+                logger.error("Error precomputing connective counts: %s", e)
+                _cnc_counts = None
+
+        if "CNCAll" in active:
+            # CNCAll
+            try:
+                cncall = cm_cncall(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cncall_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCAll: %s", e)
+                cncall = None
+                cncall_error = str(e)
+            results["CNCAll"] = (cncall, cncall_error)
+
+        if "CNCCaus" in active:
+            # CNCCaus
+            try:
+                cnccaus = cm_cnccaus(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cnccaus_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCCaus: %s", e)
+                cnccaus = None
+                cnccaus_error = str(e)
+            results["CNCCaus"] = (cnccaus, cnccaus_error)
+
+        if "CNCLogic" in active:
+            # CNCLogic
+            try:
+                cnclogic = cm_cnclogic(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cnclogic_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCLogic: %s", e)
+                cnclogic = None
+                cnclogic_error = str(e)
+            results["CNCLogic"] = (cnclogic, cnclogic_error)
+
+        if "CNCADC" in active:
+            # CNCADC
+            try:
+                cncadc = cm_cncadc(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cncadc_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCADC: %s", e)
+                cncadc = None
+                cncadc_error = str(e)
+            results["CNCADC"] = (cncadc, cncadc_error)
+
+        if "CNCTemp" in active:
+            # CNCTemp
+            try:
+                cnctemp = cm_cnctemp(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cnctemp_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCTemp: %s", e)
+                cnctemp = None
+                cnctemp_error = str(e)
+            results["CNCTemp"] = (cnctemp, cnctemp_error)
+
+        if "CNCTempx" in active:
+            # CNCTempx
+            try:
+                cnctempx = cm_cnctempx(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cnctempx_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCTempx: %s", e)
+                cnctempx = None
+                cnctempx_error = str(e)
+            results["CNCTempx"] = (cnctempx, cnctempx_error)
+
+        if "CNCAdd" in active:
+            # CNCAdd
+            try:
+                cncadd = cm_cncadd(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cncadd_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCAdd: %s", e)
+                cncadd = None
+                cncadd_error = str(e)
+            results["CNCAdd"] = (cncadd, cncadd_error)
+
+        if "CNCPos" in active:
+            # CNCPos
+            try:
+                cncpos = cm_cncpos(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cncpos_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCPos: %s", e)
+                cncpos = None
+                cncpos_error = str(e)
+            results["CNCPos"] = (cncpos, cncpos_error)
+
+        if "CNCNeg" in active:
+            # CNCNeg
+            try:
+                cncneg = cm_cncneg(sentences, lang, tokens_count, connectives=_cnc_counts)
+                cncneg_error = None
+            except Exception as e:
+                logger.error("Error calculating CNCNeg: %s", e)
+                cncneg = None
+                cncneg_error = str(e)
+            results["CNCNeg"] = (cncneg, cncneg_error)
+
+            ### Situation Model
+
+        if "SMCAUSv" in active:
+            # SMCAUSv
+            try:
+                smcausv = cm_smcausv(sentences, lang)
+                smcausv_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSv: %s", e)
+                smcausv = None
+                smcausv_error = str(e)
+            results["SMCAUSv"] = (smcausv, smcausv_error)
+
+        if "SMCAUSvp" in active:
+            # SMCAUSvp
+            try:
+                smcausvp = cm_smcausvp(sentences, lang)
+                smcausvp_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSvp: %s", e)
+                smcausvp = None
+                smcausvp_error = str(e)
+            results["SMCAUSvp"] = (smcausvp, smcausvp_error)
+
+        if "SMINTEp" in active:
+            # SMINTEp
+            try:
+                smintep = cm_smintep(sentences, lang)
+                smintep_error = None
+            except Exception as e:
+                logger.error("Error calculating SMINTEp: %s", e)
+                smintep = None
+                smintep_error = str(e)
+            results["SMINTEp"] = (smintep, smintep_error)
+
+        if "SMCAUSr" in active:
+            # SMCAUSr
+            try:
+                smcausr = cm_smcausr(sentences, lang)
+                smcausr_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSr: %s", e)
+                smcausr = None
+                smcausr_error = str(e)
+            results["SMCAUSr"] = (smcausr, smcausr_error)
+
+        if "SMINTEr" in active:
+            # SMINTEr
+            try:
+                sminter = cm_sminter(sentences, lang)
+                sminter_error = None
+            except Exception as e:
+                logger.error("Error calculating SMINTEr: %s", e)
+                sminter = None
+                sminter_error = str(e)
+            results["SMINTEr"] = (sminter, sminter_error)
+
+        if "SMCAUSlsa" in active:
+            # SMCAUSlsa
+            try:
+                smcauslsa = cm_smcauslsa(sentences)
+                smcauslsa_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSlsa: %s", e)
+                smcauslsa = None
+                smcauslsa_error = str(e)
+            results["SMCAUSlsa"] = (smcauslsa, smcauslsa_error)
+
+        if "SMCAUSwn" in active:
+            # SMCAUSwn
+            try:
+                smcauswn = cm_smcauswn(sentences, lang)
+                smcauswn_error = None
+            except Exception as e:
+                logger.error("Error calculating SMCAUSwn: %s", e)
+                smcauswn = None
+                smcauswn_error = str(e)
+            results["SMCAUSwn"] = (smcauswn, smcauswn_error)
+
+        if "SMTEMP" in active:
+            # SMTEMP
+            try:
+                smtemp = cm_smtemp(sentences, lang)
+                smtemp_error = None
+            except Exception as e:
+                logger.error("Error calculating SMTEMP: %s", e)
+                smtemp = None
+                smtemp_error = str(e)
+            results["SMTEMP"] = (smtemp, smtemp_error)
+
+            ### Syntactic Complexity
+
+        if "SYNLE" in active:
+            # SYNLE
+            try:
+                synle = cm_synle(sentences, lang)
+                synle_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNLE: %s", e)
+                synle = None
+                synle_error = str(e)
+            results["SYNLE"] = (synle, synle_error)
+
+        if "SYNNP" in active:
+            # SYNNP
+            try:
+                synnp = cm_synnp(sentences, noun_chunks, lang)
+                synnp_error = None
+                if noun_chunks_error:
+                    synnp, synnp_error = None, noun_chunks_error
+            except Exception as e:
+                logger.error("Error calculating SYNNP: %s", e)
+                synnp = None
+                synnp_error = str(e)
+            results["SYNNP"] = (synnp, synnp_error)
+
+        if "SYNMEDpos" in active:
+            # SYNMEDpos
+            try:
+                synmedpos = cm_synmedpos(sentences)
+                synmedpos_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNMEDpos: %s", e)
+                synmedpos = None
+                synmedpos_error = str(e)
+            results["SYNMEDpos"] = (synmedpos, synmedpos_error)
+
+        if "SYNMEDwrd" in active:
+            # SYNMEDwrd
+            try:
+                synmedwrd = cm_synmedwrd(sentences)
+                synmedwrd_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNMEDwrd: %s", e)
+                synmedwrd = None
+                synmedwrd_error = str(e)
+            results["SYNMEDwrd"] = (synmedwrd, synmedwrd_error)
+
+        if "SYNMEDlem" in active:
+            # SYNMEDlem
+            try:
+                synmedlem = cm_synmedlem(sentences)
+                synmedlem_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNMEDlem: %s", e)
+                synmedlem = None
+                synmedlem_error = str(e)
+            results["SYNMEDlem"] = (synmedlem, synmedlem_error)
+
+        if "SYNSTRUTa" in active:
+            # SYNSTRUTa
+            synstrut_trees = _TreeInterner()        # the text's trees, interned once for SYNSTRUTa and SYNSTRUTt
+            try:
+                synstruta = cm_synstruta(sentences, synstrut_trees)
+                synstruta_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNSTRUTa: %s", e)
+                synstruta = None
+                synstruta_error = str(e)
+            results["SYNSTRUTa"] = (synstruta, synstruta_error)
+
+        if "SYNSTRUTt" in active:
+            # SYNSTRUTt
+            try:
+                synstrutt = cm_synstrutt(request.paragraphs, synstrut_trees)
+                synstrutt_error = None
+            except Exception as e:
+                logger.error("Error calculating SYNSTRUTt: %s", e)
+                synstrutt = None
+                synstrutt_error = str(e)
+            results["SYNSTRUTt"] = (synstrutt, synstrutt_error)
+
+            ### Syntactic Pattern Density
+
+        if "DR shared" in active:
+            # L2: compute count_metrics once and reuse across all 8 DR* indices.
+            try:
+                _dr_metrics = _count_metrics(sentences, noun_chunks, lang)
+            except Exception as e:
+                logger.error("Error precomputing DR metrics: %s", e)
+                _dr_metrics = None
+
+        if "DRNP" in active:
+            # DRNP
+            try:
+                drnp = cm_drnp(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drnp_error = None
+                if noun_chunks_error:
+                    drnp, drnp_error = None, noun_chunks_error
+            except Exception as e:
+                logger.error("Error calculating DRNP: %s", e)
+                drnp = None
+                drnp_error = str(e)
+            results["DRNP"] = (drnp, drnp_error)
+
+        if "DRVP" in active:
+            # DRVP
+            try:
+                drvp = cm_drvp(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drvp_error = None
+            except Exception as e:
+                logger.error("Error calculating DRVP: %s", e)
+                drvp = None
+                drvp_error = str(e)
+            results["DRVP"] = (drvp, drvp_error)
+
+        if "DRAP" in active:
+            # DRAP
+            try:
+                drap = cm_drap(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drap_error = None
+            except Exception as e:
+                logger.error("Error calculating DRAP: %s", e)
+                drap = None
+                drap_error = str(e)
+            results["DRAP"] = (drap, drap_error)
+
+        if "DRPP" in active:
+            # DRPP
+            try:
+                drpp = cm_drpp(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drpp_error = None
+            except Exception as e:
+                logger.error("Error calculating DRPP: %s", e)
+                drpp = None
+                drpp_error = str(e)
+            results["DRPP"] = (drpp, drpp_error)
+
+        if "DRPVAL" in active:
+            # DRPVAL
+            try:
+                drpval = cm_drpval(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drpval_error = None
+            except Exception as e:
+                logger.error("Error calculating DRPVAL: %s", e)
+                drpval = None
+                drpval_error = str(e)
+            results["DRPVAL"] = (drpval, drpval_error)
+
+        if "DRNEG" in active:
+            # DRNEG
+            try:
+                drneg = cm_drneg(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drneg_error = None
+            except Exception as e:
+                logger.error("Error calculating DRNEG: %s", e)
+                drneg = None
+                drneg_error = str(e)
+            results["DRNEG"] = (drneg, drneg_error)
+
+        if "DRGERUND" in active:
+            # DRGERUND
+            try:
+                drgerund = cm_drgerund(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drgerund_error = None
+            except Exception as e:
+                logger.error("Error calculating DRGERUND: %s", e)
+                drgerund = None
+                drgerund_error = str(e)
+            results["DRGERUND"] = (drgerund, drgerund_error)
+
+        if "DRINF" in active:
+            # DRINF
+            try:
+                drinf = cm_drinf(sentences, noun_chunks, lang, metrics=_dr_metrics)
+                drinf_error = None
+            except Exception as e:
+                logger.error("Error calculating DRINF: %s", e)
+                drinf = None
+                drinf_error = str(e)
+            results["DRINF"] = (drinf, drinf_error)
+
+            ### Word Information
+
+        if "WRD shared" in active:
+            # L11: compute WRD* counter dict once and reuse across all 10 WRD* indices.
+            try:
+                _wrd_counts = _wrd_precompute(sentences)
+            except Exception as e:
+                logger.error("Error precomputing WRD counts: %s", e)
+                _wrd_counts = None
+
+        if "WRDNOUN" in active:
+            # WRDNOUN
+            try:
+                wrdnoun = cm_wrdnoun(sentences, counts=_wrd_counts)
+                wrdnoun_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDNOUN: %s", e)
+                wrdnoun = None
+                wrdnoun_error = str(e)
+            results["WRDNOUN"] = (wrdnoun, wrdnoun_error)
+
+        if "WRDVERB" in active:
+            # WRDVERB
+            try:
+                wrdverb = cm_wrdverb(sentences, counts=_wrd_counts)
+                wrdverb_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDVERB: %s", e)
+                wrdverb = None
+                wrdverb_error = str(e)
+            results["WRDVERB"] = (wrdverb, wrdverb_error)
+
+        if "WRDADJ" in active:
+            # WRDADJ
+            try:
+                wrdadj = cm_wrdadj(sentences, counts=_wrd_counts)
+                wrdadj_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDADJ: %s", e)
+                wrdadj = None
+                wrdadj_error = str(e)
+            results["WRDADJ"] = (wrdadj, wrdadj_error)
+
+        if "WRDADV" in active:
+            # WRDADV
+            try:
+                wrdadv = cm_wrdadv(sentences, counts=_wrd_counts)
+                wrdadv_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDADV: %s", e)
+                wrdadv = None
+                wrdadv_error = str(e)
+            results["WRDADV"] = (wrdadv, wrdadv_error)
+
+        if "WRDPRO" in active:
+            # WRDPRO
+            try:
+                wrdpro = cm_wrdpro(sentences, counts=_wrd_counts)
+                wrdpro_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRO: %s", e)
+                wrdpro = None
+                wrdpro_error = str(e)
+            results["WRDPRO"] = (wrdpro, wrdpro_error)
+
+        if "WRDPRP1s" in active:
+            # WRDPRP1s
+            try:
+                wrdprp1s = cm_wrdprp1s(sentences, counts=_wrd_counts)
+                wrdprp1s_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP1s: %s", e)
+                wrdprp1s = None
+                wrdprp1s_error = str(e)
+            results["WRDPRP1s"] = (wrdprp1s, wrdprp1s_error)
+
+        if "WRDPRP1p" in active:
+            # WRDPRP1p
+            try:
+                wrdprp1p = cm_wrdprp1p(sentences, counts=_wrd_counts)
+                wrdprp1p_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP1p: %s", e)
+                wrdprp1p = None
+                wrdprp1p_error = str(e)
+            results["WRDPRP1p"] = (wrdprp1p, wrdprp1p_error)
+
+        if "WRDPRP2" in active:
+            # WRDPRP2
+            try:
+                wrdprp2 = cm_wrdprp2(sentences, counts=_wrd_counts)
+                wrdprp2_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP2: %s", e)
+                wrdprp2 = None
+                wrdprp2_error = str(e)
+            results["WRDPRP2"] = (wrdprp2, wrdprp2_error)
+
+        if "WRDPRP3s" in active:
+            # WRDPRP3s
+            try:
+                wrdprp3s = cm_wrdprp3s(sentences, counts=_wrd_counts)
+                wrdprp3s_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP3s: %s", e)
+                wrdprp3s = None
+                wrdprp3s_error = str(e)
+            results["WRDPRP3s"] = (wrdprp3s, wrdprp3s_error)
+
+        if "WRDPRP3p" in active:
+            # WRDPRP3p
+            try:
+                wrdprp3p = cm_wrdprp3p(sentences, counts=_wrd_counts)
+                wrdprp3p_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPRP3p: %s", e)
+                wrdprp3p = None
+                wrdprp3p_error = str(e)
+            results["WRDPRP3p"] = (wrdprp3p, wrdprp3p_error)
+
+            # word frequencies: SUBTLEX-DE for German since fix B2 (2026-10-28), the Wikipedia sample for English
+            _freq_source = _FREQUENCY_SOURCE.get(lang, "wiki-20220301-sample10000")
+            _freq_name = {"subtlex-de": "SUBTLEX-DE", "subtlex-us": "SUBTLEX-US"}.get(_freq_source, "Wikipedia")
+
+        if "WRDFRQc" in active:
+            # WRDFRQc
+            try:
+                wrdfrqc = cm_wrdfrqc(sentences, lang, _freq_source)
+                wrdfrqc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFRQc: %s", e)
+                wrdfrqc = None
+                wrdfrqc_error = str(e)
+            results["WRDFRQc"] = (wrdfrqc, wrdfrqc_error)
+
+        if "WRDFRQa" in active:
+            # WRDFRQa
+            try:
+                wrdfrqa = cm_wrdfrqa(tokens, lang, _freq_source)
+                wrdfrqa_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFRQa: %s", e)
+                wrdfrqa = None
+                wrdfrqa_error = str(e)
+            results["WRDFRQa"] = (wrdfrqa, wrdfrqa_error)
+
+        if "WRDFRQmc" in active:
+            # WRDFRQmc
+            try:
+                wrdfrqmc = cm_wrdfrqmc(sentences, lang, _freq_source)
+                wrdfrqmc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFRQmc: %s", e)
+                wrdfrqmc = None
+                wrdfrqmc_error = str(e)
+            results["WRDFRQmc"] = (wrdfrqmc, wrdfrqmc_error)
+
+            # FV1 fix:  load mrc once and reuse across all 5 WRD* indices.
+
+        if "MRC shared" in active:
+            try:
+                _mrc_dict = _load_norms(lang)    # German: fix B1
+            except Exception as e:
+                logger.error("Error precomputing MRC dict: %s", e)
+                _mrc_dict = None
+
+        if "WRDAOAc" in active:
+            # WRDAOAc
+            # FV1 fix: Include mrc_dict in function call if loaded successfully
+            try:
+                wrdaoac = cm_wrdaoac(sentences, lang, mrc_dict=_mrc_dict)
+                wrdaoac_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDAOAc: %s", e)
+                wrdaoac = None
+                wrdaoac_error = str(e)
+            results["WRDAOAc"] = (wrdaoac, wrdaoac_error)
+
+        if "WRDFAMc" in active:
+            # WRDFAMc
+            # FV1 fix: Include mrc_dict in function call if loaded successfully
+            try:
+                wrdfamc = cm_wrdfamc(sentences, lang, mrc_dict=_mrc_dict)
+                wrdfamc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDFAMc: %s", e)
+                wrdfamc = None
+                wrdfamc_error = str(e)
+            results["WRDFAMc"] = (wrdfamc, wrdfamc_error)
+
+        if "WRDCNCc" in active:
+            # WRDCNCc
+            # FV1 fix: Include mrc_dict in function call if loaded successfully
+            try:
+                wrdcncc = cm_wrdcncc(sentences, lang, mrc_dict=_mrc_dict)
+                wrdcncc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDCNCc: %s", e)
+                wrdcncc = None
+                wrdcncc_error = str(e)
+            results["WRDCNCc"] = (wrdcncc, wrdcncc_error)
+
+        if "WRDIMGc" in active:
+            # WRDIMGc
+            # FV1 fix: Include mrc_dict in function call if loaded successfully
+            try:
+                wrdimgc = cm_wrdimgc(sentences, lang, mrc_dict=_mrc_dict)
+                wrdimgc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDIMGc: %s", e)
+                wrdimgc = None
+                wrdimgc_error = str(e)
+            results["WRDIMGc"] = (wrdimgc, wrdimgc_error)
+
+        if "WRDMEAc" in active:
+            # WRDMEAc
+            # FV1 fix: Include mrc_dict in function call if loaded successfully
+            try:
+                wrdmeac = cm_wrdmeac(sentences, lang, mrc_dict=_mrc_dict)
+                wrdmeac_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDMEAc: %s", e)
+                wrdmeac = None
+                wrdmeac_error = str(e)
+            results["WRDMEAc"] = (wrdmeac, wrdmeac_error)
+
+        if "WRDPOLc" in active:
+            # WRDPOLc
+            try:
+                wrdpolc = cm_wrdpolc(sentences, lang)
+                wrdpolc_error = None
+            except Exception as e:
+                logger.error("Error calculating WRDPOLc: %s", e)
+                wrdpolc = None
+                wrdpolc_error = str(e)
+            results["WRDPOLc"] = (wrdpolc, wrdpolc_error)
+
+            # Precompute hypernymy values once for WRDHYPn, WRDHYPv and WRDHYPnv.
+
+        if "HYP shared" in active:
+            try:
+                _wrdhyp = _calc_wrdhyp(
+                    sentences,
+                    lang
+                )
+                _wrdhyp_error = None
+            except Exception as e:
+                logger.error(
+                    "Error calculating WRDHYP indices: %s",
+                    e
+                )
+
+                _wrdhyp = {
+                    "WRDHYPn": None,
+                    "WRDHYPv": None,
+                    "WRDHYPnv": None,
+                }
+
+                _wrdhyp_error = str(e)
+
+        if "WRDHYPn" in active:
+            # WRDHYPn
+            wrdhypn = _wrdhyp["WRDHYPn"]
+            wrdhypn_error = _wrdhyp_error
+            results["WRDHYPn"] = (wrdhypn, wrdhypn_error)
+
+        if "WRDHYPv" in active:
+            # WRDHYPv
+            wrdhypv = _wrdhyp["WRDHYPv"]
+            wrdhypv_error = _wrdhyp_error
+            results["WRDHYPv"] = (wrdhypv, wrdhypv_error)
+
+        if "WRDHYPnv" in active:
+            # WRDHYPnv
+            wrdhypnv = _wrdhyp["WRDHYPnv"]
+            wrdhypnv_error = _wrdhyp_error
+            results["WRDHYPnv"] = (wrdhypnv, wrdhypnv_error)
+
+            ### Readability
+
+            # NOTE(L4): RDFRE and RDFKGL were calculated through textstat on the raw
+            # document text; Coh-Metrix 3.0 defines them from its own DESSL and DESWLsy.
+            # Since fix A2 (2026-10-28) all readability formulas use the request's own
+            # sentences, words and syllables (_readability_scores). Labels (user
+            # 2026-10-28): RDFRE and RDFKGL now follow Coh-Metrix 3.0 and carry its
+            # labels; the 11 formulas outside 3.0 carry "_ext" (upstream rule 7, our
+            # LABEL_SUGGESTION.md) instead of "_textstat".
+
+        if "RD shared" in active:
+            try:
+                _rd = _readability_scores(request.paragraphs, lang) if has_readability_input else {}
+                _rd_error = None
+            except Exception as e:
+                logger.error("Error calculating the readability formulas: %s", e)
+                _rd, _rd_error = {}, str(e)
+
+        if "RDFRE" in active:
+            # RDFRE
+            try:
+                rdfre = _rd.get("FRE")
+                rdfre_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDFRE: %s", e)
+                rdfre = None
+                rdfre_error = str(e)
+            results["RDFRE"] = (rdfre, rdfre_error)
+
+        if "RDFKGL" in active:
+            # RDFKGL
+            try:
+                rdfkgl = _rd.get("FKGL")
+                rdfkgl_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDFKGL: %s", e)
+                rdfkgl = None
+                rdfkgl_error = str(e)
+            results["RDFKGL"] = (rdfkgl, rdfkgl_error)
+
+        if "RDFOG" in active:
+            # RDFOG
+            try:
+                rdfog = _rd.get("FOG")
+                rdfog_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDFOG: %s", e)
+                rdfog = None
+                rdfog_error = str(e)
+            results["RDFOG"] = (rdfog, rdfog_error)
+
+        if "RDSMOG" in active:
+            # RDSMOG
+            try:
+                rdsmog = _rd.get("SMOG")
+                rdsmog_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDSMOG: %s", e)
+                rdsmog = None
+                rdsmog_error = str(e)
+            results["RDSMOG"] = (rdsmog, rdsmog_error)
+
+        if "RDARI" in active:
+            # RDARI
+            try:
+                rdari = _rd.get("ARI")
+                rdari_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDARI: %s", e)
+                rdari = None
+                rdari_error = str(e)
+            results["RDARI"] = (rdari, rdari_error)
+
+        if "RDCLI" in active:
+            # RDCLI
+            try:
+                rdcli = _rd.get("CLI")
+                rdcli_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDCLI: %s", e)
+                rdcli = None
+                rdcli_error = str(e)
+            results["RDCLI"] = (rdcli, rdcli_error)
+
+        if "RDLW" in active:
+            # RDLW
+            try:
+                rdlw = _rd.get("LW")
+                rdlw_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDLW: %s", e)
+                rdlw = None
+                rdlw_error = str(e)
+            results["RDLW"] = (rdlw, rdlw_error)
+
+        if "RDDCRS" in active:
+            # RDDCRS
+            try:
+                rddcrs = _rd.get("DCRS")
+                rddcrs_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDDCRS: %s", e)
+                rddcrs = None
+                rddcrs_error = str(e)
+            results["RDDCRS"] = (rddcrs, rddcrs_error)
+
+        if "RDSPACHE" in active:
+            # RDSPACHE
+            try:
+                rdspache = _rd.get("SPACHE")
+                rdspache_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDSPACHE: %s", e)
+                rdspache = None
+                rdspache_error = str(e)
+            results["RDSPACHE"] = (rdspache, rdspache_error)
+
+        if "RDWSTF1" in active:
+            # RDWSTF1
+            try:
+                rdwstf = _rd.get("WSTF1") if lang == "de" else None
+                rdwstf_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDWSTF1: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            results["RDWSTF1"] = (rdwstf, rdwstf_error)
+
+        if "RDWSTF2" in active:
+            # RDWSTF2
+            try:
+                rdwstf = _rd.get("WSTF2") if lang == "de" else None
+                rdwstf_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDWSTF2: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            results["RDWSTF2"] = (rdwstf, rdwstf_error)
+
+        if "RDWSTF3" in active:
+            # RDWSTF3
+            try:
+                rdwstf = _rd.get("WSTF3") if lang == "de" else None
+                rdwstf_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDWSTF3: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            results["RDWSTF3"] = (rdwstf, rdwstf_error)
+
+        if "RDWSTF4" in active:
+            # RDWSTF4
+            try:
+                rdwstf = _rd.get("WSTF4") if lang == "de" else None
+                rdwstf_error = _rd_error
+            except Exception as e:
+                logger.error("Error calculating RDWSTF4: %s", e)
+                rdwstf = None
+                rdwstf_error = str(e)
+            results["RDWSTF4"] = (rdwstf, rdwstf_error)
+
+        if "RDL2" in active:
+            # RDL2
+            try:
+                # 2026-10-28 (user): the frequency term is WRDFRQc (log since then), not WRDFRQmc; RDL2_synstrutt removed
+                rdl2 = cm_rdl2(crfcwo1, synstruta, wrdfrqc)
+                rdl2_error = None
+            except Exception as e:
+                logger.error("Error calculating RDL2: %s", e)
+                rdl2 = None
+                rdl2_error = str(e)
+            results["RDL2"] = (rdl2, rdl2_error)
 
     except Exception as ex:
         logger.exception(ex)
-        # the components were not reached: say so (code review 2026-10-31; before they were None without an error)
-        for i in indices:
-            if i.label.split("_", 1)[0] in _EASABILITY_KEYS and i.value is None and not i.error:
-                i.error = f"not computed: {ex}"
+        for key in (wanted if wanted is not None else KEY_BLOCK):
+            results.setdefault(key, (None, f"not computed: {ex}"))
+    finally:
+        # the per-request caches hold the sentences with their vectors (large for long texts)
+        _SENTENCE_FEATURES.reset()
+        _TEXT_MEMO.reset()
+    return results
 
-    # after the try, so that an error before it cannot skip it (code review 2026-10-31)
-    indices = [i for i in indices if i.label.split("_", 1)[0] not in _NOT_EMITTED.get(lang, ())]
-    # memory (code review 2026-10-31, proposal 9): the per-text caches hold the sentences with their vectors (about 450 MB at 40k
-    # tokens); emptied now instead of at the start of the next text
-    _SENTENCE_FEATURES.clear()
-    _TEXT_MEMO.clear()
-    timing = lap.seconds()
-    logger.debug(meta)
-    logger.debug(modification_meta)
 
-    global last_timing
-    last_timing = timing
-    duration = int(time()) - modification_timestamp_seconds
-    logger.info("Processed in %d seconds", duration)
+# the block of each index key, and the blocks each block needs (derived from the variables they share)
+KEY_BLOCK = {
+    "DESPC": "DESPC",
+    "DESSC": "DESSC",
+    "DESWC": "DESWC",
+    "DESPL": "DESPL",
+    "DESPLd": "DESPLd",
+    "DESSL": "DESSL",
+    "DESSLd": "DESSLd",
+    "DESWLsy": "DESWLsy",
+    "DESWLsyd": "DESWLsyd",
+    "DESWLlt": "DESWLlt",
+    "DESWLltd": "DESWLltd",
+    "CRFNO1": "CRFNO1",
+    "CRFAO1": "CRFAO1",
+    "CRFSO1": "CRFSO1",
+    "CRFNOa": "CRFNOa",
+    "CRFAOa": "CRFAOa",
+    "CRFSOa": "CRFSOa",
+    "CRFCWO1": "CRFCWO1",
+    "CRFCWO1d": "CRFCWO1d",
+    "CRFCWOa": "CRFCWOa",
+    "CRFCWOad": "CRFCWOad",
+    "LSASS1": "LSASS1",
+    "LSASS1d": "LSASS1d",
+    "LSASSp": "LSASSp",
+    "LSASSpd": "LSASSpd",
+    "LSAPP1": "LSAPP1",
+    "LSAPP1d": "LSAPP1d",
+    "LSAGN": "LSAGN",
+    "LSAGNd": "LSAGNd",
+    "LDTTRc": "LDTTRc",
+    "LDTTRa": "LDTTRa",
+    "LDMTLDa": "LDMTLDa",
+    "LDVOCDa": "LDVOCDa",
+    "CNCAll": "CNCAll",
+    "CNCCaus": "CNCCaus",
+    "CNCLogic": "CNCLogic",
+    "CNCADC": "CNCADC",
+    "CNCTemp": "CNCTemp",
+    "CNCTempx": "CNCTempx",
+    "CNCAdd": "CNCAdd",
+    "CNCPos": "CNCPos",
+    "CNCNeg": "CNCNeg",
+    "SMCAUSv": "SMCAUSv",
+    "SMCAUSvp": "SMCAUSvp",
+    "SMINTEp": "SMINTEp",
+    "SMCAUSr": "SMCAUSr",
+    "SMINTEr": "SMINTEr",
+    "SMCAUSlsa": "SMCAUSlsa",
+    "SMCAUSwn": "SMCAUSwn",
+    "SMTEMP": "SMTEMP",
+    "SYNLE": "SYNLE",
+    "SYNNP": "SYNNP",
+    "SYNMEDpos": "SYNMEDpos",
+    "SYNMEDwrd": "SYNMEDwrd",
+    "SYNMEDlem": "SYNMEDlem",
+    "SYNSTRUTa": "SYNSTRUTa",
+    "SYNSTRUTt": "SYNSTRUTt",
+    "DRNP": "DRNP",
+    "DRVP": "DRVP",
+    "DRAP": "DRAP",
+    "DRPP": "DRPP",
+    "DRPVAL": "DRPVAL",
+    "DRNEG": "DRNEG",
+    "DRGERUND": "DRGERUND",
+    "DRINF": "DRINF",
+    "WRDNOUN": "WRDNOUN",
+    "WRDVERB": "WRDVERB",
+    "WRDADJ": "WRDADJ",
+    "WRDADV": "WRDADV",
+    "WRDPRO": "WRDPRO",
+    "WRDPRP1s": "WRDPRP1s",
+    "WRDPRP1p": "WRDPRP1p",
+    "WRDPRP2": "WRDPRP2",
+    "WRDPRP3s": "WRDPRP3s",
+    "WRDPRP3p": "WRDPRP3p",
+    "WRDFRQc": "WRDFRQc",
+    "WRDFRQa": "WRDFRQa",
+    "WRDFRQmc": "WRDFRQmc",
+    "WRDAOAc": "WRDAOAc",
+    "WRDFAMc": "WRDFAMc",
+    "WRDCNCc": "WRDCNCc",
+    "WRDIMGc": "WRDIMGc",
+    "WRDMEAc": "WRDMEAc",
+    "WRDPOLc": "WRDPOLc",
+    "WRDHYPn": "WRDHYPn",
+    "WRDHYPv": "WRDHYPv",
+    "WRDHYPnv": "WRDHYPnv",
+    "RDFRE": "RDFRE",
+    "RDFKGL": "RDFKGL",
+    "RDFOG": "RDFOG",
+    "RDSMOG": "RDSMOG",
+    "RDARI": "RDARI",
+    "RDCLI": "RDCLI",
+    "RDLW": "RDLW",
+    "RDDCRS": "RDDCRS",
+    "RDSPACHE": "RDSPACHE",
+    "RDWSTF1": "RDWSTF1",
+    "RDWSTF2": "RDWSTF2",
+    "RDWSTF3": "RDWSTF3",
+    "RDWSTF4": "RDWSTF4",
+    "RDL2": "RDL2"
+}
+BLOCK_DEPS = {
+    "DESPC": [],
+    "DESSC": [],
+    "DESWC": [],
+    "DESPL": [],
+    "DESPLd": [],
+    "DESSL": [],
+    "DESSLd": [],
+    "DESWLsy": [],
+    "DESWLsyd": [],
+    "DESWLlt": [],
+    "DESWLltd": [],
+    "CRFNO1": [],
+    "CRFAO1": [],
+    "CRFSO1": [],
+    "CRFNOa": [],
+    "CRFAOa": [],
+    "CRFSOa": [],
+    "CRFCWO1": [],
+    "CRFCWO1d": [],
+    "CRFCWOa": [],
+    "CRFCWOad": [],
+    "LSA shared": [],
+    "LSASS1": [
+        "LSA shared"
+    ],
+    "LSASS1d": [
+        "LSA shared"
+    ],
+    "LSASSp": [
+        "LSA shared"
+    ],
+    "LSASSpd": [
+        "LSA shared"
+    ],
+    "LSAPP1": [
+        "LSA shared"
+    ],
+    "LSAPP1d": [
+        "LSA shared"
+    ],
+    "LSAGN": [
+        "LSA shared"
+    ],
+    "LSAGNd": [
+        "LSA shared"
+    ],
+    "LDTTRc": [],
+    "LDTTRa": [],
+    "LDMTLDa": [],
+    "LDVOCDa": [],
+    "CNC shared": [],
+    "CNCAll": [
+        "CNC shared"
+    ],
+    "CNCCaus": [
+        "CNC shared"
+    ],
+    "CNCLogic": [
+        "CNC shared"
+    ],
+    "CNCADC": [
+        "CNC shared"
+    ],
+    "CNCTemp": [
+        "CNC shared"
+    ],
+    "CNCTempx": [
+        "CNC shared"
+    ],
+    "CNCAdd": [
+        "CNC shared"
+    ],
+    "CNCPos": [
+        "CNC shared"
+    ],
+    "CNCNeg": [
+        "CNC shared"
+    ],
+    "SMCAUSv": [],
+    "SMCAUSvp": [],
+    "SMINTEp": [],
+    "SMCAUSr": [],
+    "SMINTEr": [],
+    "SMCAUSlsa": [],
+    "SMCAUSwn": [],
+    "SMTEMP": [],
+    "SYNLE": [],
+    "SYNNP": [],
+    "SYNMEDpos": [],
+    "SYNMEDwrd": [],
+    "SYNMEDlem": [],
+    "SYNSTRUTa": [],
+    "SYNSTRUTt": [
+        "SYNSTRUTa"
+    ],
+    "DR shared": [],
+    "DRNP": [
+        "DR shared"
+    ],
+    "DRVP": [
+        "DR shared"
+    ],
+    "DRAP": [
+        "DR shared"
+    ],
+    "DRPP": [
+        "DR shared"
+    ],
+    "DRPVAL": [
+        "DR shared"
+    ],
+    "DRNEG": [
+        "DR shared"
+    ],
+    "DRGERUND": [
+        "DR shared"
+    ],
+    "DRINF": [
+        "DR shared"
+    ],
+    "WRD shared": [],
+    "WRDNOUN": [
+        "WRD shared"
+    ],
+    "WRDVERB": [
+        "WRD shared"
+    ],
+    "WRDADJ": [
+        "WRD shared"
+    ],
+    "WRDADV": [
+        "WRD shared"
+    ],
+    "WRDPRO": [
+        "WRD shared"
+    ],
+    "WRDPRP1s": [
+        "WRD shared"
+    ],
+    "WRDPRP1p": [
+        "WRD shared"
+    ],
+    "WRDPRP2": [
+        "WRD shared"
+    ],
+    "WRDPRP3s": [
+        "WRD shared"
+    ],
+    "WRDPRP3p": [
+        "WRD shared"
+    ],
+    "WRDFRQc": [
+        "WRDPRP3p"
+    ],
+    "WRDFRQa": [
+        "WRDPRP3p"
+    ],
+    "WRDFRQmc": [
+        "WRDPRP3p"
+    ],
+    "MRC shared": [],
+    "WRDAOAc": [
+        "MRC shared"
+    ],
+    "WRDFAMc": [
+        "MRC shared"
+    ],
+    "WRDCNCc": [
+        "MRC shared"
+    ],
+    "WRDIMGc": [
+        "MRC shared"
+    ],
+    "WRDMEAc": [
+        "MRC shared"
+    ],
+    "WRDPOLc": [],
+    "HYP shared": [],
+    "WRDHYPn": [
+        "HYP shared"
+    ],
+    "WRDHYPv": [
+        "HYP shared"
+    ],
+    "WRDHYPnv": [
+        "HYP shared"
+    ],
+    "RD shared": [],
+    "RDFRE": [
+        "RD shared"
+    ],
+    "RDFKGL": [
+        "RD shared"
+    ],
+    "RDFOG": [
+        "RD shared"
+    ],
+    "RDSMOG": [
+        "RD shared"
+    ],
+    "RDARI": [
+        "RD shared"
+    ],
+    "RDCLI": [
+        "RD shared"
+    ],
+    "RDLW": [
+        "RD shared"
+    ],
+    "RDDCRS": [
+        "RD shared"
+    ],
+    "RDSPACHE": [
+        "RD shared"
+    ],
+    "RDWSTF1": [
+        "RD shared"
+    ],
+    "RDWSTF2": [
+        "RD shared"
+    ],
+    "RDWSTF3": [
+        "RD shared"
+    ],
+    "RDWSTF4": [
+        "RD shared"
+    ],
+    "RDL2": [
+        "CRFCWO1",
+        "SYNSTRUTa",
+        "WRDFRQc"
+    ]
+}
 
-    response = TextImagerResponse(
-        indices=indices,
-        meta=meta,
-        modification_meta=modification_meta,
-    )
-    return response
+
+def _active_blocks(wanted: Optional[Set[str]]) -> Set[str]:
+    """the blocks to run for the wanted keys: their own blocks and everything these need, transitively"""
+    todo = list(KEY_BLOCK.values()) if wanted is None else [KEY_BLOCK[k] for k in wanted if k in KEY_BLOCK]
+    active = set()
+    while todo:
+        block = todo.pop()
+        if block not in active:
+            active.add(block)
+            todo.extend(BLOCK_DEPS.get(block, []))
+    return active
+
