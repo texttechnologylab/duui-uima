@@ -50,7 +50,25 @@ KEEP_LINE_BREAKS = {
     "line": re.compile(r"\n"),
     # blank lines: two line breaks with only other whitespace between them
     "blank_line": re.compile(r"\n[^\S\n]*\n"),
+    # not added: chonky reads the text with its line breaks as spaces, and only its boundaries at a line break are kept
+    # (filter_at_line_breaks)
+    "filter": None,
 }
+
+
+def filter_at_line_breaks(text: str, boundaries) -> set:
+    """the boundaries at a line break of the text, as the Coh-Metrix preprocessing keeps them (duui-coh-metrix
+    docs/preprocess.py, ChonkyParagraphs and SaTParagraphs, 2026-11-02): the next paragraph's first non-whitespace character
+    starts a line (follows a line break and only whitespace), or a line break is among the 5 characters before it"""
+    line_starts = {m.end() for m in re.finditer(r"\n\s*", text)}
+    kept = set()
+    for boundary in boundaries:
+        start = boundary
+        while start < len(text) and text[start].isspace():
+            start += 1
+        if start < len(text) and (start in line_starts or "\n" in text[max(0, start - 5):start]):
+            kept.add(boundary)
+    return kept
 
 # The model was downloaded at the pinned revision when the image was built, the container runs offline; chonky loads
 # the tokenizer from the same snapshot ("main" at build time = the pinned revision, checked in the Dockerfile)
@@ -191,16 +209,21 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     utf16_converter = Utf16CodepointOffsetConverter()
     utf16_converter.create_offset_mapping(text)
 
-    # chonky yields consecutive slices of the text: their ends are the boundaries
-    boundaries = {0, len(text)}
+    # chonky yields consecutive slices of the text: their ends are the boundaries. In filter mode chonky reads the text with
+    # its line breaks as spaces (same length, so the offsets stay)
+    model_text = text.replace("\r", " ").replace("\n", " ") if keep_line_breaks == "filter" else text
+    boundaries = set()
     if text.strip():
         with splitter_lock:
             position = 0
-            for chunk in splitter(text):
+            for chunk in splitter(model_text):
                 position += len(chunk)
                 boundaries.add(position)
         if position != len(text):
             raise Exception(f"chonky chunks do not cover the text: {position} of {len(text)} characters")
+    if keep_line_breaks == "filter":
+        boundaries = filter_at_line_breaks(text, boundaries)
+    boundaries |= {0, len(text)}
 
     pattern = KEEP_LINE_BREAKS[keep_line_breaks]
     if pattern is not None:

@@ -20,6 +20,7 @@ function serialize(inputCas, outputStream, parameters)
         len = DUUIUtils:getDocumentTextLength(inputCas),
         paragraphs = paragraphs,
         split_on_input_newlines = parameters["split_on_input_newlines"],
+        segment = parameters["segment"],
     }))
 end
 
@@ -35,18 +36,24 @@ function deserialize(inputCas, inputStream)
     modification_anno:addToIndexes()
 
     local meta = results["meta"]
-    for i, sentence in ipairs(results["sentences"]) do
-        local sentence_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence", inputCas)
-        sentence_anno:setBegin(sentence["begin"])
-        sentence_anno:setEnd(sentence["end"])
-        sentence_anno:addToIndexes()
+    -- Sentences (segment=sentences) or Paragraphs (segment=paragraphs)
+    for _, kind in ipairs({
+        {list = results["sentences"], type = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"},
+        {list = results["paragraphs"], type = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph"},
+    }) do
+        for _, span in ipairs(kind.list or {}) do
+            local anno = luajava.newInstance(kind.type, inputCas)
+            anno:setBegin(span["begin"])
+            anno:setEnd(span["end"])
+            anno:addToIndexes()
 
-        local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)
-        meta_anno:setReference(sentence_anno)
-        meta_anno:setName(meta["name"])
-        meta_anno:setVersion(meta["version"])
-        meta_anno:setModelName(meta["modelName"])
-        meta_anno:setModelVersion(meta["modelVersion"])
-        meta_anno:addToIndexes()
+            local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.AnnotatorMetaData", inputCas)
+            meta_anno:setReference(anno)
+            meta_anno:setName(meta["name"])
+            meta_anno:setVersion(meta["version"])
+            meta_anno:setModelName(meta["modelName"])
+            meta_anno:setModelVersion(meta["modelVersion"])
+            meta_anno:addToIndexes()
+        end
     end
 end

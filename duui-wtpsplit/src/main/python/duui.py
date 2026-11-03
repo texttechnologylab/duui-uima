@@ -1,4 +1,5 @@
 import logging
+import re
 from importlib.metadata import version as package_version
 from platform import python_version
 from sys import version as sys_version
@@ -77,6 +78,9 @@ class TextImagerRequest(BaseModel):
     paragraphs: Optional[List[Span]] = None
     # "true" (SaT default): every line break ends a sentence, "false": line breaks are read as spaces
     split_on_input_newlines: Optional[str] = None
+    # "sentences" (default): Sentence annotations within the paragraphs; "paragraphs": Paragraph annotations from SaT's
+    # paragraph segmentation, kept only at line breaks (paragraph_segmentation)
+    segment: Optional[str] = None
 
 
 class AnnotationMeta(BaseModel):
@@ -94,6 +98,7 @@ class DocumentModification(BaseModel):
 
 class TextImagerResponse(BaseModel):
     sentences: List[Span]
+    paragraphs: List[Span] = []
     meta: AnnotationMeta
     modification_meta: DocumentModification
 
@@ -173,6 +178,7 @@ def get_documentation() -> TextImagerDocumentation:
         docker_container_id="[TODO]",
         parameters={
             "split_on_input_newlines": ["true", "false"],
+            "segment": ["sentences", "paragraphs"],
         },
         # SaT is multilingual and does not use the document language
         capability=TextImagerCapability(supported_languages=[], reproducible=True),
@@ -187,7 +193,50 @@ def get_typesystem() -> Response:
 
 @app.get("/v1/details/input_output")
 def get_input_output() -> TextImagerInputOutput:
-    return TextImagerInputOutput(inputs=[UIMA_TYPE_PARAGRAPH], outputs=[UIMA_TYPE_SENTENCE])
+    return TextImagerInputOutput(inputs=[UIMA_TYPE_PARAGRAPH], outputs=[UIMA_TYPE_SENTENCE, UIMA_TYPE_PARAGRAPH])
+
+
+def filter_at_line_breaks(text: str, boundaries) -> set:
+    """the boundaries at a line break of the text, as the Coh-Metrix preprocessing keeps them (duui-coh-metrix
+    docs/preprocess.py, ChonkyParagraphs and SaTParagraphs, 2026-11-02): the next paragraph's first non-whitespace character
+    starts a line (follows a line break and only whitespace), or a line break is among the 5 characters before it"""
+    line_starts = {m.end() for m in re.finditer(r"\n\s*", text)}
+    kept = set()
+    for boundary in boundaries:
+        start = boundary
+        while start < len(text) and text[start].isspace():
+            start += 1
+        if start < len(text) and (start in line_starts or "\n" in text[max(0, start - 5):start]):
+            kept.add(boundary)
+    return kept
+
+
+def paragraph_segmentation(text: str) -> List[tuple]:
+    """SaT's paragraph segmentation (do_paragraph_segmentation, default threshold) on the text with its line breaks as spaces
+    (same length); a boundary is kept only at a line break of the text (filter_at_line_breaks). As the English default of the
+    Coh-Metrix preprocessing (docs/preprocess.py, SaTParagraphs), with exact offsets instead of a text search. Returns the
+    paragraphs as (begin, end) in code points, without surrounding whitespace."""
+    flat = text.replace("\r", " ").replace("\n", " ")
+    boundaries = set()
+    if flat.strip():
+        with sat_lock:
+            paragraphs = list(sat.split(flat, do_paragraph_segmentation=True))
+        # SaT's sentences keep their whitespace: the paragraphs are consecutive slices of the text
+        position = 0
+        for paragraph in paragraphs:
+            position += sum(len(sentence) for sentence in paragraph)
+            boundaries.add(position)
+        if position != len(flat):
+            raise Exception(f"SaT paragraphs do not cover the text: {position} of {len(flat)} characters")
+    cuts = sorted(filter_at_line_breaks(text, boundaries) | {0, len(text)})
+    spans = []
+    for begin, end in zip(cuts, cuts[1:]):
+        segment = text[begin:end]
+        stripped = segment.strip()
+        if stripped:
+            stripped_begin = begin + segment.index(stripped)
+            spans.append((stripped_begin, stripped_begin + len(stripped)))
+    return spans
 
 
 @app.post("/v1/process")
@@ -198,11 +247,34 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     if split_on_input_newlines not in ("true", "false"):
         raise HTTPException(status_code=400, detail=f"Parameter \"split_on_input_newlines\" must be \"true\" or \"false\", not \"{request.split_on_input_newlines}\"")
     split_on_input_newlines = split_on_input_newlines == "true"
+    segment_mode = (request.segment or "sentences").strip().lower()
+    if segment_mode not in ("sentences", "paragraphs"):
+        raise HTTPException(status_code=400, detail=f"Parameter \"segment\" must be \"sentences\" or \"paragraphs\", not \"{request.segment}\"")
 
     # CAS offsets are UTF-16 code units, Python strings use code points
     text = utf16_to_utf8(request.text)
     utf16_converter = Utf16CodepointOffsetConverter()
     utf16_converter.create_offset_mapping(text)
+
+    meta = AnnotationMeta(
+        name=settings.annotator_name,
+        version=settings.annotator_version,
+        modelName=settings.model_name,
+        modelVersion=settings.model_revision,
+    )
+    comment = (f"{settings.annotator_name} ({settings.annotator_version}), wtpsplit ({WTPSPLIT_VERSION}), "
+               f"{settings.model_name} ({settings.model_revision}), {settings.tokenizer_name} ({settings.tokenizer_revision}), ")
+
+    if segment_mode == "paragraphs":
+        paragraphs = [Span(begin=utf16_converter.python_to_external(b), end=utf16_converter.python_to_external(e))
+                      for b, e in paragraph_segmentation(text)]
+        logger.info("%d paragraphs, %d seconds", len(paragraphs), int(time()) - modification_timestamp_seconds)
+        return TextImagerResponse(
+            sentences=[], paragraphs=paragraphs, meta=meta,
+            modification_meta=DocumentModification(
+                user=settings.annotator_name, timestamp=modification_timestamp_seconds,
+                comment=comment + f"segment=paragraphs (kept at line breaks), {DEVICE}"),
+        )
 
     units = request.paragraphs if request.paragraphs else [Span(begin=0, end=request.len)]
     unit_bounds = [(utf16_converter.external_to_python(u.begin), utf16_converter.external_to_python(u.end)) for u in units]
@@ -234,17 +306,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
     return TextImagerResponse(
         sentences=sentences,
-        meta=AnnotationMeta(
-            name=settings.annotator_name,
-            version=settings.annotator_version,
-            modelName=settings.model_name,
-            modelVersion=settings.model_revision,
-        ),
+        meta=meta,
         modification_meta=DocumentModification(
             user=settings.annotator_name,
             timestamp=modification_timestamp_seconds,
-            comment=f"{settings.annotator_name} ({settings.annotator_version}), wtpsplit ({WTPSPLIT_VERSION}), "
-                    f"{settings.model_name} ({settings.model_revision}), {settings.tokenizer_name} "
-                    f"({settings.tokenizer_revision}), split_on_input_newlines={split_on_input_newlines}, {DEVICE}",
+            comment=comment + f"split_on_input_newlines={split_on_input_newlines}, {DEVICE}",
         ),
     )

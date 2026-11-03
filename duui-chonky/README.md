@@ -34,7 +34,7 @@ composer.add(
 
 | Name | Description | Default |
 |---|---|---|
-| `keep_line_breaks` | Existing line breaks added as boundaries to those of chonky: `none` (chonky only), `line` (every line break), `blank_line` (two line breaks with only other whitespace between them) | `none` |
+| `keep_line_breaks` | Existing line breaks added as boundaries to those of chonky: `none` (chonky only), `line` (every line break), `blank_line` (two line breaks with only other whitespace between them); or `filter`: chonky reads the text with its line breaks as spaces, and only its boundaries at a line break are kept (the next paragraph starts a line, or a line break is among the 5 characters before it), as the Coh-Metrix preprocessing does (`duui-coh-metrix/docs/preprocess.py`, `ChonkyParagraphs`) | `none` |
 
 ### Input / output types
 
@@ -45,5 +45,5 @@ composer.add(
 
 ## Tests
 
-Start the service (e.g. `docker run --rm -p 9805:9714 docker.texttechnologylab.org/duui-chonky:1.0.0`), then
+Start the service (e.g. `docker run --rm -p 9805:9714 docker.texttechnologylab.org/duui-chonky:1.1.0`), then
 `mvn test -Dchonky.url=http://localhost:9805`.
