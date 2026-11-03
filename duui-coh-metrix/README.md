@@ -34,6 +34,28 @@ Token vectors are required for the `LSA*` indices and `SMCAUSlsa` (see
 [Vectors](#vectors)). If no usable vector or comparison can be constructed, the
 affected result is `None`.
 
+## Best effort without UD
+
+The syntactic rules read Universal Dependencies version 2 (e.g. from
+`duui-stanza`). Input with spaCy's labels is mapped to UD in the component, as
+far as that is possible without a UD parser; the input in the CAS is not
+changed. The scheme is detected from the labels (`ud_mapping.py`):
+
+| Input | Mapping | Group |
+|---|---|---|
+| UD v2 | none | none |
+| German TIGER (spaCy `de_core_news_*`) | renaming table by label and part of speech; the TIGER tree is kept (the finite auxiliary, the preposition and the copula stay heads) | `TIGERmap` |
+| English ClearNLP (spaCy `en_core_web_*`) | [DepEdit](https://github.com/amir-zeldes/depedit) with its Stanford Dependencies to UD rules (`stan2uni.ini`; Siyao Peng and Amir Zeldes, ["All Roads Lead to UD: Converting Stanford and Penn Parses to English Universal Dependencies with Multilayer Annotations"](https://aclanthology.org/W18-4918/), LAW-MWE-CxG 2018), after our rules for the ClearNLP labels Stanford Dependencies does not have (`clearnlp_additions.ini`: the copula as head of `attr` / `acomp`, `relcl`, `dative`, `agent`, `oprd`); relabels and restructures the tree | `CLEARNLPmap` |
+| UD v1, other schemes | refused (HTTP 422) | |
+
+The records that read the dependency relations get the group after the public
+label, e.g. `SYNNP_TIGERmap`, `SMCAUSr_CLEARNLPmap_WN_DIMLEXeng_GUM`: the
+connectives (`CNC*` with DiMLex), `DRAP`, `DRGERUND`, `DRINF`, `DRNEG`, `DRNP`,
+`DRPP`, `DRPVAL`, `DRVP`, `SMCAUSv`, `SMCAUSvp`, `SMCAUSr`, `SMINTEp`,
+`SMINTEr`, `SMTEMP`, `SYNLE`, `SYNNP`, `SYNSTRUTa`, `SYNSTRUTt` and `RDL2`
+(`DEPENDENCY_KEYS` in `duui.py`). The Text Easability components (`PC*`) are
+`None` with an error: their models are fitted on UD input.
+
 ## Bundled and optional resources
 
 ### MRC psycholinguistic ratings
@@ -249,7 +271,9 @@ calls take the internal label from it (`ttlab_labels`).
    `MRC`): every lexicon, list, corpus, model or library the value depends
    on. Preprocessing (sentence boundaries, tokens, lemmas, POS, morphology,
    dependencies, noun chunks, Pyphen syllable counts) is not named; it is
-   documented in the CAS metadata of the preprocessing components.
+   documented in the CAS metadata of the preprocessing components. Exception:
+   dependency relations mapped to UD by this component (`TIGERmap`,
+   `CLEARNLPmap`, see [Best effort without UD](#best-effort-without-ud)).
 5. **No language codes.** Where the resource differs by language, its name
    says so (`WN`/`GN`, `CLEAR`/`CLEARtr`, `MRC`/`MRCtr`). Resources of the same
    kind (`LLMlist`, `WIKI`, `TEXTSTAT`) get the same name in every language;
@@ -280,6 +304,8 @@ calls take the internal label from it (`ttlab_labels`).
 |------------|--------|--------------------------------------------------------------------------------------------------|
 | `REFIT`    | method | Model fitted again on another reference corpus (Text Easability PCA)                             |
 | `EMB`      | method | Vector space instead of the TASA LSA space                                                       |
+| `TIGERmap` | method | Dependency relations mapped from TIGER to UD (spaCy German, best effort)                         |
+| `CLEARNLPmap` | method | Dependency relations mapped from ClearNLP to UD (spaCy English, best effort)                  |
 | `CLEAR`    | data   | CLEAR corpus, reference corpus of the English Text Easability model                              |
 | `CLEARtr`  | data   | CLEAR translated into German, reference corpus of the German model                               |
 | `SPACYxx`  | data   | spaCy token vectors from a model of size `xx` (`sm`, `md`, `lg`, `trf`); `SPACY` if unknown; other token vectors: their `shortName` (see [Vectors](#vectors)) |

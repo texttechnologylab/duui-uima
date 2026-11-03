@@ -432,6 +432,21 @@ VARIANTS: List[Tuple[int, str, str, str, str, Tuple[str, ...]]] = [
 CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR for German) has duui-coh-metrix 0.2.0's index "
                  "values as inputs; it is not used until it is refitted on the current ones")
 
+# Best effort without UD (README, "Best effort without UD"): spaCy's TIGER (de) / ClearNLP (en) relations are mapped to UD
+# (ud_mapping); the records that read the relations name the mapping as a method group after the public label, e.g.
+# SYNNP_TIGERmap, SMCAUSr_CLEARNLPmap_WN_DIMLEXeng_GUM (README rule 7). The keys (2026-11-03): the core keys whose code reads
+# dep_type, head_index or the noun chunks (static, through the called functions and the blocks a block needs), together with
+# those whose values changed on UD input when the relations were perturbed (every label "dep", or every head the root; six
+# texts, de and en): the static analysis misses SYNSTRUTa and RDL2 (read through the dependency trees of SYNSTRUTa).
+MAPPED_GROUP = {"TIGER": "TIGERmap", "ClearNLP": "CLEARNLPmap"}
+DEPENDENCY_KEYS = frozenset({
+    "CNCAll", "CNCCaus", "CNCLogic", "CNCADC", "CNCTemp", "CNCTempx", "CNCAdd", "CNCPos", "CNCNeg",
+    "DRNP", "DRVP", "DRAP", "DRPP", "DRPVAL", "DRNEG", "DRGERUND", "DRINF",
+    "SMCAUSv", "SMCAUSvp", "SMCAUSr", "SMINTEp", "SMINTEr", "SMTEMP",
+    "SYNLE", "SYNNP", "SYNSTRUTa", "SYNSTRUTt", "RDL2", "RDL2@WIKI"})
+# the Text Easability models are fitted on UD input; with mapped relations their inputs are not the model's
+PC_MAPPED = "not computed: the Text Easability model is fitted on UD input; the dependency relations of this document are mapped from {scheme} (best effort)"
+
 
 class Record(NamedTuple):
     index: int
@@ -471,6 +486,7 @@ _NEW = ({k for k in CORE_KEY_BY_INDEX.values() if k in _CONNECTIVE_KEYS} | {"SMC
         "WRDCNCc", "RDFRE", "RDFKGL"} | set(_PROJECT_ONLY_KEYS) | set(EASABILITY_KEYS)
         | {r.key for r in RECORDS if r.key.endswith(("@LLMlist", "@TEXTSTAT", "@CLEAR"))} - {"SMCAUSvp@LLMlist", "SMCAUSr@LLMlist"})
 VERSIONS = {r.key: "2.0" if r.key in _MAJOR else "1.0" if r.key in _NEW else "1.1" for r in RECORDS}
+assert DEPENDENCY_KEYS <= RECORD_BY_KEY.keys(), sorted(DEPENDENCY_KEYS - RECORD_BY_KEY.keys())
 
 # label_ttlab is unique per output (README, "Index labels"): checked for both languages, with and without GermaNet
 for _lang in _ALL:
@@ -581,10 +597,16 @@ def _vectors_group(vectors: Optional[str], vectors_model: Optional[str], vectors
 
 
 def _ttlab_labels(lang: str, vectors_group: str, verbs: Optional[str] = None,
-                  germanet: Optional[bool] = None) -> Dict[str, str]:
-    # record key -> label_ttlab for one request (the records of this language)
+                  germanet: Optional[bool] = None, scheme: str = "UD") -> Dict[str, str]:
+    # record key -> label_ttlab for one request (the records of this language); with mapped relations the records that read
+    # them get the mapping group after the public label
     parts = dict(_groups(lang, verbs, germanet), vectors=vectors_group)
-    return {r.key: r.template.format(**parts) for r in RECORDS if lang in r.languages}
+    labels = {r.key: r.template.format(**parts) for r in RECORDS if lang in r.languages}
+    if scheme != "UD":
+        for key in DEPENDENCY_KEYS & labels.keys():
+            public = RECORD_BY_KEY[key].label_v3
+            labels[key] = f"{public}_{MAPPED_GROUP[scheme]}{labels[key][len(public):]}"
+    return labels
 
 
 @lru_cache(maxsize=1)
@@ -891,28 +913,30 @@ def get_indices() -> List[Dict[str, Any]]:
 def post_process(request: TextImagerRequest) -> TextImagerResponse:
     modification_timestamp_seconds = int(time())
 
-    # German and English only, read in UD: other languages and pre-UD input (spaCy's TIGER / ClearNLP labels) are refused, with
-    # the reason (the core's _language and _check_labels)
+    # German and English only, read in UD; spaCy's TIGER / ClearNLP labels are mapped to UD (best effort, README "Best effort
+    # without UD"). Other languages and UD version 1 input are refused, with the reason (the core's _language and label_scheme).
     try:
         lang = core._language(request)
-        core._check_labels(request)
+        scheme = core.label_scheme(request)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
     vectors_group, vectors_error = _vectors_group(request.vectors, request.vectors_model, request.vectors_source,
                                                   request.vectors_available)
-    ttlab_labels = _ttlab_labels(lang, vectors_group)
+    ttlab_labels = _ttlab_labels(lang, vectors_group, scheme=scheme)
     output = {key for key in _resolve_index_selection(request.include_indices, request.exclude_indices, ttlab_labels)
               if key.partition("@")[0] not in NOT_EMITTED.get(lang, ())}
     core_request = _core_request(request, lang, vectors_group)
 
     # the core keys of the selected records; the Text Easability components (main models) need their model's inputs, the
     # CLEAR ones are not computed
-    pc_main = output & EASABILITY_KEYS
+    pc_main = output & EASABILITY_KEYS if scheme == "UD" else frozenset()
     wanted = {key for key in output if key not in EASABILITY_KEYS and not key.endswith("@CLEAR")}
     if pc_main:
         wanted |= _model_inputs(lang)
     results = core.compute(core_request, wanted)
+    if scheme != "UD":
+        results.update({key: (None, PC_MAPPED.format(scheme=scheme)) for key in output & EASABILITY_KEYS})
     if pc_main:
         try:
             results.update(_easability(results, lang, core_request.vectors))

@@ -16,6 +16,10 @@ from typing import List, Optional, Dict, Tuple, Set, Any
 
 from pydantic import BaseModel
 import os
+try:
+    from . import ud_mapping
+except ImportError:  # imported outside the package (tests)
+    import ud_mapping
 from lexicalrichness import LexicalRichness
 # lexical_diversity (0.1.1) finds its lemma list with pkg_resources.resource_filename, which setuptools >= 81 no longer ships; a stand-in
 # for that one function (resurrection, 2026-10-22), so that nothing in the environment has to be downgraded
@@ -1203,41 +1207,11 @@ def cm_synle(
         else np.nan
     )
 
-# Labels of the pre-UD schemes that UD does not have: German TIGER and English ClearNLP (spaCy's English models). Since the UD
-# ports (German 2026-10-28, English 2026-10-29) input carrying any of them is refused (_check_labels).
-# German TIGER (2026-10-29: German input with any of them is refused). Until then a
-# warning fired only without UD-only labels, and its UD list held "cc", which TIGER also uses (comparative complement): it missed
-# 2,083 of the 4,853 spaCy-parsed texts of the fix sample. On that sample every spaCy request has one of these labels and none
-# of the 4,853 Stanza requests has any.
-_TIGER_ONLY_LABELS = {"sb", "oa", "nk", "mo", "oc", "pd", "cj", "cd", "mnr", "ag", "svp", "ng"}
-# English ClearNLP labels that UD English has under other names (dobj -> obj, pobj -> obl / nmod, prep -> case, auxpass ->
-# aux:pass, neg -> advmod, attr / acomp -> root with cop, ...)
-_CLEARNLP_ONLY_LABELS = {"dobj", "pobj", "prep", "auxpass", "nsubjpass", "csubjpass", "neg", "attr", "acomp", "npadvmod", "pcomp",
-                         "dative", "relcl", "prt", "agent", "oprd", "quantmod"}
-_PRE_UD_LABELS = {"de": ("TIGER", _TIGER_ONLY_LABELS), "en": ("ClearNLP", _CLEARNLP_ONLY_LABELS)}
-_UD_V1_ONLY_LABELS = {"dobj", "nsubjpass", "csubjpass", "auxpass", "neg", "name", "mwe", "remnant", "foreign"}
-
-
-def _check_labels(request) -> None:
-    """German and English are read in UD since the UD ports; TIGER or ClearNLP input
-    (spaCy's German or English models) would be misread by the syntactic rules, so it is refused before any index is computed."""
-    lang = _language(request)
-    scheme, only = _PRE_UD_LABELS[lang]
-    labels = {(t.dep_type or "").strip().lower() for p in request.paragraphs for s in p.sentences for t in s.tokens}
-    found = labels & only
-    if found:
-        raise ValueError(f"{lang} input with {scheme} dependency labels ({', '.join(sorted(found))}): the core reads UD since "
-                         f"the UD port; annotate with Stanza (cohmetrix.preprocess.DEFAULTS['{lang}'])")
-    # UD version 1 relations: German v1 input passed the TIGER check, and the passive rule (aux:pass),
-    # among others, would never fire; English v1 labels are in the ClearNLP set already
-    found = labels & _UD_V1_ONLY_LABELS
-    if found:
-        raise ValueError(f"{lang} input with UD version 1 labels ({', '.join(sorted(found))}): the core reads UD version 2 "
-                         f"(Stanza, cohmetrix.preprocess.DEFAULTS['{lang}'])")
-
-
-
-
+def label_scheme(request) -> str:
+    """the dependency scheme of the request: "UD", or "TIGER" (de) / "ClearNLP" (en), spaCy's labels, which compute() maps to
+    UD as best effort (ud_mapping); UD version 1 input is refused (ValueError)"""
+    return ud_mapping.label_scheme(_language(request), (t.dep_type for p in request.paragraphs for s in p.sentences
+                                                         for t in s.tokens))
 
 
 # Text Easability components (2026-10-29): the German model fitted on reference
@@ -6006,7 +5980,9 @@ def _sha256(path) -> Optional[str]:
 
 
 # hashed at import, so that the hash is that of the code that runs
-_CODE_SHA256 = {"cohmetrix_core.py": _sha256(__file__)}
+_CODE_SHA256 = {"cohmetrix_core.py": _sha256(__file__), "ud_mapping.py": _sha256(ud_mapping.__file__),
+                **{f"depedit/{n}": _sha256(os.path.join(ud_mapping._DEPEDIT_DIR, n))
+                   for n in ("clearnlp_additions.ini", "stan2uni.ini")}}
 
 
 def versions_record(language: str) -> dict:
@@ -6055,18 +6031,18 @@ def compute(request: TextImagerRequest, wanted: Optional[Set[str]] = None) -> Di
 
         # German (2026-10-28) and English (2026-10-29) are read in UD: relation labels in
         # lower case as UD writes them (an upstream annotator may upper-case them, as the duui-spacy container does), the root as
-        # "root". Pre-UD input was refused above (_check_labels).
-        if lang in _PRE_UD_LABELS:
-            for t in tokens:
-                t.dep_type = (t.dep_type or "").strip().lower()
-                if t.dep_type == "--":
-                    t.dep_type = "root"
+        # "root". spaCy's TIGER / ClearNLP labels are mapped to UD (best effort, ud_mapping; duui.py marks the indices).
+        for t in tokens:
+            t.dep_type = (t.dep_type or "").strip().lower()
+            if t.dep_type == "--":
+                t.dep_type = "root"
+        ud_mapping.map_to_ud(sentences, ud_mapping.label_scheme(lang, (t.dep_type for t in tokens)))
 
         # noun chunks from the UD tree (UD ports: German 2026-10-28, English 2026-10-29; _ud_noun_chunks), whatever the request brings
         # outside any index, so a failure here used to end the request with no index at all; now SYNNP
         # and DRNP carry it
         try:
-            noun_chunks = _ud_noun_chunks(sentences) if lang in _PRE_UD_LABELS else request.noun_chunks
+            noun_chunks = _ud_noun_chunks(sentences)
             noun_chunks_error = None
         except Exception as e:
             logger.error("Error building the noun chunks: %s", e)

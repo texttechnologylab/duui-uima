@@ -52,7 +52,9 @@ ENV DUUI_COH_METRIX_LSA_USE_TRUNCATED_SVD=false
 ENV DUUI_COH_METRIX_LSA_SVD_COMPONENTS=100
 
 COPY ./src/main/resources/TypeSystem.xml ./src/main/resources/TypeSystem.xml
+COPY ./src/main/resources/depedit ./src/main/resources/depedit
 COPY ./src/main/python/cohmetrix_core.py ./src/main/python/cohmetrix_core.py
+COPY ./src/main/python/ud_mapping.py ./src/main/python/ud_mapping.py
 COPY ./src/main/python/duui.py ./src/main/python/duui.py
 COPY ./src/main/lua/communication.lua ./src/main/lua/communication.lua
 
