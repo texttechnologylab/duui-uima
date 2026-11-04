@@ -1,4 +1,5 @@
 import os
+from duui_logging import log_warn
 
 import librosa
 import librosa.core as lb
@@ -83,7 +84,7 @@ class AudioPreprocessor:
             result = audio[speech_timestamps[0]['start']:speech_timestamps[-1]['end']]
             return result
         except IndexError:
-            print("Audio might be too short to cut silences from front and back.")
+            log_warn("Audio might be too short to cut silences from front and back.")
         return audio
 
     def normalize_loudness(self, audio):

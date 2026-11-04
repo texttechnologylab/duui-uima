@@ -38,6 +38,7 @@ RUN apt-get update && \
         build-essential \
         espeak-ng \
         ffmpeg \
+        git \
         libgl1 \
         libgomp1 \
         libportaudio2 \

@@ -55,6 +55,7 @@ dependencies:
       - dlinfo==2.0.0
       - docker-pycreds==0.4.0
       - dragonmapper==0.2.7
+      - duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger
       - einops==0.8.2
       - espeakng==1.0.5
       - espnet==0.10.5
@@ -63,7 +64,7 @@ dependencies:
       - et-xmlfile==2.0.0
       - exceptiongroup==1.3.1
       - executing==2.2.1
-      - fastapi==0.139.0
+      - fastapi==0.141.1
       - fastjsonschema==2.21.2
       - ffmpy==1.0.0
       - filelock==3.29.7
