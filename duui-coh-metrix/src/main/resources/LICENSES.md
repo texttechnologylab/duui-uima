@@ -13,6 +13,8 @@ AGPL does not extend to them.
 | `word_frequencies_{de,en}_*wiki-20220301-sample10000.csv` | word counts from Wikipedia samples | derived from Wikipedia, CC BY-SA |
 | `gum_weights_en.csv` | how often 22 ambiguous English adverbs are connectives, counted on the GUM corpus annotations (Zeldes 2017) | GUM annotations CC BY 4.0; cite GUM |
 | `easability/text_easability_*_ref*.json` | Text Easability models fitted on the reference corpora of coh-metrix_resurrection | as this repository |
+| `depedit/stan2uni.ini` | DepEdit's Stanford Dependencies -> UD rules, unchanged: https://github.com/amir-zeldes/depedit, `examples/stan2uni.ini` (last changed in commit 96ad44c, 2017-12-19; SHA-256 `30d5da07…3208e14`, fetched 2026-11-03); Peng & Zeldes, "All Roads Lead to UD: Converting Stanford and Penn Parses to English Universal Dependencies with Multilayer Annotations", LAW-MWE-CxG 2018, https://aclanthology.org/W18-4918/ | Apache-2.0 (repository licence, copy in `depedit/LICENSE-depedit.txt`) |
+| `depedit/clearnlp_additions.ini` | this component (ClearNLP labels that Stanford Dependencies does not have) | AGPL-3.0 |
 | `TypeSystem.xml` | this component | AGPL-3.0 |
 
 ## Supplied by the user (README, "Resources supplied by the user")

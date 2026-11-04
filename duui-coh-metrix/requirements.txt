@@ -10,6 +10,8 @@ contourpy==1.4.0
 cycler==0.12.1
 defusedxml==0.7.1
 deprecation==2.1.0
+# best effort without UD: ClearNLP -> UD (ud_mapping.py); pure Python, needs six
+depedit==4.0.0.0
 dkpro-cassis==0.12.0
 duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger.git@0e0a9974097f9dd8009857f38b7fb5f647a7bfb2
 fastapi==0.162.0

@@ -38,12 +38,18 @@ function serialize(inputCas, outputStream, parameters)
         token_begins = {}
         token_ends = {}
 
-        -- Only tokens of exactly this type, subtypes (e.g. SpacyToken of an earlier run) are ignored
+        -- Only tokens of exactly this type: plain DKPro Tokens by default, or the type of the parameter token_type
+        -- (e.g. org.texttechnologylab.uima.type.stanza.StanzaToken); other subtypes (e.g. SpacyToken of an earlier
+        -- run) are ignored
+        local token_type_name = TOKEN_TYPE_NAME
+        if parameters["token_type"] ~= nil and parameters["token_type"] ~= "" then
+            token_type_name = parameters["token_type"]
+        end
         local input_tokens = luajava.newInstance("java.util.ArrayList")
         local all_tokens_it = JCasUtil:select(inputCas, Token):iterator()
         while all_tokens_it:hasNext() do
             local token = all_tokens_it:next()
-            if token:getType():getName() == TOKEN_TYPE_NAME then
+            if token:getType():getName() == token_type_name then
                 input_tokens:add(token)
             end
         end
@@ -60,7 +66,14 @@ function serialize(inputCas, outputStream, parameters)
         for i = 0, tokens_count - 1 do
             local token = input_tokens:get(i)
             local token_ind = i + 1
-            tokens[token_ind] = token:getCoveredText()
+            -- the word: the token's form if it has one (the words of a split contraction, e.g. "zu" and "dem" over
+            -- the span of "zum"), else its covered text
+            local form = token:getForm()
+            if form ~= nil and form:getValue() ~= nil and form:getValue() ~= "" then
+                tokens[token_ind] = form:getValue()
+            else
+                tokens[token_ind] = token:getCoveredText()
+            end
             token_begins[token_ind] = token:getBegin()
             token_ends[token_ind] = token:getEnd()
             -- space is needed if the next token does not start directly at the end of this one
@@ -389,7 +402,7 @@ function deserialize(inputCas, inputStream)
             if token["morph_details"]["animacy"] ~= nil then
                 morph_anno:setAnimacy(token["morph_details"]["animacy"])
             end
-            if token["morph_details"]["gender"] ~= nil then
+            if token["morph_details"]["negative"] ~= nil then
                 morph_anno:setNegative(token["morph_details"]["negative"])
             end
             if token["morph_details"]["numType"] ~= nil then
@@ -452,7 +465,7 @@ function deserialize(inputCas, inputStream)
             end
 
             dependent_token = all_tokens[dep["dependent_ind"]]
-            if governor_token ~= nil then
+            if dependent_token ~= nil then
                 dep_anno:setDependent(dependent_token)
             end
 
