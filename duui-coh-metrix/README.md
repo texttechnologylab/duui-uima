@@ -95,6 +95,27 @@ alone. Use the default pipeline (Stanza) for German.
 
 ## Resources
 
+The resources come in four kinds, depending on whether they may be
+redistributed (`src/main/resources/LICENSES.md`):
+
+| Kind | Resources | In Git | In the image | What you do |
+|---|---|---|---|---|
+| Our own, or redistributable | Wikipedia frequency samples, German MRC translation, GUM weights, Text Easability models, DepEdit rules | yes | yes | nothing |
+| Redistributable, downloaded when the image is built | English MRC database, NLTK data (WordNet, Open Multilingual Wordnet, CMU Pronouncing Dictionary) | no | yes | nothing |
+| Not redistributable, but downloadable | SUBTLEX-US, DiMLex, DiMLex-Eng, Kuperman, Brysbaert, Birchenough, Köper & Schulte im Walde | no, never | no, never | download with `download_resources.py`, mount the directory |
+| Licensed to you only | GermaNet; SUBTLEX-DE as long as it has no download | no, never | no, never | obtain it yourself, mount it |
+
+Two mounts (see [Start the Docker container](#start-the-docker-container)):
+
+| Mount point in the container | Content | Environment variables |
+|---|---|---|
+| `/usr/src/app/src/main/resources/external` | the files of [Resources supplied by the user](#resources-supplied-by-the-user), flat, with the names given there | `DUUI_COH_METRIX_<RESOURCE>_PATH`, one per file |
+| `/usr/src/app/src/main/resources/germanet` | the GermaNet XML directory (e.g. `GN_V180_XML` of GermaNet 18.0) | `DUUI_COH_METRIX_GERMANET_PATH` |
+
+Without a mount the component runs; the records that need a missing resource
+are `None` with the error `resource not available: ...` (German causal and
+intentional verbs fall back to seed lists, see [GermaNet](#germanet)).
+
 ### In the image
 
 | Resource | Used for | Source and licence (`src/main/resources/LICENSES.md`) |
@@ -143,9 +164,12 @@ Text Easability components that need it as input.
 ### GermaNet
 
 German lexical-semantic indices use GermaNet through `germanetpy==0.2.5`.
-GermaNet is not distributed with the image because it is a separately licensed
-resource. It must be mounted into the container and configured through
-`DUUI_COH_METRIX_GERMANET_PATH`.
+GermaNet is not distributed with the image or the repository because it is a
+separately licensed resource: each user needs their own licence from the
+University of Tübingen
+([GermaNet](https://uni-tuebingen.de/en/142806)). Mount its XML directory
+(e.g. `GN_V180_XML`) at `/usr/src/app/src/main/resources/germanet`, or set
+`DUUI_COH_METRIX_GERMANET_PATH` to where it is mounted.
 
 Without GermaNet:
 
