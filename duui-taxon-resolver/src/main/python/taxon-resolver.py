@@ -1,6 +1,8 @@
 import logging
 from typing import List, Literal, Self
 
+import duui_logging
+from duui_logging import log_debug, log_error, log_warn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
@@ -74,6 +76,9 @@ app = FastAPI(
     },
 )
 
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.getLevelName(str(settings.log_level).upper()))
+
 # Return Lua communication script
 @app.get("/v1/communication_layer", response_class=PlainTextResponse)
 def get_communication_layer() -> str:
@@ -103,7 +108,7 @@ class RecognizedTaxonLinking(BaseModel):
             taxon_id = int(taxon_id_str)
             return cls(provider=provider, taxon_id=taxon_id)
         except Exception as e:
-            logger.error("Error parsing linking string '%s': %s", linking_str, e)
+            log_error(f"Error parsing linking string '{linking_str}': {e}")
             raise ValueError(f"Invalid linking string '{linking_str}': {e}")
 
 class RecognizedTaxon(BaseModel):
@@ -156,7 +161,7 @@ def resolve_taxon_linking(linking: RecognizedTaxonLinking) -> TaxonBase:
             case _:
                 raise ValueError(f"Unknown taxon provider '{linking.provider}'")
     except Exception as e:
-        logger.error(e)
+        log_error(f"Could not resolve taxon linking {linking}: {e}")
 
 
 def resolve_taxon_linkings(linkings: List[RecognizedTaxonLinking]) -> List[TaxonBase]:
