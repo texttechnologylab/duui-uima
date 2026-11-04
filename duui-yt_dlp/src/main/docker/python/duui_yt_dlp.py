@@ -1,7 +1,7 @@
 from typing import List
 import uvicorn
 from cassis import *
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
@@ -59,7 +59,7 @@ app = FastAPI(
     redoc_url=None,
     title="Yt dlp video downloader",
     description="YouTube video and transcription downloader for TTLab DUUI",
-    version="1..1",
+    version="1.1",
     terms_of_service="https://www.texttechnologylab.org/legal_notice/",
     contact={
         "name": "Daniel Bundan",
@@ -122,8 +122,8 @@ def get_communication_layer() -> str:
 def get_documentation() -> DUUIDocumentation:
 
     documentation = DUUIDocumentation(
-        annotator_name="PyTube",
-        version="15.0.0",
+        annotator_name="duui-youtube-downloader",
+        version="1.1",
         implementation_lang="Python",
     )
     return documentation
@@ -148,8 +148,10 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             video = download_result[0]
             transcription = download_result[1]
         else:  # Not a YouTube video
+            # Pass the link through unchanged
             return DUUIResponse(
                 encoded_video=request.link,
+                mimetype_video="text/plain",
                 youtube_audio_token=transcription_token
             )
 
@@ -158,7 +160,8 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
                 video_data = f.read()
             encoded = base64.b64encode(video_data).decode("utf-8")
         except Exception as e:
-            log_error("COULD NOT OPEN AUDIO FILE: " + str(e))
+            log_error("COULD NOT OPEN VIDEO FILE: " + str(e))
+            raise HTTPException(status_code=500)
 
         # Get transcription
         if transcription is None:
@@ -256,8 +259,11 @@ def post_process(request: DUUIRequest) -> DUUIResponse:
             mimetype_video=mimetype,
             youtube_audio_token=transcription_token
         )
+    except HTTPException:
+        raise
     except Exception as e:
         log_error(str(e))
+        raise HTTPException(status_code=500)
 
 
 def download_youtube(link: str, download_trans: bool, transcription_lang: str, cookies: str):
@@ -344,7 +350,7 @@ def download_youtube(link: str, download_trans: bool, transcription_lang: str, c
             log_info("Cookies found")
             ydl_opts["cookiefile"] = "./cookies.txt"
 
-    log_info(ydl_opts)
+    log_info(str(ydl_opts))
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(link, download=True)
 
