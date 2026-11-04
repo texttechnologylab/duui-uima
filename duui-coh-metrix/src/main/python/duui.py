@@ -493,7 +493,11 @@ _MAJOR = {"WRDFRQc", "WRDFRQc@WIKI", "RDL2", "RDL2@WIKI", "SYNNP", "DRPVAL", "DR
 _NEW = ({k for k in CORE_KEY_BY_INDEX.values() if k in _CONNECTIVE_KEYS} | {"SMCAUSvp", "WRDFRQa", "WRDFRQmc", "WRDAOAc",
         "WRDCNCc", "RDFRE", "RDFKGL"} | set(_PROJECT_ONLY_KEYS) | set(EASABILITY_KEYS)
         | {r.key for r in RECORDS if r.key.endswith(("@LLMlist", "@TEXTSTAT", "@CLEAR"))} - {"SMCAUSvp@LLMlist", "SMCAUSr@LLMlist"})
-VERSIONS = {r.key: "2.0" if r.key in _MAJOR else "1.0" if r.key in _NEW else "1.1" for r in RECORDS}
+# new in one language only: German WRDIMGc uses Köper & Schulte im Walde's norms, English WRDIMGc stays MRC (looked up by lemma)
+_NEW_IN = {"de": {"WRDIMGc"}, "en": set()}
+# the version of each record per language (README, "Index version")
+VERSIONS = {lang: {r.key: "2.0" if r.key in _MAJOR else "1.0" if r.key in _NEW | _NEW_IN[lang] else "1.1" for r in RECORDS}
+            for lang in _ALL}
 assert DEPENDENCY_KEYS <= RECORD_BY_KEY.keys(), sorted(DEPENDENCY_KEYS - RECORD_BY_KEY.keys())
 
 # label_ttlab is unique per output (README, "Index labels"): checked for both languages, with and without GermaNet
@@ -911,7 +915,8 @@ def get_indices() -> List[Dict[str, Any]]:
             "label_ttlab_de": labels["de"].get(r.key),
             "comparable_en": r.comparable_en if "en" in r.languages else None,
             "comparable_de": r.comparable_de if "de" in r.languages else None,
-            "version": VERSIONS[r.key],
+            "version_en": VERSIONS["en"][r.key] if "en" in r.languages else None,
+            "version_de": VERSIONS["de"][r.key] if "de" in r.languages else None,
         }
         for r in RECORDS
     ]
@@ -977,7 +982,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         if vectors_error is not None and r.label_v3 in _VECTOR_INDICES:
             value, error = None, vectors_error
         indices.append(Index(index=r.index, type_name=r.type_name, label_v3=r.label_v3, label_ttlab=ttlab_labels[r.key],
-                             label_v2=r.label_v2, description=_description(r, lang), version=VERSIONS[r.key],
+                             label_v2=r.label_v2, description=_description(r, lang), version=VERSIONS[lang][r.key],
                              value=value, error=error))
 
     meta = AnnotationMeta(name=settings.annotator_name, version=settings.annotator_version,

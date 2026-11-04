@@ -525,11 +525,13 @@ public label `WRDPOLc` and gets a new group, e.g. `WRDPOLc_WOLF`.
 
 ### Index version
 
-Every index sets `version` explicitly in its `Index(...)` call, starting at
-`"1.0"`. It versions the computation of that one index, independent of the
-image version in the annotation metadata, so results can be compared index by
-index across releases. Bump it in the same change that alters the value for
-the same input:
+Every record (an index, or one of its variants) has a `version` per language,
+starting at `"1.0"` (`VERSIONS` in `duui.py`; `GET /v1/indices` lists
+`version_de` and `version_en`). It versions the computation of that record,
+independent of the image version in the annotation metadata, so results can be
+compared record by record across releases. The languages can differ, e.g. in
+0.6.0 German WRDIMGc uses new norms (`1.0`) while English WRDIMGc stays MRC
+(`1.1`). Bump it in the same change that alters the value for the same input:
 
 - minor (`1.0` -> `1.1`): values change, the meaning stays, e.g. a bug fix,
   changed `None`/edge-case handling, an updated word list or a new resource
@@ -638,7 +640,7 @@ matched against the internal label, which starts with the public label, so
 `WRDPOLc_GN` only match German documents. Public labels and groups select the
 same indices in a mixed-language corpus. `GET /v1/indices` lists all indices
 with their group, public label, internal label per language (vectors as
-`SPACY*`) and comparability.
+`SPACY*`), comparability and version per language.
 
 For each index, the most specific matching name decides; among prefixes, the
 longer one. If the most specific match is in both lists, the index is
