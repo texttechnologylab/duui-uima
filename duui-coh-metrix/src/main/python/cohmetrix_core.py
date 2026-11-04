@@ -3915,7 +3915,6 @@ def _reduce_dimensionality(vectors, n_components=100):
 # linearly dependent preceding vectors from introducing artificial dimensions.
 # Caveat: the implementation uses spaCy word vectors (see), not TASA-
 # trained LSA, so absolute values differ from the reference Coh-Metrix output.
-# @see docs/review-report-v3.html (M5, L3) for the LSA approximation context.
 # FV3 Fix: Build the Given-New hyperplane from the numerical rank of
 # previous vectors so dependent vectors cannot add artificial dimensions.
 def _svd(a):

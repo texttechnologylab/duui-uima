@@ -788,7 +788,7 @@ class TextImagerInputOutput(BaseModel):
 
 
 def _is_punct(text: str) -> bool:
-    # spaCy's lexical IS_PUNCT (spacy/lang/lex_attrs.py), as the reference preprocessing sets it (docs/preprocess.py)
+    # spaCy's lexical IS_PUNCT (spacy/lang/lex_attrs.py), as the reference preprocessing of Coh-Metrix 0.4.0-py sets it
     return all(unicodedata.category(c).startswith("P") for c in text)
 
 

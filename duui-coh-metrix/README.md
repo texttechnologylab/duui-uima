@@ -10,29 +10,50 @@ Coh-Metrix 3.0 (see [Index labels](#index-labels)).
 
 ## Prerequisites and preprocessing
 
-The annotator requires a **pre-annotated UIMA CAS** with the following
-annotation types:
+The annotator requires a **pre-annotated UIMA CAS** (document language `de` or
+`en`) with:
 
-- `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph`
-- `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence`
-- `org.texttechnologylab.uima.type.spacy.SpacyToken`
-- `org.texttechnologylab.uima.type.spacy.SpacyNounChunk`
+- `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph`;
+- sentences: `org.texttechnologylab.uima.type.stanza.StanzaSentence` if
+  present, else every `Sentence`;
+- tokens, exactly one layer, in this order of preference:
+  `org.texttechnologylab.uima.type.stanza.StanzaToken`, `SpacyToken`, plain
+  `Token`. Each with lemma, POS (`posValue` STTS / Penn Treebank,
+  `coarseValue` UPOS), morphological features (including `Number[psor]`,
+  `VerbForm`, `Mood`) and dependencies in Universal Dependencies v2. Input with
+  spaCy's own labels is mapped (see [Best effort without UD](#best-effort-without-ud)).
+  Noun chunks are built from the UD tree;
+- token vectors as `WordEmbedding` (see [Vectors](#vectors)), for the `LSA*`
+  indices and `SMCAUSlsa`. If no usable vector or comparison can be
+  constructed, the affected result is `None`.
 
-The validated pipeline uses the following upstream components:
+The default pipeline is the DUUI form of the reference preprocessing of
+Coh-Metrix 0.4.0-py (its defaults per language):
 
-- **DUUI spaCy:**  using spaCy `3.7.2` in the validated
-  pipeline. The validated models are `de_core_news_sm` `3.7.0` for German and
-  `en_core_web_sm` `3.7.1` for English. The component supplies sentence
-  boundaries, tokens, lemmas, universal and language-specific POS tags,
-  dependency information, noun chunks, morphology, and token vectors.
-- **DUUI Syntok:** `duui-syntok:0.0.3`, configured with
-  `write_paragraphs=true` and `write_sentences=false`. In this configuration,
-  Syntok supplies paragraph boundaries while the existing spaCy sentence
-  annotations are retained.
+1. paragraphs: `duui-chonky` 1.1.0 with `keep_line_breaks=filter` (German), or
+   `duui-wtpsplit` 1.1.0 with `segment=paragraphs` (English);
+2. sentences: `duui-wtpsplit` within each paragraph,
+   `split_on_input_newlines=true`;
+3. tokens: `duui-somajo` 1.0.0 within each sentence (`de_CMC` / `en_PTB`);
+4. `duui-stanza` 1.0.0 (`de|en/default_accurate`): StanzaToken, StanzaSentence,
+   POS, lemma, morphology, UD dependencies; German contractions split into two
+   words ("zum" → "zu" + "dem");
+5. `duui-spacy` 0.9.0 with `model_variant=large`, `use_existing_tokens=true`,
+   `use_existing_sentences=true`,
+   `token_type=org.texttechnologylab.uima.type.stanza.StanzaToken`: a
+   `SpacyToken` and a `WordEmbedding` (`SPACYlg`) per Stanza word;
+6. `duui-remove-annotations` 1.0.0 with
+   `types=de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token`,
+   `exact=true` (the plain layers of steps 2 and 3);
+7. Coh-Metrix.
 
-Token vectors are required for the `LSA*` indices and `SMCAUSlsa` (see
-[Vectors](#vectors)). If no usable vector or comparison can be constructed, the
-affected result is `None`.
+`CohMetrixUdPipelineTest` runs this pipeline. On 18 texts (10 German, 8
+English), the pipeline and the reference preprocessing gave the same
+paragraphs, sentences, words, annotations and vectors, and all 2,870 index
+values were identical (2026-11-04).
+
+A spaCy-only pipeline (e.g. `duui-somajo` → `duui-spacy` → remover →
+Coh-Metrix) still runs, as best effort (see below).
 
 ## Best effort without UD
 
@@ -246,7 +267,7 @@ changing an index. The background and the decisions behind the scheme are in
 
 | Field (Python / UIMA)        | Meaning                                                                                                                                                         | Unique per output |
 |------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------|
-| `label_v3` / `labelV3`       | **Public label.** The Coh-Metrix 3.0 label from `docs/coh-metrix-30-indices.md`, or `<NAME>_ext` for indices Coh-Metrix 3.0 does not have. Identical for all languages; the UIMA type. | Yes |
+| `label_v3` / `labelV3`       | **Public label.** The Coh-Metrix 3.0 label (Appendix A of Danielle S. McNamara, Arthur C. Graesser, Philip M. McCarthy and Zhiqiang Cai, [*Automated Evaluation of Text and Discourse with Coh-Metrix*](https://doi.org/10.1017/CBO9780511894664), Cambridge University Press, 2014), or `<NAME>_ext` for indices Coh-Metrix 3.0 does not have. Identical for all languages; the UIMA type. | Yes |
 | `label_ttlab` / `labelTTLab` | **Internal label.** The public label plus groups naming the method and every resource the value depends on for this document, e.g. `WRDPOLc_GN`. May differ between languages and documents. | Yes |
 | `label_v2` / `labelV2`       | Coh-Metrix 2.0 label from the same table, as a reference; `n/a` where the table has none, `None` for project-only indices.                                       | No                |
 
@@ -281,7 +302,7 @@ calls take the internal label from it (`ttlab_labels`).
    is part of the library (see [textstat](#textstat)).
 6. **No model names, no resource versions.** For spaCy vectors only the model
    size goes into the label (`SPACYsm`, `SPACYmd`, `SPACYlg`, `SPACYtrf`). A
-   new version of a resource (Wikipedia sample, LLM list, MRC translation)
+   new version of a resource (SUBTLEX, Wikipedia sample, LLM list, MRC translation)
    bumps the index `version`, not the label. Exception: the name of the token
    vectors is not chosen by this component but by the tool or user that wrote
    them (`WordEmbedding.shortName`, see [Vectors](#vectors)).
@@ -289,11 +310,11 @@ calls take the internal label from it (`ttlab_labels`).
    names it. Example: without GermaNet, the German causal/intentional verb
    inventories use seed lists: `SMCAUSv_SEEDlist` instead of `SMCAUSv_GN`.
 8. **Derived indices** (RDL2, PC*) name the resources of their inputs
-   (`RDL2_WIKI`).
+   (`RDL2_SUBTLEX`).
 9. **No placeholders.** If the original resource is unavailable, emit only the
    substitute, under the original V3 label. Never emit a record that is always
    `None` just to occupy the original label. Example: there is no CELEX
-   `WRDFRQc`; `WRDFRQc` is the Wikipedia variant (`WRDFRQc_WIKI`).
+   `WRDFRQc`; `WRDFRQc` is the SUBTLEX record (`WRDFRQc_SUBTLEX`).
 10. **UIMA type.** The CAS type is
     `org.texttechnologylab.uima.type.cohmetrix.<label_v3>`. A new index needs
     a matching type in `TypeSystem.xml`.
@@ -306,17 +327,28 @@ calls take the internal label from it (`ttlab_labels`).
 | `EMB`      | method | Vector space instead of the TASA LSA space                                                       |
 | `TIGERmap` | method | Dependency relations mapped from TIGER to UD (spaCy German, best effort)                         |
 | `CLEARNLPmap` | method | Dependency relations mapped from ClearNLP to UD (spaCy English, best effort)                  |
-| `CLEAR`    | data   | CLEAR corpus, reference corpus of the English Text Easability model                              |
-| `CLEARtr`  | data   | CLEAR translated into German, reference corpus of the German model                               |
+| `REFa`     | data   | Reference corpus A (English): 9 registers × 1,000 passages of 250–350 words; reference corpus of the English Text Easability model |
+| `REFv1`    | data   | Reference corpus v1 (German): 9 registers × 1,000 passages of 250–350 words; reference corpus of the German Text Easability model |
+| `CLEAR`    | data   | CLEAR corpus, reference corpus of the earlier English Text Easability model                      |
+| `CLEARtr`  | data   | CLEAR translated into German, reference corpus of the earlier German model                       |
 | `SPACYxx`  | data   | spaCy token vectors from a model of size `xx` (`sm`, `md`, `lg`, `trf`); `SPACY` if unknown; other token vectors: their `shortName` (see [Vectors](#vectors)) |
+| `DIMLEX`   | data   | DiMLex, lexicon of German discourse connectives                                                  |
+| `DIMLEXeng` | data  | DiMLex-Eng, lexicon of English discourse connectives                                             |
+| `GUM`      | data   | How often ambiguous English adverbs are connectives, counted on the GUM corpus (`gum_weights_en.csv`) |
 | `LLMlist`  | data   | Word list generated with an LLM                                                                  |
 | `WN`       | data   | Princeton WordNet                                                                                |
 | `GN`       | data   | GermaNet                                                                                         |
 | `SEEDlist` | data   | Hand-written seed list (fallback without GermaNet)                                               |
 | `MRC`      | data   | MRC Psycholinguistic Database                                                                    |
 | `MRCtr`    | data   | MRC translated into German                                                                       |
+| `KUPERMAN` | data   | English age-of-acquisition norms (Kuperman et al.)                                               |
+| `BIRCHENOUGH` | data | German age-of-acquisition norms (Birchenough et al.)                                            |
+| `BRYSBAERT` | data  | English concreteness norms (Brysbaert et al.)                                                    |
+| `KOEPER`   | data   | German concreteness and imageability norms (Köper & Schulte im Walde)                            |
+| `SUBTLEX`  | data   | Word frequencies from film subtitles (SUBTLEX-US, SUBTLEX-DE) instead of CELEX                   |
 | `WIKI`     | data   | Word frequencies from a Wikipedia sample instead of CELEX                                        |
 | `TEXTSTAT` | data   | Computed with the textstat library                                                               |
+| `TEXTSTATlist` | data | The easy-word list of the textstat library, in the formula of this component                   |
 
 ### Labels and comparability
 
@@ -339,29 +371,49 @@ comparable to Coh-Metrix 3.0. That is the comparability column, per language
 German values are never directly comparable to English norms, also where the
 column says `original`.
 
-| Indices                                                                            | Public      | Internal EN           | Internal DE                                    | Comparable EN | Comparable DE          |
-|------------------------------------------------------------------------------------|-------------|-----------------------|------------------------------------------------|---------------|------------------------|
-| DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p                        | V3          | same as public        | same as public                                 | original      | original               |
-| PC* (16)                                                                           | `PCNARz`    | `PCNARz_REFIT_CLEAR`  | `PCNARz_REFIT_CLEARtr`                         | refit         | refit                  |
-| LSA* (8), SMCAUSlsa                                                                | `LSASS1`    | `LSASS1_EMB_SPACYlg`  | `LSASS1_EMB_SPACYlg`                           | emb           | emb                    |
-| CNC* (9), SMTEMP, DRNEG                                                            | `CNCAll`    | `CNCAll_LLMlist`      | `CNCAll_LLMlist`                               | llmlist       | llmlist                |
-| SMCAUSv, SMINTEp                                                                   | `SMCAUSv`   | `SMCAUSv_WN`          | `SMCAUSv_GN` / `SMCAUSv_SEEDlist`              | original      | counterpart / seedlist |
-| SMCAUSvp, SMCAUSr, SMINTEr                                                         | `SMCAUSvp`  | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist  | counterpart / seedlist, llmlist |
-| SMCAUSwn, WRDPOLc, WRDHYPn/v/nv                                                    | `WRDPOLc`   | `WRDPOLc_WN`          | `WRDPOLc_GN`                                   | original      | counterpart            |
-| WRDAOAc, WRDFAMc, WRDCNCc, WRDIMGc, WRDMEAc                                        | `WRDAOAc`   | `WRDAOAc_MRC`         | `WRDAOAc_MRCtr`                                | original      | translated             |
-| WRDFRQc, WRDFRQa, WRDFRQmc                                                         | `WRDFRQc`   | `WRDFRQc_WIKI`        | `WRDFRQc_WIKI`                                 | corpus        | corpus                 |
-| RDFRE                                                                              | `RDFRE`     | `RDFRE_TEXTSTAT`      | `RDFRE_TEXTSTAT`                               | original      | counterpart            |
-| RDFKGL                                                                             | `RDFKGL`    | `RDFKGL_TEXTSTAT`     | `RDFKGL_TEXTSTAT`                              | original      | original               |
-| RDFOG, RDSMOG, RDARI, RDCLI, RDLW, RDDCRS, RDSPACHE, RDWSTF1–4 (all `_ext`)        | `RDFOG_ext` | `RDFOG_ext_TEXTSTAT`  | `RDFOG_ext_TEXTSTAT`                           | ext           | ext                    |
-| RDL2 (with SYNSTRUTa)                                                              | `RDL2`      | `RDL2_WIKI`           | `RDL2_WIKI`                                    | corpus        | corpus                 |
-| RDL2 with SYNSTRUTt instead of SYNSTRUTa                                           | `RDL2t_ext` | `RDL2t_ext_WIKI`      | `RDL2t_ext_WIKI`                               | ext           | ext                    |
+The main record of each index comes first; the variants follow it and are
+selected like any internal label (e.g. `exclude_indices=*_WIKI`). German
+labels with `GN` need GermaNet; without it the verb inventories use the seed
+lists (`SEEDlist`), and SMTEMP drops `GN`.
+
+| Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
+|---|---|---|---|---|---|
+| DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p | V3 | same as public | same as public | original | original |
+| PC* (16) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
+| … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
+| LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
+| CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |
+| … variant | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
+| SMCAUSv, SMINTEp | `SMCAUSv` | `SMCAUSv_WN` | `SMCAUSv_GN` / `SMCAUSv_SEEDlist` | original | counterpart |
+| SMCAUSvp, SMCAUSr | `SMCAUSvp` | `SMCAUSvp_WN_DIMLEXeng_GUM` | `SMCAUSvp_GN_DIMLEX` / `SMCAUSvp_SEEDlist_DIMLEX` | counterpart | counterpart |
+| … variant | | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist | counterpart, llmlist |
+| SMINTEr | `SMINTEr` | `SMINTEr_WN_LLMlist` | `SMINTEr_GN_LLMlist` / `SMINTEr_SEEDlist_LLMlist` | original | counterpart |
+| SMCAUSwn, WRDPOLc, WRDHYPn/v/nv | `WRDPOLc` | `WRDPOLc_WN` | `WRDPOLc_GN` | original | counterpart |
+| SMTEMP | `SMTEMP` | `SMTEMP_LLMlist` | `SMTEMP_LLMlist_GN` / `SMTEMP_LLMlist` | llmlist | llmlist |
+| DRNEG | `DRNEG` | `DRNEG_LLMlist` | `DRNEG_LLMlist` | llmlist | llmlist |
+| WRDFRQc, WRDFRQa, WRDFRQmc | `WRDFRQc` | `WRDFRQc_SUBTLEX` | `WRDFRQc_SUBTLEX` | corpus | corpus |
+| … variant | | `WRDFRQc_WIKI` | `WRDFRQc_WIKI` | corpus | corpus |
+| WRDAOAc | `WRDAOAc` | `WRDAOAc_KUPERMAN` | `WRDAOAc_BIRCHENOUGH` | counterpart | counterpart |
+| … variant | | `WRDAOAc_MRC` | `WRDAOAc_MRCtr` | original | translated |
+| WRDCNCc | `WRDCNCc` | `WRDCNCc_BRYSBAERT` | `WRDCNCc_KOEPER` | counterpart | counterpart |
+| … variant | | `WRDCNCc_MRC` | `WRDCNCc_MRCtr` | original | translated |
+| WRDIMGc | `WRDIMGc` | `WRDIMGc_MRC` | `WRDIMGc_KOEPER` | original | counterpart |
+| … variant (German only) | | | `WRDIMGc_MRCtr` | | translated |
+| WRDFAMc, WRDMEAc | `WRDFAMc` | `WRDFAMc_MRC` | `WRDFAMc_MRCtr` | original | translated |
+| RDFRE | `RDFRE` | `RDFRE` | `RDFRE` | original | counterpart |
+| RDFKGL | `RDFKGL` | `RDFKGL` | `RDFKGL` | original | original |
+| RDFOG, RDSMOG, RDARI, RDCLI, RDLW, RDWSTF1–4 (all `_ext`) | `RDFOG_ext` | `RDFOG_ext` | `RDFOG_ext` | ext | ext |
+| RDDCRS, RDSPACHE (`_ext`) | `RDDCRS_ext` | `RDDCRS_ext_TEXTSTATlist` | `RDDCRS_ext_TEXTSTATlist` | ext | ext |
+| … variant of every RD* above: the textstat library | | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | as the main record | as the main record |
+| RDL2 | `RDL2` | `RDL2_SUBTLEX` | `RDL2_SUBTLEX` | corpus | corpus |
+| … variant | | `RDL2_WIKI` | `RDL2_WIKI` | corpus | corpus |
 
 Rows with several indices show the first one; the others follow the same
-pattern (`LSAGNd_EMB_SPACYlg`, `DRNEG_LLMlist`, `WRDHYPv_GN`, ...). Other
-languages than German use the English resources. RDL2 (Crossley, Greenfield &
-McNamara 2008) only says "syntactic similarity"; the variant with the
-adjacent-sentence measure SYNSTRUTa matches its other adjacent-sentence inputs
-and keeps `RDL2`, the variant with SYNSTRUTt is the project-only `RDL2t_ext`.
+pattern (`LSAGNd_EMB_SPACYlg`, `CNCCaus_DIMLEX`, `WRDHYPv_GN`, ...). Not
+emitted (rule 9): DRGERUND for German (no gerund in German), RDWSTF1–4 for
+English (a German formula). Other languages than German use the English
+resources. The records that read the dependency relations get a mapping group
+on spaCy-only input (see [Best effort without UD](#best-effort-without-ud)).
 
 Adding a language changes only internal labels: a French wordnet keeps the
 public label `WRDPOLc` and gets a new group, e.g. `WRDPOLc_WOLF`.
@@ -462,7 +514,7 @@ least to most specific:
 1. `*`: all indices;
 2. an index group (the `type_name`, e.g. `Descriptive`, `LSA`, `Word Information`);
 3. a prefix of the internal label, ending in `*`: `RDL2*` (RDL2 and
-   `RDL2t_ext`), `PCNAR*`, `LSAGN*` (LSAGN and LSAGNd), `WRDPOLc_G*`;
+   its variants), `PCNAR*`, `LSAGN*` (LSAGN and LSAGNd), `WRDPOLc_G*`;
 4. a public label (`LSAGN`, `RDFOG_ext`);
 5. an internal label (`WRDPOLc_GN`, `LSASS1_EMB_SPACYlg`).
 
@@ -486,7 +538,7 @@ excluded. An empty `include_indices` means `*`. Examples:
 | `DESWC,LSAGN`     |                        | only DESWC and LSAGN                    |
 | `*,DESWC`         | `Descriptive`          | all except Descriptive, but with DESWC  |
 | `DESWC`           | `Descriptive`          | only DESWC                              |
-| `RD*`             | `RDL2*`                | Readability without RDL2 and RDL2t_ext  |
+| `RD*`             | `RDL2*`                | Readability without RDL2                |
 | `Readability`     | `*_ext`                | all Readability: `*` only works at the end, so `*_ext` is an unknown name (warning) |
 
 Indices computed from other indices (`RDL2`, the Text Easability components)
