@@ -186,7 +186,7 @@ INDEX_CATALOG: List[Tuple[int, str, str, str, str, str, Optional[str]]] = [
     (103, "Word Information", "WRDHYPnv", "WRDHYPnv_{wn}", "original", "counterpart", "HYPm"),
     (104, "Readability", "RDFRE", "RDFRE", "original", "counterpart", "READFRE"),
     (105, "Readability", "RDFKGL", "RDFKGL", "original", "original", "READFKGL"),
-    (1001, "Readability", "RDFOG_ext", "RDFOG_ext", "ext", "ext", None),
+    (1001, "Readability", "RDFOG_ext", "RDFOG_ext_TEXTSTATlist", "ext", "ext", None),
     (1002, "Readability", "RDSMOG_ext", "RDSMOG_ext", "ext", "ext", None),
     (1003, "Readability", "RDARI_ext", "RDARI_ext", "ext", "ext", None),
     (1004, "Readability", "RDCLI_ext", "RDCLI_ext", "ext", "ext", None),

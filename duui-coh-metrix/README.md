@@ -314,7 +314,10 @@ calls take the internal label from it (`ttlab_labels`).
 9. **No placeholders.** If the original resource is unavailable, emit only the
    substitute, under the original V3 label. Never emit a record that is always
    `None` just to occupy the original label. Example: there is no CELEX
-   `WRDFRQc`; `WRDFRQc` is the SUBTLEX record (`WRDFRQc_SUBTLEX`).
+   `WRDFRQc`; `WRDFRQc` is the SUBTLEX record (`WRDFRQc_SUBTLEX`). Exception:
+   a record whose model waits for its refit is emitted as `None` with the
+   reason in `error`, so its label stays stable (the Text Easability records,
+   see [Labels and comparability](#labels-and-comparability)).
 10. **UIMA type.** The CAS type is
     `org.texttechnologylab.uima.type.cohmetrix.<label_v3>`. A new index needs
     a matching type in `TypeSystem.xml`.
@@ -402,8 +405,8 @@ lists (`SEEDlist`), and SMTEMP drops `GN`.
 | WRDFAMc, WRDMEAc | `WRDFAMc` | `WRDFAMc_MRC` | `WRDFAMc_MRCtr` | original | translated |
 | RDFRE | `RDFRE` | `RDFRE` | `RDFRE` | original | counterpart |
 | RDFKGL | `RDFKGL` | `RDFKGL` | `RDFKGL` | original | original |
-| RDFOG, RDSMOG, RDARI, RDCLI, RDLW, RDWSTF1–4 (all `_ext`) | `RDFOG_ext` | `RDFOG_ext` | `RDFOG_ext` | ext | ext |
-| RDDCRS, RDSPACHE (`_ext`) | `RDDCRS_ext` | `RDDCRS_ext_TEXTSTATlist` | `RDDCRS_ext_TEXTSTATlist` | ext | ext |
+| RDSMOG, RDARI, RDCLI, RDLW, RDWSTF1–4 (all `_ext`) | `RDSMOG_ext` | `RDSMOG_ext` | `RDSMOG_ext` | ext | ext |
+| RDFOG, RDDCRS, RDSPACHE (`_ext`; difficult words from textstat's easy-word list) | `RDFOG_ext` | `RDFOG_ext_TEXTSTATlist` | `RDFOG_ext_TEXTSTATlist` | ext | ext |
 | … variant of every RD* above: the textstat library | | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | as the main record | as the main record |
 | RDL2 | `RDL2` | `RDL2_SUBTLEX` | `RDL2_SUBTLEX` | corpus | corpus |
 | … variant | | `RDL2_WIKI` | `RDL2_WIKI` | corpus | corpus |
