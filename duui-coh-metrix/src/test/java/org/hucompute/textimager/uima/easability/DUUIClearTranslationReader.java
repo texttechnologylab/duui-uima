@@ -61,6 +61,12 @@ public class DUUIClearTranslationReader implements DUUICollectionReader {
     private final AtomicInteger next = new AtomicInteger(0);
 
     public DUUIClearTranslationReader(Path translationDirectory, Path csvFile, String language) throws IOException {
+        this(translationDirectory, csvFile, language, 0);
+    }
+
+    /** @param limit read only the first {@code limit} usable translations (test runs), 0 for all */
+    public DUUIClearTranslationReader(Path translationDirectory, Path csvFile, String language, int limit)
+            throws IOException {
         CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setDelimiter('\t')
                 .setHeader()
@@ -101,6 +107,9 @@ public class DUUIClearTranslationReader implements DUUICollectionReader {
                 throw new IllegalArgumentException(file + ": ID " + json.getString("id") + " not in " + csvFile);
             }
             translations.add(new Translation(file, json));
+            if (limit > 0 && translations.size() == limit) {
+                break;
+            }
         }
         System.out.println(translations.size() + " of " + files.size() + " translations in " + translationDirectory);
 

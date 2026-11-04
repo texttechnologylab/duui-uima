@@ -3,9 +3,11 @@ package org.hucompute.textimager.uima.cohmetrix;
 import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
+import de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.FeatureStructure;
 import org.apache.uima.fit.factory.JCasFactory;
+import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.tcas.Annotation;
 import org.apache.uima.resource.metadata.TypeSystemDescription;
@@ -34,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *     <li>sentences: duui-wtpsplit within each paragraph, {@code split_on_input_newlines=true};</li>
  *     <li>tokens: duui-somajo within each sentence;</li>
  *     <li>duui-stanza: StanzaToken, StanzaSentence, POS, lemma, morphology, UD dependencies;</li>
- *     <li>duui-spacy {@code token_type=StanzaToken}: a SpacyToken and a WordEmbedding per Stanza word;</li>
+ *     <li>duui-spacy {@code token_type=StanzaToken}, {@code write_types=Token}: only a SpacyToken and a WordEmbedding per
+ *     Stanza word;</li>
  *     <li>duui-remove-annotations: the plain Sentence and Token (exact type);</li>
  *     <li>Coh-Metrix.</li>
  * </ol>
@@ -91,6 +94,38 @@ public class CohMetrixUdPipelineTest {
         }
     }
 
+    /** The Coh-Metrix service of the default pipeline ({@code cohmetrix.url}). */
+    public static DUUIRemoteDriver.Component cohMetrix() throws Exception {
+        return remote(COH_METRIX_URL);
+    }
+
+    /**
+     * The default pipeline after the paragraphs (steps 2 to 7 of the class comment, the services of the system
+     * properties): sentences, tokens, Stanza, spaCy vectors, removal of the plain layers, then {@code cohMetrix}. Also
+     * used for corpora with their own paragraphs (CLEAR, {@code ClearCorpusCohMetrixTest}).
+     */
+    public static void addAfterParagraphs(DUUIComposer composer, DUUIRemoteDriver.Component cohMetrix)
+            throws Exception {
+        composer.add(remote(WTPSPLIT_URL).withParameter("split_on_input_newlines", "true").build()
+                .withTimeout(TIMEOUT));
+        composer.add(remote(SOMAJO_URL).build().withTimeout(TIMEOUT));
+        composer.add(remote(STANZA_URL).build().withTimeout(TIMEOUT));
+        composer.add(remote(SPACY_URL)
+                .withParameter("model_variant", "large")
+                .withParameter("use_existing_tokens", "true")
+                .withParameter("use_existing_sentences", "true")
+                .withParameter("token_type", STANZA_TOKEN)
+                // only the SpacyTokens (with their WordEmbeddings): the Stanza layer has POS, lemmas, morphology and
+                // dependencies already, Coh-Metrix reads only the vectors from spaCy
+                .withParameter("write_types", Token.class.getName())
+                .build().withTimeout(TIMEOUT));
+        composer.add(remote(REMOVE_URL)
+                .withParameter("types", Sentence.class.getName() + "," + Token.class.getName())
+                .withParameter("exact", "true")
+                .build().withTimeout(TIMEOUT));
+        composer.add(cohMetrix.build().withTimeout(TIMEOUT));
+    }
+
     /** The CAS after the default pipeline for {@code language} (de or en). */
     static JCas run(String language, String text, String includeIndices) throws Exception {
         JCas cas = JCasFactory.createJCas(typeSystem);
@@ -105,25 +140,11 @@ public class CohMetrixUdPipelineTest {
         } else {
             composer.add(remote(WTPSPLIT_URL).withParameter("segment", "paragraphs").build().withTimeout(TIMEOUT));
         }
-        composer.add(remote(WTPSPLIT_URL).withParameter("split_on_input_newlines", "true").build()
-                .withTimeout(TIMEOUT));
-        composer.add(remote(SOMAJO_URL).build().withTimeout(TIMEOUT));
-        composer.add(remote(STANZA_URL).build().withTimeout(TIMEOUT));
-        composer.add(remote(SPACY_URL)
-                .withParameter("model_variant", "large")
-                .withParameter("use_existing_tokens", "true")
-                .withParameter("use_existing_sentences", "true")
-                .withParameter("token_type", STANZA_TOKEN)
-                .build().withTimeout(TIMEOUT));
-        composer.add(remote(REMOVE_URL)
-                .withParameter("types", Sentence.class.getName() + "," + Token.class.getName())
-                .withParameter("exact", "true")
-                .build().withTimeout(TIMEOUT));
         DUUIRemoteDriver.Component cohMetrix = remote(COH_METRIX_URL);
         if (includeIndices != null) {
             cohMetrix.withParameter("include_indices", includeIndices);
         }
-        composer.add(cohMetrix.build().withTimeout(TIMEOUT));
+        addAfterParagraphs(composer, cohMetrix);
         try {
             composer.run(cas);
         } finally {
@@ -162,6 +183,8 @@ public class CohMetrixUdPipelineTest {
         List<Annotation> words = exactly(cas, STANZA_TOKEN);
         assertEquals(words.size(), exactly(cas, SPACY_TOKEN).size(), "a SpacyToken per Stanza word");
         assertEquals(words.size(), exactly(cas, WORD_EMBEDDING).size(), "a WordEmbedding per Stanza word");
+        // spaCy writes no parse of its own (write_types): one dependency (incl. ROOT) per word, the Stanza ones
+        assertEquals(words.size(), JCasUtil.select(cas, Dependency.class).size(), "dependencies");
         // split contractions: several words over the span of one token
         for (Map.Entry<String, Integer> e : wordsOverToken.entrySet()) {
             int begin = text.indexOf(e.getKey());
