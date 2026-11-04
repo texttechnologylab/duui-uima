@@ -431,6 +431,14 @@ VARIANTS: List[Tuple[int, str, str, str, str, Tuple[str, ...]]] = [
 ]
 CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR for German) has duui-coh-metrix 0.2.0's index "
                  "values as inputs; it is not used until it is refitted on the current ones")
+# The main Text Easability models (REFIT_REFv1 / REFIT_REFa: refv1-ud-rr-cr3, refa-en-rr-gn-cr3, PR #306) were fitted on the values
+# of Coh-Metrix 0.5.0-py. These inputs are computed differently here (decisions 2026-11-02 and 2026-11-04; measured on 18 texts,
+# 2026-11-04): SYNNP (the words on the head of the noun phrase, not every word but the head), LSAGN (the first sentence counts
+# 0), German SMTEMP ("würde" + infinitive future, Konjunktiv II the tense of its form). The models are not used while an input
+# is listed here: empty the list of a language once its model is refitted on this component's values.
+MODEL_INPUTS_CHANGED = {"de": ("LSAGN", "SMTEMP", "SYNNP"), "en": ("LSAGN", "SYNNP")}
+REFIT_PENDING = ("not computed: the Text Easability model {model} was fitted on inputs computed differently ({inputs}); it is not "
+                 "used until it is refitted on this component's values")
 
 # Best effort without UD (README, "Best effort without UD"): spaCy's TIGER (de) / ClearNLP (en) relations are mapped to UD
 # (ud_mapping); the records that read the relations name the mapping as a method group after the public label, e.g.
@@ -929,14 +937,19 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     core_request = _core_request(request, lang, vectors_group)
 
     # the core keys of the selected records; the Text Easability components (main models) need their model's inputs, the
-    # CLEAR ones are not computed
-    pc_main = output & EASABILITY_KEYS if scheme == "UD" else frozenset()
+    # CLEAR ones are not computed, nor the main ones on mapped input or while their model is not refitted (MODEL_INPUTS_CHANGED)
+    pending = MODEL_INPUTS_CHANGED.get(lang)
+    pc_main = output & EASABILITY_KEYS if scheme == "UD" and not pending else frozenset()
     wanted = {key for key in output if key not in EASABILITY_KEYS and not key.endswith("@CLEAR")}
     if pc_main:
         wanted |= _model_inputs(lang)
     results = core.compute(core_request, wanted)
     if scheme != "UD":
         results.update({key: (None, PC_MAPPED.format(scheme=scheme)) for key in output & EASABILITY_KEYS})
+    elif pending:
+        model = (core.easability_models.get(lang) or {}).get("model_id", "")
+        results.update({key: (None, REFIT_PENDING.format(model=model, inputs=", ".join(pending)))
+                        for key in output & EASABILITY_KEYS})
     if pc_main:
         try:
             results.update(_easability(results, lang, core_request.vectors))

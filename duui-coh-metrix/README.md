@@ -379,7 +379,7 @@ lists (`SEEDlist`), and SMTEMP drops `GN`.
 | Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
 |---|---|---|---|---|---|
 | DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p | V3 | same as public | same as public | original | original |
-| PC* (16) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
+| PC* (16): `None` with an error until the models are refitted on this component's values (the inputs SYNNP, LSAGN and German SMTEMP are computed differently from the fit) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
 | … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
 | LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
 | CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |

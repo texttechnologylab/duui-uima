@@ -92,7 +92,7 @@ The main record of each index comes first, its variants follow (section "0.3.0: 
 | Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
 |---|---|---|---|---|---|
 | DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p | V3 | same as public | same as public | original | original |
-| PC* (16) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
+| PC* (16): `None` with an error until the models are refitted on this component's values (the inputs SYNNP, LSAGN and German SMTEMP are computed differently from the fit) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
 | … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
 | LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
 | CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |
@@ -250,7 +250,9 @@ Integration of Coh-Metrix 0.4.0-py (Maxim Konca; UD input, new resources), decid
 - **New main resources** from 0.4.0-py, each named by a group: SUBTLEX frequencies (`WRDFRQ*`, `RDL2`), DiMLex /
   DiMLex-Eng with GUM weights for the connectives (`CNC*`, `SMCAUSvp`, `SMCAUSr`), native norms for age of acquisition,
   concreteness and imageability (`KUPERMAN`, `BIRCHENOUGH`, `BRYSBAERT`, `KOEPER`), Text Easability models fitted on new
-  reference corpora (`REFIT_REFa`, `REFIT_REFv1`). Most of these files are not in the image (licences); without them
+  reference corpora (`REFIT_REFa`, `REFIT_REFv1`; models `refa-en-rr-gn-cr3` / `refv1-ud-rr-cr3` of PR #306, fitted on the
+  values of 0.5.0-py). These are `None` with an error until refitted on this component's values: SYNNP, LSAGN and German
+  SMTEMP are computed differently here (decided 2026-11-04). Most of these files are not in the image (licences); without them
   the records are `None` with an error.
 - **Kept as variants** (0.2.0's resources): `_WIKI` frequencies (now log10, like SUBTLEX), `_LLMlist` connectives,
   `_MRC` / `_MRCtr` norms, `_TEXTSTAT` readability, `_REFIT_CLEAR` / `_REFIT_CLEARtr` Text Easability (`None` with an
