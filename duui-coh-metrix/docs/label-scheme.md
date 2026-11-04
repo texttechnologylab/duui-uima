@@ -1,7 +1,7 @@
 # Coh-Metrix labels: two-layer scheme
 
 Status: decided on 28 October 2026, implemented in version 0.2.0; updated for 0.6.0 (4 November 2026, section
-"0.6.0: main records and variants"). The rules for adding or changing an index
+"0.6.0: main records, fallbacks and variants"). The rules for adding or changing an index
 are in `README.md` under "Index labels"; this document keeps the background. The scheme replaces the
 three-layer scheme of 0.1.x (`label_v3`, public `label_ttlab` with deviation suffixes, `label_internal`). It
 takes up a colleague's proposal for public labels that name the kind of deviation, and the original
@@ -87,7 +87,8 @@ internal one.
 
 ## Mapping
 
-The main record of each index comes first, its variants follow (section "0.6.0: main records and variants"):
+The main record of each index comes first; a fallback replaces it only if its resource is missing, a variant is an
+additional record (section "0.6.0: main records, fallbacks and variants"):
 
 | Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
 |---|---|---|---|---|---|
@@ -96,22 +97,22 @@ The main record of each index comes first, its variants follow (section "0.6.0: 
 | … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
 | LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
 | CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |
-| … variant | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
+| … fallback (without DiMLex / DiMLex-Eng) | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
 | SMCAUSv, SMINTEp | `SMCAUSv` | `SMCAUSv_WN` | `SMCAUSv_GN` / `SMCAUSv_SEEDlist` | original | counterpart |
 | SMCAUSvp, SMCAUSr | `SMCAUSvp` | `SMCAUSvp_WN_DIMLEXeng_GUM` | `SMCAUSvp_GN_DIMLEX` / `SMCAUSvp_SEEDlist_DIMLEX` | counterpart | counterpart |
-| … variant | | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist | counterpart, llmlist |
+| … fallback (without DiMLex / DiMLex-Eng) | | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist | counterpart, llmlist |
 | SMINTEr | `SMINTEr` | `SMINTEr_WN_LLMlist` | `SMINTEr_GN_LLMlist` / `SMINTEr_SEEDlist_LLMlist` | original | counterpart |
 | SMCAUSwn, WRDPOLc, WRDHYPn/v/nv | `WRDPOLc` | `WRDPOLc_WN` | `WRDPOLc_GN` | original | counterpart |
 | SMTEMP | `SMTEMP` | `SMTEMP_LLMlist` | `SMTEMP_LLMlist_GN` / `SMTEMP_LLMlist` | llmlist | llmlist |
 | DRNEG | `DRNEG` | `DRNEG_LLMlist` | `DRNEG_LLMlist` | llmlist | llmlist |
 | WRDFRQc, WRDFRQa, WRDFRQmc | `WRDFRQc` | `WRDFRQc_SUBTLEX` | `WRDFRQc_SUBTLEX` | corpus | corpus |
-| … variant | | `WRDFRQc_WIKI` | `WRDFRQc_WIKI` | corpus | corpus |
+| … fallback (without SUBTLEX) | | `WRDFRQc_WIKI` | `WRDFRQc_WIKI` | corpus | corpus |
 | WRDAOAc | `WRDAOAc` | `WRDAOAc_KUPERMAN` | `WRDAOAc_BIRCHENOUGH` | counterpart | counterpart |
-| … variant | | `WRDAOAc_MRC` | `WRDAOAc_MRCtr` | original | translated |
+| … fallback (without the Kuperman / Birchenough norms) | | `WRDAOAc_MRC` | `WRDAOAc_MRCtr` | original | translated |
 | WRDCNCc | `WRDCNCc` | `WRDCNCc_BRYSBAERT` | `WRDCNCc_KOEPER` | counterpart | counterpart |
-| … variant | | `WRDCNCc_MRC` | `WRDCNCc_MRCtr` | original | translated |
+| … fallback (without the Brysbaert / Köper norms) | | `WRDCNCc_MRC` | `WRDCNCc_MRCtr` | original | translated |
 | WRDIMGc | `WRDIMGc` | `WRDIMGc_MRC` | `WRDIMGc_KOEPER` | original | counterpart |
-| … variant (German only) | | | `WRDIMGc_MRCtr` | | translated |
+| … fallback (German only, without the Köper norms) | | | `WRDIMGc_MRCtr` | | translated |
 | WRDFAMc, WRDMEAc | `WRDFAMc` | `WRDFAMc_MRC` | `WRDFAMc_MRCtr` | original | translated |
 | RDFRE | `RDFRE` | `RDFRE` | `RDFRE` | original | counterpart |
 | RDFKGL | `RDFKGL` | `RDFKGL` | `RDFKGL` | original | original |
@@ -119,7 +120,7 @@ The main record of each index comes first, its variants follow (section "0.6.0: 
 | RDFOG, RDDCRS, RDSPACHE (`_ext`; difficult words from textstat's easy-word list) | `RDFOG_ext` | `RDFOG_ext_TEXTSTATlist` | `RDFOG_ext_TEXTSTATlist` | ext | ext |
 | … variant of every RD* above: the textstat library | | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | as the main record | as the main record |
 | RDL2 | `RDL2` | `RDL2_SUBTLEX` | `RDL2_SUBTLEX` | corpus | corpus |
-| … variant | | `RDL2_WIKI` | `RDL2_WIKI` | corpus | corpus |
+| … fallback (without SUBTLEX) | | `RDL2_WIKI` | `RDL2_WIKI` | corpus | corpus |
 
 The rows with several indices show the first one as the example; the others follow the same pattern
 (`LSAGNd_EMB_SPACYlg`, `CNCCaus_DIMLEX`, `WRDHYPv_GN`, ...). Not emitted (always `None`):
@@ -239,16 +240,19 @@ With the public label now always the V3 name, the following no longer affect the
 - The colleague's proposal (`_refit`, `_embedding`, the kinds of vector spaces, the translated MRC) is
   covered by the groups above (`REFIT`, `EMB`, `SPACYxx`, `MRCtr`; public `WRDAOAc`).
 
-## 0.6.0: main records and variants
+## 0.6.0: main records, fallbacks and variants
 
 Integration of Coh-Metrix 0.4.0-py and 0.5.0-py (Maxim Konca, PR #305 and #306; UD input, new resources), decided
 2026-11-02 to 2026-11-04. The component version 0.6.0 follows the core versions of these PRs (the version 0.3.0 used during the
 work was never released):
 
-- **Several records per public label.** An index has one main record and may have variants: further records with
-  another resource or method, each with its own internal label. The public label (and UIMA type) is shared; the
-  internal label stays unique. The variants follow their index in the output and are selected like any internal
-  label (`exclude_indices=*_WIKI`).
+- **Several records per public label.** An index has one main record and may have a fallback or variants, each with its
+  own internal label. The public label (and UIMA type) is shared; the internal label stays unique.
+  - A **fallback** stands in for a resource of the main record that is not available (not mounted): it is computed only
+    then, and replaces the main record (rule 7, as `_SEEDlist` for GermaNet). Decided 2026-11-04, after the feedback that
+    the 0.2.0 lists have no documented source and doubled the labels when computed alongside the main record.
+  - A **variant** is another method or model, independent of missing files: an additional record, selected like any
+    internal label (`exclude_indices=*_TEXTSTAT`).
 - **New main resources** from 0.4.0-py, each named by a group: SUBTLEX frequencies (`WRDFRQ*`, `RDL2`), DiMLex /
   DiMLex-Eng with GUM weights for the connectives (`CNC*`, `SMCAUSvp`, `SMCAUSr`), native norms for age of acquisition,
   concreteness and imageability (`KUPERMAN`, `BIRCHENOUGH`, `BRYSBAERT`, `KOEPER`), Text Easability models fitted on new
@@ -256,9 +260,10 @@ work was never released):
   values of 0.5.0-py). These are `None` with an error until refitted on this component's values: SYNNP, LSAGN and German
   SMTEMP are computed differently here (decided 2026-11-04). Most of these files are not in the image (licences); without them
   the records are `None` with an error.
-- **Kept as variants** (0.2.0's resources): `_WIKI` frequencies (now log10, like SUBTLEX), `_LLMlist` connectives,
-  `_MRC` / `_MRCtr` norms, `_TEXTSTAT` readability, `_REFIT_CLEAR` / `_REFIT_CLEARtr` Text Easability (`None` with an
-  error until refitted on the current values). The main readability records are computed by the component itself;
+- **0.2.0's resources as fallbacks:** `_WIKI` frequencies (now log10, like SUBTLEX) without SUBTLEX, `_LLMlist`
+  connectives and causal particles without DiMLex / DiMLex-Eng, `_MRC` / `_MRCtr` norms without the native norms.
+- **Variants:** `_TEXTSTAT` readability (the textstat library), `_REFIT_CLEAR` / `_REFIT_CLEARtr` Text Easability (`None`
+  with an error until refitted on the current values). The main readability records are computed by the component itself;
   Dale-Chall and Spache use textstat's easy-word list (`TEXTSTATlist`).
 - **Best effort without UD.** On spaCy-only input the dependency relations are mapped to UD in the component; the
   records that read them get a method group right after the public label (`SYNNP_TIGERmap`,

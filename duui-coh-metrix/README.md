@@ -2,9 +2,9 @@
 
 DUUI implementation of Coh-Metrix 3.0 for English and German. The component
 computes 117 indices (the 106 of Coh-Metrix 3.0 and 11 project-only readability
-formulas) over pre-annotated UIMA documents; with the variants computed from
-other resources, a German document gets up to 163 records, an English one up to
-155. The indices include
+formulas) over pre-annotated UIMA documents; with the variants of other methods
+(the textstat library, the CLEAR Text Easability models), a German document gets
+up to 145 records, an English one up to 138. The indices include
 descriptive, referential-cohesion, LSA, lexical-diversity, connective,
 situation-model, syntactic-complexity, word-information, and readability
 measures. Every index carries its Coh-Metrix 3.0 label and an internal label
@@ -112,17 +112,23 @@ Two mounts (see [Start the Docker container](#start-the-docker-container)):
 | `/usr/src/app/src/main/resources/external` | the files of [Resources supplied by the user](#resources-supplied-by-the-user), flat, with the names given there | `DUUI_COH_METRIX_<RESOURCE>_PATH`, one per file |
 | `/usr/src/app/src/main/resources/germanet` | the GermaNet XML directory (e.g. `GN_V180_XML` of GermaNet 18.0) | `DUUI_COH_METRIX_GERMANET_PATH` |
 
-Without a mount the component runs; the records that need a missing resource
-are `None` with the error `resource not available: ...` (German causal and
-intentional verbs fall back to seed lists, see [GermaNet](#germanet)).
+Without a mount the component runs. A record with a **fallback** then uses it
+instead of the missing resource, under its own internal label (label rule 7):
+the connectives and causal particles use LLM-generated lists (`CNCAll_LLMlist`
+instead of `CNCAll_DIMLEX`), the frequencies the Wikipedia samples
+(`WRDFRQc_WIKI` instead of `WRDFRQc_SUBTLEX`), the norms the MRC database
+(`WRDAOAc_MRC` instead of `WRDAOAc_KUPERMAN`), and the German causal and
+intentional verbs seed lists (see [GermaNet](#germanet)). A fallback is computed
+only then. The other records that need a missing resource are `None` with the
+error `resource not available: ...`.
 
 ### In the image
 
 | Resource | Used for | Source and licence (`src/main/resources/LICENSES.md`) |
 |---|---|---|
-| MRC Psycholinguistic Database (`mrc_psycholinguistic_database.csv`, downloaded at build time) | English WRDFAMc, WRDIMGc, WRDMEAc; variants `_MRC` of WRDAOAc, WRDCNCc | see below |
-| MRC translated into German (`mrc_psycholinguistic_database_de.csv`) | German WRDFAMc, WRDMEAc; variants `_MRCtr` | see below |
-| Wikipedia frequency samples (`word_frequencies_{de,en}_*wiki-20220301-sample10000.csv`) | variants `_WIKI` of WRDFRQ*, RDL2 | see "Word frequencies" |
+| MRC Psycholinguistic Database (`mrc_psycholinguistic_database.csv`, downloaded at build time) | English WRDFAMc, WRDIMGc, WRDMEAc; fallback `_MRC` of WRDAOAc, WRDCNCc | see below |
+| MRC translated into German (`mrc_psycholinguistic_database_de.csv`) | German WRDFAMc, WRDMEAc; fallback `_MRCtr` of WRDAOAc, WRDCNCc, WRDIMGc | see below |
+| Wikipedia frequency samples (`word_frequencies_{de,en}_*wiki-20220301-sample10000.csv`) | fallback `_WIKI` of WRDFRQ*, RDL2 (without SUBTLEX) | see "Word frequencies" |
 | GUM weights (`gum_weights_en.csv`) | English connectives (`DIMLEXeng_GUM`) | counted on the GUM annotations: Amir Zeldes, ["The GUM corpus: creating multilayer resources in the classroom"](https://doi.org/10.1007/s10579-016-9343-x), Language Resources and Evaluation 51(3), 581–612, 2017; annotations CC BY 4.0 (GUM's `LICENSE.md`); the table holds counts, no text |
 | Text Easability models (`easability/*.json`) | PC* | see "Text Easability models" |
 | Princeton WordNet 3.0, Open Multilingual Wordnet 1.4, CMU Pronouncing Dictionary (NLTK data, downloaded at build time) | English WRDPOLc, WRDHYP*, SMCAUSv, SMINTEp, SMCAUSwn, SMCAUSvp, SMCAUSr; English syllables | NLTK data |
@@ -145,9 +151,10 @@ Use a directory outside the repository and mount it at
 `/usr/src/app/src/main/resources/external`; each file
 has its own environment variable (Dockerfile) if another name or place is
 needed. `--clear` also downloads the CLEAR corpus, only needed to refit the
-CLEAR Text Easability models (development). Without a file its
-records are `None` with the error `resource not available: ...`, and so are the
-Text Easability components that need it as input.
+CLEAR Text Easability models (development). Without a file, its records use
+their fallback (see above) or are `None` with the error `resource not
+available: ...`; the Text Easability components that need it as input are
+`None` (the models take only inputs from the resources they were fitted on).
 
 | File (environment variable `DUUI_COH_METRIX_..._PATH`) | Resource | Used for |
 |---|---|---|
@@ -211,7 +218,8 @@ treated as the database's missing-value marker and is not included in averages.
 Since 0.6.0 the norms are looked up by lemma (exact case first, then lower
 case; German also with old spellings and "ss" for "ß"). Age of acquisition and
 concreteness (both languages) and German imageability come from the native
-norms above; MRC stays as the `_MRC` / `_MRCtr` variant. The norms are on
+norms above; MRC is their fallback (`_MRC` / `_MRCtr`), computed only if these
+norms are not mounted. The norms are on
 different scales (MRC 100–700, Kuperman and Birchenough years, Brysbaert 1–5,
 Köper 0–10), so values of different resources are not comparable.
 
@@ -222,7 +230,7 @@ the minimum) of the **base-10 logarithm** of the frequency per million. Main
 record: SUBTLEX (SUBTLEX-US, SUBTLEX-DE, see above). Words not in the list are
 left out rather than counted with frequency 0.
 
-The variant `_WIKI` uses the files
+The fallback `_WIKI`, computed only if SUBTLEX is not mounted, uses the files
 `word_frequencies_en_enwiki-20220301-sample10000.csv` and
 `word_frequencies_de_dewiki-20220301-sample10000.csv`: project resources
 derived from 10,000-article samples of the English and German Wikipedia dumps
@@ -459,6 +467,11 @@ calls take the internal label from it (`ttlab_labels`).
 7. **What was used at runtime.** If a fallback is used, the internal label
    names it. Example: without GermaNet, the German causal/intentional verb
    inventories use seed lists: `SMCAUSv_SEEDlist` instead of `SMCAUSv_GN`.
+   Likewise for the resources supplied by the user: without DiMLex the
+   connectives use LLM-generated lists (`CNCAll_LLMlist`), without SUBTLEX the
+   Wikipedia samples (`WRDFRQc_WIKI`), without the native norms MRC
+   (`WRDAOAc_MRC`). A fallback is computed only if the main record's resource
+   is missing, and then replaces it (one record per index).
 8. **Derived indices** (RDL2, PC*) name the resources of their inputs
    (`RDL2_SUBTLEX`).
 9. **No placeholders.** If the original resource is unavailable, emit only the
@@ -524,8 +537,12 @@ comparable to Coh-Metrix 3.0. That is the comparability column, per language
 German values are never directly comparable to English norms, also where the
 column says `original`.
 
-The main record of each index comes first; the variants follow it and are
-selected like any internal label (e.g. `exclude_indices=*_WIKI`). German
+The main record of each index comes first. A **fallback** (rows "… fallback")
+is computed only if a resource of the main record is missing, and then replaces
+it. A **variant** (another method or model: the textstat library, the CLEAR
+models) is an additional record, selected like any internal label (e.g.
+`exclude_indices=*_TEXTSTAT`). `GET /v1/indices` gives each record's `kind`
+(`main`, `fallback`, `variant`). German
 labels with `GN` need GermaNet; without it the verb inventories use the seed
 lists (`SEEDlist`), and SMTEMP drops `GN`.
 
@@ -536,22 +553,22 @@ lists (`SEEDlist`), and SMTEMP drops `GN`.
 | … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
 | LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
 | CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |
-| … variant | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
+| … fallback (without DiMLex / DiMLex-Eng) | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
 | SMCAUSv, SMINTEp | `SMCAUSv` | `SMCAUSv_WN` | `SMCAUSv_GN` / `SMCAUSv_SEEDlist` | original | counterpart |
 | SMCAUSvp, SMCAUSr | `SMCAUSvp` | `SMCAUSvp_WN_DIMLEXeng_GUM` | `SMCAUSvp_GN_DIMLEX` / `SMCAUSvp_SEEDlist_DIMLEX` | counterpart | counterpart |
-| … variant | | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist | counterpart, llmlist |
+| … fallback (without DiMLex / DiMLex-Eng) | | `SMCAUSvp_WN_LLMlist` | `SMCAUSvp_GN_LLMlist` / `SMCAUSvp_SEEDlist_LLMlist` | llmlist | counterpart, llmlist |
 | SMINTEr | `SMINTEr` | `SMINTEr_WN_LLMlist` | `SMINTEr_GN_LLMlist` / `SMINTEr_SEEDlist_LLMlist` | original | counterpart |
 | SMCAUSwn, WRDPOLc, WRDHYPn/v/nv | `WRDPOLc` | `WRDPOLc_WN` | `WRDPOLc_GN` | original | counterpart |
 | SMTEMP | `SMTEMP` | `SMTEMP_LLMlist` | `SMTEMP_LLMlist_GN` / `SMTEMP_LLMlist` | llmlist | llmlist |
 | DRNEG | `DRNEG` | `DRNEG_LLMlist` | `DRNEG_LLMlist` | llmlist | llmlist |
 | WRDFRQc, WRDFRQa, WRDFRQmc | `WRDFRQc` | `WRDFRQc_SUBTLEX` | `WRDFRQc_SUBTLEX` | corpus | corpus |
-| … variant | | `WRDFRQc_WIKI` | `WRDFRQc_WIKI` | corpus | corpus |
+| … fallback (without SUBTLEX) | | `WRDFRQc_WIKI` | `WRDFRQc_WIKI` | corpus | corpus |
 | WRDAOAc | `WRDAOAc` | `WRDAOAc_KUPERMAN` | `WRDAOAc_BIRCHENOUGH` | counterpart | counterpart |
-| … variant | | `WRDAOAc_MRC` | `WRDAOAc_MRCtr` | original | translated |
+| … fallback (without the Kuperman / Birchenough norms) | | `WRDAOAc_MRC` | `WRDAOAc_MRCtr` | original | translated |
 | WRDCNCc | `WRDCNCc` | `WRDCNCc_BRYSBAERT` | `WRDCNCc_KOEPER` | counterpart | counterpart |
-| … variant | | `WRDCNCc_MRC` | `WRDCNCc_MRCtr` | original | translated |
+| … fallback (without the Brysbaert / Köper norms) | | `WRDCNCc_MRC` | `WRDCNCc_MRCtr` | original | translated |
 | WRDIMGc | `WRDIMGc` | `WRDIMGc_MRC` | `WRDIMGc_KOEPER` | original | counterpart |
-| … variant (German only) | | | `WRDIMGc_MRCtr` | | translated |
+| … fallback (German only, without the Köper norms) | | | `WRDIMGc_MRCtr` | | translated |
 | WRDFAMc, WRDMEAc | `WRDFAMc` | `WRDFAMc_MRC` | `WRDFAMc_MRCtr` | original | translated |
 | RDFRE | `RDFRE` | `RDFRE` | `RDFRE` | original | counterpart |
 | RDFKGL | `RDFKGL` | `RDFKGL` | `RDFKGL` | original | original |
@@ -559,7 +576,7 @@ lists (`SEEDlist`), and SMTEMP drops `GN`.
 | RDFOG, RDDCRS, RDSPACHE (`_ext`; difficult words from textstat's easy-word list) | `RDFOG_ext` | `RDFOG_ext_TEXTSTATlist` | `RDFOG_ext_TEXTSTATlist` | ext | ext |
 | … variant of every RD* above: the textstat library | | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | `RDFRE_TEXTSTAT`, `RDFOG_ext_TEXTSTAT` | as the main record | as the main record |
 | RDL2 | `RDL2` | `RDL2_SUBTLEX` | `RDL2_SUBTLEX` | corpus | corpus |
-| … variant | | `RDL2_WIKI` | `RDL2_WIKI` | corpus | corpus |
+| … fallback (without SUBTLEX) | | `RDL2_WIKI` | `RDL2_WIKI` | corpus | corpus |
 
 Rows with several indices show the first one; the others follow the same
 pattern (`LSAGNd_EMB_SPACYlg`, `CNCCaus_DIMLEX`, `WRDHYPv_GN`, ...). Not
@@ -573,7 +590,7 @@ public label `WRDPOLc` and gets a new group, e.g. `WRDPOLc_WOLF`.
 
 ### Index version
 
-Every record (an index, or one of its variants) has a `version` per language,
+Every record (an index, its fallback or a variant) has a `version` per language,
 starting at `"1.0"` (`VERSIONS` in `duui.py`; `GET /v1/indices` lists
 `version_de` and `version_en`). It versions the computation of that record,
 independent of the image version in the annotation metadata, so results can be
