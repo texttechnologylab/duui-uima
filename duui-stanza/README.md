@@ -9,8 +9,8 @@ DUUI component for POS tags, lemmas, morphological features and dependencies in
 | `de` | `de/default_accurate` (UD German, combined) | `german-nlp-electra` |
 | `en` | `en/default_accurate` (UD English, combined) | `electra-large` |
 
-Other languages are an error. The processing follows `StanzaLocal` in `duui-coh-metrix/docs/preprocess.py`, the reference
-preprocessing of Coh-Metrix 0.4.0-py:
+Other languages are an error. The processing follows `StanzaLocal` of the reference preprocessing of Coh-Metrix 0.4.0-py
+(Maxim Konca), the input Coh-Metrix expects (see duui-coh-metrix, "Prerequisites and preprocessing"):
 
 - **Input:** the plain DKPro `Sentence` and `Token` annotations of an earlier tool, e.g. duui-wtpsplit and duui-somajo.
   Only exactly these types count; subtypes such as `SpacyToken` or the output of an earlier run don't. Stanza runs on these
@@ -20,8 +20,8 @@ preprocessing of Coh-Metrix 0.4.0-py:
   - The table contains the expansions of UD German GSD/HDT plus hinterm, hinters, überm, vors (STTS).
   - Only all-lowercase or capitalised tokens are split ("Im" → "In dem", but not "IM").
   - "am" before a superlative stays one word (STTS PTKA, as in HDT: "am besten").
-  - Stanza's own `resplit_mwt` was worse on UD German GSD/HDT: 80 wrong tokens against 9
-    (`duui-coh-metrix/docs/stanza-contraction-split/REPORT.md`).
+  - Stanza's own `resplit_mwt` was worse on UD German GSD/HDT: 80 wrong tokens against 9 for the table (our comparison of
+    2026-11-02; the table was built from these treebanks, so its score is in-sample).
 - **English** tokens are used as given (e.g. SoMaJo `en_PTB` already splits "do n't" as UD English does).
 - **Long sentences:** a sentence of more than 500 tokens is parsed in pieces of at most 500 tokens. A piece the transformer
   can't take (more than its 512 subword positions) is halved until it fits. Each piece becomes a `StanzaSentence` of its

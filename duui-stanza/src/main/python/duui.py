@@ -4,10 +4,10 @@ POS (UPOS and the language-specific XPOS), lemmas, morphological features and UD
 Stanza package default_accurate. The words are written as StanzaToken, the sentences as StanzaSentence (a complete layer of its
 own), so that the CAS can keep the layers of other tools.
 
-The processing follows docs/preprocess.py (StanzaLocal) of duui-coh-metrix, the reference preprocessing of Coh-Metrix 0.4.0-py:
+The processing follows StanzaLocal of the reference preprocessing of Coh-Metrix 0.4.0-py (Maxim Konca):
 - Stanza runs on the given tokens (tokenize_pretokenized). Its multi-word token step does not run on given tokens, so German
   preposition + article contractions are split here with a table (zum -> zu dem). Stanza's resplit_mwt was compared on UD German
-  GSD/HDT and was worse (80 wrong tokens against 9, duui-coh-metrix/docs/stanza-contraction-split/REPORT.md).
+  GSD/HDT and was worse (80 wrong tokens against 9; the table's score is in-sample).
 - At most 500 sentences per call, depparse_batch_size 1000.
 - A sentence of more than 500 tokens is parsed in pieces of at most 500 tokens, a piece the transformer cannot take (more than
   its 512 subword positions) in halves; every piece becomes a sentence of its own.
@@ -195,7 +195,7 @@ def utf16_to_utf8(text):
 
 
 # German preposition + article contractions (STTS APPRART), split into the two words UD German writes ("zum" -> "zu dem").
-# From duui-coh-metrix docs/preprocess.py (_DE_CONTRACTIONS): the expansions of UD German GSD and HDT (each of their 16 forms
+# From the reference preprocessing of Coh-Metrix 0.4.0-py (_DE_CONTRACTIONS): the expansions of UD German GSD and HDT (each of their 16 forms
 # has one expansion) plus hinterm, hinters, überm, vors (STTS). Only all-lower or capitalised tokens ("Im" -> "In dem", not
 # "IM"). "am" before a superlative stays one word (STTS PTKA, "am besten", as in HDT): next word lower case in -sten and no
 # capitalised word after it.
@@ -209,7 +209,7 @@ DE_CONTRACTIONS = {
 
 
 def split_contractions(words: list) -> list:
-    """[(word, token index)] for the words of one sentence's tokens (preprocess.py split_contractions)"""
+    """[(word, token index)] for the words of one sentence's tokens (split_contractions of the reference preprocessing)"""
     out = []
     for i, w in enumerate(words):
         low = w.lower()
@@ -227,7 +227,7 @@ def split_contractions(words: list) -> list:
 
 def pieces(toks: list, words: list, size: int) -> list:
     """a sentence's tokens and words (word, token index) in consecutive pieces of at most `size` tokens; the words of a split
-    contraction stay with their token (preprocess.py _pieces)"""
+    contraction stay with their token (_pieces of the reference preprocessing)"""
     out = []
     for g in range(0, len(toks), size):
         out.append((toks[g:g + size], [(w, ti - g) for w, ti in words if g <= ti < g + size]))
@@ -236,7 +236,7 @@ def pieces(toks: list, words: list, size: int) -> list:
 
 def parse(nlp: stanza.Pipeline, items: list) -> list:
     """[(tokens, words, span)] -> [(tokens, words, span, Stanza sentence)]; a sentence the transformer cannot take (more than
-    its 512 subword positions) is halved until its pieces fit (preprocess.py StanzaLocal._parse)"""
+    its 512 subword positions) is halved until its pieces fit (StanzaLocal._parse of the reference preprocessing)"""
     try:
         parsed = nlp([[w for w, _ in words] for _, words, _ in items])
         return [(toks, words, span, s) for (toks, words, span), s in zip(items, parsed.sentences, strict=True)]
