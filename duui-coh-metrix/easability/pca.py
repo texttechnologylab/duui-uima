@@ -2,7 +2,8 @@
 
 Follows Graesser, McNamara & Kulikowich (2011): standardized input measures (pca_input_measures.csv, the 53
 published measures mapped to our index labels), principal component analysis, orthogonal Varimax rotation,
-8 components.
+8 components. The inputs are the main records of the indices, by internal label and language (columns labels_en,
+labels_de; the columns of extract_indices.py); the model stores them as labels_internal, as the component looks them up.
 
 - Missing values are replaced by the measure's mean in the reference corpus (neutral after standardization);
   the counts are reported and written to the model: at runtime only measures that are missing in the reference
@@ -60,11 +61,21 @@ def load_measures() -> pd.DataFrame:
     return measures.set_index("number")
 
 
-def input_values(indices: pd.DataFrame, measures: pd.DataFrame) -> pd.DataFrame:
-    """One column per measure; measures with multiple labels are summed (missing if one label is missing)."""
+def input_labels(measure, language: str) -> list:
+    """the internal labels of a measure's main records in the language (pca_input_measures.csv, labels_<language>)"""
+    return getattr(measure, f"labels_{language}").split(";")
+
+
+def input_values(indices: pd.DataFrame, measures: pd.DataFrame, language: str) -> pd.DataFrame:
+    """One column per measure; measures with multiple labels are summed (missing if one label is missing). A label that
+    is no column of the indices (index not computed, or computed with another resource) is an error."""
     columns = {}
     for m in measures.itertuples():
-        labels = m.labels_v3.split(";")
+        labels = input_labels(m, language)
+        missing = [label for label in labels if label not in indices.columns]
+        if missing:
+            raise SystemExit(f"measure {m.Index} {m.measure_2011}: no column {missing} in the indices "
+                             f"(see pca_input_measures.csv, labels_{language})")
         columns[m.column] = indices[labels].sum(axis=1, min_count=len(labels))
     return pd.DataFrame(columns, index=indices.index)
 
@@ -104,7 +115,7 @@ def main() -> None:
     measures = load_measures()
     components = pd.read_csv(COMPONENTS_FILE, dtype=str, keep_default_na=False)
     n_components = len(components)
-    x = input_values(indices, measures)
+    x = input_values(indices, measures, args.language)
 
     missing = x.isna().sum().rename("missing_documents").to_frame()
     missing["missing_share"] = missing["missing_documents"] / len(x)
@@ -197,6 +208,7 @@ def main() -> None:
                   "otherwise the components are undefined",
         "inputs": [
             {"measure_number": int(number), "measure": m.measure_2011, "labels_v3": m.labels_v3.split(";"),
+             "labels_internal": input_labels(m, args.language),
              "mean": float(mean), "scale": float(scale), "missing_documents": int(missing_documents)}
             for (number, m), mean, scale, missing_documents
             in zip(measures.iterrows(), imputer.statistics_, scaler.scale_, missing["missing_documents"])
@@ -338,7 +350,7 @@ def write_report(args, meta, measures, components, missing, pairs, full, rotated
                      f"{cumulative[i]:.1%}"] for i in range(15)]) + "\n")
 
     r.append(f"## Input measure pairs with |r| > {HIGH_CORRELATION}\n")
-    r.append("Removed by Graesser et al. (2011) before their PCA; kept here (see OPEN_QUESTIONS.md).\n")
+    r.append("Removed by Graesser et al. (2011) before their PCA; kept here, the published measures are used unchanged.\n")
     r.append(table(["Measure", "Measure", "r"], [[a, b, number(c)] for a, b, c in pairs]) + "\n")
     return "\n".join(r)
 

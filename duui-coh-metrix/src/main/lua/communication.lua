@@ -3,14 +3,21 @@ Class = luajava.bindClass("java.lang.Class")
 Double = luajava.bindClass("java.lang.Double")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
 DUUIUtils = luajava.bindClass("org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaUtils")
--- Coh-Metrix 0.4.0-py reads Universal Dependencies (README, "Prerequisites and preprocessing"): the DKPro types an
--- upstream UD parser writes (Token, POS, Lemma, MorphologicalFeatures, Dependency), not spaCy's TIGER / ClearNLP labels
+-- Coh-Metrix reads Universal Dependencies (README, "Prerequisites and preprocessing"): the DKPro types an upstream UD
+-- parser writes (Token, POS, Lemma, MorphologicalFeatures, Dependency), e.g. duui-stanza; spaCy's TIGER / ClearNLP labels
+-- are mapped to UD in duui.py as best effort (README, "Best effort without UD")
 Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 Paragraph = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph")
 Dependency = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency")
 TOKEN_TYPE_NAME = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
 SPACY_TOKEN_TYPE_NAME = "org.texttechnologylab.uima.type.spacy.SpacyToken"
+STANZA_TOKEN_TYPE_NAME = "org.texttechnologylab.uima.type.stanza.StanzaToken"
+STANZA_SENTENCE_TYPE_NAME = "org.texttechnologylab.uima.type.stanza.StanzaSentence"
+-- The token layer that is read, in this order: the words of duui-stanza (UD), the tokens of duui-spacy, plain DKPro Tokens.
+-- A CAS can hold several layers over the same text (e.g. SoMaJo tokens, StanzaTokens and the SpacyTokens of the vectors);
+-- reading more than one would count every word twice.
+TOKEN_LAYERS = {STANZA_TOKEN_TYPE_NAME, SPACY_TOKEN_TYPE_NAME, TOKEN_TYPE_NAME}
 -- optional: only needed to read the spaCy model of SpacyToken vectors
 local spacy_meta_ok, SpacyAnnotatorMetaData = pcall(
     luajava.bindClass, "org.texttechnologylab.annotation.SpacyAnnotatorMetaData")
@@ -59,23 +66,53 @@ function setOptionalStringFeature(feature_structure, feature, value)
     end
 end
 
--- The tokens of a sentence: plain DKPro Tokens. A CAS that also holds subtypes of the
--- same tokens (e.g. SpacyToken written by duui-spacy for its vectors) would count every
--- word twice, so subtypes are used only when there is no plain Token at all.
-function sentenceTokens(sentence)
-    local all = JCasUtil:selectCovered(Token, sentence)
-    local plain = luajava.newInstance("java.util.ArrayList")
-    local all_it = all:iterator()
-    while all_it:hasNext() do
-        local token = all_it:next()
-        if token:getType():getName() == TOKEN_TYPE_NAME then
-            plain:add(token)
+-- The type names of the annotations of a class in the CAS (subtypes included). By index: LuaJ cannot call the methods of the
+-- JDK's private iterator classes (Java module system) without --add-opens.
+function typeNames(inputCas, class)
+    local names = {}
+    local list = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, class))
+    for i = 0, list:size() - 1 do
+        names[list:get(i):getType():getName()] = true
+    end
+    return names
+end
+
+-- The token layer to read (see TOKEN_LAYERS); nil: every token (no known layer, e.g. only another tool's subtype)
+function tokenLayer(inputCas)
+    local names = typeNames(inputCas, Token)
+    for _, name in ipairs(TOKEN_LAYERS) do
+        if names[name] then
+            return name
         end
     end
-    if plain:size() > 0 then
-        return plain
+    return nil
+end
+
+-- The sentence layer to read: the StanzaSentences if there are any (a complete layer of duui-stanza, in which a sentence too
+-- long for the parser is split), else every Sentence
+function sentenceLayer(inputCas)
+    if typeNames(inputCas, Sentence)[STANZA_SENTENCE_TYPE_NAME] then
+        return STANZA_SENTENCE_TYPE_NAME
     end
-    return luajava.newInstance("java.util.ArrayList", all)
+    return nil
+end
+
+-- The annotations of a class covered by an annotation, only of the given type name (nil: all), in CAS order
+function coveredOfType(class, cover, type_name)
+    local all = JCasUtil:selectCovered(class, cover)
+    local out = luajava.newInstance("java.util.ArrayList")
+    for i = 0, all:size() - 1 do
+        local annotation = all:get(i)
+        if type_name == nil or annotation:getType():getName() == type_name then
+            out:add(annotation)
+        end
+    end
+    return out
+end
+
+-- The tokens of a sentence: those of the token layer
+function sentenceTokens(sentence, token_layer)
+    return coveredOfType(Token, sentence, token_layer)
 end
 
 -- The word of a token: the form of a split contraction (UD: German "im" = "in" + "dem",
@@ -157,6 +194,8 @@ end
 -- "begin:end", in CAS order. A token takes the embedding that references it; otherwise
 -- the next unused one of its span, so that the two words of a split contraction (one span)
 -- get their own vectors when the producer writes one embedding per token, in token order.
+-- This is how StanzaTokens get their vectors: duui-spacy (token_type=StanzaToken) writes a
+-- SpacyToken and its WordEmbedding per StanzaToken, in the order of the StanzaTokens.
 function wordEmbeddings(inputCas, requested)
     if not word_embedding_ok then
         return nil
@@ -225,6 +264,8 @@ end
 
 function serialize(inputCas, outputStream, parameters)
     local embeddings = wordEmbeddings(inputCas, parameters["vectors"])
+    local token_layer = tokenLayer(inputCas)
+    local sentence_layer = sentenceLayer(inputCas)
     local paragraphs = {}
     local paragraphs_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Paragraph)):listIterator()
     while paragraphs_it:hasNext() do
@@ -235,7 +276,7 @@ function serialize(inputCas, outputStream, parameters)
             text = paragraph:getCoveredText(),
             sentences = {}
         }
-        local sentences_it = luajava.newInstance("java.util.ArrayList", JCasUtil:selectCovered(Sentence, paragraph)):listIterator()
+        local sentences_it = coveredOfType(Sentence, paragraph, sentence_layer):listIterator()
         while sentences_it:hasNext() do
             local sentence = sentences_it:next()
             local sentence_data = {
@@ -244,7 +285,7 @@ function serialize(inputCas, outputStream, parameters)
                 text = sentence:getCoveredText(),
                 tokens = {}
             }
-            local sentence_tokens = sentenceTokens(sentence)
+            local sentence_tokens = sentenceTokens(sentence, token_layer)
             local dependencies = luajava.newInstance("java.util.ArrayList", JCasUtil:selectCovered(Dependency, sentence))
 
             local tokens_it = sentence_tokens:listIterator()

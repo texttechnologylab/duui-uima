@@ -31,6 +31,10 @@ public class WtpsplitTest {
             + "Der zweite Absatz hat nur einen Satz.";
 
     private static void run(JCas cas, String splitOnInputNewlines) throws Exception {
+        run(cas, splitOnInputNewlines, null);
+    }
+
+    private static void run(JCas cas, String splitOnInputNewlines, String segment) throws Exception {
         DUUIComposer composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
@@ -38,6 +42,9 @@ public class WtpsplitTest {
         DUUIRemoteDriver.Component component = new DUUIRemoteDriver.Component(WTPSPLIT_URL);
         if (splitOnInputNewlines != null) {
             component.withParameter("split_on_input_newlines", splitOnInputNewlines);
+        }
+        if (segment != null) {
+            component.withParameter("segment", segment);
         }
         composer.add(component.build().withTimeout(600L));
         try {
@@ -128,5 +135,46 @@ public class WtpsplitTest {
     @Test
     public void invalidParameterFails() throws Exception {
         assertThrows(Exception.class, () -> run(casWithParagraphs(), "yes"));
+        assertThrows(Exception.class, () -> run(casWithParagraphs(), null, "words"));
+    }
+
+    private static List<Paragraph> paragraphs(String text) throws Exception {
+        JCas cas = JCasFactory.createJCas();
+        cas.setDocumentText(text);
+        cas.setDocumentLanguage("de");
+        run(cas, null, "paragraphs");
+        assertEquals(0, JCasUtil.select(cas, Sentence.class).size(), "no sentences in paragraph mode");
+        List<Paragraph> paragraphs = new ArrayList<>(JCasUtil.select(cas, Paragraph.class));
+        System.out.println(paragraphs.stream().map(Paragraph::getCoveredText).toList());
+        // trimmed, in order, covering all non-whitespace text
+        boolean[] covered = new boolean[text.length()];
+        int previousEnd = 0;
+        for (Paragraph paragraph : paragraphs) {
+            assertEquals(paragraph.getCoveredText().strip(), paragraph.getCoveredText());
+            assertTrue(paragraph.getBegin() >= previousEnd, "paragraphs overlap");
+            previousEnd = paragraph.getEnd();
+            for (int i = paragraph.getBegin(); i < paragraph.getEnd(); i++) {
+                covered[i] = true;
+            }
+        }
+        for (int i = 0; i < text.length(); i++) {
+            assertTrue(Character.isWhitespace(text.charAt(i)) || covered[i], "not in a paragraph: offset " + i);
+        }
+        // a line break between two paragraphs, or among the 5 characters before the second (Coh-Metrix reference preprocessing)
+        for (int i = 1; i < paragraphs.size(); i++) {
+            int begin = paragraphs.get(i).getBegin();
+            String between = text.substring(paragraphs.get(i - 1).getEnd(), begin);
+            String before = text.substring(Math.max(paragraphs.get(i - 1).getEnd(), begin - 5), begin);
+            assertTrue(between.contains("\n") || before.contains("\n"), paragraphs.get(i).getCoveredText());
+        }
+        return paragraphs;
+    }
+
+    @Test
+    public void paragraphsAtLineBreaks() throws Exception {
+        List<Paragraph> paragraphs = paragraphs(TEXT);
+        assertEquals("Der zweite Absatz hat nur einen Satz.", paragraphs.get(paragraphs.size() - 1).getCoveredText());
+        // without a line break there is no boundary to keep
+        assertEquals(1, paragraphs(TEXT.replace("\n", " ")).size());
     }
 }

@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+  <types>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.MorphologicalFeatures</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>gender</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>number</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>case</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>degree</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>verbForm</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>tense</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>mood</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>voice</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>definiteness</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>value</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>person</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>aspect</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>animacy</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>negative</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>numType</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>possessive</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>pronType</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>reflex</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>transitivity</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>PosValue</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>coarseValue</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>value</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>id</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Stem</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>value</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>parent</name>
+          <description />
+          <rangeTypeName>uima.tcas.Annotation</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>lemma</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Lemma</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>stem</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Stem</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>pos</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>morph</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.MorphologicalFeatures</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>id</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>form</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.TokenForm</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>syntacticFunction</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>order</name>
+          <description />
+          <rangeTypeName>uima.cas.Integer</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.TokenForm</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>value</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency</name>
+      <description />
+      <supertypeName>uima.tcas.Annotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>Governor</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>Dependent</name>
+          <description />
+          <rangeTypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>DependencyType</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>flavor</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT</name>
+      <description />
+      <supertypeName>de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency</supertypeName>
+    </typeDescription>
+    <typeDescription>
+      <name>org.texttechnologylab.annotation.AnnotatorMetaData</name>
+      <description />
+      <supertypeName>uima.cas.AnnotationBase</supertypeName>
+      <features>
+        <featureDescription>
+          <name>reference</name>
+          <description />
+          <rangeTypeName>uima.cas.TOP</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>name</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>version</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>modelName</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>modelVersion</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.texttechnologylab.annotation.DocumentModification</name>
+      <description />
+      <supertypeName>uima.cas.AnnotationBase</supertypeName>
+      <features>
+        <featureDescription>
+          <name>user</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>timestamp</name>
+          <description />
+          <rangeTypeName>uima.cas.Long</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>comment</name>
+          <description />
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.texttechnologylab.uima.type.stanza.StanzaToken</name>
+      <description>A word as annotated by Stanza (UD); the words of a split multi-word token share its span, the word is in Token.form.</description>
+      <supertypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token</supertypeName>
+    </typeDescription>
+    <typeDescription>
+      <name>org.texttechnologylab.uima.type.stanza.StanzaSentence</name>
+      <description>A sentence as parsed by Stanza; a complete sentence layer (pieces of a sentence too long for the parser are sentences of their own).</description>
+      <supertypeName>de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence</supertypeName>
+    </typeDescription>
+  </types>
+</typeSystemDescription>

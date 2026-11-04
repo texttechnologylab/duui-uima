@@ -21,8 +21,8 @@ COPY ./src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv ./
 COPY ./src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv ./src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv
 COPY ./src/main/resources/mrc_psycholinguistic_database_de.csv ./src/main/resources/mrc_psycholinguistic_database_de.csv
 COPY ./src/main/resources/gum_weights_en.csv ./src/main/resources/gum_weights_en.csv
-COPY ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr2.json ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr2.json
-COPY ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr2.json ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr2.json
+COPY ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr3.json ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr3.json
+COPY ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr3.json ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr3.json
 COPY ./src/main/resources/LICENSES.md ./src/main/resources/LICENSES.md
 
 ARG DUUI_COH_METRIX_LOG_LEVEL="DEBUG"
@@ -52,7 +52,9 @@ ENV DUUI_COH_METRIX_LSA_USE_TRUNCATED_SVD=false
 ENV DUUI_COH_METRIX_LSA_SVD_COMPONENTS=100
 
 COPY ./src/main/resources/TypeSystem.xml ./src/main/resources/TypeSystem.xml
+COPY ./src/main/resources/depedit ./src/main/resources/depedit
 COPY ./src/main/python/cohmetrix_core.py ./src/main/python/cohmetrix_core.py
+COPY ./src/main/python/ud_mapping.py ./src/main/python/ud_mapping.py
 COPY ./src/main/python/duui.py ./src/main/python/duui.py
 COPY ./src/main/lua/communication.lua ./src/main/lua/communication.lua
 

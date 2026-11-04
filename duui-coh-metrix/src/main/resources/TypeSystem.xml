@@ -747,10 +747,5 @@
             <description>Reports variant 4 of the Wiener Sachtextformel for the text.</description>
             <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
         </typeDescription>
-        <typeDescription>
-            <name>org.texttechnologylab.uima.type.cohmetrix.RDL2t_ext</name>
-            <description>Reports the Coh-Metrix second-language readability score with the syntactic similarity of all sentences (SYNSTRUTt) instead of adjacent sentences (SYNSTRUTa).</description>
-            <supertypeName>org.texttechnologylab.uima.type.cohmetrix.ReadabilityIndex</supertypeName>
-        </typeDescription>
     </types>
 </typeSystemDescription>

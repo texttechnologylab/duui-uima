@@ -34,6 +34,7 @@ composer.add(
 | Name | Description | Default |
 |---|---|---|
 | `split_on_input_newlines` | `true`: every line break also ends a sentence (SaT default); `false`: line breaks are read as spaces, sentences may contain line breaks | `true` |
+| `segment` | `sentences`: Sentence annotations within each Paragraph (the whole text without Paragraphs); `paragraphs`: Paragraph annotations from SaT's paragraph segmentation (`do_paragraph_segmentation`, default threshold) on the whole text with its line breaks as spaces, a boundary kept only at a line break of the text (the next paragraph starts a line, or a line break is among the 5 characters before it), as the English default of the reference preprocessing of Coh-Metrix 0.4.0-py (`SaTParagraphs`; see duui-coh-metrix, "Prerequisites and preprocessing"); `split_on_input_newlines` does not apply | `sentences` |
 
 ### Input / output types
 
@@ -44,7 +45,7 @@ composer.add(
 
 ## Tests
 
-Start the service (e.g. `docker run --rm -p 9804:9714 docker.texttechnologylab.org/duui-wtpsplit:1.0.0`), then
+Start the service (e.g. `docker run --rm -p 9804:9714 docker.texttechnologylab.org/duui-wtpsplit:1.1.0`), then
 `mvn test -Dwtpsplit.url=http://localhost:9804`.
 
 # Cite

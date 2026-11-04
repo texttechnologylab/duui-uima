@@ -31,6 +31,8 @@ composer.add(
 | Name | Description | Default |
 |---|---|---|
 | `use_existing_tokens` | If `"true"`, read existing `Token` annotations (exactly this type, not its subtypes such as `SpacyToken`) as input instead of raw text | `false` |
+| `token_type` | With `use_existing_tokens`: the token type to read, exactly this type, e.g. `org.texttechnologylab.uima.type.stanza.StanzaToken` (duui-stanza). A token's `TokenForm` is its word, so the two words of a split contraction ("zu", "dem" over the span of "zum") are separate spaCy words with their own vectors | `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token` |
+| `write_types` | Comma-separated full type names to write (e.g. `de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token`); all if empty. Before 0.9.0 a string value wrote nothing | all |
 | `use_existing_sentences` | If `"true"` (requires `use_existing_tokens`), also read existing `Sentence` annotations to set sentence boundaries; spaCy then writes no sentences | `false` |
 | `use_benepar` | If `"true"`, add the Berkeley Neural Parser (benepar) to the spaCy pipeline (languages `de`, `en`), see below | `false` |
 | `write_vectors` | If `"false"`, write no token vectors (they are large: e.g. 300 floats per token with the `lg` models) | `true` |
@@ -83,6 +85,10 @@ pretokenization. All other annotations (dependencies, named entities, noun chunk
 boundaries of the given tokens. The given `Token`s are not changed: annotations that existed before are not merged back
 from a DUUI segment, so changes to them would be lost with a segmentation strategy. Afterwards the CAS contains both the
 `Token` and the `SpacyToken` for every token; remove the plain tokens if needed (e.g. with `duui-remove-annotations`).
+
+With `token_type`, another token layer is the input, e.g. the `StanzaToken`s of duui-stanza: spaCy then writes a
+`SpacyToken` (and `WordEmbedding`) for every Stanza word. The words of a split contraction share the span of their token, so
+there are several `SpacyToken`s over that span, in the order of the words; a `WordEmbedding` references its `SpacyToken`.
 
 With `use_existing_sentences`, the parser keeps the given sentence boundaries (checked with spaCy 3.8.18,
 `de_core_news_lg` and `en_core_web_lg` 3.8.0).

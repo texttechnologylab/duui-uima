@@ -44,6 +44,11 @@ public class DUUIClearCorpusReader implements DUUICollectionReader {
     private final AtomicInteger next = new AtomicInteger(0);
 
     public DUUIClearCorpusReader(Path csvFile, String language) throws IOException {
+        this(csvFile, language, 0);
+    }
+
+    /** @param limit read only the first {@code limit} excerpts (test runs), 0 for all */
+    public DUUIClearCorpusReader(Path csvFile, String language, int limit) throws IOException {
         CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setDelimiter('\t')
                 .setHeader()
@@ -52,7 +57,8 @@ public class DUUIClearCorpusReader implements DUUICollectionReader {
         try (Reader in = Files.newBufferedReader(csvFile, StandardCharsets.UTF_8);
              CSVParser parser = format.parse(in)) {
             header = parser.getHeaderNames();
-            records = parser.getRecords();
+            List<CSVRecord> all = parser.getRecords();
+            records = limit > 0 && limit < all.size() ? all.subList(0, limit) : all;
         }
         this.language = language;
         progress = new AdvancedProgressMeter(records.size());

@@ -100,6 +100,27 @@ public class ChonkyTest {
         }
     }
 
+    /** Between two paragraphs there is a line break: in the whitespace between them, or among the 5 characters before the
+     * second one (the rule of the Coh-Metrix 0.4.0-py reference preprocessing). */
+    static void assertBoundariesAtLineBreaks(String text, List<Paragraph> paragraphs) {
+        for (int i = 1; i < paragraphs.size(); i++) {
+            int begin = paragraphs.get(i).getBegin();
+            String before = text.substring(Math.max(paragraphs.get(i - 1).getEnd(), begin - 5), begin);
+            assertTrue(text.substring(paragraphs.get(i - 1).getEnd(), begin).contains("\n") || before.contains("\n"),
+                    "boundary without a line break before: " + paragraphs.get(i).getCoveredText());
+        }
+    }
+
+    @Test
+    public void filterAtLineBreaks() throws Exception {
+        List<Paragraph> paragraphs = run(TEXT, "filter");
+        assertBoundariesAtLineBreaks(TEXT, paragraphs);
+        assertTrue(paragraphs.size() >= 2, "paragraphs: " + paragraphs.size());
+        // without a line break there is no boundary to keep
+        String oneLine = TEXT.replace("\n", " ");
+        assertEquals(1, run(oneLine, "filter").size());
+    }
+
     @Test
     public void longTextOverTheModelWindow() throws Exception {
         // more than the 1024 tokens of the model window (chonky's pipeline uses a stride)
