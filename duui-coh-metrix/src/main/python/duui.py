@@ -442,7 +442,8 @@ CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR fo
 # 2026-11-04): SYNNP (the words on the head of the noun phrase, not every word but the head), LSAGN (the first sentence counts
 # 0), German SMTEMP ("würde" + infinitive future, Konjunktiv II the tense of its form). The models are not used while an input
 # is listed here: empty the list of a language once its model is refitted on this component's values.
-MODEL_INPUTS_CHANGED = {"de": ("LSAGN", "SMTEMP", "SYNNP"), "en": ("LSAGN", "SYNNP")}
+# 2026-11-04: both refitted on this component's values (refv1-ud-rr-cr4, refa-en-rr-gn-cr4), so both lists are empty.
+MODEL_INPUTS_CHANGED = {"de": (), "en": ()}
 REFIT_PENDING = ("not computed: the Text Easability model {model} was fitted on inputs computed differently ({inputs}); it is not "
                  "used until it is refitted on this component's values")
 

@@ -21,8 +21,8 @@ COPY ./src/main/resources/word_frequencies_de_dewiki-20220301-sample10000.csv ./
 COPY ./src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv ./src/main/resources/word_frequencies_en_enwiki-20220301-sample10000.csv
 COPY ./src/main/resources/mrc_psycholinguistic_database_de.csv ./src/main/resources/mrc_psycholinguistic_database_de.csv
 COPY ./src/main/resources/gum_weights_en.csv ./src/main/resources/gum_weights_en.csv
-COPY ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr3.json ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr3.json
-COPY ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr3.json ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr3.json
+COPY ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr4.json ./src/main/resources/easability/text_easability_de_refv1-ud-rr-cr4.json
+COPY ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr4.json ./src/main/resources/easability/text_easability_en_refa-en-rr-gn-cr4.json
 COPY ./src/main/resources/LICENSES.md ./src/main/resources/LICENSES.md
 
 ARG DUUI_COH_METRIX_LOG_LEVEL="DEBUG"
