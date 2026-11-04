@@ -94,20 +94,18 @@ public class CohMetrixUdPipelineTest {
         }
     }
 
-    /** The CAS after the default pipeline for {@code language} (de or en). */
-    static JCas run(String language, String text, String includeIndices) throws Exception {
-        JCas cas = JCasFactory.createJCas(typeSystem);
-        cas.setDocumentText(text);
-        cas.setDocumentLanguage(language);
-        DocumentMetaData meta = DocumentMetaData.create(cas);
-        meta.setDocumentId("pipeline-" + language);
+    /** The Coh-Metrix service of the default pipeline ({@code cohmetrix.url}). */
+    public static DUUIRemoteDriver.Component cohMetrix() throws Exception {
+        return remote(COH_METRIX_URL);
+    }
 
-        DUUIComposer composer = composer();
-        if (language.equals("de")) {
-            composer.add(remote(CHONKY_URL).withParameter("keep_line_breaks", "filter").build().withTimeout(TIMEOUT));
-        } else {
-            composer.add(remote(WTPSPLIT_URL).withParameter("segment", "paragraphs").build().withTimeout(TIMEOUT));
-        }
+    /**
+     * The default pipeline after the paragraphs (steps 2 to 7 of the class comment, the services of the system
+     * properties): sentences, tokens, Stanza, spaCy vectors, removal of the plain layers, then {@code cohMetrix}. Also
+     * used for corpora with their own paragraphs (CLEAR, {@code ClearCorpusCohMetrixTest}).
+     */
+    public static void addAfterParagraphs(DUUIComposer composer, DUUIRemoteDriver.Component cohMetrix)
+            throws Exception {
         composer.add(remote(WTPSPLIT_URL).withParameter("split_on_input_newlines", "true").build()
                 .withTimeout(TIMEOUT));
         composer.add(remote(SOMAJO_URL).build().withTimeout(TIMEOUT));
@@ -125,11 +123,28 @@ public class CohMetrixUdPipelineTest {
                 .withParameter("types", Sentence.class.getName() + "," + Token.class.getName())
                 .withParameter("exact", "true")
                 .build().withTimeout(TIMEOUT));
+        composer.add(cohMetrix.build().withTimeout(TIMEOUT));
+    }
+
+    /** The CAS after the default pipeline for {@code language} (de or en). */
+    static JCas run(String language, String text, String includeIndices) throws Exception {
+        JCas cas = JCasFactory.createJCas(typeSystem);
+        cas.setDocumentText(text);
+        cas.setDocumentLanguage(language);
+        DocumentMetaData meta = DocumentMetaData.create(cas);
+        meta.setDocumentId("pipeline-" + language);
+
+        DUUIComposer composer = composer();
+        if (language.equals("de")) {
+            composer.add(remote(CHONKY_URL).withParameter("keep_line_breaks", "filter").build().withTimeout(TIMEOUT));
+        } else {
+            composer.add(remote(WTPSPLIT_URL).withParameter("segment", "paragraphs").build().withTimeout(TIMEOUT));
+        }
         DUUIRemoteDriver.Component cohMetrix = remote(COH_METRIX_URL);
         if (includeIndices != null) {
             cohMetrix.withParameter("include_indices", includeIndices);
         }
-        composer.add(cohMetrix.build().withTimeout(TIMEOUT));
+        addAfterParagraphs(composer, cohMetrix);
         try {
             composer.run(cas);
         } finally {
