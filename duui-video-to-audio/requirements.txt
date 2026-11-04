@@ -1,0 +1,9 @@
+scipy==1.13.1
+protobuf==4.25.3
+fastapi==0.110.0
+dkpro-cassis==0.9.1
+uvicorn[standard]==0.27.1
+pydantic-settings==2.0.2
+six==1.16.0
+peft==0.10.0
+ffmpeg-python
