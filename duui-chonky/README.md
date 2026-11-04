@@ -34,7 +34,7 @@ composer.add(
 
 | Name | Description | Default |
 |---|---|---|
-| `keep_line_breaks` | Existing line breaks added as boundaries to those of chonky: `none` (chonky only), `line` (every line break), `blank_line` (two line breaks with only other whitespace between them); or `filter`: chonky reads the text with its line breaks as spaces, and only its boundaries at a line break are kept (the next paragraph starts a line, or a line break is among the 5 characters before it), as the Coh-Metrix preprocessing does (`duui-coh-metrix/docs/preprocess.py`, `ChonkyParagraphs`) | `none` |
+| `keep_line_breaks` | Existing line breaks added as boundaries to those of chonky: `none` (chonky only), `line` (every line break), `blank_line` (two line breaks with only other whitespace between them); or `filter`: chonky reads the text with its line breaks as spaces, and only its boundaries at a line break are kept (the next paragraph starts a line, or a line break is among the 5 characters before it), as the reference preprocessing of Coh-Metrix 0.4.0-py does (`ChonkyParagraphs`; see duui-coh-metrix, "Prerequisites and preprocessing") | `none` |
 
 ### Input / output types
 

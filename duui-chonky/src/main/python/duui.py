@@ -57,8 +57,8 @@ KEEP_LINE_BREAKS = {
 
 
 def filter_at_line_breaks(text: str, boundaries) -> set:
-    """the boundaries at a line break of the text, as the Coh-Metrix preprocessing keeps them (duui-coh-metrix
-    docs/preprocess.py, ChonkyParagraphs and SaTParagraphs, 2026-11-02): the next paragraph's first non-whitespace character
+    """the boundaries at a line break of the text, as the reference preprocessing of Coh-Metrix 0.4.0-py keeps
+    them (ChonkyParagraphs and SaTParagraphs): the next paragraph's first non-whitespace character
     starts a line (follows a line break and only whitespace), or a line break is among the 5 characters before it"""
     line_starts = {m.end() for m in re.finditer(r"\n\s*", text)}
     kept = set()

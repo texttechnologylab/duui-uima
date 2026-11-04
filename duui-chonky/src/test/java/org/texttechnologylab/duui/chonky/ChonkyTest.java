@@ -101,7 +101,7 @@ public class ChonkyTest {
     }
 
     /** Between two paragraphs there is a line break: in the whitespace between them, or among the 5 characters before the
-     * second one (the rule of the Coh-Metrix preprocessing, docs/preprocess.py). */
+     * second one (the rule of the Coh-Metrix 0.4.0-py reference preprocessing). */
     static void assertBoundariesAtLineBreaks(String text, List<Paragraph> paragraphs) {
         for (int i = 1; i < paragraphs.size(); i++) {
             int begin = paragraphs.get(i).getBegin();
