@@ -11,7 +11,8 @@ import numpy as np
 import pytorch_lightning as pl
 from torchmetrics import F1Score
 from torchmetrics.functional import accuracy, auroc
-from transformers import AutoTokenizer, DebertaV2Model, AdamW, get_linear_schedule_with_warmup
+from transformers import AutoTokenizer, DebertaV2Model, get_linear_schedule_with_warmup
+from torch.optim import AdamW
 from typing import List
 
 import tqdm

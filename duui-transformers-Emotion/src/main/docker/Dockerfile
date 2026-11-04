@@ -4,6 +4,9 @@ WORKDIR /usr/src/app
 
 EXPOSE 9714
 
+# git is needed to install duui-logging from GitHub
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 # dependencies
 RUN pip install setuptools wheel
 COPY ./requirements.txt ./requirements.txt
