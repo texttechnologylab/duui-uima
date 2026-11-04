@@ -3,9 +3,11 @@ package org.hucompute.textimager.uima.cohmetrix;
 import de.tudarmstadt.ukp.dkpro.core.api.metadata.type.DocumentMetaData;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
+import de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.FeatureStructure;
 import org.apache.uima.fit.factory.JCasFactory;
+import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.tcas.Annotation;
 import org.apache.uima.resource.metadata.TypeSystemDescription;
@@ -34,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *     <li>sentences: duui-wtpsplit within each paragraph, {@code split_on_input_newlines=true};</li>
  *     <li>tokens: duui-somajo within each sentence;</li>
  *     <li>duui-stanza: StanzaToken, StanzaSentence, POS, lemma, morphology, UD dependencies;</li>
- *     <li>duui-spacy {@code token_type=StanzaToken}: a SpacyToken and a WordEmbedding per Stanza word;</li>
+ *     <li>duui-spacy {@code token_type=StanzaToken}, {@code write_types=Token}: only a SpacyToken and a WordEmbedding per
+ *     Stanza word;</li>
  *     <li>duui-remove-annotations: the plain Sentence and Token (exact type);</li>
  *     <li>Coh-Metrix.</li>
  * </ol>
@@ -114,6 +117,9 @@ public class CohMetrixUdPipelineTest {
                 .withParameter("use_existing_tokens", "true")
                 .withParameter("use_existing_sentences", "true")
                 .withParameter("token_type", STANZA_TOKEN)
+                // only the SpacyTokens (with their WordEmbeddings): the Stanza layer has POS, lemmas, morphology and
+                // dependencies already, Coh-Metrix reads only the vectors from spaCy
+                .withParameter("write_types", Token.class.getName())
                 .build().withTimeout(TIMEOUT));
         composer.add(remote(REMOVE_URL)
                 .withParameter("types", Sentence.class.getName() + "," + Token.class.getName())
@@ -162,6 +168,8 @@ public class CohMetrixUdPipelineTest {
         List<Annotation> words = exactly(cas, STANZA_TOKEN);
         assertEquals(words.size(), exactly(cas, SPACY_TOKEN).size(), "a SpacyToken per Stanza word");
         assertEquals(words.size(), exactly(cas, WORD_EMBEDDING).size(), "a WordEmbedding per Stanza word");
+        // spaCy writes no parse of its own (write_types): one dependency (incl. ROOT) per word, the Stanza ones
+        assertEquals(words.size(), JCasUtil.select(cas, Dependency.class).size(), "dependencies");
         // split contractions: several words over the span of one token
         for (Map.Entry<String, Integer> e : wordsOverToken.entrySet()) {
             int begin = text.indexOf(e.getKey());

@@ -43,8 +43,11 @@ Coh-Metrix 0.4.0-py (its defaults per language):
    words ("zum" → "zu" + "dem");
 5. `duui-spacy` 0.9.0 with `model_variant=large`, `use_existing_tokens=true`,
    `use_existing_sentences=true`,
-   `token_type=org.texttechnologylab.uima.type.stanza.StanzaToken`: a
-   `SpacyToken` and a `WordEmbedding` (`SPACYlg`) per Stanza word;
+   `token_type=org.texttechnologylab.uima.type.stanza.StanzaToken`,
+   `write_types=de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token`: a
+   `SpacyToken` and a `WordEmbedding` (`SPACYlg`) per Stanza word, and nothing
+   else of spaCy's (no second POS, lemma, morphology, parse or entities; about a
+   third fewer annotations; its noun chunks are written anyway and not read);
 6. `duui-remove-annotations` 1.0.0 with
    `types=de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence,de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token`,
    `exact=true` (the plain layers of steps 2 and 3);
