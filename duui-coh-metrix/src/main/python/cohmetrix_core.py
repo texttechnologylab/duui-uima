@@ -3526,8 +3526,7 @@ def _dimlex_sentence_connectives(sentence: Sentence) -> List[Tuple[float, dict, 
 # Weights (option B): German DiMLex has the share of connective readings of its ambiguous entries; DiMLex-Eng has none. They are
 # estimated on GUM's discourse annotation (the GUM Discourse Treebank, PDTB-style, in the MISC column of UD English GUM): among
 # the occurrences of a word in that reading that pass the rules above, the share GUM marks as an explicit connective (train and
-# dev parts; the test part is kept for the evaluation). Built by into
-# settings.dimlex_en_weights_path; used where GUM has at least _EN_WEIGHT_MIN_N occurrences, else 1 (as German entries without
+# dev parts; the test part is kept for the evaluation). The table is settings.dimlex_en_weights_path (gum_weights_en.csv); used where GUM has at least _EN_WEIGHT_MIN_N occurrences, else 1 (as German entries without
 # a share). The table derives from the GUM annotations (CC BY 4.0, Zeldes 2017; only the texts of GUM have their own licences,
 # some non-commercial, and the table contains no text).
 # ============================================================================

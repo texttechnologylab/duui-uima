@@ -1,7 +1,10 @@
 # Coh-Metrix Text Cohesion Analysis [WIP]
 
 DUUI implementation of Coh-Metrix 3.0 for English and German. The component
-computes up to 118 index records over pre-annotated UIMA documents, including
+computes 117 indices (the 106 of Coh-Metrix 3.0 and 11 project-only readability
+formulas) over pre-annotated UIMA documents; with the variants computed from
+other resources, a German document gets up to 163 records, an English one up to
+155. The indices include
 descriptive, referential-cohesion, LSA, lexical-diversity, connective,
 situation-model, syntactic-complexity, word-information, and readability
 measures. Every index carries its Coh-Metrix 3.0 label and an internal label
@@ -77,7 +80,73 @@ connectives (`CNC*` with DiMLex), `DRAP`, `DRGERUND`, `DRINF`, `DRNEG`, `DRNP`,
 (`DEPENDENCY_KEYS` in `duui.py`). The Text Easability components (`PC*`) are
 `None` with an error: their models are fitted on UD input.
 
-## Bundled and optional resources
+**Known limits.** English (restructured) comes close to UD input; e.g. SYNNP
+0.61/0.94/0.72 on three short test texts with spaCy against 0.62/0.86/0.62
+with Stanza. German keeps the TIGER tree, so the indices that need UD structure
+are clearly off: SYNNP 0.39/0.75/0.56 against 0.90/1.00/0.67 with Stanza (the
+preposition stays the head of its noun), DRPVAL is always 0 (the auxiliary
+stays the head, so there is no `aux:pass`), RDL2 differs too. The segmentation
+also differed in these comparisons (spaCy's own sentences against regular
+expressions for Stanza), so the numbers are no clean measurement of the mapping
+alone. Use the default pipeline (Stanza) for German.
+
+## Resources
+
+### In the image
+
+| Resource | Used for | Source and licence (`src/main/resources/LICENSES.md`) |
+|---|---|---|
+| MRC Psycholinguistic Database (`mrc_psycholinguistic_database.csv`, downloaded at build time) | English WRDFAMc, WRDIMGc, WRDMEAc; variants `_MRC` of WRDAOAc, WRDCNCc | see below |
+| MRC translated into German (`mrc_psycholinguistic_database_de.csv`) | German WRDFAMc, WRDMEAc; variants `_MRCtr` | see below |
+| Wikipedia frequency samples (`word_frequencies_{de,en}_*wiki-20220301-sample10000.csv`) | variants `_WIKI` of WRDFRQ*, RDL2 | see "Word frequencies" |
+| GUM weights (`gum_weights_en.csv`) | English connectives (`DIMLEXeng_GUM`) | counted on the GUM annotations: Amir Zeldes, ["The GUM corpus: creating multilayer resources in the classroom"](https://doi.org/10.1007/s10579-016-9343-x), Language Resources and Evaluation 51(3), 581–612, 2017; annotations CC BY 4.0 (GUM's `LICENSE.md`); the table holds counts, no text |
+| Text Easability models (`easability/*.json`) | PC* | see "Text Easability models" |
+| Princeton WordNet 3.0, Open Multilingual Wordnet 1.4, CMU Pronouncing Dictionary (NLTK data, downloaded at build time) | English WRDPOLc, WRDHYP*, SMCAUSv, SMINTEp, SMCAUSwn, SMCAUSvp, SMCAUSr; English syllables | NLTK data |
+| DepEdit rules (`depedit/`) | best effort, English | see "Best effort without UD" |
+
+### Resources supplied by the user
+
+These files are not in the image (non-commercial licences, or no licence for
+redistribution found). Mount a directory with them at
+`/usr/src/app/src/main/resources/external`; each file has its own environment
+variable (Dockerfile) if another name or place is needed. Without a file its
+records are `None` with the error `resource not available: ...`, and so are the
+Text Easability components that need it as input.
+
+| File (environment variable `DUUI_COH_METRIX_..._PATH`) | Resource | Used for |
+|---|---|---|
+| `SUBTLEXde_SUBTLWF.csv` (`SUBTLEX_DE`) | SUBTLEX-DE word frequencies per million; tab-separated, word and frequency per line, no header. Marc Brysbaert, Matthias Buchmeier, Markus Conrad, Arthur M. Jacobs, Jens Bölte and Andrea Böhl, ["The Word Frequency Effect: A Review of Recent Developments and Implications for the Choice of Frequency Estimates in German"](https://doi.org/10.1027/1618-3169/a000123), Experimental Psychology 58(5), 412–424, 2011 ("free for educational purposes"; the original download page is offline, 2026-11-04) | German WRDFRQc, WRDFRQa, WRDFRQmc, RDL2 |
+| `SUBTLEXus74286wordstextversion.txt` (`SUBTLEX_US`) | SUBTLEX-US, column `SUBTLWF` of the text version. Marc Brysbaert and Boris New, ["Moving beyond Kučera and Francis: A critical evaluation of current word frequency norms and the introduction of a new and improved word frequency measure for American English"](https://doi.org/10.3758/BRM.41.4.977), Behavior Research Methods 41(4), 977–990, 2009; [download](https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/overview.htm) ("Zipped Text version with all 74,286 words"; no licence stated) | English WRDFRQc, WRDFRQa, WRDFRQmc, RDL2 |
+| `DimLex.xml` (`DIMLEX`) | DiMLex, lexicon of German discourse connectives. Manfred Stede and Carla Umbach, ["DiMLex: A Lexicon of Discourse Markers for Text Generation and Understanding"](https://aclanthology.org/P98-2202/), COLING-ACL 1998; Tatjana Scheffler and Manfred Stede, ["Adding Semantic Relations to a Large-Coverage Connective Lexicon of German"](https://aclanthology.org/L16-1160/), LREC 2016; [github.com/discourse-lab/dimlex](https://github.com/discourse-lab/dimlex), CC BY-NC-SA 4.0 | German CNC*, SMCAUSvp, SMCAUSr |
+| `en_dimlex.xml` (`DIMLEX_EN`) | DiMLex-Eng. Debopam Das, Tatjana Scheffler, Peter Bourgonje and Manfred Stede, ["Constructing a Lexicon of English Discourse Connectives"](https://aclanthology.org/W18-5042/), SIGDIAL 2018; [github.com/discourse-lab/en_dimlex](https://github.com/discourse-lab/en_dimlex), CC BY-NC-SA 4.0 (README) | English CNC*, SMCAUSvp, SMCAUSr |
+| `kuperman_aoa.csv` (`KUPERMAN`) | Age-of-acquisition ratings, columns `Word`, `Rating.Mean` (years). Victor Kuperman, Hans Stadthagen-Gonzalez and Marc Brysbaert, ["Age-of-acquisition ratings for 30,000 English words"](https://doi.org/10.3758/s13428-012-0210-4), Behavior Research Methods 44(4), 978–990, 2012 (download page and licence not verified, 2026-11-04) | English WRDAOAc |
+| `brysbaert_concreteness.csv` (`BRYSBAERT`) | Concreteness ratings, columns `Word`, `Conc.M` (1–5; rows with `Bigram` other than 0 are skipped). Marc Brysbaert, Amy Beth Warriner and Victor Kuperman, ["Concreteness ratings for 40 thousand generally known English word lemmas"](https://doi.org/10.3758/s13428-013-0403-5), Behavior Research Methods 46(3), 904–911, 2014; the article's supplementary file 1 (Excel, saved as CSV); licence not verified | English WRDCNCc |
+| `13428_2016_718_MOESM1_ESM.csv` (`BIRCHENOUGH`) | Rated age-of-acquisition norms, columns `Word`, `AoAestimate` (years; Latin-1). Julia M. H. Birchenough, Robert Davies and Vincent Connelly, ["Rated age-of-acquisition norms for over 3,200 German words"](https://doi.org/10.3758/s13428-016-0718-0), Behavior Research Methods 49(2), 484–501, 2017; the article's supplementary file 1; licence not verified | German WRDAOAc |
+| `affective_norms.txt.gz` (`KOEPER`) | Automatically extended norms, columns abstractness/concreteness and imageability (0–10). Maximilian Köper and Sabine Schulte im Walde, ["Automatically Generated Affective Norms of Abstractness, Arousal, Imageability and Valence for 350 000 German Lemmas"](https://aclanthology.org/L16-1413/), LREC 2016; [download](https://www.ims.uni-stuttgart.de/en/research/resources/experiment-data/affective-norms/), CC BY-NC-SA 4.0 | German WRDCNCc, WRDIMGc |
+
+### GermaNet
+
+German lexical-semantic indices use GermaNet through `germanetpy==0.2.5`.
+GermaNet is not distributed with the image because it is a separately licensed
+resource. It must be mounted into the container and configured through
+`DUUI_COH_METRIX_GERMANET_PATH`.
+
+Without GermaNet:
+
+- German causal and intentional verbs come from hand-written seed lists (11
+  causal, 12 intentional verbs), named in the label: `SMCAUSv_SEEDlist`
+  instead of `SMCAUSv_GN`.
+- GermaNet-dependent polysemy, hypernymy, and semantic verb-overlap results are
+  `None`.
+- German `SMTEMP` is computed from the UD annotations (tense and mood features,
+  auxiliaries and participles). GermaNet is only needed for `am`/`beim` progressive constructions whose noun
+  is not tagged as a verb, to decide whether the noun is a nominalized verb.
+  Without GermaNet, the sentence pairs that contain such a sentence are
+  excluded, the label drops `GN` (`SMTEMP_LLMlist`), and the index is `None`
+  only if no valid pair remains.
+
+English lexical-semantic indices use WordNet instead and do not require the
+GermaNet mount.
 
 ### MRC psycholinguistic ratings
 
@@ -89,7 +158,8 @@ The implementation reads the ratings for age of acquisition, familiarity,
 concreteness, imageability, and Colorado meaningfulness. The public source
 contains approximately 150,000 lexical records; 9,335 entries have at least
 one available target rating and therefore provide usable coverage for these
-indices.
+indices. Where the source has several records of a word, the first
+non-missing rating is used.
 
 `mrc_psycholinguistic_database_de.csv` is a project-specific German derivative.
 The English headwords were translated with DeepL, normalized to German lemmas,
@@ -99,106 +169,113 @@ The current resource contains
 not an independent German norming study. In both MRC files, a rating of `0` is
 treated as the database's missing-value marker and is not included in averages.
 
+Since 0.6.0 the norms are looked up by lemma (exact case first, then lower
+case; German also with old spellings and "ss" for "ß"). Age of acquisition and
+concreteness (both languages) and German imageability come from the native
+norms above; MRC stays as the `_MRC` / `_MRCtr` variant. The norms are on
+different scales (MRC 100–700, Kuperman and Birchenough years, Brysbaert 1–5,
+Köper 0–10), so values of different resources are not comparable.
+
 ### Word frequencies
 
-The files
+WRDFRQc, WRDFRQa and WRDFRQmc are the mean (WRDFRQmc: the mean per sentence of
+the minimum) of the **base-10 logarithm** of the frequency per million. Main
+record: SUBTLEX (SUBTLEX-US, SUBTLEX-DE, see above). Words not in the list are
+left out rather than counted with frequency 0.
+
+The variant `_WIKI` uses the files
 `word_frequencies_en_enwiki-20220301-sample10000.csv` and
-`word_frequencies_de_dewiki-20220301-sample10000.csv` are project resources
+`word_frequencies_de_dewiki-20220301-sample10000.csv`: project resources
 derived from 10,000-article samples of the English and German Wikipedia dumps
-dated 2022-03-01. Counts are normalized to frequencies per million before the
-indices are calculated. Words not covered by the resource are excluded rather
-than assigned an artificial frequency of zero.
+dated 2022-03-01, normalized to frequencies per million, with the same
+logarithm.
 
-These resources replace the non-public CELEX data used by the original
-Coh-Metrix implementation. Consequently, the corresponding indices carry the
-`WIKI` group in their internal label (`WRDFRQc_WIKI`, see
-[Index labels](#index-labels)) and their absolute values are not directly
-comparable with CELEX-based Coh-Metrix output.
-
-### WordNet and NLTK
-
-English lexical-semantic indices use Princeton WordNet through `nltk==3.10.0`.
-
-### GermaNet
-
-German lexical-semantic indices use GermaNet through `germanetpy==0.2.5`.
-GermaNet is not distributed with the image because it is a separately licensed
-resource. It must be mounted into the container and configured through
-`DUUI_COH_METRIX_GERMANET_PATH`.
-
-Without GermaNet:
-
-- German causal and intentional verb inventories use their documented seed
-  lists where this fallback is supported.
-- GermaNet-dependent polysemy, hypernymy, and semantic verb-overlap results are
-  `None`.
-- German `SMTEMP` is computed from spaCy tense/aspect annotations. GermaNet is
-  only needed for `am`/`beim` progressive constructions whose noun spaCy does
-  not tag as a verb, to decide whether the noun is a nominalized verb. Without
-  GermaNet, the sentence pairs that contain such a sentence are excluded; the
-  index is `None` only if no valid pair remains.
-
-English lexical-semantic indices use WordNet instead and do not require the
-GermaNet mount.
+Both replace the non-public CELEX data of the original Coh-Metrix, so the
+absolute values are not comparable with CELEX-based Coh-Metrix output. The
+logarithm deviates from the book, which describes WRDFRQc as the raw mean (see
+[Index definitions and deviations](#index-definitions-and-deviations)).
 
 ### Syllable counts
 
-Syllable-based descriptive and readability indices use the language-specific
-dictionaries bundled with `pyphen==0.17.2`. Differences between Pyphen
-hyphenation and human syllabification are treated as a known external-resource
-limitation.
+- German: the vowel nuclei of the spelling, with ä, ö, ü and y as vowels,
+  diphthongs and double vowels as one nucleus, hyphenated words counted by
+  their parts, and short words with several capitals read letter by letter
+  ("USA" 3, "AfD" 3). This rule comes from Coh-Metrix 0.4.0-py (Maxim Konca)
+  and replaced Pyphen, which never splits off a single vowel ("Abend" 1).
+  Against syllable nuclei counted from the German Wiktionary's IPA it is exact
+  for 98.1 % of the tokens of his reference texts (Pyphen 93.6 %); this is his
+  measurement, not verified by us.
+- English: the CMU Pronouncing Dictionary, else a spelling rule; a clitic
+  ("n't", "'s") counts what it adds to its host.
+- The second word of a split German contraction counts 0 syllables and 0
+  letters ("im" = "in" + "dem" counts as "im").
 
-### textstat
+### Readability formulas and textstat
 
-The readability formulas (`RDFRE`, `RDFKGL` and the project-only `RD*_ext`
-indices) use the textstat fork
+The main records of the readability formulas (`RDFRE`, `RDFKGL` and the
+project-only `RD*_ext`) are computed by this component from its own units: the
+sentences of DESSC, the words of DESWC, the syllables of DESWLsy, the letters of
+DESWLlt. So RDFRE and RDFKGL follow from DESSL and DESWLsy as Coh-Metrix 3.0
+defines them. Constants, thresholds and easy-word lists are those of textstat
+0.7.12; German RDFRE uses Amstad's constants (180, 1, 58.5). Fog, Dale-Chall and
+Spache count "difficult words" with textstat's per-language easy-word list, so
+their labels carry `TEXTSTATlist` (`RDFOG_ext_TEXTSTATlist`).
+
+The variant `_TEXTSTAT` (e.g. `RDFRE_TEXTSTAT`) is computed by the textstat
+library itself, the fork
 [felixvoll/textstat](https://github.com/felixvoll/textstat/tree/cohmetrix-de),
-tag `v0.7.12-post2`. Apart from a German easy-word list and a UTF-8 fix for
-loading it, it is identical to textstat 0.7.12. textstat gets the raw text and
-does its own sentence and word splitting, so its counts can differ from the
-other indices. Its language-specific behaviour belongs to the library and is
-not part of the labels (`TEXTSTAT` in every language):
+tag `v0.7.12-post2` (apart from a German easy-word list and a UTF-8 fix for
+loading it, identical to textstat 0.7.12). textstat gets the raw text and does
+its own sentence and word splitting, so its counts can differ from the main
+records:
 
-| Index                           | Language-specific part                                                                                      |
+| Index                           | Language-specific part in textstat                                                                          |
 |---------------------------------|-------------------------------------------------------------------------------------------------------------|
 | RDFRE                           | German uses Amstad's constants (180, 1, 58.5) instead of Flesch's                                           |
 | RDFOG_ext, RDDCRS_ext, RDSPACHE_ext | "Difficult words" from a per-language easy-word list; the German list (2,579 words, the fork's addition) is a translation and manual adaptation of the English Dale-Chall/Spache list |
 | RDFKGL, RDSMOG_ext, RDLW_ext, RDWSTF1–4_ext | Only syllable counting: Pyphen for German, the CMU Pronouncing Dictionary with Pyphen as fallback for English |
 | RDARI_ext, RDCLI_ext            | None (characters, words, sentences)                                                                         |
 
-### Text Easability reference corpus
+### Text Easability models
 
-The Text Easability components (`PC*`, indices 12-27) are a first test. The
-original components (Graesser, McNamara & Kulikowich, 2011) come from a PCA
-on the non-public TASA corpus. Here the English reference corpus is the
-[CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus)
-(Crossley et al., 2022): 4,724 excerpts, PCA with Varimax rotation on the
-available published input measures (`easability/pca_input_measures.csv`),
-components named and oriented (higher = easier) by marker measures
-(`easability/components.csv`). The z score is relative to CLEAR (mean 0,
-SD 1); the percentile is the share of CLEAR excerpts with a lower z. An
-input value that is also undefined in some CLEAR excerpts (e.g. causal
-cohesion without causal verbs) counts as the CLEAR mean; if any other input is
-undefined (empty document, single sentence), the components are `None`. The
-model is `src/main/resources/easability/text_easability_en.json`; the scripts
-and open questions are in `easability/`.
+The Text Easability components (`PC*`, indices 12–27) are z scores and
+percentiles of a principal component analysis. The original components
+(Arthur C. Graesser, Danielle S. McNamara and Jonna M. Kulikowich,
+["Coh-Metrix: Providing Multilevel Analyses of Text Characteristics"](https://doi.org/10.3102/0013189X11413260),
+Educational Researcher 40(5), 223–234, 2011) come from the non-public TASA
+corpus, so the models here are fitted again on other reference corpora:
 
-The German reference corpus is CLEAR translated into German
-(`translation_eval/translate_clear.py`; first version Kolibri-1 Q4_K_M, 4,669
-of 4,724 excerpts without truncated translations and paragraph mismatches),
-with its own PCA and model (`text_easability_de.json`, internal label groups
-`_REFIT_CLEARtr`). The German inputs include GermaNet indices (polysemy, verb
-overlap), so without GermaNet the German components are `None`.
-`easability/compare_models.py` compares the English and German components
-(congruence of the loadings, correlation of the scores of the same excerpts).
+| Records | Model | Reference corpus |
+|---|---|---|
+| `PC*_REFIT_REFa` (English), `PC*_REFIT_REFv1` (German), main records | `text_easability_en_refa-en-rr-gn-cr3.json`, `text_easability_de_refv1-ud-rr-cr3.json` (Coh-Metrix 0.5.0-py, Maxim Konca) | 9 registers × 1,000 passages of 250–350 words each (news report, personal narrative, encyclopedia, informational description, research and expert, how-to, opinion/review/advice, persuasion/commercial, fiction). English: FineWeb sample-10BT, wiki40b, Wikinews, Intereconomics, fiction 1900–1918 from PG-19; German: FineWeb-2 and other web sources, fiction 1900–1930 from de-Corp. PCA on standardized inputs with Varimax rotation; the English components are named by their congruence with the German model |
+| `PC*_REFIT_CLEAR` (English), `PC*_REFIT_CLEARtr` (German), variants | `text_easability_en.json`, `text_easability_de.json` | the [CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus) (Crossley et al., 2022), 4,724 excerpts; German: CLEAR translated into German (Kolibri-1 Q4_K_M, 4,669 excerpts without truncated translations and paragraph mismatches) |
 
-The corpus file is not part of this repository: place `CLEAR_corpus_final.csv`
-from the CLEAR repository in the corpus directory (`CLEAR_DIR` in
-`ClearCorpusCohMetrixTest`, `/storage/projects/CORE/projects2/coh_metrix/clear_corpus`;
-`$CLEAR` below) and run `ClearCorpusCohMetrixTest`
-(CLEAR reader -> spaCy -> Coh-Metrix -> XMI) to recreate the processed corpus.
-The PCA scripts in `easability/` use the dependencies in `requirements-dev.txt`
-(Python 3.12):
+**Both are `None` with an error until refitted.** The REFa/REFv1 models were
+fitted on the values of Coh-Metrix 0.5.0-py; in this component SYNNP, LSAGN and
+German SMTEMP are computed differently (see
+[Index definitions and deviations](#index-definitions-and-deviations)), so the
+model inputs would not match its reference distribution (`MODEL_INPUTS_CHANGED`
+in `duui.py`). The CLEAR models were fitted on the values of 0.2.0. Once a model
+is refitted on this component's values, its records are computed again.
+
+How the components are computed: the inputs are standardized with the reference
+corpus' mean and SD, the z score is the weighted sum, the percentile the share
+of reference texts with a lower z. An input that is also undefined in some
+reference texts (e.g. causal cohesion without causal verbs) counts as the
+reference mean; if any other input is undefined (empty document, single
+sentence), the components are `None`. The models only take inputs computed with
+the resources they were fitted on. The component descriptions use the names of
+Coh-Metrix 3.0; where a refitted component carries other markers, the model's
+own name is added, e.g. "Text Easability PC Verb cohesion (in this model:
+Semantic overlap), z score" (provisional).
+
+**Refitting the CLEAR variants.** The corpus file is not part of this
+repository: place `CLEAR_corpus_final.csv` from the CLEAR repository in the
+corpus directory (`CLEAR_DIR` in `ClearCorpusCohMetrixTest`,
+`/storage/projects/CORE/projects2/coh_metrix/clear_corpus`; `$CLEAR` below) and
+run `ClearCorpusCohMetrixTest` (CLEAR reader -> spaCy -> Coh-Metrix -> XMI) to
+recreate the processed corpus. The PCA scripts in `easability/` use the
+dependencies in `requirements-dev.txt` (Python 3.12):
 
 ```bash
 CLEAR=/storage/projects/CORE/projects2/coh_metrix/clear_corpus
@@ -213,12 +290,10 @@ python easability/pca.py $CLEAR/indices_en.csv easability/results/clear_en_pca \
 readable summary (`report.md`: comparison with the published components,
 loadings, marker scores, validation against the CLEAR difficulty ratings) and
 the underlying tables, including the component scores of every CLEAR excerpt
-(`scores.csv`, by excerpt ID).
-
-German: place the translation in `$CLEAR` (default
-`translation_kolibri-1-q4km/`, other versions with `-Dclear.translation=...`)
-and give the GermaNet XML directory (it must be readable by the Docker daemon;
-copy it from a network mount to a local directory):
+(`scores.csv`, by excerpt ID). German: place the translation in `$CLEAR`
+(default `translation_kolibri-1-q4km/`, other versions with
+`-Dclear.translation=...`) and give the GermaNet XML directory (it must be
+readable by the Docker daemon):
 
 ```bash
 mvn test -Dtest='ClearCorpusCohMetrixTest#runPipelineGermanTranslation' \
@@ -235,29 +310,56 @@ python easability/compare_models.py easability/results/clear_en_pca \
     easability/results/clear_en_vs_de_kolibri-1-q4km --name-a EN --name-b DE
 ```
 
-`ClearCorpusTextEasabilityTest` processes every 100th excerpt again and checks
-that the component's z scores equal the PCA scores, and that selecting only
-some PC indices (`include_indices`) gives the same values (German: with
-`-Dcohmetrix.germanet.path`).
+These scripts and `ClearCorpusCohMetrixTest` / `ClearCorpusTextEasabilityTest`
+were written for 0.2.0 (spaCy input, the image `duui-coh-metrix:0.2.0`); adapt
+them to the default pipeline before the refit.
+
+## Index definitions and deviations
+
+The indices follow Coh-Metrix 3.0 as published: Danielle S. McNamara, Arthur C.
+Graesser, Philip M. McCarthy and Zhiqiang Cai,
+[*Automated Evaluation of Text and Discourse with Coh-Metrix*](https://doi.org/10.1017/CBO9780511894664),
+Cambridge University Press, 2014 ("the book"); Arthur C. Graesser, Danielle S.
+McNamara, Max M. Louwerse and Zhiqiang Cai,
+["Coh-Metrix: Analysis of text on cohesion and language"](https://doi.org/10.3758/BF03195564),
+Behavior Research Methods, Instruments, & Computers 36(2), 193–202, 2004; and
+Graesser, McNamara and Kulikowich (2011, see above). Where these sources leave a
+point open, or where this component deviates from them, the definition is ours:
+
+| Index | Definition here | Source, or why |
+|---|---|---|
+| WRDFRQc | mean base-10 logarithm of the content words' frequency per million | the book (ch. 4) describes the raw frequency; Graesser et al. (2004, p. 197) argue for the logarithm (reading time falls linearly with log frequency), and WRDFRQa and WRDFRQmc are logarithms in the book too |
+| RDL2 | Coh-Metrix L2 Readability from the content word overlap of adjacent sentences (CRFCWO1), their syntactic similarity (SYNSTRUTa) and the word frequency as WRDFRQc (log mean over content words) | the frequency term deviates from the book's formula 5.1 (WRDFRQmc) and follows Scott A. Crossley, Jerry Greenfield and Danielle S. McNamara, ["Assessing Text Readability Using Cognitively Based Indices"](https://doi.org/10.1002/j.1545-7249.2008.tb00142.x), TESOL Quarterly 42(3), 475–493, 2008, and Scott A. Crossley, David B. Allen and Danielle S. McNamara, ["Text readability and intuitive simplification: A comparison of readability formulas"](https://scholarspace.manoa.hawaii.edu/items/fc754b04-a1ef-4176-885e-e4389a3a27e0/full), Reading in a Foreign Language 23(1), 84–101, 2011 (p. 91: the adjacent-sentence syntactic similarity) |
+| SYNNP | per noun chunk the words that depend directly on the chunk's head, without punctuation; the mean over all chunks ("the lovely little girl" 3, "a very big dog" 2, "the old man's house" 1) | Graesser et al. (2004, p. 198): "A modifier is an optional element describing the property of the head of a phrase", "the lovely little girl" has three modifiers; the noun chunks and the rule beyond the example are ours |
+| SYNLE | English: the words before the lexical verb of the main clause (in a copula clause the copula); German: before the finite verb | English as in Graesser, McNamara and Kulikowich (2011, p. 226: 16 words before "enrolled", the auxiliary "were" among them); German is our analogy, so that verb-final word order does not change what the index measures |
+| LSAGN, LSAGNd | the first sentence enters the mean as 0 | without prior text the given part is 0, so G/(N+G) = 0 (the book, ch. 4). Each text contributes one 0, so the mean depends on the number of sentences (about 1/n); Maxim Konca measured rho .71 with the sentence count (.36 with the first sentence skipped), not verified by us |
+| SMTEMP | tense and aspect repetition between adjacent sentences. German, following the TMV annotator (Anita Ramm, Sharid Loáiciga, Annemarie Friedrich and Alexander Fraser, ["Annotating tense, mood and voice for English, French and German"](https://aclanthology.org/P17-4001/), ACL 2017 System Demonstrations, Table 3): "würde" + infinitive future; Konjunktiv II the tense of its form (present; as a perfect, past); Perfekt completed. English: would/should/could/might conditional | the book names only tense (past, present, future) and aspect (in progress, completed); German has no conditional tense in TMV |
+| DRGERUND | English: every -ing verb form (Penn tag VBG); not emitted for German | the book, ch. 4: "in its -ing form"; German has no gerund |
+| WRDPOLc, WRDHYP* (German) | a lemma not in GermaNet is looked up in its old spelling, then as the head of a compound | our approximation (from Coh-Metrix 0.4.0-py) |
+| DESWLsy (German) | the vowel-nucleus rule (see "Syllable counts") | from Coh-Metrix 0.4.0-py; its evaluation is Maxim Konca's, not verified by us |
+
+Measurements of the reference preprocessing that this component relies on and
+that are not verified by us: the German contraction table of `duui-stanza` was
+built from UD German GSD and HDT, so its score on them (9 wrong tokens against
+80 for Stanza's own splitting) is in-sample; how Stanza parses an unsplit "am"
+before a superlative ("am besten") is not checked.
 
 ## Result semantics
 
 `0.0` is emitted only when an actual calculation was possible and its result
 is zero. If an index lacks required words, sentences, paragraphs, annotation
 information, vectors, a valid comparison pair, a non-zero denominator, or a
-required lexical resource, the final Python value is `None`; the Lua
-communication layer transfers it to the CAS as `Double.NaN`.
+required lexical resource, the final Python value is `None` with an `error`;
+the Lua communication layer transfers it to the CAS as `Double.NaN`.
 
 Some resource-backed indices use available-case evaluation: uncovered items
 are excluded and a value is calculated from the remaining valid observations.
 If too few valid observations remain, the result is `None`/`Double.NaN`.
 
-The Wiener Sachtextformel indices `RDWSTF1_ext` through
-`RDWSTF4_ext` are defined for German only. For English and other
-languages, these four indices are not applicable and therefore return
-`None`/`Double.NaN` instead of a numeric value. This behavior is already
-visible in the completed English validation reports; no separate label or
-single-purpose WSTF testcase is required.
+Indices that are always `None` for a language are not emitted (label rule 9):
+the Wiener Sachtextformel `RDWSTF1_ext` to `RDWSTF4_ext` for English (a German
+formula) and `DRGERUND` for German. Records whose model waits for its refit are
+emitted as `None` with the reason (the Text Easability components).
 
 ## Index labels
 
@@ -440,7 +542,14 @@ change the version.
 
 ## Validation
 
-The Docker component is regression-tested through
+`CohMetrixUdPipelineTest` runs the default pipeline (see
+[Prerequisites and preprocessing](#prerequisites-and-preprocessing)),
+`CohMetrixBestEffortTest` the spaCy-only path, `CohMetrixInputLayersTest` the
+choice of token and sentence layers; they need the running services (system
+properties in the test classes).
+
+The validation below was made for 0.2.0 (spaCy input) and does not apply to
+0.6.0; a new set of frozen UD (Stanza) CASes is planned. The 0.2.0 Docker component was regression-tested through
 `CohMetrixDockerValidationTest`. The Java test loads 322 frozen bilingual CAS
 snapshots, removes previous Coh-Metrix output, processes each CAS with the
 Docker image, and checks 3,496 curated index expectations. The frozen upstream
@@ -478,11 +587,13 @@ docker run --rm -p 1000:9714 docker.texttechnologylab.org/v2/duui-coh-metrix:lat
 Find all available image tags at
 <https://docker.texttechnologylab.org/v2/duui-coh-metrix/tags/list>.
 
-To enable GermaNet-backed German indices:
+With GermaNet and the resources supplied by the user (see
+[Resources supplied by the user](#resources-supplied-by-the-user)):
 
 ```
 docker run --rm -p 1000:9714 \
   -v /path/to/germanet:/usr/src/app/src/main/resources/germanet \
+  -v /path/to/external:/usr/src/app/src/main/resources/external \
   docker.texttechnologylab.org/v2/duui-coh-metrix:latest
 ```
 
