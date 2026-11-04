@@ -5,9 +5,8 @@ The files are written to one directory with the names the image expects (Dockerf
 and checked against the SHA-256 it had when this script was written; a different file is an error. Converted files (xlsx to
 csv) are written next to it. sources.json in the directory records source, licence and checksums of every file.
 
-Not downloaded:
-- GermaNet: academic licence, each user needs their own; mount it separately (README, "GermaNet").
-- SUBTLEX-DE: its download page (crr.ugent.be/archives/534) is offline (2026-11-04); place the file yourself (format below).
+Not downloaded: GermaNet (academic licence, each user needs their own; mount it separately, README "GermaNet").
+SUBTLEX-DE and Kuperman come from the Internet Archive's copy or a publisher's supplement where the authors' pages are offline.
 
 With --clear the CLEAR corpus (development only: the reference corpus of the CLEAR Text Easability models) is downloaded too,
 to --clear-dir (default: where the project keeps it). It is never part of the image.
@@ -36,6 +35,25 @@ CLEAR_DIR = Path("/storage/projects/CORE/projects2/coh_metrix/clear_corpus")
 # it ("copy", "zip:<member>", "xlsx:<sheet or index>:<delimiter>"); reference: the publication the file belongs to, and
 # file: which file of it, so that it can be found again if the URL changes; licence: as stated by the source
 RESOURCES = [
+    {
+        "name": "SUBTLEXde_SUBTLWF.csv",
+        "url": "https://web.archive.org/web/20190502163933id_/http://crr.ugent.be/SUBTLEX-DE/"
+               "SUBTLEX-DE_txt_cleaned_with_Google00.zip",
+        "sha256": "0d00058488620f0bbe6b77dc7ef348e0d5ce8420c530eafb6b392d3048a66c1c",
+        "convert": "subtlexde:SUBTLEX-DE_cleaned_with_Google00.txt",
+        "reference": "Marc Brysbaert, Matthias Buchmeier, Markus Conrad, Arthur M. Jacobs, Jens Bölte and Andrea Böhl, \"The "
+                     "Word Frequency Effect: A Review of Recent Developments and Implications for the Choice of Frequency "
+                     "Estimates in German\", Experimental Psychology 58(5), 412-424, 2011, "
+                     "https://doi.org/10.1027/1618-3169/a000123",
+        "file": "SUBTLEX-DE, the authors' release: \"SUBTLEX-DE_txt_cleaned_with_Google00.zip\" (2011-01-09) of "
+                "crr.ugent.be/SUBTLEX-DE/ (offline; Internet Archive snapshot 2019-05-02), one file "
+                "SUBTLEX-DE_cleaned_with_Google00.txt (Latin-1, tab-separated: Word, WFfreqcount, spell-check OK, CUMfreqcount, "
+                "SUBTLEX, lgSUBTLEX, Google00 ...; 190,500 word forms, one per lower-case form). Written as word TAB SUBTLEX "
+                "(frequency per million), UTF-8, decimal point, no header. CTAP's table (github.com/ctapweb/ctap-multilingual, "
+                "SUBTLEXde_SUBTLWF.csv) is a subset of 65,499 of these rows with the same values",
+        "licence": "not stated on the download page; the article: \"free for educational purposes\"",
+        "used_for": "German WRDFRQc, WRDFRQa, WRDFRQmc, RDL2",
+    },
     {
         "name": "SUBTLEXus74286wordstextversion.txt",
         "url": "https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/subtlexus2.zip",
@@ -82,8 +100,10 @@ RESOURCES = [
         "reference": "Victor Kuperman, Hans Stadthagen-Gonzalez and Marc Brysbaert, \"Age-of-acquisition ratings for 30,000 "
                      "English words\", Behavior Research Methods 44(4), 978-990, 2012, "
                      "https://doi.org/10.3758/s13428-012-0210-4",
-        "file": "the ratings (columns Word, ..., Rating.Mean; 30,121 words), Electronic Supplementary Material 1 (xlsx) of the "
-                "erratum to the article, https://doi.org/10.3758/s13428-013-0348-8",
+        "file": "the ratings (AoA_ratings_Kuperman_et_al_BRM.xlsx; columns Word, ..., Rating.Mean; 31,124 rows, 31,105 rated), "
+                "Electronic Supplementary Material 1 (xlsx) of the erratum to the article, "
+                "https://doi.org/10.3758/s13428-013-0348-8; byte-identical to the xlsx in the authors' former download "
+                "crr.ugent.be/papers/AoA_ratings_Kuperman_et_al_BRM.zip (Internet Archive, 2021-05-07)",
         "licence": "not stated",
         "used_for": "English WRDAOAc",
     },
@@ -127,19 +147,8 @@ RESOURCES = [
     },
 ]
 
-MANUAL = [
-    {
-        "name": "SUBTLEXde_SUBTLWF.csv",
-        "reference": "Marc Brysbaert, Matthias Buchmeier, Markus Conrad, Arthur M. Jacobs, Jens Bölte and Andrea Böhl, \"The "
-                     "Word Frequency Effect: A Review of Recent Developments and Implications for the Choice of Frequency "
-                     "Estimates in German\", Experimental Psychology 58(5), 412-424, 2011, "
-                     "https://doi.org/10.1027/1618-3169/a000123",
-        "file": "SUBTLEX-DE, the word frequencies per million (SUBTLWF) of the article, formerly at crr.ugent.be/archives/534",
-        "licence": "\"free for educational purposes\" (the article); download page offline (crr.ugent.be/archives/534)",
-        "used_for": "German WRDFRQc, WRDFRQa, WRDFRQmc, RDL2",
-        "format": "word TAB frequency per million, one word per line, no header (SUBTLEX-DE's SUBTLWF column)",
-    },
-]
+# resources that cannot be downloaded (none at present; GermaNet is mounted separately)
+MANUAL = []
 
 CLEAR = {
     "name": "CLEAR_corpus_final.csv",
@@ -176,13 +185,16 @@ def cell(value) -> str:
 
 
 def xlsx_to_csv(data: bytes, sheet: str, delimiter: str) -> bytes:
-    """one sheet (name, or index) as delimited text, UTF-8, LF; the stored values of formula cells"""
+    """one sheet (name, or index) as delimited text, UTF-8, LF; the stored values of formula cells; completely empty rows
+    are left out (the Kuperman sheet has 194)"""
     import openpyxl
     workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     worksheet = workbook.worksheets[int(sheet)] if sheet.isdigit() else workbook[sheet]
     out = io.StringIO()
     writer = csv.writer(out, delimiter=delimiter, lineterminator="\n")
     for row in worksheet.iter_rows(values_only=True):
+        if all(v is None for v in row):
+            continue
         writer.writerow(cell(v) for v in row)
     return out.getvalue().encode("utf-8")
 
@@ -194,6 +206,13 @@ def convert(data: bytes, how: str) -> bytes:
     if kind == "zip":
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             return archive.read(rest)
+    if kind == "subtlexde":
+        # the authors' list (Latin-1, decimal comma, header) as the core reads it: word TAB frequency per million (column
+        # SUBTLEX), UTF-8, decimal point, no header; the values are copied as text
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            text = archive.read(rest).decode("latin-1")
+        rows = csv.DictReader(io.StringIO(text, newline=""), delimiter="\t")
+        return "".join(f"{r['Word']}\t{r['SUBTLEX'].replace(',', '.')}\n" for r in rows).encode("utf-8")
     if kind == "xlsx":
         sheet, _, delimiter = rest.partition(":")
         return xlsx_to_csv(data, sheet, delimiter)

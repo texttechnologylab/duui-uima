@@ -102,8 +102,8 @@ redistributed (`src/main/resources/LICENSES.md`):
 |---|---|---|---|---|
 | Our own, or redistributable | Wikipedia frequency samples, German MRC translation, GUM weights, Text Easability models, DepEdit rules | yes | yes | nothing |
 | Redistributable, downloaded when the image is built | English MRC database, NLTK data (WordNet, Open Multilingual Wordnet, CMU Pronouncing Dictionary) | no | yes | nothing |
-| Not redistributable, but downloadable | SUBTLEX-US, DiMLex, DiMLex-Eng, Kuperman, Brysbaert, Birchenough, Köper & Schulte im Walde | no, never | no, never | download with `download_resources.py`, mount the directory |
-| Licensed to you only | GermaNet; SUBTLEX-DE as long as it has no download | no, never | no, never | obtain it yourself, mount it |
+| Not redistributable, but downloadable | SUBTLEX-US, SUBTLEX-DE, DiMLex, DiMLex-Eng, Kuperman, Brysbaert, Birchenough, Köper & Schulte im Walde | no, never | no, never | download with `download_resources.py`, mount the directory |
+| Licensed to you only | GermaNet | no, never | no, never | obtain it yourself, mount it |
 
 Two mounts (see [Start the Docker container](#start-the-docker-container)):
 
@@ -134,8 +134,7 @@ These files are not in the image (non-commercial licences, or no licence for
 redistribution found) and must never be added to Git or the image.
 `download_resources.py` downloads them into one directory, with the names the
 image expects, checks each file against the SHA-256 it had when the script was
-written, and writes `sources.json` (source, publication, licence, checksums);
-SUBTLEX-DE has to be placed by hand (its download page is offline):
+written, and writes `sources.json` (source, publication, licence, checksums):
 
 ```
 pip install openpyxl
@@ -152,7 +151,7 @@ Text Easability components that need it as input.
 
 | File (environment variable `DUUI_COH_METRIX_..._PATH`) | Resource | Used for |
 |---|---|---|
-| `SUBTLEXde_SUBTLWF.csv` (`SUBTLEX_DE`) | SUBTLEX-DE word frequencies per million; tab-separated, word and frequency per line, no header. Marc Brysbaert, Matthias Buchmeier, Markus Conrad, Arthur M. Jacobs, Jens Bölte and Andrea Böhl, ["The Word Frequency Effect: A Review of Recent Developments and Implications for the Choice of Frequency Estimates in German"](https://doi.org/10.1027/1618-3169/a000123), Experimental Psychology 58(5), 412–424, 2011 ("free for educational purposes"; the original download page is offline, 2026-11-04) | German WRDFRQc, WRDFRQa, WRDFRQmc, RDL2 |
+| `SUBTLEXde_SUBTLWF.csv` (`SUBTLEX_DE`) | SUBTLEX-DE word frequencies per million; tab-separated, word and frequency per line, no header. Marc Brysbaert, Matthias Buchmeier, Markus Conrad, Arthur M. Jacobs, Jens Bölte and Andrea Böhl, ["The Word Frequency Effect: A Review of Recent Developments and Implications for the Choice of Frequency Estimates in German"](https://doi.org/10.1027/1618-3169/a000123), Experimental Psychology 58(5), 412–424, 2011. The file is the authors' release `SUBTLEX-DE_txt_cleaned_with_Google00.zip` of crr.ugent.be/SUBTLEX-DE/ (offline; [Internet Archive snapshot](https://web.archive.org/web/2019/http://crr.ugent.be/subtlex-de/)): all 190,500 word forms, column `SUBTLEX`, converted to the format above. Not CTAP's table (`SUBTLEXde_SUBTLWF.csv` of [ctapweb/ctap-multilingual](https://github.com/ctapweb/ctap-multilingual)), a subset of 65,499 of these forms by an undocumented rule: with it, rare words are not found and drop out of the means, so the German frequency indices and RDL2 come out higher. Licence not stated on the download page; the article: "free for educational purposes" | German WRDFRQc, WRDFRQa, WRDFRQmc, RDL2 |
 | `SUBTLEXus74286wordstextversion.txt` (`SUBTLEX_US`) | SUBTLEX-US, column `SUBTLWF` of the text version. Marc Brysbaert and Boris New, ["Moving beyond Kučera and Francis: A critical evaluation of current word frequency norms and the introduction of a new and improved word frequency measure for American English"](https://doi.org/10.3758/BRM.41.4.977), Behavior Research Methods 41(4), 977–990, 2009; [download](https://www.ugent.be/pp/experimentele-psychologie/en/research/documents/subtlexus/overview.htm) ("Zipped Text version with all 74,286 words"; no licence stated) | English WRDFRQc, WRDFRQa, WRDFRQmc, RDL2 |
 | `DimLex.xml` (`DIMLEX`) | DiMLex, lexicon of German discourse connectives. Manfred Stede and Carla Umbach, ["DiMLex: A Lexicon of Discourse Markers for Text Generation and Understanding"](https://aclanthology.org/P98-2202/), COLING-ACL 1998; Tatjana Scheffler and Manfred Stede, ["Adding Semantic Relations to a Large-Coverage Connective Lexicon of German"](https://aclanthology.org/L16-1160/), LREC 2016; [github.com/discourse-lab/dimlex](https://github.com/discourse-lab/dimlex), CC BY-NC-SA 4.0 | German CNC*, SMCAUSvp, SMCAUSr |
 | `en_dimlex.xml` (`DIMLEX_EN`) | DiMLex-Eng. Debopam Das, Tatjana Scheffler, Peter Bourgonje and Manfred Stede, ["Constructing a Lexicon of English Discourse Connectives"](https://aclanthology.org/W18-5042/), SIGDIAL 2018; [github.com/discourse-lab/en_dimlex](https://github.com/discourse-lab/en_dimlex), CC BY-NC-SA 4.0 (README) | English CNC*, SMCAUSvp, SMCAUSr |
@@ -288,7 +287,7 @@ corpus, so the models here are fitted again on other reference corpora:
 | Records | Model | Reference corpus |
 |---|---|---|
 | `PC*_REFIT_REFa` (English), `PC*_REFIT_REFv1` (German), main records | `text_easability_en_refa-en-rr-gn-cr3.json`, `text_easability_de_refv1-ud-rr-cr3.json` (Coh-Metrix 0.5.0-py, Maxim Konca) | 9 registers × 1,000 passages of 250–350 words each (news report, personal narrative, encyclopedia, informational description, research and expert, how-to, opinion/review/advice, persuasion/commercial, fiction). English: FineWeb sample-10BT, wiki40b, Wikinews, Intereconomics, fiction 1900–1918 from PG-19; German: FineWeb-2 and other web sources, fiction 1900–1930 from de-Corp. PCA on standardized inputs with Varimax rotation; the English components are named by their congruence with the German model |
-| `PC*_REFIT_CLEAR` (English), `PC*_REFIT_CLEARtr` (German), variants | `text_easability_en.json`, `text_easability_de.json` | the [CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus) (Crossley et al., 2022), 4,724 excerpts; German: CLEAR translated into German (Kolibri-1 Q4_K_M, 4,669 excerpts without truncated translations and paragraph mismatches) |
+| `PC*_REFIT_CLEAR` (English), `PC*_REFIT_CLEARtr` (German), variants | `text_easability_en_clear.json`, `text_easability_de_cleartr.json` | the [CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus) (Crossley et al., 2022), 4,724 excerpts; German: CLEAR translated into German (Kolibri-1 Q4_K_M, 4,669 excerpts without truncated translations and paragraph mismatches) |
 
 **Both are `None` with an error until refitted.** The REFa/REFv1 models were
 fitted on the values of Coh-Metrix 0.5.0-py; in this component SYNNP, LSAGN and
@@ -309,20 +308,29 @@ Coh-Metrix 3.0; where a refitted component carries other markers, the model's
 own name is added, e.g. "Text Easability PC Verb cohesion (in this model:
 Semantic overlap), z score" (provisional).
 
-**Refitting the CLEAR variants.** The corpus file is not part of this
-repository: place `CLEAR_corpus_final.csv` from the CLEAR repository in the
-corpus directory (`CLEAR_DIR` in `ClearCorpusCohMetrixTest`,
-`/storage/projects/CORE/projects2/coh_metrix/clear_corpus`; `$CLEAR` below) and
-run `ClearCorpusCohMetrixTest` (CLEAR reader -> spaCy -> Coh-Metrix -> XMI) to
-recreate the processed corpus. The PCA scripts in `easability/` use the
-dependencies in `requirements-dev.txt` (Python 3.12):
+**Refitting the CLEAR variants.** The corpus is not part of this repository:
+`python download_resources.py <external_dir> --clear` writes
+`CLEAR_corpus_final.csv` to the corpus directory (`CLEAR_DIR` in
+`ClearCorpusCohMetrixTest`, `/storage/projects/CORE/projects2/coh_metrix/clear_corpus`;
+`$CLEAR` below). `ClearCorpusCohMetrixTest` runs the default pipeline on
+CLEAR's own paragraphs (one per line) and writes one XMI per excerpt to
+`$CLEAR/xmi_en_0.6.0` (German, from the translation:
+`$CLEAR/xmi_de_kolibri-1-q4km_0.6.0`). It needs the services of the default
+pipeline (system properties as in `CohMetrixUdPipelineTest`), Coh-Metrix 0.6.0
+with GermaNet and the resources supplied by the user mounted: they are model
+inputs. The PCA inputs are the main records of the indices
+(`easability/pca_input_measures.csv`, internal labels per language in
+`labels_en` / `labels_de`; written to the model as `labels_internal`). The PCA
+scripts use the dependencies in `requirements-dev.txt` (Python 3.12):
 
 ```bash
 CLEAR=/storage/projects/CORE/projects2/coh_metrix/clear_corpus
-python easability/extract_indices.py $CLEAR/xmi_en $CLEAR/indices_en.csv
-python easability/pca.py $CLEAR/indices_en.csv easability/results/clear_en_pca \
-    --model src/main/resources/easability/text_easability_en.json --language en \
-    --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, 4724 excerpts" \
+URLS="-Dwtpsplit.url=... -Dsomajo.url=... -Dstanza.url=... -Dspacy.url=... -Dremove.url=... -Dcohmetrix.url=..."
+mvn test -Dtest='ClearCorpusCohMetrixTest#runPipeline' $URLS
+python easability/extract_indices.py $CLEAR/xmi_en_0.6.0 $CLEAR/indices_en_0.6.0.csv
+python easability/pca.py $CLEAR/indices_en_0.6.0.csv easability/results/clear_en_pca \
+    --model src/main/resources/easability/text_easability_en_clear.json --language en \
+    --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, 4724 excerpts; duui-coh-metrix 0.6.0, default pipeline" \
     --label-suffix _REFIT_CLEAR
 ```
 
@@ -332,27 +340,27 @@ loadings, marker scores, validation against the CLEAR difficulty ratings) and
 the underlying tables, including the component scores of every CLEAR excerpt
 (`scores.csv`, by excerpt ID). German: place the translation in `$CLEAR`
 (default `translation_kolibri-1-q4km/`, other versions with
-`-Dclear.translation=...`) and give the GermaNet XML directory (it must be
-readable by the Docker daemon):
+`-Dclear.translation=...`):
 
 ```bash
-mvn test -Dtest='ClearCorpusCohMetrixTest#runPipelineGermanTranslation' \
-    -Dcohmetrix.germanet.path=/path/to/GN_V180_XML
-python easability/extract_indices.py $CLEAR/xmi_de_kolibri-1-q4km \
-    $CLEAR/indices_de_kolibri-1-q4km.csv
-python easability/pca.py $CLEAR/indices_de_kolibri-1-q4km.csv \
+mvn test -Dtest='ClearCorpusCohMetrixTest#runPipelineGermanTranslation' $URLS
+python easability/extract_indices.py $CLEAR/xmi_de_kolibri-1-q4km_0.6.0 \
+    $CLEAR/indices_de_kolibri-1-q4km_0.6.0.csv
+python easability/pca.py $CLEAR/indices_de_kolibri-1-q4km_0.6.0.csv \
     easability/results/clear_de_kolibri-1-q4km_pca \
-    --model src/main/resources/easability/text_easability_de.json --language de \
-    --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, translated into German with Kolibri-1 Q4_K_M (translation_kolibri-1-q4km), 4669 of 4724 excerpts (without truncated translations and paragraph mismatches)" \
+    --model src/main/resources/easability/text_easability_de_cleartr.json --language de \
+    --corpus "CLEAR corpus (Crossley et al. 2022), CLEAR_corpus_final.csv, translated into German with Kolibri-1 Q4_K_M (translation_kolibri-1-q4km), excerpts without truncated translations and paragraph mismatches; duui-coh-metrix 0.6.0, default pipeline" \
     --label-suffix _REFIT_CLEARtr
 python easability/compare_models.py easability/results/clear_en_pca \
     easability/results/clear_de_kolibri-1-q4km_pca \
     easability/results/clear_en_vs_de_kolibri-1-q4km --name-a EN --name-b DE
 ```
 
-These scripts and `ClearCorpusCohMetrixTest` / `ClearCorpusTextEasabilityTest`
-were written for 0.2.0 (spaCy input, the image `duui-coh-metrix:0.2.0`); adapt
-them to the default pipeline before the refit.
+Test runs: `-Dclear.limit=N` processes only the first N excerpts,
+`-Dclear.target=DIR` writes to another directory. Until the refit, the models
+in the repository and the results in `easability/results/` are those of 0.2.0.
+`ClearCorpusTextEasabilityTest` (checks that the component's z scores equal
+the PCA scores) is adapted when the refitted models are switched on.
 
 ## Index definitions and deviations
 
