@@ -1,7 +1,7 @@
-"""DUUI layer of Coh-Metrix 0.4.0-py.
+"""DUUI layer of Coh-Metrix 0.5.0-py.
 
 The indices are computed by `cohmetrix_core.py`, an unchanged copy of `cohmetrix/core.py` of coh-metrix_resurrection (Coh-Metrix
-0.4.0-py: German and English read in Universal Dependencies). This file only adds what DUUI needs, with the interface of
+0.5.0-py: German and English read in Universal Dependencies). This file only adds what DUUI needs, with the interface of
 duui-coh-metrix 0.2.0:
 - the index catalog with the two-layer labels (`label_v3` public, `label_ttlab` internal with uppercase resource groups; README,
   "Index labels"); the core keeps its own labels, the map between both is `label_map.json` of coh-metrix_resurrection;
@@ -217,6 +217,18 @@ _GROUPS = {
 # version of every index: the computation of Coh-Metrix 0.4.0-py (duui-coh-metrix 0.2.0 had 1.0 for its own computation; the
 # values differ for the same text, since this core reads UD and changed most indices, see the core's README)
 INDEX_VERSION = "2.0"
+# 2.1: the indices whose computation changed in 0.5.0-py, per language (README, "Index version": minor, values change; the user,
+# 2026-11-03): SYNNP every word of the noun chunk except its head; English SYNLE the words before the lexical verb; English
+# DRGERUND every -ing verb form (Penn VBG), as the original program; the PC* from the refitted easability models (cr3)
+_INDEX_VERSION_0_5_0 = "2.1"
+_PC_INDICES = frozenset(label_v3 for _, type_name, label_v3, *_ in INDEX_CATALOG
+                        if type_name == "Text Easability Principal Component Scores")
+_CHANGED_IN_0_5_0 = {"de": frozenset({"SYNNP"}) | _PC_INDICES,
+                     "en": frozenset({"SYNNP", "SYNLE", "DRGERUND"}) | _PC_INDICES}
+
+
+def _index_version(label_v3: str, lang: str) -> str:
+    return _INDEX_VERSION_0_5_0 if label_v3 in _CHANGED_IN_0_5_0[lang] else INDEX_VERSION
 
 # The token vectors (README, "Vectors"): their name is a label group, e.g. SPACYlg.
 _VECTOR_GROUP_FORMAT = re.compile(r"^[A-Z][A-Z0-9]*[a-z0-9]*$")
@@ -561,7 +573,8 @@ def get_indices() -> List[Dict[str, Any]]:
             "label_ttlab_de": labels["de"][label_v3],
             "comparable_en": comparable_en,
             "comparable_de": comparable_de,
-            "version": INDEX_VERSION,
+            "version_en": _index_version(label_v3, "en"),
+            "version_de": _index_version(label_v3, "de"),
         }
         for index, type_name, label_v3, _, comparable_en, comparable_de, label_v2 in INDEX_CATALOG
     ]
@@ -589,6 +602,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             core_response = core.post_process(core_request)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
+    # the core logs an error outside the indices and returns the indices computed so far, without meta; the indices after the
+    # failure would be missing without an error (TTLab's review of PR #305), so the request fails, as in the core's CLI
+    if core_response.meta is None:
+        raise HTTPException(status_code=500, detail="Coh-Metrix stopped before computing every index (see the container log)")
 
     # unsupported vectors, or no token has a vector (e.g. a spaCy trf model): the vector indices are undefined, not 0
     if vectors_error is None and not output.isdisjoint(_VECTOR_INDICES) and not any(
@@ -605,7 +622,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         if vectors_error is not None and label_v3 in _VECTOR_INDICES:
             value, error = None, vectors_error
         indices.append(Index(index=index, type_name=type_name, label_v3=label_v3, label_ttlab=ttlab_labels[label_v3],
-                             label_v2=label_v2, description=i.description, version=INDEX_VERSION, value=value, error=error))
+                             label_v2=label_v2, description=i.description, version=_index_version(label_v3, lang), value=value,
+                             error=error))
 
     meta = AnnotationMeta(name=settings.annotator_name, version=settings.annotator_version,
                           modelName=settings.annotator_name, modelVersion=settings.annotator_version)

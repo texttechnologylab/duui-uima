@@ -47,12 +47,17 @@ class Settings:
     def __init__(self):
         env = lambda k, d=None: os.environ.get("DUUI_COH_METRIX_" + k.upper(), d)
         self.annotator_name = env("annotator_name", "coh-metrix-resurrection")
+        # 0.5.0 (2026-11-03; the user: "adopt as 0.5.0 refit"): SYNNP counts every modifier word of the noun phrase (the
+        # determiner too) and English SYNLE counts to the lexical verb, as TTLab's review of PR #305 showed from Graesser et
+        # al. (2004, 2011), and the easability models refitted on them (refv1-ud-rr-cr3, refa-en-rr-gn-cr3; the user: "then
+        # yes", 2026-11-03); "0.5.0-dev" was the code of the reference runs for that refit, with 0.4.0's models. English
+        # DRGERUND counts every -ing verb form (VBG), as the original program (the user: "1."; not an easability input).
         # 0.4.0 (2026-11-01; the user: 0.4.0 "ok"): points 1-3 after the code review (CODE_REVIEW_20261031.md), values change in
         # both languages, the easability models refitted on them (refv1-ud-rr-cr2, refa-en-rr-gn-cr2) and two components renamed
         # ("1. ok"); "0.4.0-dev" was the code of the reference runs for that refit, with 0.3.0's models. 0.3.0 (2026-10-31; the
         # user: "bump"): the code-review fixes, values change in both languages, and the easability models refitted on them;
         # 0.2.0 (2026-10-29): label / label_internal, easability
-        self.annotator_version = env("annotator_version", "0.4.0-py")
+        self.annotator_version = env("annotator_version", "0.5.0-py")
         self.log_level = env("log_level", "INFO")
         self.germanet_path = env("germanet_path", "/data/GermaNet/GN_V180_XML")
         self.dimlex_path = env("dimlex_path", "/data/CORE/export/t0/dimlex/DimLex.xml")
@@ -76,15 +81,16 @@ class Settings:
                                    "/data/CORE/export/t0/cm_resources/subtlex_us/unzipped/SUBTLEXus74286wordstextversion.txt")
         # the German Text Easability model (2026-10-29): ours, fitted on reference corpus v1 (easability/), shipped in resources/;
         # since 0.3.0 (2026-10-31) refitted on the corpus as annotated by the review code, new id (the user: "new"); since 0.4.0
-        # (2026-11-01) refitted on the corpus as 0.4.0 annotates it, refv1-ud-rr-cr2 (the user: "2. refa-en-rr-gn-cr2")
+        # (2026-11-01) refitted on the corpus as 0.4.0 annotates it, refv1-ud-rr-cr2 (the user: "2. refa-en-rr-gn-cr2"); since
+        # 0.5.0 (2026-11-03) refitted on the corpus as 0.5.0 annotates it, refv1-ud-rr-cr3
         self.easability_model_path = env("easability_model_path",
-                                         str(RESOURCES / "easability" / "text_easability_de_refv1-ud-rr-cr2.json"))
+                                         str(RESOURCES / "easability" / "text_easability_de_refv1-ud-rr-cr3.json"))
         # the English one (2026-10-30): fitted on reference corpus A, components named by congruence with the German model; since
-        # 0.3.0 refitted likewise and named after the refitted German model; since 0.4.0 refa-en-rr-gn-cr2. The models of 0.2.0
-        # and 0.3.0 stay in resources/ (refv1-ud-rr, refa-en-rr-gn; refv1-ud-rr-cr, refa-en-rr-gn-cr) for old outputs: set the
-        # paths to them.
+        # 0.3.0 refitted likewise and named after the refitted German model; since 0.4.0 refa-en-rr-gn-cr2, since 0.5.0
+        # refa-en-rr-gn-cr3. The models of 0.2.0 to 0.4.0 stay in resources/ (refv1-ud-rr, refa-en-rr-gn; refv1-ud-rr-cr,
+        # refa-en-rr-gn-cr; refv1-ud-rr-cr2, refa-en-rr-gn-cr2) for old outputs: set the paths to them.
         self.easability_model_path_en = env("easability_model_path_en",
-                                            str(RESOURCES / "easability" / "text_easability_en_refa-en-rr-gn-cr2.json"))
+                                            str(RESOURCES / "easability" / "text_easability_en_refa-en-rr-gn-cr3.json"))
         self.lsa_use_truncated_svd = str(env("lsa_use_truncated_svd", "false")).lower() == "true"
         self.lsa_svd_components = int(env("lsa_svd_components", "100"))
 
@@ -146,7 +152,7 @@ class Token(BaseModel):
     morph_person: Optional[str] = ""
     morph_number: Optional[str] = ""
     morph_tense: Optional[str] = ""
-    morph_verbform: Optional[str] = ""   # UD VerbForm (2026-10-29: gerunds, VerbForm=Ger)
+    morph_verbform: Optional[str] = ""   # UD VerbForm (2026-10-29; gerunds read it from then to 0.4.0)
     morph_number_psor: Optional[str] = ""   # UD Number[psor], the possessor's number (2026-10-31: German possessives)
     morph_mood: Optional[str] = ""       # UD Mood (2026-10-31: German Konjunktiv II in SMTEMP)
     vector: Optional[List[float]] = None
@@ -1138,8 +1144,8 @@ def cm_ldvocda(tokens: List[Token]) -> Optional[float]:
 # ============================================================================
 
 _DE_SYNLE_FINITE_TAGS = {"VVFIN", "VAFIN", "VMFIN", "VVIMP", "VAIMP"}
-_EN_SYNLE_FINITE_TAGS = {"VBD", "VBZ", "VBP", "MD"}
-_SYNLE_FINITE_TAGS = {"de": _DE_SYNLE_FINITE_TAGS, "en": _EN_SYNLE_FINITE_TAGS}
+# English until 0.5.0 (2026-11-03): the finite verb too, with the tags VBD, VBZ, VBP, MD
+_SYNLE_FINITE_TAGS = {"de": _DE_SYNLE_FINITE_TAGS}
 
 
 # LAY: Average number of words before the main verb of a sentence.
@@ -1160,9 +1166,7 @@ def cm_synle(
     }
 
     for sentence in sentences:
-        # Coh-Metrix SYNLE is approximated from the sentence parse root.
-        # Do not replace an auxiliary/modal root with a language-specific
-        # lexical verb: that would change the original index definition.
+        # Coh-Metrix SYNLE is approximated from the sentence parse root, then moved to the main verb below.
         main_verb_index = None
 
         for token_index, token in enumerate(sentence.tokens):
@@ -1182,16 +1186,22 @@ def cm_synle(
         # Vorfeld); UD makes the content word the root ("Er hat das Buch gelesen": gelesen; "Das ist wichtig": wichtig) and
         # attaches the finite auxiliary or copula to it. So the finite verb is taken: the root if finite, else its finite
         # aux / aux:pass / cop dependent; a root without one (verbless sentence) stays.
-        # English (UD port, 2026-10-29): the same rule. ClearNLP made the copula the root but the lexical verb under its
-        # auxiliaries ("He has read": read); UD makes the predicate the root in both cases. Taking the finite verb gives one
-        # definition for both languages, the left bracket of the clause, and agrees with Penn-style head rules, which head a VP
-        # by its first verb ("has").
+        # English (0.5.0, 2026-11-03): the lexical verb, as in Graesser, McNamara & Kulikowich (2011, p. 226: 16 words before
+        # "enrolled", the auxiliary "were" among them; found by TTLab's review of PR #305): the root if it is a verb, else its
+        # copula (UD makes the predicate of "She is happy" the root; the copula is the clause's only verb, as ClearNLP's root
+        # was), else the root (verbless sentence). From the UD port (2026-10-29) to 0.4.0 English took the finite verb as
+        # German does ("He has read": has), for one definition in both languages.
         finite_tags = _SYNLE_FINITE_TAGS.get(lang)
         if finite_tags and sentence.tokens[main_verb_index].pos_value not in finite_tags:
             main_verb_index = next(
                 (j for j, t in enumerate(sentence.tokens)
                  if t.head_index == main_verb_index and j != main_verb_index
                  and (t.dep_type or "").lower() in ("aux", "aux:pass", "cop") and t.pos_value in finite_tags),
+                main_verb_index)
+        elif lang == "en" and sentence.tokens[main_verb_index].pos_coarse != "VERB":
+            main_verb_index = next(
+                (j for j, t in enumerate(sentence.tokens)
+                 if t.head_index == main_verb_index and j != main_verb_index and (t.dep_type or "").lower() == "cop"),
                 main_verb_index)
 
         # Count non-punctuation words occurring before the selected
@@ -1219,7 +1229,11 @@ def cm_synle(
 # ClearNLP labels (until the English UD port, 2026-10-29). The modifiers of SYNNP are English's three (AMOD, COMPOUND, PREP) in UD: amod, compound, and nmod (UD has no
 # preposition relation; a prepositional attribute is nmod with a case child). TIGER mapped them to NK, ADC, MO, AC, PG, and NK
 # also covers determiners, so German counted determiners and English did not.
-_UD_SYNNP_MODIFIERS = {"amod", "compound", "nmod"}
+# 0.5.0 (2026-11-03): no relation list any more. SYNNP counts every word of the noun phrase but its head, the determiner too
+# (Graesser et al. 2004, p. 198: "the lovely little girl" has three modifiers; found by TTLab's review of PR #305). Not
+# counted: punctuation and the parts of a modifier that are no modifier of their own: the case marker ("'s" of "John's"; the
+# "zu" of a split "zum"), the coordinator ("and" of "big and red") and a name's continuation (flat: "York" of "New York").
+_SYNNP_NOT_MODIFIERS = {"case", "cc", "flat", "flat:name"}
 # Labels of the pre-UD schemes that UD does not have: German TIGER and English ClearNLP (spaCy's English models). Since the UD
 # ports (German 2026-10-28, English 2026-10-29, ENGLISH_PLAN.md) input carrying any of them is refused (_check_labels).
 # German TIGER (2026-10-29: German input with any of them is refused). Until then a
@@ -1422,15 +1436,13 @@ def _ud_noun_chunks(sentences: List[Sentence]) -> List[NounChunk]:
     return chunks
 
 
-# LAY: Average number of modifiers (adjectives, compounds, PPs) per noun phrase.
+# LAY: Average number of modifiers (determiners, adjectives, numerals, compounds, possessors) per noun phrase.
 # ↑ Higher = denser noun phrases, more complex syntax. Reliable.
 def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str) -> Optional[float]:
     # H2 fix: previously compared noun_chunk.begin/end to sentence.begin/end for
     # equality, which never matched (chunks are sub-sentence spans), so this
-    # index always returned 0. Now use containment and count modifier-type deps
-    # for tokens that fall inside the chunk span.
-    dep_map = _UD_SYNNP_MODIFIERS
-
+    # index always returned 0. Now use containment and count the modifier words
+    # among the tokens that fall inside the chunk span (0.5.0: _SYNNP_NOT_MODIFIERS).
     if noun_chunks and not all(
         _has_complete_pos_annotations(sentence)
         and _has_complete_dependency_annotations(sentence)
@@ -1448,10 +1460,13 @@ def cm_synnp(sentences: List[Sentence], noun_chunks: List[NounChunk], lang: str)
         k = bisect.bisect_left(ends, noun_chunk.end) if ordered else 0
         for sentence in (sentences[k:k + 1] if ordered else sentences):
             if sentence.begin <= noun_chunk.begin and noun_chunk.end <= sentence.end:
-                chunk_tokens = [tok for tok in sentence.tokens
-                                if tok.begin >= noun_chunk.begin and tok.end <= noun_chunk.end]
-                modifiers = [tok for tok in chunk_tokens
-                             if (tok.dep_type or "").lower() in dep_map]
+                inside = {j for j, tok in enumerate(sentence.tokens)
+                          if tok.begin >= noun_chunk.begin and tok.end <= noun_chunk.end}
+                # the head: the word whose head lies outside the phrase (the noun; _ud_noun_chunks ends a phrase at it)
+                modifiers = [j for j in inside
+                             if sentence.tokens[j].head_index in inside and sentence.tokens[j].head_index != j
+                             and not sentence.tokens[j].is_punct
+                             and (sentence.tokens[j].dep_type or "").lower() not in _SYNNP_NOT_MODIFIERS]
                 modifier_counts.append(len(modifiers))
                 break
 
@@ -2071,7 +2086,6 @@ def _count_metrics(
         "adverbial_phrase_count": 0,
         "neg_count": 0,
         "gerund_count": 0,
-        "has_verbform": any(t.morph_verbform for sentence in sentences for t in sentence.tokens),
         "infinitive_count": 0,
         "has_pos_annotations": all(
             _has_complete_pos_annotations(sentence)
@@ -2135,10 +2149,12 @@ def _count_metrics(
             if is_negation:
                 count_metrics_dict["neg_count"] += 1
 
-            # DRGERUND (English): words with UD VerbForm=Ger since the English UD port (2026-10-29). Before: every VBG word,
-            # which also counts progressives and participle modifiers; on the UD English test sets that gave 342 / 506 for the
-            # gold's 93 / 168 gerunds (EWT / GUM; tests/check_ud_rules_en.py).
-            if lang != "de" and (token.morph_verbform or "") == "Ger":
+            # DRGERUND (English): every -ing verb form, Penn VBG, as the original program counts (0.5.0, 2026-11-03; TTLab's
+            # review of PR #305, Coh-Metrix book ch. 4: "gerund (… in its -ing form)"; the user: "1."). Gerunds, progressives
+            # and participles alike: on the UD English test sets 342 / 506 words for the gold's 93 / 168 gerunds (EWT / GUM;
+            # tests/check_ud_rules_en.py). From the UD port (2026-10-29) to 0.4.0: only words with VerbForm=Ger, of which
+            # Stanza finds about half.
+            if lang != "de" and (token.pos_value or "") == "VBG":
                 count_metrics_dict["gerund_count"] += 1
 
             # DRINF
@@ -2286,9 +2302,9 @@ def cm_drgerund(
     if metrics is None:
         metrics = _count_metrics(sentences, noun_chunks, lang)
 
-    # gerunds are read from UD VerbForm (2026-10-29); a request without VerbForm values cannot tell them, unless it has no verb
-    # at all: then it has no gerund either (code review 2026-10-31; before None, where DRINF gave 0)
-    if not metrics["has_fine_pos_annotations"] or (not metrics["has_verbform"] and metrics["verb_phrase_count"] > 0):
+    # -ing forms are read from the fine tags (VBG) since 0.5.0 (2026-11-03); up to 0.4.0 from UD VerbForm, so a request
+    # without VerbForm values gave None
+    if not metrics["has_fine_pos_annotations"]:
         return None
 
     return _incidence(metrics["gerund_count"], metrics["total_tokens"])
@@ -3609,7 +3625,9 @@ def _dimlex_sentence_connectives(sentence: Sentence) -> List[Tuple[float, dict, 
 # the occurrences of a word in that reading that pass the rules above, the share GUM marks as an explicit connective (train and
 # dev parts; the test part is kept for the evaluation, tests/check_connectives_en.py). Built by tests/dimlex_en_weights.py into
 # settings.dimlex_en_weights_path; used where GUM has at least _EN_WEIGHT_MIN_N occurrences, else 1 (as German entries without
-# a share). The table derives from GUM (CC BY-NC-SA 4.0).
+# a share). The table derives from GUM's annotations, CC BY 4.0 (GUM's LICENSE.md: "All annotations are licensed under ...
+# CC-BY 4.0"; the texts keep their own licences, some NC); it holds counts, no text. Until 2026-11-02 this said CC BY-NC-SA 4.0,
+# the licence of the UD English-GUM release, which ships the texts (found by TTLab's review of PR #305).
 # ============================================================================
 
 _PDTB2_TO_3 = {"temporal.synchrony": "Temporal.Synchronous", "temporal.synchronous": "Temporal.Synchronous",
@@ -7451,7 +7469,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
             index=80,
             type_name="Syntactic Pattern Density",
             **labels("DRGERUND"),
-            description="Gerund density, incidence",
+            description="Gerund density (-ing verb forms: gerunds, progressives, participles), incidence",
             value=drgerund,
             error=drgerund_error
         ))
