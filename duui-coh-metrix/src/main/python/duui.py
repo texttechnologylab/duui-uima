@@ -429,6 +429,12 @@ VARIANTS: List[Tuple[int, str, str, str, str, Tuple[str, ...]]] = [
     *[(number, f"{key}@CLEAR", f"{key}_REFIT_{{clear}}", "refit", "refit", _ALL)
       for number, (key, _) in enumerate(_EASABILITY_INDICES, start=12)],
 ]
+# Fallbacks (decided 2026-11-04): the variants with 0.2.0's resources that stand in for a resource of the main record are
+# computed only if that resource is not available (not mounted), and then replace the main record, under their own internal
+# label (README rule 7, as _SEEDlist for GermaNet): _LLMlist for DiMLex / DiMLex-Eng (CNC*, SMCAUSvp, SMCAUSr), _WIKI for
+# SUBTLEX (WRDFRQ*, RDL2), _MRC / _MRCtr for the native norms (WRDAOAc, WRDCNCc, German WRDIMGc). The other variants
+# (_TEXTSTAT, _REFIT_CLEAR) are another method or model, not a substitute for a missing file; they stay additional records.
+FALLBACK_KEYS = frozenset(key for _, key, *_ in VARIANTS if key.endswith(("@LLMlist", "@WIKI", "@MRC")))
 CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR for German) has duui-coh-metrix 0.2.0's index "
                  "values as inputs; it is not used until it is refitted on the current ones")
 # The main Text Easability models (REFIT_REFv1 / REFIT_REFa: refv1-ud-rr-cr3, refa-en-rr-gn-cr3, PR #306) were fitted on the values
@@ -606,6 +612,25 @@ def _vectors_group(vectors: Optional[str], vectors_model: Optional[str], vectors
     if parameter_size and parameter_size != model_size:
         logger.warning("vectors=%s, but the tokens come from %s; using SPACY%s", name, vectors_model, model_size)
     return "SPACY" + model_size, None
+
+
+def _apply_fallbacks(output: Set[str], ttlab_labels: Dict[str, str], missing: Dict[str, str]) -> Tuple[Set[str], Dict[str, List[str]]]:
+    """the selected record keys with the fallbacks applied (FALLBACK_KEYS): a selected index whose main record lacks a
+    resource gets its fallback instead (if the index or the fallback is selected); a fallback whose main record has its
+    resources is not output. Returns the keys and, per active fallback, the missing resources"""
+    out, reasons = set(output), {}
+    for key in FALLBACK_KEYS:
+        main = key.partition("@")[0]
+        if key not in ttlab_labels or main not in ttlab_labels:
+            continue
+        absent = [missing[g] for g in ttlab_labels[main].split("_")[1:] if g in missing]
+        if absent and (main in out or key in out):
+            out.discard(main)
+            out.add(key)
+            reasons[key] = absent
+        elif not absent:
+            out.discard(key)
+    return out, reasons
 
 
 def _ttlab_labels(lang: str, vectors_group: str, verbs: Optional[str] = None,
@@ -902,7 +927,7 @@ def get_input_output() -> TextImagerInputOutput:
 
 @app.get("/v1/indices")
 def get_indices() -> List[Dict[str, Any]]:
-    # The records (indices and their variants): the names accepted by include_indices / exclude_indices, and how each relates
+    # The records (indices, their fallbacks and variants): the names accepted by include_indices / exclude_indices, and how each relates
     # to Coh-Metrix 3.0. The vector group depends on the document (SPACYlg, ...), so label_ttlab shows it as *.
     labels = {lang: _ttlab_labels(lang, "*") for lang in _GROUPS}
     return [
@@ -911,6 +936,9 @@ def get_indices() -> List[Dict[str, Any]]:
             "type_name": r.type_name,
             "label_v3": r.label_v3,
             "label_v2": r.label_v2,
+            # main record; fallback: only computed if a resource of the main record is missing, and then instead of it;
+            # variant: another method or model, an additional record
+            "kind": "main" if "@" not in r.key else "fallback" if r.key in FALLBACK_KEYS else "variant",
             "label_ttlab_en": labels["en"].get(r.key),
             "label_ttlab_de": labels["de"].get(r.key),
             "comparable_en": r.comparable_en if "en" in r.languages else None,
@@ -939,6 +967,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     ttlab_labels = _ttlab_labels(lang, vectors_group, scheme=scheme)
     output = {key for key in _resolve_index_selection(request.include_indices, request.exclude_indices, ttlab_labels)
               if key.partition("@")[0] not in NOT_EMITTED.get(lang, ())}
+    # fallbacks only where a resource of the main record is missing (FALLBACK_KEYS)
+    missing = _missing_resources(lang)
+    output, fallback_reasons = _apply_fallbacks(output, ttlab_labels, missing)
     core_request = _core_request(request, lang, vectors_group)
 
     # the core keys of the selected records; the Text Easability components (main models) need their model's inputs, the
@@ -969,7 +1000,6 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         vectors_error = f"No token vectors ({vectors_group})"
         logger.warning("%s: the LSA indices and SMCAUSlsa are undefined", vectors_error)
 
-    missing = _missing_resources(lang)
     indices = []
     for r in RECORDS:
         if r.key not in output:
@@ -981,8 +1011,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 error = "resource not available: " + ", ".join(absent)
         if vectors_error is not None and r.label_v3 in _VECTOR_INDICES:
             value, error = None, vectors_error
+        description = _description(r, lang)
+        if r.key in fallback_reasons:
+            description += " (fallback: " + ", ".join(fallback_reasons[r.key]) + " not available)"
         indices.append(Index(index=r.index, type_name=r.type_name, label_v3=r.label_v3, label_ttlab=ttlab_labels[r.key],
-                             label_v2=r.label_v2, description=_description(r, lang), version=VERSIONS[lang][r.key],
+                             label_v2=r.label_v2, description=description, version=VERSIONS[lang][r.key],
                              value=value, error=error))
 
     meta = AnnotationMeta(name=settings.annotator_name, version=settings.annotator_version,
