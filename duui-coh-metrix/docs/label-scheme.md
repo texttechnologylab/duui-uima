@@ -1,7 +1,7 @@
 # Coh-Metrix labels: two-layer scheme
 
-Status: decided on 28 October 2026, implemented in version 0.2.0; updated for 0.3.0 (4 November 2026, section
-"0.3.0: main records and variants"). The rules for adding or changing an index
+Status: decided on 28 October 2026, implemented in version 0.2.0; updated for 0.6.0 (4 November 2026, section
+"0.6.0: main records and variants"). The rules for adding or changing an index
 are in `README.md` under "Index labels"; this document keeps the background. The scheme replaces the
 three-layer scheme of 0.1.x (`label_v3`, public `label_ttlab` with deviation suffixes, `label_internal`). It
 takes up a colleague's proposal for public labels that name the kind of deviation, and the original
@@ -87,7 +87,7 @@ internal one.
 
 ## Mapping
 
-The main record of each index comes first, its variants follow (section "0.3.0: main records and variants"):
+The main record of each index comes first, its variants follow (section "0.6.0: main records and variants"):
 
 | Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
 |---|---|---|---|---|---|
@@ -150,7 +150,7 @@ German values are never directly comparable to English norms, also where the col
 The public label must be unique, because it is the UIMA type and the column name in result tables. RDL2
 combines word frequency, syntactic similarity and content word overlap between adjacent sentences. 0.2.0 had two
 records: `RDL2` with SYNSTRUTa and the project-only `RDL2t_ext` (index 1012) with SYNSTRUTt, because "syntactic
-similarity" seemed open. **0.3.0 drops `RDL2t_ext`** (decided 2026-11-02): RDL2 uses the adjacent-sentence mean
+similarity" seemed open. **0.6.0 drops `RDL2t_ext`** (decided 2026-11-02): RDL2 uses the adjacent-sentence mean
 SYNSTRUTa (Scott A. Crossley, Jerry Greenfield and Danielle S. McNamara, "Assessing Text Readability Using Cognitively
 Based Indices", TESOL Quarterly 42(3), 2008, p. 482, https://doi.org/10.1002/j.1545-7249.2008.tb00142.x; Scott A.
 Crossley, David B. Allen and Danielle S. McNamara, "Text readability and intuitive simplification: A comparison of
@@ -239,9 +239,11 @@ With the public label now always the V3 name, the following no longer affect the
 - The colleague's proposal (`_refit`, `_embedding`, the kinds of vector spaces, the translated MRC) is
   covered by the groups above (`REFIT`, `EMB`, `SPACYxx`, `MRCtr`; public `WRDAOAc`).
 
-## 0.3.0: main records and variants
+## 0.6.0: main records and variants
 
-Integration of Coh-Metrix 0.4.0-py (Maxim Konca; UD input, new resources), decided 2026-11-02:
+Integration of Coh-Metrix 0.4.0-py and 0.5.0-py (Maxim Konca, PR #305 and #306; UD input, new resources), decided
+2026-11-02 to 2026-11-04. The component version 0.6.0 follows the core versions of these PRs (the version 0.3.0 used during the
+work was never released):
 
 - **Several records per public label.** An index has one main record and may have variants: further records with
   another resource or method, each with its own internal label. The public label (and UIMA type) is shared; the
