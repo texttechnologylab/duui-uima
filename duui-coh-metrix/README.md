@@ -110,9 +110,22 @@ alone. Use the default pipeline (Stanza) for German.
 ### Resources supplied by the user
 
 These files are not in the image (non-commercial licences, or no licence for
-redistribution found). Mount a directory with them at
-`/usr/src/app/src/main/resources/external`; each file has its own environment
-variable (Dockerfile) if another name or place is needed. Without a file its
+redistribution found) and must never be added to Git or the image.
+`download_resources.py` downloads them into one directory, with the names the
+image expects, checks each file against the SHA-256 it had when the script was
+written, and writes `sources.json` (source, publication, licence, checksums);
+SUBTLEX-DE has to be placed by hand (its download page is offline):
+
+```
+pip install openpyxl
+python download_resources.py /path/to/external
+```
+
+Use a directory outside the repository and mount it at
+`/usr/src/app/src/main/resources/external`; each file
+has its own environment variable (Dockerfile) if another name or place is
+needed. `--clear` also downloads the CLEAR corpus, only needed to refit the
+CLEAR Text Easability models (development). Without a file its
 records are `None` with the error `resource not available: ...`, and so are the
 Text Easability components that need it as input.
 
