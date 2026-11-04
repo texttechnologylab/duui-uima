@@ -160,7 +160,7 @@ public class WtpsplitTest {
         for (int i = 0; i < text.length(); i++) {
             assertTrue(Character.isWhitespace(text.charAt(i)) || covered[i], "not in a paragraph: offset " + i);
         }
-        // a line break between two paragraphs, or among the 5 characters before the second (docs/preprocess.py)
+        // a line break between two paragraphs, or among the 5 characters before the second (Coh-Metrix reference preprocessing)
         for (int i = 1; i < paragraphs.size(); i++) {
             int begin = paragraphs.get(i).getBegin();
             String between = text.substring(paragraphs.get(i - 1).getEnd(), begin);

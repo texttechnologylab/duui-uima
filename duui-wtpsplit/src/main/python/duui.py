@@ -197,8 +197,8 @@ def get_input_output() -> TextImagerInputOutput:
 
 
 def filter_at_line_breaks(text: str, boundaries) -> set:
-    """the boundaries at a line break of the text, as the Coh-Metrix preprocessing keeps them (duui-coh-metrix
-    docs/preprocess.py, ChonkyParagraphs and SaTParagraphs, 2026-11-02): the next paragraph's first non-whitespace character
+    """the boundaries at a line break of the text, as the reference preprocessing of Coh-Metrix 0.4.0-py keeps
+    them (ChonkyParagraphs and SaTParagraphs): the next paragraph's first non-whitespace character
     starts a line (follows a line break and only whitespace), or a line break is among the 5 characters before it"""
     line_starts = {m.end() for m in re.finditer(r"\n\s*", text)}
     kept = set()
@@ -214,7 +214,7 @@ def filter_at_line_breaks(text: str, boundaries) -> set:
 def paragraph_segmentation(text: str) -> List[tuple]:
     """SaT's paragraph segmentation (do_paragraph_segmentation, default threshold) on the text with its line breaks as spaces
     (same length); a boundary is kept only at a line break of the text (filter_at_line_breaks). As the English default of the
-    Coh-Metrix preprocessing (docs/preprocess.py, SaTParagraphs), with exact offsets instead of a text search. Returns the
+    Coh-Metrix 0.4.0-py reference preprocessing (SaTParagraphs), with exact offsets instead of a text search. Returns the
     paragraphs as (begin, end) in code points, without surrounding whitespace."""
     flat = text.replace("\r", " ").replace("\n", " ")
     boundaries = set()
