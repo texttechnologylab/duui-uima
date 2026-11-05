@@ -1,3 +1,4 @@
 measure_a,measure_b,r
-21 Concreteness,22 Imagery,0.9244708306082747
-36 Argument overlap—all sentences,38 Stem overlap—all sentences,0.9984680032914137
+13 Logical connectives,14 Additive connectives,0.9807910936277173
+36 Argument overlap—all sentences,38 Stem overlap—all sentences,0.9987472668449713
+43 LSA overlap—adjacent sentences,44 LSA overlap—all sentences,0.9203674262176529

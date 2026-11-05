@@ -302,7 +302,8 @@ fitted on the values of Coh-Metrix 0.5.0-py; in this component SYNNP, LSAGN and
 German SMTEMP are computed differently (see
 [Index definitions and deviations](#index-definitions-and-deviations)), so the
 model inputs would not match its reference distribution (`MODEL_INPUTS_CHANGED`
-in `duui.py`). The CLEAR models were fitted on the values of 0.2.0. Once a model
+in `duui.py`). The CLEAR models in the repository are refitted on the values of
+0.6.0 (2026-11-04, see below); 0.6.0 does not compute them yet. Once a model
 is refitted on this component's values, its records are computed again.
 
 How the components are computed: the inputs are standardized with the reference
@@ -365,8 +366,12 @@ python easability/compare_models.py easability/results/clear_en_pca \
 ```
 
 Test runs: `-Dclear.limit=N` processes only the first N excerpts,
-`-Dclear.target=DIR` writes to another directory. Until the refit, the models
-in the repository and the results in `easability/results/` are those of 0.2.0.
+`-Dclear.target=DIR` writes to another directory. The models in the repository
+and the results in `easability/results/` are those of the refit on 0.6.0
+(2026-11-04): English 4,724 excerpts, 49 measures, 63.3% of the variance
+explained by the 8 components; German 4,669 excerpts, 49 measures, 62.6%. In
+both, Temporality does not fit its markers (marker score 0.09 English, 0.11
+German; `report.md` in each results directory).
 `ClearCorpusTextEasabilityTest` (checks that the component's z scores equal
 the PCA scores) is adapted when the refitted models are switched on.
 
