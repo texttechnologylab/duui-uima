@@ -16,7 +16,7 @@ measure,missing_documents,missing_share
 16 Word frequency (logarithm),0,0.0
 17 Content word frequency (logarithm),0,0.0
 18 Minimum word frequency per sentence,0,0.0
-19 Age of acquisition,1,0.00021417862497322766
+19 Age of acquisition,0,0.0
 20 Meaningfulness,0,0.0
 21 Concreteness,0,0.0
 22 Imagery,0,0.0
@@ -29,21 +29,22 @@ measure,missing_documents,missing_share
 29 Modifiers per noun phrase,0,0.0
 30 Words before main verb of main clause,0,0.0
 31 Passive constructions,0,0.0
-32 Syntactic similarity—sentences in paragraph,0,0.0
-33 Content word overlap—adjacent sentences,0,0.0
-34 Content word overlap—all sentences,0,0.0
-35 Argument overlap—adjacent sentences,1,0.00021417862497322766
-36 Argument overlap—all sentences,0,0.0
-37 Noun overlap—adjacent sentences,0,0.0
-38 Stem overlap—all sentences,0,0.0
+32 Syntactic similarity—sentences in paragraph,2,0.00042835724994645533
+33 Content word overlap—adjacent sentences,2,0.00042835724994645533
+34 Content word overlap—all sentences,2,0.00042835724994645533
+35 Argument overlap—adjacent sentences,2,0.00042835724994645533
+36 Argument overlap—all sentences,2,0.00042835724994645533
+37 Noun overlap—adjacent sentences,2,0.00042835724994645533
+38 Stem overlap—all sentences,2,0.00042835724994645533
 39 Type-token ratio,0,0.0
 40 Lexical diversity—all words,0,0.0
 42 LSA-givenness versus newness,0,0.0
-43 LSA overlap—adjacent sentences,0,0.0
-44 LSA overlap—all sentences,8,0.0017134289997858213
-45 Dissimilarity of parts of speech between sentences,0,0.0
-46 Dissimilarity of words between sentences,0,0.0
-47 Causal cohesion,947,0.2028271578496466
-49 Verb overlap—adjacent,2,0.00042835724994645533
-50 LSA verb overlap—adjacent sentences,0,0.0
-51 Temporal cohesion,1,0.00021417862497322766
+43 LSA overlap—adjacent sentences,2,0.00042835724994645533
+44 LSA overlap—all sentences,31,0.006639537374170058
+45 Dissimilarity of parts of speech between sentences,2,0.00042835724994645533
+46 Dissimilarity of words between sentences,2,0.00042835724994645533
+47 Causal cohesion,0,0.0
+48 Intentional cohesion,0,0.0
+49 Verb overlap—adjacent,1,0.00021417862497322766
+50 LSA verb overlap—adjacent sentences,1,0.00021417862497322766
+51 Temporal cohesion,3,0.000642535874919683

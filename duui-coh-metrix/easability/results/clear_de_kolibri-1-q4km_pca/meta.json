@@ -1,9 +1,9 @@
 {
-  "created_at": "2026-10-27T10:00:56+00:00",
-  "indices_file": "clear_corpus/indices_de_kolibri-1-q4km.csv",
-  "model_file": "src/main/resources/easability/text_easability_de.json",
+  "created_at": "2026-11-04T21:21:19+00:00",
+  "indices_file": "/storage/projects/CORE/projects2/coh_metrix/clear_corpus/indices_de_kolibri-1-q4km_0.6.0.csv",
+  "model_file": "src/main/resources/easability/text_easability_de_cleartr.json",
   "documents": 4669,
-  "documents_with_imputed_values": 954,
+  "documents_with_imputed_values": 32,
   "measures": [
     "1 Syllables per word",
     "2 Nouns",
@@ -50,6 +50,7 @@
     "45 Dissimilarity of parts of speech between sentences",
     "46 Dissimilarity of words between sentences",
     "47 Causal cohesion",
+    "48 Intentional cohesion",
     "49 Verb overlap\u2014adjacent",
     "50 LSA verb overlap\u2014adjacent sentences",
     "51 Temporal cohesion"
@@ -58,7 +59,7 @@
   "n_components": 8,
   "rotation": "varimax (factor_analyzer.rotator.Rotator defaults)",
   "standardization": "sklearn StandardScaler (population SD) after SimpleImputer(strategy='mean')",
-  "explained_variance_ratio_total": 0.5848011571248645,
+  "explained_variance_ratio_total": 0.6259675229783279,
   "high_correlation_threshold": 0.9,
   "versions": {
     "python": "3.12.15",

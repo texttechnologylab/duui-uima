@@ -39,11 +39,12 @@ measure,missing_documents,missing_share
 39 Type-token ratio,0,0.0
 40 Lexical diversity—all words,0,0.0
 42 LSA-givenness versus newness,0,0.0
-43 LSA overlap—adjacent sentences,2,0.0004233700254022015
-44 LSA overlap—all sentences,28,0.0059271803556308214
+43 LSA overlap—adjacent sentences,0,0.0
+44 LSA overlap—all sentences,23,0.004868755292125318
 45 Dissimilarity of parts of speech between sentences,0,0.0
 46 Dissimilarity of words between sentences,0,0.0
-47 Causal cohesion,793,0.1678662150719729
+47 Causal cohesion,0,0.0
+48 Intentional cohesion,0,0.0
 49 Verb overlap—adjacent,0,0.0
 50 LSA verb overlap—adjacent sentences,0,0.0
-51 Temporal cohesion,2,0.0004233700254022015
+51 Temporal cohesion,0,0.0
