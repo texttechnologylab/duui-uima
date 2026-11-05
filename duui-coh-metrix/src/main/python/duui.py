@@ -143,6 +143,11 @@ INDEX_CATALOG: List[Tuple[int, str, str, str, str, str, Optional[str]]] = [
     (60, "Situation Model", "SMCAUSvp", "SMCAUSvp_{verbs}_{connectives}", "counterpart", "counterpart", "CAUSVP"),
     (61, "Situation Model", "SMINTEp", "SMINTEp_{verbs}", "original", "counterpart", "INTEi"),
     (62, "Situation Model", "SMCAUSr", "SMCAUSr_{verbs}_{connectives}", "counterpart", "counterpart", "CAUSC"),
+    # Remark (coh-metrix_resurrection, 2026-11-05): this label names an LLM-generated list (_LLMlist) for SMINTEr's particles. The
+    # original implementer's answers (docs/label-scheme.md, "Resolved questions") call only the DRNEG lists and the causal particle
+    # lists (SMCAUSvp, SMCAUSr) LLM-generated. Are the intentional particle lists LLM-generated too (English "in order (not) to",
+    # "so as (not) to"; German "auf dass", plus "um ... zu" counted by the tag of "um", KOUI, since the code review of 2026-10-31)?
+    # If not, the label should drop _LLMlist (SMINTEr_{verbs}).
     (63, "Situation Model", "SMINTEr", "SMINTEr_{verbs}_LLMlist", "original", "counterpart", "INTEC"),
     (64, "Situation Model", "SMCAUSlsa", "SMCAUSlsa_EMB_{vectors}", "emb", "emb", "CAUSLSA"),
     (65, "Situation Model", "SMCAUSwn", "SMCAUSwn_{wn}", "original", "counterpart", "CAUSWN"),
@@ -443,6 +448,8 @@ CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR fo
 # 0), German SMTEMP ("würde" + infinitive future, Konjunktiv II the tense of its form). The models are not used while an input
 # is listed here: empty the list of a language once its model is refitted on this component's values.
 # 2026-11-04: both refitted on this component's values (refv1-ud-rr-cr4, refa-en-rr-gn-cr4), so both lists are empty.
+# 2026-11-05: refv1-ud-rr-cr5 / refa-en-rr-gn-cr5 (coh-metrix_resurrection 0.6.1-py; German cr5 has cr4's weights, English cr5 is
+# fitted on reference corpus A parsed with the ELECTRA-large tokenizer); the lists stay empty.
 MODEL_INPUTS_CHANGED = {"de": (), "en": ()}
 REFIT_PENDING = ("not computed: the Text Easability model {model} was fitted on inputs computed differently ({inputs}); it is not "
                  "used until it is refitted on this component's values")
