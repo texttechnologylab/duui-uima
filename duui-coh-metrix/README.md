@@ -119,8 +119,9 @@ instead of `CNCAll_DIMLEX`), the frequencies the Wikipedia samples
 (`WRDFRQc_WIKI` instead of `WRDFRQc_SUBTLEX`), the norms the MRC database
 (`WRDAOAc_MRC` instead of `WRDAOAc_KUPERMAN`), and the German causal and
 intentional verbs seed lists (see [GermaNet](#germanet)). A fallback is computed
-only then. The other records that need a missing resource are `None` with the
-error `resource not available: ...`.
+only then, unless all records are requested (`all_records=true`, see
+[Selecting indices](#selecting-indices)). The other records that need a missing
+resource are `None` with the error `resource not available: ...`.
 
 ### In the image
 
@@ -294,17 +295,21 @@ corpus, so the models here are fitted again on other reference corpora:
 
 | Records | Model | Reference corpus |
 |---|---|---|
-| `PC*_REFIT_REFa` (English), `PC*_REFIT_REFv1` (German), main records | `text_easability_en_refa-en-rr-gn-cr3.json`, `text_easability_de_refv1-ud-rr-cr3.json` (Coh-Metrix 0.5.0-py, Maxim Konca) | 9 registers × 1,000 passages of 250–350 words each (news report, personal narrative, encyclopedia, informational description, research and expert, how-to, opinion/review/advice, persuasion/commercial, fiction). English: FineWeb sample-10BT, wiki40b, Wikinews, Intereconomics, fiction 1900–1918 from PG-19; German: FineWeb-2 and other web sources, fiction 1900–1930 from de-Corp. PCA on standardized inputs with Varimax rotation; the English components are named by their congruence with the German model |
+| `PC*_REFIT_REFa` (English), `PC*_REFIT_REFv1` (German), main records | `text_easability_en_refa-en-rr-gn-cr5.json`, `text_easability_de_refv1-ud-rr-cr5.json` (Maxim Konca, fitted on the values of this component, 2026-11-05) | 9 registers × 1,000 passages of 250–350 words each (news report, personal narrative, encyclopedia, informational description, research and expert, how-to, opinion/review/advice, persuasion/commercial, fiction). English: FineWeb sample-10BT, wiki40b, Wikinews, Intereconomics, fiction 1900–1918 from PG-19; German: FineWeb-2 and other web sources, fiction 1900–1930 from de-Corp. PCA on standardized inputs with Varimax rotation; the English components are named by their congruence with the German model |
 | `PC*_REFIT_CLEAR` (English), `PC*_REFIT_CLEARtr` (German), variants | `text_easability_en_clear.json`, `text_easability_de_cleartr.json` | the [CommonLit Ease of Readability (CLEAR) corpus](https://github.com/scrosseye/CLEAR-Corpus) (Crossley et al., 2022), 4,724 excerpts; German: CLEAR translated into German (Kolibri-1 Q4_K_M, 4,669 excerpts without truncated translations and paragraph mismatches) |
 
-**Both are `None` with an error until refitted.** The REFa/REFv1 models were
-fitted on the values of Coh-Metrix 0.5.0-py; in this component SYNNP, LSAGN and
-German SMTEMP are computed differently (see
-[Index definitions and deviations](#index-definitions-and-deviations)), so the
-model inputs would not match its reference distribution (`MODEL_INPUTS_CHANGED`
-in `duui.py`). The CLEAR models in the repository are refitted on the values of
-0.6.0 (2026-11-04, see below); 0.6.0 does not compute them yet. Once a model
-is refitted on this component's values, its records are computed again.
+**Both are computed since 0.7.0.** Both are fitted on the values of this
+component (0.6.0; 0.7.0 computes the same index values): REFa/REFv1 as cr5
+(the English cr5 refitted on reference corpus A parsed with the full ELECTRA
+tokenizer, the German cr5 equal to cr4), CLEAR on 2026-11-04 (see below). In
+0.6.0 they were `None` with an error: the main models of 0.5.0-py had other
+SYNNP, LSAGN and German SMTEMP values as inputs (`MODEL_INPUTS_CHANGED` in
+`duui.py`, empty since cr4), the CLEAR models those of 0.2.0. On the same CLEAR
+texts the two model families agree for most components (z score correlation
+0.80–0.99), except German Temporality and, in English, Verb cohesion and
+Temporality: there the English cr5 names the components the other way round
+(its "Semantic overlap", PCVERB, is the CLEAR model's PCTEMP; its "Third-person
+narration", PCTEMP, is the CLEAR model's PCVERB with the opposite sign).
 
 How the components are computed: the inputs are standardized with the reference
 corpus' mean and SD, the z score is the weighted sum, the percentile the share
@@ -372,8 +377,9 @@ and the results in `easability/results/` are those of the refit on 0.6.0
 explained by the 8 components; German 4,669 excerpts, 49 measures, 62.6%. In
 both, Temporality does not fit its markers (marker score 0.09 English, 0.11
 German; `report.md` in each results directory).
-`ClearCorpusTextEasabilityTest` (checks that the component's z scores equal
-the PCA scores) is adapted when the refitted models are switched on.
+`ClearCorpusTextEasabilityTest` checks that the component's `_REFIT_CLEAR(tr)`
+records reproduce the PCA scores (every 100th excerpt of the reference corpus,
+against the running service, `-Dcohmetrix.url`).
 
 ## Index definitions and deviations
 
@@ -476,7 +482,8 @@ calls take the internal label from it (`ttlab_labels`).
    connectives use LLM-generated lists (`CNCAll_LLMlist`), without SUBTLEX the
    Wikipedia samples (`WRDFRQc_WIKI`), without the native norms MRC
    (`WRDAOAc_MRC`). A fallback is computed only if the main record's resource
-   is missing, and then replaces it (one record per index).
+   is missing, and then replaces it (one record per index); with
+   `all_records=true` it is also computed next to the main record.
 8. **Derived indices** (RDL2, PC*) name the resources of their inputs
    (`RDL2_SUBTLEX`).
 9. **No placeholders.** If the original resource is unavailable, emit only the
@@ -544,7 +551,7 @@ column says `original`.
 
 The main record of each index comes first. A **fallback** (rows "… fallback")
 is computed only if a resource of the main record is missing, and then replaces
-it. A **variant** (another method or model: the textstat library, the CLEAR
+it; with `all_records=true` it is also computed next to the main record. A **variant** (another method or model: the textstat library, the CLEAR
 models) is an additional record, selected like any internal label (e.g.
 `exclude_indices=*_TEXTSTAT`). `GET /v1/indices` gives each record's `kind`
 (`main`, `fallback`, `variant`). German
@@ -554,8 +561,8 @@ lists (`SEEDlist`), and SMTEMP drops `GN`.
 | Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
 |---|---|---|---|---|---|
 | DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p | V3 | same as public | same as public | original | original |
-| PC* (16): `None` with an error until the models are refitted on this component's values (the inputs SYNNP, LSAGN and German SMTEMP are computed differently from the fit) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
-| … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
+| PC* (16): models `refa-en-rr-gn-cr5` / `refv1-ud-rr-cr5` (computed since 0.7.0) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
+| … variant: models fitted on CLEAR / translated CLEAR (computed since 0.7.0) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
 | LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
 | CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |
 | … fallback (without DiMLex / DiMLex-Eng) | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
@@ -737,6 +744,23 @@ public label to use. A name that only exists in another language (e.g.
 
 Skipping indices also skips their shared preprocessing, e.g. the LSA vectors,
 connective counts or hypernymy lookups.
+
+**All records.** A fallback (e.g. `WRDFRQc_WIKI`, `CNCAll_LLMlist`,
+`WRDAOAc_MRC`) is normally computed only if a resource of its index's main
+record is missing, and then replaces it. With `all_records=true` the selected
+indices also get their fallbacks next to the main record when its resources are
+available, e.g. to show every value side by side:
+
+```java
+new DUUIDockerDriver.Component("docker.texttechnologylab.org/v2/duui-coh-metrix:latest")
+    .withParameter("all_records", "true")
+```
+
+The selection applies as before (`include_indices=WRDFRQc` with
+`all_records=true` gives `WRDFRQc_SUBTLEX` and `WRDFRQc_WIKI`). A missing resource
+still makes the fallback replace its main record, and only then does the
+fallback's description name the missing resource. Default `false`; other values
+are refused (HTTP 400).
 
 ### Vectors
 

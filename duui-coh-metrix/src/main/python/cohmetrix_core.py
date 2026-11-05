@@ -1241,6 +1241,8 @@ def _load_easability_model(path: str, lang: str) -> Optional[dict]:
         if not (isinstance(m.get("scale"), (int, float)) and math.isfinite(m["scale"]) and m["scale"] > 0):
             raise ValueError(f'Text Easability model "{path}": input {m["_parts"]} has scale {m.get("scale")!r}')
     model["_weights"] = np.asarray([c["weights"] for c in model["components"]]).T
+    # the models of easability/pca.py (CLEAR) have no model_id: named by their file
+    model.setdefault("model_id", Path(path).stem.removeprefix("text_easability_"))
     logger.info('Text Easability model "%s": %d inputs, %d reference texts', model["model_id"], len(model["inputs"]),
                 model["documents"])
     return model
