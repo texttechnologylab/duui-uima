@@ -87,14 +87,14 @@ internal one.
 
 ## Mapping
 
-The main record of each index comes first; a fallback replaces it only if its resource is missing, a variant is an
-additional record (section "0.6.0: main records, fallbacks and variants"):
+The main record of each index comes first; a fallback replaces it only if its resource is missing (with the parameter
+`all_records=true` it is also output next to it), a variant is an additional record (section "0.6.0: main records, fallbacks and variants"):
 
 | Indices | Public | Internal EN | Internal DE | Comparable EN | Comparable DE |
 |---|---|---|---|---|---|
 | DES*, CRF*, LD*, SYN*, DR* except DRNEG, WRDNOUN … WRDPRP3p | V3 | same as public | same as public | original | original |
-| PC* (16): `None` with an error until the models are refitted on this component's values (the inputs SYNNP, LSAGN and German SMTEMP are computed differently from the fit) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
-| … variant (not computed until refitted, `None` with an error) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
+| PC* (16): models `refa-en-rr-gn-cr5` / `refv1-ud-rr-cr5` (computed since 0.7.0) | `PCNARz` | `PCNARz_REFIT_REFa` | `PCNARz_REFIT_REFv1` | refit | refit |
+| … variant: models fitted on CLEAR / translated CLEAR (computed since 0.7.0) | | `PCNARz_REFIT_CLEAR` | `PCNARz_REFIT_CLEARtr` | refit | refit |
 | LSA* (8), SMCAUSlsa | `LSASS1` | `LSASS1_EMB_SPACYlg` | `LSASS1_EMB_SPACYlg` | emb | emb |
 | CNC* (9) | `CNCAll` | `CNCAll_DIMLEXeng_GUM` | `CNCAll_DIMLEX` | counterpart | counterpart |
 | … fallback (without DiMLex / DiMLex-Eng) | | `CNCAll_LLMlist` | `CNCAll_LLMlist` | llmlist | llmlist |
@@ -250,7 +250,9 @@ work was never released):
   own internal label. The public label (and UIMA type) is shared; the internal label stays unique.
   - A **fallback** stands in for a resource of the main record that is not available (not mounted): it is computed only
     then, and replaces the main record (rule 7, as `_SEEDlist` for GermaNet). Decided 2026-11-04, after the feedback that
-    the 0.2.0 lists have no documented source and doubled the labels when computed alongside the main record.
+    the 0.2.0 lists have no documented source and doubled the labels when computed alongside the main record. On request
+    (parameter `all_records=true`, decided 2026-11-05, e.g. for a website showing every value) it is also computed next to
+    the main record when the resource is available.
   - A **variant** is another method or model, independent of missing files: an additional record, selected like any
     internal label (`exclude_indices=*_TEXTSTAT`).
 - **New main resources** from 0.4.0-py, each named by a group: SUBTLEX frequencies (`WRDFRQ*`, `RDL2`), DiMLex /
@@ -258,12 +260,12 @@ work was never released):
   concreteness and imageability (`KUPERMAN`, `BIRCHENOUGH`, `BRYSBAERT`, `KOEPER`), Text Easability models fitted on new
   reference corpora (`REFIT_REFa`, `REFIT_REFv1`; models `refa-en-rr-gn-cr3` / `refv1-ud-rr-cr3` of PR #306, fitted on the
   values of 0.5.0-py). These are `None` with an error until refitted on this component's values: SYNNP, LSAGN and German
-  SMTEMP are computed differently here (decided 2026-11-04). Most of these files are not in the image (licences); without them
+  SMTEMP are computed differently here (decided 2026-11-04). Refitted as cr4 / cr5 and computed since 0.7.0. Most of these files are not in the image (licences); without them
   the records are `None` with an error.
 - **0.2.0's resources as fallbacks:** `_WIKI` frequencies (now log10, like SUBTLEX) without SUBTLEX, `_LLMlist`
   connectives and causal particles without DiMLex / DiMLex-Eng, `_MRC` / `_MRCtr` norms without the native norms.
 - **Variants:** `_TEXTSTAT` readability (the textstat library), `_REFIT_CLEAR` / `_REFIT_CLEARtr` Text Easability (`None`
-  with an error until refitted on the current values). The main readability records are computed by the component itself;
+  with an error until refitted on the current values; refitted on 0.6.0's values on 2026-11-04, computed since 0.7.0). The main readability records are computed by the component itself;
   Dale-Chall and Spache use textstat's easy-word list (`TEXTSTATlist`).
 - **Best effort without UD.** On spaCy-only input the dependency relations are mapped to UD in the component; the
   records that read them get a method group right after the public label (`SYNNP_TIGERmap`,

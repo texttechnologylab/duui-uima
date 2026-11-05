@@ -6,6 +6,7 @@ and runs only the steps they need. This file owns everything around it:
 - the index catalog with the two-layer labels (`label_v3` public, `label_ttlab` internal with uppercase resource groups; README,
   "Index labels"), the descriptions, and which indices are emitted;
 - `include_indices` / `exclude_indices` (README, "Selecting indices"), mapped to the core keys the selection needs;
+- `all_records`: the fallbacks also next to their main record (README, "Fallbacks");
 - the Text Easability components from the computed inputs (the core's model functions);
 - every selected index gets a value or an error;
 - the token vectors from WordEmbedding annotations or SpacyToken.vector (README, "Vectors");
@@ -393,6 +394,32 @@ def _model_inputs(lang: str) -> Set[str]:
     return {label.split("_", 1)[0] for m in model["inputs"] for label in m["labels_internal"]}
 
 
+# The Text Easability models fitted on CLEAR (English) and its German translation (README, "Text Easability models";
+# easability/pca.py): their inputs are named by this component's internal labels (the label_ttlab of the main records, e.g.
+# LSAGN_EMB_SPACYlg), so a request whose labels differ (other vectors, no GermaNet, a missing resource) leaves them None.
+CLEAR_MODELS = {lang: core._load_easability_model(str(core.RESOURCES / "easability" / name), lang)
+                for lang, name in (("en", "text_easability_en_clear.json"), ("de", "text_easability_de_cleartr.json"))}
+
+
+def _clear_inputs(lang: str) -> Set[str]:
+    """the core keys the CLEAR model of the language needs"""
+    model = CLEAR_MODELS.get(lang)
+    if not model:
+        return set()
+    return {label.split("_", 1)[0] for m in model["inputs"] for label in m["labels_internal"]}
+
+
+def _easability_clear(results: Dict[str, Tuple[Optional[float], Optional[str]]], lang: str,
+                      ttlab_labels: Dict[str, str]) -> Dict[str, Tuple[Optional[float], Optional[str]]]:
+    """the 16 Text Easability components of the CLEAR model (records <key>@CLEAR) from the computed inputs"""
+    model = CLEAR_MODELS.get(lang)
+    if not model:
+        return {f"{key}@CLEAR": (None, "no Text Easability model fitted on CLEAR") for key in EASABILITY_KEYS}
+    values = {ttlab_labels[key]: value for key, (value, _) in results.items() if key in ttlab_labels}
+    scores, error = core._easability_scores(values, model)
+    return {f"{key}@CLEAR": (scores.get(key), error) for key in EASABILITY_KEYS}
+
+
 def _easability(results: Dict[str, Tuple[Optional[float], Optional[str]]], lang: str,
                 vectors: Optional[str]) -> Dict[str, Tuple[Optional[float], Optional[str]]]:
     """the 16 Text Easability components from the computed inputs (the core's model functions)"""
@@ -429,8 +456,8 @@ VARIANTS: List[Tuple[int, str, str, str, str, Tuple[str, ...]]] = [
     *[(i, f"{k}@TEXTSTAT", f"{k}_ext_TEXTSTAT", "ext", "ext", _ALL) for i, k in (
         (1001, "RDFOG"), (1002, "RDSMOG"), (1003, "RDARI"), (1004, "RDCLI"), (1005, "RDLW"), (1006, "RDDCRS"),
         (1007, "RDSPACHE"), (1008, "RDWSTF1"), (1009, "RDWSTF2"), (1010, "RDWSTF3"), (1011, "RDWSTF4"))],
-    # the Text Easability models fitted on CLEAR (English) / translated CLEAR (German) with 0.2.0's values: None until they are
-    # refitted on the current values (decision 2026-11-02)
+    # the Text Easability models fitted on CLEAR (English) / translated CLEAR (German), refitted on 0.6.0's values (2026-11-04;
+    # computed since 0.7.0, before None with an error)
     *[(number, f"{key}@CLEAR", f"{key}_REFIT_{{clear}}", "refit", "refit", _ALL)
       for number, (key, _) in enumerate(_EASABILITY_INDICES, start=12)],
 ]
@@ -439,9 +466,9 @@ VARIANTS: List[Tuple[int, str, str, str, str, Tuple[str, ...]]] = [
 # label (README rule 7, as _SEEDlist for GermaNet): _LLMlist for DiMLex / DiMLex-Eng (CNC*, SMCAUSvp, SMCAUSr), _WIKI for
 # SUBTLEX (WRDFRQ*, RDL2), _MRC / _MRCtr for the native norms (WRDAOAc, WRDCNCc, German WRDIMGc). The other variants
 # (_TEXTSTAT, _REFIT_CLEAR) are another method or model, not a substitute for a missing file; they stay additional records.
+# With the parameter all_records=true (decided 2026-11-05, e.g. for a website showing every value) the fallbacks are also
+# computed next to their main record when its resources are available; without a resource they still replace it.
 FALLBACK_KEYS = frozenset(key for _, key, *_ in VARIANTS if key.endswith(("@LLMlist", "@WIKI", "@MRC")))
-CLEAR_PENDING = ("the Text Easability model fitted on CLEAR (translated CLEAR for German) has duui-coh-metrix 0.2.0's index "
-                 "values as inputs; it is not used until it is refitted on the current ones")
 # The main Text Easability models (REFIT_REFv1 / REFIT_REFa: refv1-ud-rr-cr3, refa-en-rr-gn-cr3, PR #306) were fitted on the values
 # of Coh-Metrix 0.5.0-py. These inputs are computed differently here (decisions 2026-11-02 and 2026-11-04; measured on 18 texts,
 # 2026-11-04): SYNNP (the words on the head of the noun phrase, not every word but the head), LSAGN (the first sentence counts
@@ -507,6 +534,8 @@ _MAJOR = {"WRDFRQc", "WRDFRQc@WIKI", "RDL2", "RDL2@WIKI", "SYNNP", "DRPVAL", "DR
 _NEW = ({k for k in CORE_KEY_BY_INDEX.values() if k in _CONNECTIVE_KEYS} | {"SMCAUSvp", "WRDFRQa", "WRDFRQmc", "WRDAOAc",
         "WRDCNCc", "RDFRE", "RDFKGL"} | set(_PROJECT_ONLY_KEYS) | set(EASABILITY_KEYS)
         | {r.key for r in RECORDS if r.key.endswith(("@LLMlist", "@TEXTSTAT", "@CLEAR"))} - {"SMCAUSvp@LLMlist", "SMCAUSr@LLMlist"})
+# The Text Easability records (main and CLEAR) stay "1.0" with the refitted models of 0.7.0 (decision 2026-11-05): the models
+# are new only because their input indices changed, not the PCA method; the component is not 1.0.0 yet.
 # new in one language only: German WRDIMGc uses Köper & Schulte im Walde's norms, English WRDIMGc stays MRC (looked up by lemma)
 _NEW_IN = {"de": {"WRDIMGc"}, "en": set()}
 # the version of each record per language (README, "Index version")
@@ -622,10 +651,12 @@ def _vectors_group(vectors: Optional[str], vectors_model: Optional[str], vectors
     return "SPACY" + model_size, None
 
 
-def _apply_fallbacks(output: Set[str], ttlab_labels: Dict[str, str], missing: Dict[str, str]) -> Tuple[Set[str], Dict[str, List[str]]]:
+def _apply_fallbacks(output: Set[str], ttlab_labels: Dict[str, str], missing: Dict[str, str],
+                     all_records: bool = False) -> Tuple[Set[str], Dict[str, List[str]]]:
     """the selected record keys with the fallbacks applied (FALLBACK_KEYS): a selected index whose main record lacks a
     resource gets its fallback instead (if the index or the fallback is selected); a fallback whose main record has its
-    resources is not output. Returns the keys and, per active fallback, the missing resources"""
+    resources is not output, unless all_records: then it is output next to the main record (if the index or the fallback is
+    selected). Returns the keys and, per fallback that replaces its main record, the missing resources"""
     out, reasons = set(output), {}
     for key in FALLBACK_KEYS:
         main = key.partition("@")[0]
@@ -637,7 +668,10 @@ def _apply_fallbacks(output: Set[str], ttlab_labels: Dict[str, str], missing: Di
             out.add(key)
             reasons[key] = absent
         elif not absent:
-            out.discard(key)
+            if all_records and (main in out or key in out):
+                out.add(key)
+            else:
+                out.discard(key)
     return out, reasons
 
 
@@ -768,6 +802,8 @@ class TextImagerRequest(BaseModel):
     # comma-separated index names (README, "Selecting indices")
     include_indices: Optional[str] = None
     exclude_indices: Optional[str] = None
+    # "true": the fallbacks also next to their main record, not only instead of it (README, "Fallbacks"); default false
+    all_records: Optional[str] = None
     # source of the token vectors (README, "Vectors"): WordEmbedding (vectors = their shortName, vectors_available = all
     # shortNames in the CAS, comma-separated) or SpacyToken (vectors = the parameter, default SPACY, and the spaCy model of the
     # tokens from the CAS)
@@ -913,6 +949,9 @@ def get_documentation() -> TextImagerDocumentation:
                                "ending in *, or *; default all",
             "exclude_indices": "comma-separated index groups, label_v3 or label_ttlab names, label_ttlab prefixes "
                                "ending in *; default none",
+            "all_records": "true: every record of the selected indices, the fallbacks also next to their main record "
+                           "(they are otherwise computed only if a resource of the main record is missing, and then instead "
+                           "of it); default false",
             "vectors": "token vectors for the LSA indices and SMCAUSlsa: the shortName of the WordEmbedding "
                        "annotations (default: the only one in the CAS), e.g. SPACYlg; it becomes part of the label. "
                        "Without WordEmbeddings: the SpacyToken vectors, SPACY (default; the model size is read from "
@@ -944,7 +983,8 @@ def get_indices() -> List[Dict[str, Any]]:
             "type_name": r.type_name,
             "label_v3": r.label_v3,
             "label_v2": r.label_v2,
-            # main record; fallback: only computed if a resource of the main record is missing, and then instead of it;
+            # main record; fallback: only computed if a resource of the main record is missing, and then instead of it (with
+            # all_records=true also next to it);
             # variant: another method or model, an additional record
             "kind": "main" if "@" not in r.key else "fallback" if r.key in FALLBACK_KEYS else "variant",
             "label_ttlab_en": labels["en"].get(r.key),
@@ -975,21 +1015,28 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     ttlab_labels = _ttlab_labels(lang, vectors_group, scheme=scheme)
     output = {key for key in _resolve_index_selection(request.include_indices, request.exclude_indices, ttlab_labels)
               if key.partition("@")[0] not in NOT_EMITTED.get(lang, ())}
-    # fallbacks only where a resource of the main record is missing (FALLBACK_KEYS)
+    # fallbacks where a resource of the main record is missing (FALLBACK_KEYS), with all_records also next to it
+    all_records = (request.all_records or "false").strip().lower()
+    if all_records not in ("true", "false"):
+        raise HTTPException(status_code=400, detail=f"Parameter \"all_records\" must be true or false, not \"{request.all_records}\"")
     missing = _missing_resources(lang)
-    output, fallback_reasons = _apply_fallbacks(output, ttlab_labels, missing)
+    output, fallback_reasons = _apply_fallbacks(output, ttlab_labels, missing, all_records == "true")
     core_request = _core_request(request, lang, vectors_group)
 
-    # the core keys of the selected records; the Text Easability components (main models) need their model's inputs, the
-    # CLEAR ones are not computed, nor the main ones on mapped input or while their model is not refitted (MODEL_INPUTS_CHANGED)
+    # the core keys of the selected records; the Text Easability components need their model's inputs (main and CLEAR
+    # models); none of them on mapped input, nor the main ones while their model is not refitted (MODEL_INPUTS_CHANGED)
     pending = MODEL_INPUTS_CHANGED.get(lang)
     pc_main = output & EASABILITY_KEYS if scheme == "UD" and not pending else frozenset()
-    wanted = {key for key in output if key not in EASABILITY_KEYS and not key.endswith("@CLEAR")}
+    clear_keys = {key for key in output if key.endswith("@CLEAR")}
+    pc_clear = clear_keys if scheme == "UD" else set()
+    wanted = {key for key in output if key not in EASABILITY_KEYS and key not in clear_keys}
     if pc_main:
         wanted |= _model_inputs(lang)
+    if pc_clear:
+        wanted |= _clear_inputs(lang)
     results = core.compute(core_request, wanted)
     if scheme != "UD":
-        results.update({key: (None, PC_MAPPED.format(scheme=scheme)) for key in output & EASABILITY_KEYS})
+        results.update({key: (None, PC_MAPPED.format(scheme=scheme)) for key in output & (EASABILITY_KEYS | clear_keys)})
     elif pending:
         model = (core.easability_models.get(lang) or {}).get("model_id", "")
         results.update({key: (None, REFIT_PENDING.format(model=model, inputs=", ".join(pending)))
@@ -1000,7 +1047,12 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         except Exception as e:
             logger.exception(e)
             results.update({key: (None, f"not computed: {e}") for key in EASABILITY_KEYS})
-    results.update({key: (None, CLEAR_PENDING) for key in output if key.endswith("@CLEAR")})
+    if pc_clear:
+        try:
+            results.update(_easability_clear(results, lang, ttlab_labels))
+        except Exception as e:
+            logger.exception(e)
+            results.update({key: (None, f"not computed: {e}") for key in pc_clear})
 
     # unsupported vectors, or no token has a vector (e.g. a spaCy trf model): the vector indices are undefined, not 0
     if vectors_error is None and any(RECORD_BY_KEY[k].label_v3 in _VECTOR_INDICES for k in output) and not any(

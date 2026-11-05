@@ -390,6 +390,8 @@ function serialize(inputCas, outputStream, parameters)
         -- optional, comma-separated index names (README, "Selecting indices")
         include_indices = parameters["include_indices"],
         exclude_indices = parameters["exclude_indices"],
+        -- optional, "true": the fallbacks also next to their main record (README, "Fallbacks")
+        all_records = parameters["all_records"],
         -- source of the token vectors (README, "Vectors"): the shortName of the
         -- WordEmbeddings, or without WordEmbeddings SpacyToken.vector with the
         -- optional parameter (default SPACY) and the spaCy model
