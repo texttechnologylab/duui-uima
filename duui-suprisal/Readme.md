@@ -69,8 +69,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Abrami:Bruera:2025,
-  author         = {Abrami, Giuseppe and Bruera, Mercedes Martinez},
+@misc{Abrami:et:al:2025,
+  author         = {Abrami, Giuseppe and Bruera, Mercedes Martinez, Mehler, Alexander},
   title          = {Text Suprisal as {DUUI} component},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-suprisal}

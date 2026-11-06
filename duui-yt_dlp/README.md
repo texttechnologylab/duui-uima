@@ -72,8 +72,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bundan:Abrami:2025,
-  author         = {Bundan, Daniel and Abrami, Giuseppe},
+@misc{Bundan:et:al:2025,
+  author         = {Bundan, Daniel and Abrami, Giuseppe and Mehler, Alexander},
   title          = {youtube-dl as DUUI-Komponent},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/duui-yt-dlp}

@@ -1,8 +1,9 @@
 -- Bind static classes from java
 StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 JCasUtil = luajava.bindClass("org.apache.uima.fit.util.JCasUtil")
--- Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
-Token = luajava.bindClass("org.texttechnologylab.uima.type.spacy.SpacyToken")
+-- Pretokenized input: plain tokens of another tool, spaCy writes a new SpacyToken for each of them
+Token = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token")
+TOKEN_TYPE_NAME = "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token"
 Sentence = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence")
 -- This "serialize" function is called to transform the CAS object into an stream that is sent to the annotator
 -- Inputs:
@@ -20,6 +21,8 @@ function serialize(inputCas, outputStream, parameters)
     local tokens = nil
     local spaces = nil
     local sent_starts = nil
+    local token_begins = nil
+    local token_ends = nil
     local use_existing_tokens = false
     local use_existing_sentences = false
     if parameters["use_existing_tokens"] ~= nil then
@@ -32,36 +35,63 @@ function serialize(inputCas, outputStream, parameters)
         tokens = {}
         spaces = {}
         sent_starts = {}
+        token_begins = {}
+        token_ends = {}
 
-        local tokens_count = 1
-        local tokens_it = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Token)):listIterator()
-        local sentences = luajava.newInstance("java.util.ArrayList", JCasUtil:select(inputCas, Sentence))
-        while tokens_it:hasNext() do
-            local token = tokens_it:next()
-            tokens[tokens_count] = token:getCoveredText()
-            -- try to get next to see if space is needed
-            has_space = false
-            if tokens_it:hasNext() then
-                local next_token = tokens_it:next()
-                has_space = next_token:getBegin() ~= token:getEnd()
-                tokens_it:previous()
+        -- Only tokens of exactly this type: plain DKPro Tokens by default, or the type of the parameter token_type
+        -- (e.g. org.texttechnologylab.uima.type.stanza.StanzaToken); other subtypes (e.g. SpacyToken of an earlier
+        -- run) are ignored
+        local token_type_name = TOKEN_TYPE_NAME
+        if parameters["token_type"] ~= nil and parameters["token_type"] ~= "" then
+            token_type_name = parameters["token_type"]
+        end
+        local input_tokens = luajava.newInstance("java.util.ArrayList")
+        local all_tokens_it = JCasUtil:select(inputCas, Token):iterator()
+        while all_tokens_it:hasNext() do
+            local token = all_tokens_it:next()
+            if token:getType():getName() == token_type_name then
+                input_tokens:add(token)
             end
-            spaces[tokens_count] = has_space
+        end
+
+        -- Sentences and tokens are both sorted by begin, so a token starts a sentence if a sentence begins at the
+        -- same offset, found in a single pass over both
+        local sentences_it = JCasUtil:select(inputCas, Sentence):iterator()
+        local sentence_begin = nil
+        if sentences_it:hasNext() then
+            sentence_begin = sentences_it:next():getBegin()
+        end
+
+        local tokens_count = input_tokens:size()
+        for i = 0, tokens_count - 1 do
+            local token = input_tokens:get(i)
+            local token_ind = i + 1
+            -- the word: the token's form if it has one (the words of a split contraction, e.g. "zu" and "dem" over
+            -- the span of "zum"), else its covered text
+            local form = token:getForm()
+            if form ~= nil and form:getValue() ~= nil and form:getValue() ~= "" then
+                tokens[token_ind] = form:getValue()
+            else
+                tokens[token_ind] = token:getCoveredText()
+            end
+            token_begins[token_ind] = token:getBegin()
+            token_ends[token_ind] = token:getEnd()
+            -- space is needed if the next token does not start directly at the end of this one
+            local has_space = false
+            if i + 1 < tokens_count then
+                has_space = input_tokens:get(i + 1):getBegin() ~= token:getEnd()
+            end
+            spaces[token_ind] = has_space
             if use_existing_sentences then
-                local sentences_it = sentences:listIterator()
-                sent_starts[tokens_count] = false
-                while sentences_it:hasNext() do
-                    local sentence = sentences_it:next()
-                    if sentence:getBegin() == token:getBegin() then
-                        sent_starts[tokens_count] = true
-                        break
-                    elseif sentence:getBegin() > token:getBegin() then
-                        break
+                while sentence_begin ~= nil and sentence_begin < token:getBegin() do
+                    if sentences_it:hasNext() then
+                        sentence_begin = sentences_it:next():getBegin()
+                    else
+                        sentence_begin = nil
                     end
                 end
+                sent_starts[token_ind] = sentence_begin == token:getBegin()
             end
-
-            tokens_count = tokens_count + 1
         end
 
         -- reset text
@@ -76,7 +106,9 @@ function serialize(inputCas, outputStream, parameters)
         parameters = parameters,
         tokens = tokens,
         spaces = spaces,
-        sent_starts = sent_starts
+        sent_starts = sent_starts,
+        token_begins = token_begins,
+        token_ends = token_ends
     }))
 end
 
@@ -101,9 +133,6 @@ function deserialize(inputCas, inputStream)
 
     -- Get meta data, this is the same for every annotation
     local meta = results["meta"]
-
-    -- If was pretokenized, use existing tokens
-    local is_pretokenized = results["is_pretokenized"]
 
     -- Add sentences
     for i, sent in ipairs(results["sentences"]) do
@@ -132,24 +161,18 @@ function deserialize(inputCas, inputStream)
     end
 
     -- Add tokens
+    -- Pretokenized input also gets new SpacyTokens (with the offsets of the given tokens): annotations that
+    -- existed before are not merged back from a DUUI segment, so changing the given tokens would be lost
     -- Save all tokens, to allow for retrieval in dependencies
     local all_tokens = {}
-    if is_pretokenized then
-        local tokens_count = 0
-        local tokens_it = JCasUtil:select(inputCas, Token):iterator()
-        while tokens_it:hasNext() do
-            local token = tokens_it:next()
-            all_tokens[tokens_count] = token
-            tokens_count = tokens_count + 1
-        end
-    end
+    -- Token vectors: WordEmbedding annotations (default) or SpacyToken.vector (parameter vectors_in_spacytoken)
+    local vectors_in_spacytoken = results["vectors_in_spacytoken"]
+    -- Model of the WordEmbeddings, created with the first one
+    local vectors_model = nil
     for i, token in ipairs(results["tokens"]) do
         -- Save current token
         local token_anno = nil
-        if is_pretokenized then
-            -- Use existing token if pretokenized
-            token_anno = all_tokens[i-1]
-        elseif token["write_token"] then
+        if token["write_token"] then
             -- Create token annotation
 --             token_anno = luajava.newInstance("de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token", inputCas)
             token_anno = luajava.newInstance("org.texttechnologylab.uima.type.spacy.SpacyToken", inputCas)
@@ -177,7 +200,7 @@ function deserialize(inputCas, inputStream)
             token_anno:setIsAscii(token["is_ascii"])
             token_anno:setIsAlpha(token["is_alpha"])
 
-            if token["vector"] ~= nil then
+            if vectors_in_spacytoken and token["vector"] ~= nil then
                 local vector_length = #token["vector"]
                 token_anno:setVector(luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length))
                 for vector_ind, vector_val in ipairs(token["vector"]) do
@@ -226,6 +249,48 @@ function deserialize(inputCas, inputStream)
             -- Create meta data for this token
             local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", inputCas)
             meta_anno:setReference(token_anno)
+            meta_anno:setName(meta["name"])
+            meta_anno:setVersion(meta["version"])
+            meta_anno:setModelName(meta["modelName"])
+            meta_anno:setModelVersion(meta["modelVersion"])
+            meta_anno:setSpacyVersion(meta["spacyVersion"])
+            meta_anno:setModelLang(meta["modelLang"])
+            meta_anno:setModelSpacyVersion(meta["modelSpacyVersion"])
+            meta_anno:setModelSpacyGitVersion(meta["modelSpacyGitVersion"])
+            meta_anno:addToIndexes()
+        end
+
+        if not vectors_in_spacytoken and token["vector"] ~= nil then
+            if vectors_model == nil then
+                vectors_model = luajava.newInstance("org.texttechnologylab.annotation.MetaData", inputCas)
+                -- spaCy's release name of the model, e.g. de_core_news_lg-3.8.0 (modelName is core_news_lg)
+                vectors_model:setSource(meta["modelLang"] .. "_" .. meta["modelName"] .. "-" .. meta["modelVersion"])
+                vectors_model:setLang(meta["modelLang"])
+                vectors_model:addToIndexes()
+            end
+
+            local vector_length = #token["vector"]
+            local vector_array = luajava.newInstance("org.apache.uima.jcas.cas.FloatArray", inputCas, vector_length)
+            for vector_ind, vector_val in ipairs(token["vector"]) do
+                -- Note: Lua starts counting at 1, but Java at 0
+                vector_array:set(vector_ind-1, vector_val)
+            end
+
+            local embedding_anno = luajava.newInstance("org.texttechnologylab.uima.type.WordEmbedding", inputCas)
+            embedding_anno:setBegin(token["begin"])
+            embedding_anno:setEnd(token["end"])
+            embedding_anno:setEmbedding(vector_array)
+            embedding_anno:setModelReference(vectors_model)
+            -- the SpacyToken, if tokens are written
+            if token_anno ~= nil then
+                embedding_anno:setReference(token_anno)
+            end
+            embedding_anno:setOov(token["is_oov"])
+            embedding_anno:setShortName(results["vectors_short_name"])
+            embedding_anno:addToIndexes()
+
+            local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", inputCas)
+            meta_anno:setReference(embedding_anno)
             meta_anno:setName(meta["name"])
             meta_anno:setVersion(meta["version"])
             meta_anno:setModelName(meta["modelName"])
@@ -337,7 +402,7 @@ function deserialize(inputCas, inputStream)
             if token["morph_details"]["animacy"] ~= nil then
                 morph_anno:setAnimacy(token["morph_details"]["animacy"])
             end
-            if token["morph_details"]["gender"] ~= nil then
+            if token["morph_details"]["negative"] ~= nil then
                 morph_anno:setNegative(token["morph_details"]["negative"])
             end
             if token["morph_details"]["numType"] ~= nil then
@@ -400,7 +465,7 @@ function deserialize(inputCas, inputStream)
             end
 
             dependent_token = all_tokens[dep["dependent_ind"]]
-            if governor_token ~= nil then
+            if dependent_token ~= nil then
                 dep_anno:setDependent(dependent_token)
             end
 
@@ -455,7 +520,7 @@ function deserialize(inputCas, inputStream)
         nc_anno:addToIndexes()
 
         local meta_anno = luajava.newInstance("org.texttechnologylab.annotation.SpacyAnnotatorMetaData", inputCas)
-        meta_anno:setReference(ent_anno)
+        meta_anno:setReference(nc_anno)
         meta_anno:setName(meta["name"])
         meta_anno:setVersion(meta["version"])
         meta_anno:setModelName(meta["modelName"])

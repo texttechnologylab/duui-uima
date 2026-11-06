@@ -17,3 +17,5 @@ src/test/
 # Build-time and licensed resources
 src/main/resources/mrc_psycholinguistic_database.csv
 src/main/resources/germanet/
+# resources supplied by the user (download_resources.py): never in Git or the image
+src/main/resources/external/

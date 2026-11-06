@@ -62,6 +62,7 @@ UIMA_TYPE_MORPH = "de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.morph.Morphol
 UIMA_TYPE_DEPENDENCY = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency"
 UIMA_TYPE_DEPENDENCY_ROOT = "de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.ROOT"
 UIMA_TYPE_NAMED_ENTITY = "de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity"
+UIMA_TYPE_WORD_EMBEDDING = "org.texttechnologylab.uima.type.WordEmbedding"
 
 # validate variant setting
 VARIANT_SETTINGS = {
@@ -94,12 +95,98 @@ TEXTIMAGER_ANNOTATOR_INPUT_TYPES = {
 }
 TEXTIMAGER_ANNOTATOR_INPUT_TYPES = set(TEXTIMAGER_ANNOTATOR_INPUT_TYPES[settings.variant])
 
-# benepar models
+# benepar models (benepar 0.2.0, the latest release; downloaded in the Dockerfile)
 # TODO configurable
 BENEPAR_MODELS = {
-    # "en": "benepar_en3",
-    # "de": "benepar_de2",
+    "en": "benepar_en3",
+    "de": "benepar_de2",
 }
+
+# spaCy factory name of the benepar component used here, see register_benepar_component()
+BENEPAR_COMPONENT = "benepar_skip_long_sentences"
+benepar_component_registered = False
+
+
+def register_benepar_component():
+    """
+    Register benepar's spaCy component in a variant that skips the sentences benepar cannot parse.
+
+    benepar rejects a sentence with more than 512 sub-word tokens of its transformer model (ValueError), and its own
+    component then fails for the whole document. This variant parses all sentences at once as benepar does and, only
+    if that fails, sentence by sentence, skipping (and logging) every sentence that raises the ValueError. The tokens
+    of skipped sentences get no constituents (their POS tags stay spaCy's); the start/end token indices of the skipped
+    sentences are stored in Doc._.benepar_skipped_sentences.
+
+    benepar's finalize() marks tokens without constituents with -1 in loc_to_constituent, which would make the label
+    lookup of the token before a skipped sentence search an empty range (NonConstituentException); these entries are
+    therefore set to the position of the next constituent.
+
+    Imported lazily, as benepar is only installed in images built with TEXTIMAGER_SPACY_WITH_BENEPAR=true
+    (docker_build.sh), not in the others and not in the single model images.
+    """
+    global benepar_component_registered
+    if benepar_component_registered:
+        return
+
+    try:
+        import benepar  # noqa: F401 registers benepar's extensions (Token._.labels, Span._.parse_string, ...)
+    except ImportError as ex:
+        raise Exception("benepar is not installed in this image (build it with TEXTIMAGER_SPACY_WITH_BENEPAR=true)") from ex
+    from benepar.integrations.spacy_plugin import BeneparComponent, PartialConstituentData, SentenceWrapper
+    from spacy.language import Language
+
+    Doc.set_extension("benepar_skipped_sentences", default=None, force=True)
+
+    class BeneparSkipLongSentences(BeneparComponent):
+        def _parse(self, sents):
+            return list(self._parser.parse(
+                [SentenceWrapper(sent) for sent in sents],
+                return_compressed=True,
+                subbatch_max_tokens=self.subbatch_max_tokens,
+            ))
+
+        def __call__(self, doc):
+            sents = list(doc.sents)
+            try:
+                parsed_sents, parses = sents, self._parse(sents)
+            except ValueError:
+                parsed_sents, parses = [], []
+                for sent in sents:
+                    try:
+                        parses.extend(self._parse([sent]))
+                        parsed_sents.append(sent)
+                    except ValueError as ex:
+                        logger.warning("benepar: skipping sentence (tokens %d-%d): %s", sent.start, sent.end, ex)
+
+            # as BeneparComponent.__call__, for the parsed sentences
+            constituent_data = PartialConstituentData()
+            for sent, parse in zip(parsed_sents, parses):
+                constituent_data.starts.append(parse.starts + sent.start)
+                constituent_data.ends.append(parse.ends + sent.start)
+                constituent_data.labels.append(parse.labels)
+                if parse.tags is not None and not self.disable_tagger:
+                    for i, tag_id in enumerate(parse.tags):
+                        sent[i].tag_ = self._tag_from_index[tag_id]
+            data = constituent_data.finalize(doc, self._label_from_index)
+
+            next_position = len(data.ends)
+            for i in range(len(data.loc_to_constituent) - 1, -1, -1):
+                if data.loc_to_constituent[i] < 0:
+                    data.loc_to_constituent[i] = next_position
+                else:
+                    next_position = data.loc_to_constituent[i]
+
+            doc._._constituent_data = data
+            parsed_starts = {sent.start for sent in parsed_sents}
+            doc._.benepar_skipped_sentences = [(sent.start, sent.end) for sent in sents if sent.start not in parsed_starts]
+            return doc
+
+    # same config as benepar's own factory "benepar" (benepar's default: its POS tags replace spaCy's)
+    @Language.factory(BENEPAR_COMPONENT, default_config={"subbatch_max_tokens": 500, "disable_tagger": False})
+    def create_benepar_skip_long_sentences(nlp, name, model: str, subbatch_max_tokens: int, disable_tagger: bool):
+        return BeneparSkipLongSentences(model, subbatch_max_tokens=subbatch_max_tokens, disable_tagger=disable_tagger)
+
+    benepar_component_registered = True
 
 # spaCy models
 # Supporting the efficient and accurate variants
@@ -133,16 +220,17 @@ SPACY_MODELS = {
         # "uk": "uk_core_news_sm",    # Ukrainian
         "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
     },
-    "accuracy": {
+    # "accuracy" (trf models): not in the image, they need spacy-curated-transformers, which is not installed
+    # "accuracy": {
         # "ca": "ca_core_news_trf",
         # "zh": "zh_core_web_trf",
         # "hr": "hr_core_news_lg",
         # "da": "da_core_news_trf",
         # "nl": "nl_core_news_lg",
-        "en": "en_core_web_trf",
+    #     "en": "en_core_web_trf",
         # "fi": "fi_core_news_lg",
         # "fr": "fr_dep_news_trf",
-        "de": "de_dep_news_trf",
+    #     "de": "de_dep_news_trf",
         # "el": "el_core_news_lg",
         # "it": "it_core_news_lg",
         # "ja": "ja_core_news_trf",
@@ -158,8 +246,8 @@ SPACY_MODELS = {
         # "es": "es_dep_news_trf",
         # "sv": "sv_core_news_lg",
         # "uk": "uk_core_news_trf",
-        "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
-    },
+    #     "xx": "xx_ent_wiki_sm",     # Multi-Language / Unknown Language
+    # },
     "large": {
         "en": "en_core_web_lg",
         "de": "de_core_news_lg",
@@ -197,6 +285,9 @@ class TextImagerRequest(BaseModel):
     tokens: Optional[List[str]] = None
     spaces: Optional[List[bool]] = None
     sent_starts: Optional[List[bool]] = None
+    # CAS offsets of the pre-tokenized tokens, all annotations are written relative to these
+    token_begins: Optional[List[int]] = None
+    token_ends: Optional[List[int]] = None
     # The texts language
     lang: str
     parameters: Optional[dict] = None
@@ -246,7 +337,7 @@ class Token(BaseModel):
     like_url: bool = None
     url_parts: Union[None, dict] = None
     has_vector: bool = None
-    vector: List[float] = None
+    vector: Optional[List[float]] = None
     like_num: bool = None
     is_stop: bool = None
     is_oov: bool = None
@@ -264,7 +355,7 @@ class Token(BaseModel):
     is_digit: bool = None
     is_ascii: bool = None
     is_alpha: bool = None
-    benepar_labels: Optional[Tuple[str]] = None
+    benepar_labels: Optional[Tuple[str, ...]] = None
 
 
 # Dependency
@@ -313,6 +404,10 @@ class TextImagerResponse(BaseModel):
     modification_meta: Optional[DocumentModification] = None
     # Whether the document was pre-tokenized
     is_pretokenized: bool
+    # Token vectors (Token.vector) go to SpacyToken.vector instead of WordEmbedding annotations
+    vectors_in_spacytoken: bool = False
+    # WordEmbedding.shortName
+    vectors_short_name: Optional[str] = None
 
 
 # Capabilities
@@ -445,12 +540,12 @@ def load_cache_spacy_model(model_name, model_lang, enabled_tools, use_benepar):
 
     logger.info("Using Berkeley Neural Parser (benepar): %s", use_benepar)
     if use_benepar:
-        # imported lazily, as benepar is not installed in the single model images
-        import benepar
-        # TODO check for model availability
+        if model_lang not in BENEPAR_MODELS:
+            raise Exception(f"No benepar model for language \"{model_lang}\" (available: {', '.join(sorted(BENEPAR_MODELS))})")
+        register_benepar_component()
         bnepar_model = BENEPAR_MODELS[model_lang]
         logger.info("benepar model: %s (based on lang %s)", bnepar_model, model_lang)
-        nlp.add_pipe("benepar", config={"model": bnepar_model})
+        nlp.add_pipe(BENEPAR_COMPONENT, config={"model": bnepar_model})
 
     return nlp
 
@@ -555,11 +650,21 @@ def get_documentation() -> TextImagerDocumentation:
             "model_variant": sorted(list(SPACY_SUPPORTED_MODEL_VARIANTS)),
             # Use this specific model, overrules all decisions
             "model_name": sorted(list(SPACY_SUPPORTED_MODELS)),
-            # Write the following types, if empty/null all are written
+            # Write the following types (comma-separated full type names), if empty/null all are written
             # Note: All data is always generated by the full document text, dependency is only written if tokens are written too
             "write_types": TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES,
+            # Pretokenized input (use_existing_tokens=true): the token type to read, exactly this type (default the plain
+            # DKPro Token), e.g. org.texttechnologylab.uima.type.stanza.StanzaToken; a token's form (TokenForm) is its
+            # word, so the words of a split contraction get their own vectors
+            "token_type": UIMA_TYPE_TOKEN,
             # Strict language checking, if True the language must be available, on False the multilanguage model is used
             "strict_language_check": [True, False],
+            # Write the token vectors (WordEmbedding, one per token with a vector), they are large
+            "write_vectors": [True, False],
+            # Write the token vectors into SpacyToken.vector (and all of them, as before 0.8.0) instead of WordEmbedding
+            "vectors_in_spacytoken": [False, True],
+            # Short name of the vector space in WordEmbedding.shortName, default SPACY + model size (e.g. SPACYlg)
+            "vectors_short_name": "SPACY<size>",
             # Split large input texts to prevent dramatic increase of time and resources
             # Note: Splitting is performed on sentence boundaries, if possible, else on "."
             "split_large_texts": [True, False],
@@ -600,7 +705,9 @@ def get_typesystem() -> Response:
 def get_input_output() -> TextImagerInputOutput:
     # TODO for now, just use all and ignore parameters
     ins = TEXTIMAGER_ANNOTATOR_INPUT_TYPES
-    outs = TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES
+    outs = set(TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES)
+    if settings.variant == "":
+        outs.add(UIMA_TYPE_WORD_EMBEDDING)
 
     return TextImagerInputOutput(
         inputs=ins,
@@ -647,6 +754,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
     meta = None
     modification_meta = None
     is_pretokenized = False
+    vectors_in_spacytoken = False
+    vectors_short_name = None
 
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
@@ -673,12 +782,18 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
         # Load model, this is cached
         use_benepar = request.parameters.get("use_benepar", "false").lower() == "true"
+        write_vectors = str(request.parameters.get("write_vectors", "true")).lower() == "true"
+        vectors_in_spacytoken = str(request.parameters.get("vectors_in_spacytoken", "false")).lower() == "true"
         nlp, nlp_err = load_spacy_model(model_name, model_lang, settings.variant, use_benepar)
         if nlp is None:
             raise Exception(f"spaCy model \"{model_name}\" could not be loaded: {nlp_err}")
 
         # Get meta data on spaCy and used model
         spacy_meta = nlp.meta
+
+        # default: SPACY and the model size, the last part of the model name (core_news_lg -> SPACYlg)
+        vectors_short_name = request.parameters.get("vectors_short_name") \
+            or "SPACY" + spacy_meta["name"].rsplit("_", 1)[-1]
 
         # Split large texts if needed and allowed
         # TODO test splitting!
@@ -694,7 +809,11 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         has_sentences = request.sent_starts is not None and len(request.sent_starts) > 0
 
         logger.info("Input is pretokenized: %s", "yes" if is_pretokenized else "no")
-        if not is_pretokenized:
+        if is_pretokenized:
+            if request.token_begins is None or request.token_ends is None \
+                    or len(request.token_begins) != len(request.tokens) or len(request.token_ends) != len(request.tokens):
+                raise Exception("Pretokenized input needs the CAS offsets of all tokens (token_begins, token_ends)")
+        else:
             # TODO add splitting for pretokenized texts?
             #  or remove completely -> should better be solved by DUUI segmentation
             logger.debug("spaCy max size: %d", nlp.max_length)
@@ -822,25 +941,22 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
             # What types to write?
             if request.parameters is not None and "write_types" in request.parameters and len(request.parameters["write_types"]) > 0:
-                write_types = set(request.parameters["write_types"])
+                # DUUI parameters are strings: comma-separated type names (a list is accepted too); before 0.9.0 the
+                # string itself was made a set of its characters, so nothing was written
+                requested_types = request.parameters["write_types"]
+                if isinstance(requested_types, str):
+                    requested_types = requested_types.split(",")
+                write_types = {t.strip() for t in requested_types if t.strip()}
                 logger.info("Only writing types: %s", ", ".join(write_types))
             else:
                 write_types = set(TEXTIMAGER_ANNOTATOR_OUTPUT_TYPES)
 
-            # dont write tokens if pretokenized
-            if is_pretokenized:
-                write_types.discard(UIMA_TYPE_TOKEN)
-                if has_sentences:
-                    write_types.discard(UIMA_TYPE_SENTENCE)
+            # Pretokenized: new SpacyTokens are written for the given tokens, but no sentences if they were given
+            if is_pretokenized and has_sentences:
+                write_types.discard(UIMA_TYPE_SENTENCE)
 
             # TODO test splitting in multiple texts
             for doc_meta, doc in zip(texts_meta, docs):
-                # generate utf16 converter for each doc on the fly if using pretokenized data
-                if is_pretokenized:
-                    utf16_converter = Utf16CodepointOffsetConverter()
-                    utf16_converter.create_offset_mapping(doc.text)
-                    doc_meta["utf16_converter"] = utf16_converter
-
                 if "utf16_converter" in doc_meta:
                     utf16_converter = doc_meta["utf16_converter"]
                 else:
@@ -853,6 +969,25 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 # Get starting position of this sentence
                 doc_begin = doc_meta["begin"]
 
+                # CAS offsets of tokens and spans: pretokenized input keeps the offsets of the given tokens (the
+                # doc text is rebuilt from the tokens with single spaces and does not match the CAS text), every
+                # span is mapped via its first and last token
+                if is_pretokenized:
+                    if len(doc) != len(request.tokens):
+                        raise Exception(f"spaCy changed the number of pretokenized tokens: {len(request.tokens)} -> {len(doc)}")
+
+                    def token_offsets(tok):
+                        return request.token_begins[tok.i], request.token_ends[tok.i]
+
+                    def span_offsets(span):
+                        return request.token_begins[span.start], request.token_ends[span.end - 1]
+                else:
+                    def token_offsets(tok):
+                        return utf16_to_ext(doc_begin+tok.idx), utf16_to_ext(doc_begin+tok.idx+len(tok))
+
+                    def span_offsets(span):
+                        return utf16_to_ext(doc_begin+span.start_char), utf16_to_ext(doc_begin+span.end_char)
+
                 # Sentences
                 logger.debug("Writing Sentences...")
                 try:
@@ -860,9 +995,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                     # or if no sentencizer is requested
                     # TODO add_pipe("sentencizer") seems to work, check later!
                     for sent in doc.sents:
+                        sent_begin, sent_end = span_offsets(sent)
                         sentences.append(Sentence(
-                            begin=utf16_to_ext(doc_begin+sent.start_char),
-                            end=utf16_to_ext(doc_begin+sent.end_char),
+                            begin=sent_begin,
+                            end=sent_end,
                             write_sentence=UIMA_TYPE_SENTENCE in write_types,
                         ))
                 except Exception as ex:
@@ -871,6 +1007,14 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 # Token, Lemma, POS, Morphology
                 cas_tokens = {}
                 token_ind = 0
+                # tokens of sentences benepar skipped (too long) get no benepar labels
+                benepar_skipped_tokens = set()
+                if use_benepar:
+                    for skipped_start, skipped_end in doc._.benepar_skipped_sentences or []:
+                        benepar_skipped_tokens.update(range(skipped_start, skipped_end))
+                    if benepar_skipped_tokens:
+                        logger.warning("benepar: %d sentences (%d tokens) skipped",
+                                       len(doc._.benepar_skipped_sentences), len(benepar_skipped_tokens))
                 logger.debug("Writing Tokens...")
                 for token in doc:
                     if not token.is_space:
@@ -926,9 +1070,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                                 morph_details["transitivity"] = feat_value
 
                         # Create token data
+                        cas_token_begin, cas_token_end = token_offsets(token)
                         current_token = Token(
-                            begin=utf16_to_ext(doc_begin+token_begin),
-                            end=utf16_to_ext(doc_begin+token_end),
+                            begin=cas_token_begin,
+                            end=cas_token_end,
 
                             # Token
                             ind=token_ind,
@@ -954,7 +1099,9 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                             url_parts=parse_url(token.text) if token.like_url else None,
 
                             has_vector=token.has_vector,
-                            vector=token.vector,
+                            # WordEmbedding only for tokens with a vector (spaCy returns zeros for the others),
+                            # SpacyToken.vector for all tokens as before
+                            vector=token.vector.tolist() if write_vectors and (token.has_vector or vectors_in_spacytoken) else None,
 
                             like_num=token.like_num,
 
@@ -977,7 +1124,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                         )
 
                         # benepar
-                        if use_benepar:
+                        if use_benepar and token.i not in benepar_skipped_tokens:
                             current_token.benepar_labels = token._.labels
 
                         tokens.append(current_token)
@@ -1012,8 +1159,8 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
 
                             # Create dependency
                             current_dep = Dependency(
-                                begin=utf16_to_ext(doc_begin+token_begin),
-                                end=utf16_to_ext(doc_begin+token_end),
+                                begin=uima_token.begin,
+                                end=uima_token.end,
                                 type=token.dep_.upper(),
                                 flavor="basic",
                                 dependent_ind=uima_token.ind,
@@ -1030,9 +1177,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 logger.debug("Writing Named entities...")
                 try:
                     for ent in doc.ents:
+                        ent_begin, ent_end = span_offsets(ent)
                         entities.append(Entity(
-                            begin=utf16_to_ext(doc_begin+ent.start_char),
-                            end=utf16_to_ext(doc_begin+ent.end_char),
+                            begin=ent_begin,
+                            end=ent_end,
                             value=ent.label_,
                             write_entity=UIMA_TYPE_NAMED_ENTITY in write_types
                         ))
@@ -1043,9 +1191,10 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
                 logger.debug("Writing Noun phrases...")
                 try:
                     for chunk in doc.noun_chunks:
+                        chunk_begin, chunk_end = span_offsets(chunk)
                         noun_chunks.append(Span(
-                            begin=utf16_to_ext(doc_begin+chunk.start_char),
-                            end=utf16_to_ext(doc_begin+chunk.end_char)
+                            begin=chunk_begin,
+                            end=chunk_end
                         ))
                 except Exception as ex:
                     logger.exception("Error accessing noun phrases: %s", ex)
@@ -1070,5 +1219,7 @@ def post_process(request: TextImagerRequest) -> TextImagerResponse:
         noun_chunks=noun_chunks,
         meta=meta,
         modification_meta=modification_meta,
-        is_pretokenized=is_pretokenized
+        is_pretokenized=is_pretokenized,
+        vectors_in_spacytoken=vectors_in_spacytoken,
+        vectors_short_name=vectors_short_name
     )

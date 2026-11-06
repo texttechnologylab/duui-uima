@@ -13,9 +13,6 @@ RUN pip install pip setuptools wheel
 COPY ./requirements.txt ./requirements.txt
 RUN pip install --no-deps -r requirements.txt
 
-# TODO include in requirements.txt
-#RUN pip install "benepar"
-
 # languages/models
 # - efficiency
 RUN python -m spacy download "en_core_web_sm"
@@ -47,9 +44,9 @@ RUN python -m spacy download "xx_ent_wiki_sm"
 RUN python -m spacy download "en_core_web_lg"
 RUN python -m spacy download "de_core_news_lg"
 #RUN python -m spacy download "fr_core_news_lg"
-# - accuracy
-RUN python -m spacy download "en_core_web_trf"
-RUN python -m spacy download "de_dep_news_trf"
+# - accuracy: not in the image (the trf models need spacy-curated-transformers, which is not installed)
+#RUN python -m spacy download "en_core_web_trf"
+#RUN python -m spacy download "de_dep_news_trf"
 #RUN python -m spacy download "ca_core_news_trf"
 #RUN python -m spacy download "zh_core_web_trf"
 #RUN python -m spacy download "hr_core_news_lg"
@@ -73,10 +70,15 @@ RUN python -m spacy download "de_dep_news_trf"
 #RUN python -m spacy download "sv_core_news_lg"
 #RUN python -m spacy download "uk_core_news_trf"
 
-# benepar models
-#RUN python -c "import benepar; benepar.download('benepar_en3')"
-#RUN python -c "import benepar; benepar.download('benepar_en3_large')"
-#RUN python -c "import benepar; benepar.download('benepar_de2')"
+# benepar (parameter use_benepar=true), only if built with TEXTIMAGER_SPACY_WITH_BENEPAR=true (docker_build.sh): its
+# packages and models (benepar_en3_large is not used); after the spaCy models so that a change here does not rebuild
+# their layers. Not in the single model images.
+ARG TEXTIMAGER_SPACY_WITH_BENEPAR="false"
+COPY ./requirements-benepar.txt ./requirements-benepar.txt
+RUN if [ "$TEXTIMAGER_SPACY_WITH_BENEPAR" = "true" ]; then \
+      pip install --no-deps -r requirements-benepar.txt \
+      && python -c "import benepar; benepar.download('benepar_en3'); benepar.download('benepar_de2')"; \
+    fi
 
 # meta data
 ARG TEXTIMAGER_SPACY_ANNOTATOR_NAME="textimager-duui-spacy"

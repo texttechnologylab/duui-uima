@@ -1,0 +1,54 @@
+number,group,measure_2011,labels_v3,labels_en,labels_de,excluded,note
+1,Words,Syllables per word,DESWLsy,DESWLsy,DESWLsy,,
+2,Words,Nouns,WRDNOUN,WRDNOUN,WRDNOUN,,
+3,Words,Verbs,WRDVERB,WRDVERB,WRDVERB,,
+4,Words,Adjectives,WRDADJ,WRDADJ,WRDADJ,,
+5,Words,Adverbs,WRDADV,WRDADV,WRDADV,,
+6,Words,Pronouns,WRDPRO,WRDPRO,WRDPRO,,
+7,Words,First-person pronouns,WRDPRP1s;WRDPRP1p,WRDPRP1s;WRDPRP1p,WRDPRP1s;WRDPRP1p,,sum of singular and plural incidence
+8,Words,Third-person pronouns,WRDPRP3s;WRDPRP3p,WRDPRP3s;WRDPRP3p,WRDPRP3s;WRDPRP3p,,sum of singular and plural incidence
+9,Words,Ratio of function words to content words,,,,,not implemented in Coh-Metrix 3.0
+10,Words,Connectives,CNCAll,CNCAll_DIMLEXeng_GUM,CNCAll_DIMLEX,,
+11,Words,Causal connectives,CNCCaus,CNCCaus_DIMLEXeng_GUM,CNCCaus_DIMLEX,,
+12,Words,Temporal connectives,CNCTemp,CNCTemp_DIMLEXeng_GUM,CNCTemp_DIMLEX,,
+13,Words,Logical connectives,CNCLogic,CNCLogic_DIMLEXeng_GUM,CNCLogic_DIMLEX,,
+14,Words,Additive connectives,CNCAdd,CNCAdd_DIMLEXeng_GUM,CNCAdd_DIMLEX,,
+15,Words,Adversative connectives,CNCADC,CNCADC_DIMLEXeng_GUM,CNCADC_DIMLEX,,
+16,Words,Word frequency (logarithm),WRDFRQa,WRDFRQa_SUBTLEX,WRDFRQa_SUBTLEX,,SUBTLEX instead of CELEX
+17,Words,Content word frequency (logarithm),WRDFRQc,WRDFRQc_SUBTLEX,WRDFRQc_SUBTLEX,,SUBTLEX instead of CELEX; 3.0 index is not logarithmic
+18,Words,Minimum word frequency per sentence,WRDFRQmc,WRDFRQmc_SUBTLEX,WRDFRQmc_SUBTLEX,,SUBTLEX instead of CELEX; content words only in 3.0
+19,Words,Age of acquisition,WRDAOAc,WRDAOAc_KUPERMAN,WRDAOAc_BIRCHENOUGH,,
+20,Words,Meaningfulness,WRDMEAc,WRDMEAc_MRC,WRDMEAc_MRCtr,,
+21,Words,Concreteness,WRDCNCc,WRDCNCc_BRYSBAERT,WRDCNCc_KOEPER,,
+22,Words,Imagery,WRDIMGc,WRDIMGc_MRC,WRDIMGc_KOEPER,,
+23,Words,Familiarity,WRDFAMc,WRDFAMc_MRC,WRDFAMc_MRCtr,,
+24,Words,Negations,DRNEG,DRNEG_LLMlist,DRNEG_LLMlist,,
+25,Words,Causal verbs,SMCAUSv,SMCAUSv_WN,SMCAUSv_GN,,
+26,Words,"Intentional actions, events, and particles",SMINTEp,SMINTEp_WN,SMINTEp_GN,,
+27,Words,Polysemy—multiple senses of word,WRDPOLc,WRDPOLc_WN,WRDPOLc_GN,,
+28,Sentence structure,Words per sentence,DESSL,DESSL,DESSL,,
+29,Sentence structure,Modifiers per noun phrase,SYNNP,SYNNP,SYNNP,,
+30,Sentence structure,Words before main verb of main clause,SYNLE,SYNLE,SYNLE,,
+31,Sentence structure,Passive constructions,DRPVAL,DRPVAL,DRPVAL,,
+32,Sentence structure,Syntactic similarity—sentences in paragraph,SYNSTRUTa,SYNSTRUTa,SYNSTRUTa,,3.0 has adjacent sentences (SYNSTRUTa) and all sentences across paragraphs (SYNSTRUTt); SYNSTRUTt is undefined for single-paragraph texts
+33,Connections between sentences,Content word overlap—adjacent sentences,CRFCWO1,CRFCWO1,CRFCWO1,,
+34,Connections between sentences,Content word overlap—all sentences,CRFCWOa,CRFCWOa,CRFCWOa,,
+35,Connections between sentences,Argument overlap—adjacent sentences,CRFAO1,CRFAO1,CRFAO1,,
+36,Connections between sentences,Argument overlap—all sentences,CRFAOa,CRFAOa,CRFAOa,,
+37,Connections between sentences,Noun overlap—adjacent sentences,CRFNO1,CRFNO1,CRFNO1,,
+38,Connections between sentences,Stem overlap—all sentences,CRFSOa,CRFSOa,CRFSOa,,
+39,Connections between sentences,Type-token ratio,LDTTRc,LDTTRc,LDTTRc,,3.0 has content words (LDTTRc) and all words (LDTTRa)
+40,Connections between sentences,Lexical diversity—all words,LDMTLDa,LDMTLDa,LDMTLDa,,3.0 has MTLD (LDMTLDa) and VOCD (LDVOCDa)
+41,Connections between sentences,Lexical diversity—verbs,,,,,not implemented in Coh-Metrix 3.0
+42,Connections between sentences,LSA-givenness versus newness,LSAGN,LSAGN_EMB_SPACYlg,LSAGN_EMB_SPACYlg,,spaCy lg vectors instead of TASA LSA space
+43,Connections between sentences,LSA overlap—adjacent sentences,LSASS1,LSASS1_EMB_SPACYlg,LSASS1_EMB_SPACYlg,,spaCy lg vectors instead of TASA LSA space
+44,Connections between sentences,LSA overlap—all sentences,LSASSp,LSASSp_EMB_SPACYlg,LSASSp_EMB_SPACYlg,,spaCy lg vectors instead of TASA LSA space; 3.0 is all sentences in paragraph
+45,Connections between sentences,Dissimilarity of parts of speech between sentences,SYNMEDpos,SYNMEDpos,SYNMEDpos,,
+46,Connections between sentences,Dissimilarity of words between sentences,SYNMEDwrd,SYNMEDwrd,SYNMEDwrd,,
+47,Connections between sentences,Causal cohesion,SMCAUSr,SMCAUSr_WN_DIMLEXeng_GUM,SMCAUSr_GN_DIMLEX,,
+48,Connections between sentences,Intentional cohesion,SMINTEr,SMINTEr_WN_LLMlist,SMINTEr_GN_LLMlist,,"excluded until 0.6.0 (undefined for 71% of CLEAR with 0.2.0's particles / verbs); since 0.6.0 particles / (verbs + 1), always defined (decided 2026-11-04)"
+49,Connections between sentences,Verb overlap—adjacent,SMCAUSwn,SMCAUSwn_WN,SMCAUSwn_GN,,
+50,Connections between sentences,LSA verb overlap—adjacent sentences,SMCAUSlsa,SMCAUSlsa_EMB_SPACYlg,SMCAUSlsa_EMB_SPACYlg,,spaCy lg vectors instead of TASA LSA space
+51,Connections between sentences,Temporal cohesion,SMTEMP,SMTEMP_LLMlist,SMTEMP_LLMlist_GN,,
+52,Connections between sentences,Verb tense repetition,,,,,3.0 combines tense and aspect repetition in SMTEMP (measure 51)
+53,Connections between sentences,Verb aspect repetition,,,,,3.0 combines tense and aspect repetition in SMTEMP (measure 51)

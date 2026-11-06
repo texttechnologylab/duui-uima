@@ -1,7 +1,5 @@
-[![Version](https://img.shields.io/static/v1?label=duui-molmo&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-molmo/tags/list)
+[![Version](https://img.shields.io/static/v1?label=duui-vision-language&message=0.1.0&color=blue)](https://docker.texttechnologylab.org/v2/duui-vision-language/tags/list)
 [![Python](https://img.shields.io/static/v1?label=Python&message=3.10&color=green)]()
-[![Transformers](https://img.shields.io/static/v1?label=Transformers&message=4.38.2&color=yellow)]()
-[![Torch](https://img.shields.io/static/v1?label=Torch&message=2.2.0&color=red)]()
 
 # DUUI Vision Language
 
@@ -27,8 +25,8 @@ The `Molmo7BDModelVLLM` is optimized for vLLM serving and uses OpenAI-compatible
 
 | Mode         | Description                        |
 |--------------|------------------------------------|
-| `text_only`  | Standard chat / text completion    |
-| `image_only` | Image+text multimodal inference    |
+| `text`       | Standard chat / text completion    |
+| `image`      | Image+text multimodal inference (default) |
 
 ---
 
@@ -39,8 +37,10 @@ Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechn
 ### Start via Docker
 
 ```bash
-docker run -p 9714:9714 docker.texttechnologylab.org/duui-molmo:latest
-````
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-vision-language:latest
+```
+
+Find all available image tags here: https://docker.texttechnologylab.org/v2/duui-vision-language/tags/list
 
 ---
 
@@ -74,7 +74,7 @@ Example DUUI driver config:
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-vision-language:latest")
         .withParameter("model_name", "Molmo7BDModelVLLM")
-        .withParameter("mode", "text_only")
+        .withParameter("mode", "text")
 );
 ```
 
@@ -85,8 +85,9 @@ composer.add(
 | Name         | Description                                           |
 | ------------ | ----------------------------------------------------- |
 | `model_name` | One of the supported Molmo model classes              |
-| `mode`       | `text_only` or `image_only`                           |
-| `prompt`     | Optional user prompt (used with image or text inputs) |
+| `mode`       | `text` or `image` (default: `image`)                  |
+
+Prompts are read from the `Prompt` annotations in the CAS.
 
 ---
 
@@ -117,10 +118,10 @@ podman run -d \
   pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 
-@misc{abusaleh:2025,
-  author         = {Abusaleh, Ali},
-  title          = {Multimodal Inference with Molmo as a DUUI Component},
+@misc{Abusaleh:et:al:2025:VisionLanguage,
+  author         = {Abusaleh, Ali and Mehler, Alexander},
+  title          = {Vision-Language Inference with Molmo as {DUUI} Component},
   year           = {2025},
-  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-molmo}
+  howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-vision-language}
 }
 ```

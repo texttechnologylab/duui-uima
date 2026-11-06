@@ -67,7 +67,6 @@ public class SpaCySmallTest {
     public void smallTestEn() throws Exception {
         composer.add(
                 new DUUIRemoteDriver.Component("http://localhost:9714")
-                        .withParameter("use_benepar", String.valueOf(true))
         );
 
         String language = "en";
@@ -127,8 +126,9 @@ public class SpaCySmallTest {
 
         assertArrayEquals(sents, casSents);
 
+        // spaCy 3.8 (en_core_web_sm 3.8.0): "IPhone" NNP/PROPN (3.7.2: NN/NOUN)
         String[] pos = new String[]{
-                "DT", "VBZ", "DT", "NN", "IN", "NNP", ".",
+                "DT", "VBZ", "DT", "NNP", "IN", "NNP", ".",
                 "CC", "DT", "VBZ", "DT", "NNP", "."
         };
 
@@ -140,7 +140,7 @@ public class SpaCySmallTest {
         assertArrayEquals(pos, casPos);
 
         String[] posCoarse = new String[]{
-                "PRON", "AUX", "DET", "NOUN", "ADP", "PROPN", "PUNCT",
+                "PRON", "AUX", "DET", "PROPN", "ADP", "PROPN", "PUNCT",
                 "CCONJ", "PRON", "AUX", "DET", "PROPN", "PUNCT"
         };
 
@@ -167,7 +167,9 @@ public class SpaCySmallTest {
                 // version 3.2.2
                 //"ORG"
                 // version 3.5
-                "ORG", "GPE"
+                //"ORG", "GPE"
+                // version 3.8
+                "ORG", "ORG", "ORG"
         };
 
         String[] casEnts = JCasUtil.select(cas, NamedEntity.class)

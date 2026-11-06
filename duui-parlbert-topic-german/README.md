@@ -39,17 +39,21 @@ A. Leonhardt, G. Abrami, D. Baumartz, and A. Mehler, “Unlocking the Heterogene
 # BibTeX
 ```
 @inproceedings{Leonhardt:et:al:2023,
-  title = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
-  author = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel and Mehler, Alexander},
-  year = {2023},
+  title     = {Unlocking the Heterogeneous Landscape of Big Data {NLP} with {DUUI}},
+  author    = {Leonhardt, Alexander and Abrami, Giuseppe and Baumartz, Daniel
+               and Mehler, Alexander},
+  editor    = {Bouamor, Houda and Pino, Juan and Bali, Kalika},
   booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year      = {2023},
+  address   = {Singapore},
   publisher = {Association for Computational Linguistics},
-  pages = {1--15},
-  note = {accepted}
+  url       = {https://aclanthology.org/2023.findings-emnlp.29},
+  pages     = {385--399},
+  pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 
 @misc{Klebe:2022,
-  author         = {Klebe, Max},
+  author         = {Klebe, Max and Abrami, Giuseppe and Mehler, Alexander},
   title          = {DUUI-Component for parlbert-topic-german},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/edit/main/duui-parlbert-topic-german}

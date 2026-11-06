@@ -1,7 +1,6 @@
 
-[![Version](https://img.shields.io/static/v1?label=duui-multimodal\&message=0.1.0\&color=blue)](https://docker.texttechnologylab.org/v2/duui-multimodal/tags/list)
-[![Python](https://img.shields.io/static/v1?label=Python\&message=3.12\&color=green)]()
-[![Transformers](https://img.shields.io/static/v1?label=Transformers\&message=4.48.2\&color=yellow)]()
+[![Version](https://img.shields.io/static/v1?label=duui-mutlimodality-transformer\&message=0.2.0\&color=blue)](https://docker.texttechnologylab.org/v2/duui-mutlimodality-transformer/tags/list)
+[![Python](https://img.shields.io/static/v1?label=Python\&message=3.10\&color=green)]()
 [![Torch](https://img.shields.io/static/v1?label=Torch\&message=2.6.0\&color=red)]()
 
 # DUUI Multimodal Component
@@ -20,28 +19,29 @@ Supported models include variants like `microsoft/Phi-4-multimodal-instruct`.
 
 ##  Supported Models
 
-| Model Name                                 | Source                                                                                           | Dockerimage                               | Mode  | Lang                            | Version     |
-|--------------------------------------------|--------------------------------------------------------------------------------------------------|-------------------------------------------|-------|---------------------------------|-------------|
-| `vllm/microsoft/Phi-4-multimodal-instruct` | 🤗 [Phi-4](https://huggingface.co/microsoft/Phi-4-multimodal-instruct)                           | `duui-mutlimodality-vllm:latest`          | VLLM  | multi                           | `0af439b...` |
-| `microsoft/Phi-4-multimodal-instruct`      | 🤗 [Phi-4](https://huggingface.co/microsoft/Phi-4-multimodal-instruct)                           | `duui-mutlimodality:latest`               | VLLM  | multi                           | `0af439b...` |
-| `vllm/Qwen/Qwen2.5-VL-7B-Instruct`         | 🤗 [Qwen2.5-VL-7B](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct)                           | `duui-mutlimodality-qwen-7b-vllm:latest`  | VLLM  | multi                           | `cc59489...` |
-| `vllm/Qwen/Qwen2.5-VL-3B-Instruct`         | 🤗 [Qwen2.5-VL-3B](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct)                           | `duui-mutlimodality-qwen-3b-vllm:latest`  | VLLM  | multi                           | `cc59489...` |
-| `vllm/Qwen/Qwen2.5-VL-32B-Instruct`        | 🤗 [Qwen2.5-VL-32B](https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct)                         | `duui-mutlimodality-qwen-32b-vllm:latest` | VLLM  | multi                           | `cc59489...` |
-| `vllm/Qwen/Qwen2.5-VL-72B-Instruct`        | 🤗 [Qwen2.5-VL-72B](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct)                         | `duui-mutlimodality-qwen-72b-vllm:latest` | VLLM  | multi                           | `cc59489...` |
-| `Qwen/Qwen2.5-VL-7B-Instruct`              | 🤗  [Qwen/Qwen2.5-VL-7B-Instruct] (https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct)           | `duui-mutlimodality-transformer:latest`|       | Transformer                     | multi       | `cc59489...` |
-| `Qwen/Qwen2.5-VL-7B-Instruct-AWQ`          | 🤗  [Qwen/Qwen2.5-VL-7B-Instruct-AWQ] (https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct-AWQ)   | `duui-mutlimodality-transformer:latest`|              | Transformer                     | multi       | `536a357...` |
-| `Qwen/Qwen2.5-VL-3B-Instruct`              | 🤗  [Qwen/Qwen2.5-VL-3B-Instruct] (https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct)           | `duui-mutlimodality-transformer:latest`|      | Transformer                     | multi       | `6628554...` |
-| `Qwen/Qwen2.5-VL-3B-Instruct-AWQ`          | 🤗   [Qwen/Qwen2.5-VL-3B-Instruct-AWQ] (https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-AWQ)  | `duui-mutlimodality-transformer:latest`|                 | Transformer                     | multi       | `e7b6239...` |
-| `Qwen/Qwen2.5-VL-32B-Instruct`             | 🤗  [Qwen/Qwen2.5-VL-32B-Instruct] (https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct)         | `duui-mutlimodality-transformer:latest`|              | Transformer                     | multi       | `7cfb30d...` |
-| `Qwen/Qwen2.5-VL-32B-Instruct-AWQ`         | 🤗   [Qwen/Qwen2.5-VL-32B-Instruct-AWQ] (https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct-AWQ) | `duui-mutlimodality-transformer:latest`|                   | Transformer                     | multi       | `66c370b...` |
-| `Qwen/Qwen2.5-VL-72B-Instruct`             | 🤗    [Qwen/Qwen2.5-VL72B-Instruct] (https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct)        | `duui-mutlimodality-transformer:latest`|        | Transformer                     | multi       | `cd3b627...` |
-| `Qwen/Qwen2.5-VL-72B-Instruct-AWQ`         | 🤗   [Qwen/Qwen2.5-VL-72B-Instruct-AWQ] (https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct-AWQ) | `duui-mutlimodality-transformer:latest`|           | Transformer                     | multi       | `c8b87d4...` |
-| `Qwen/Qwen2.5-Omni-3B`                     | 🤗    [Qwen2.5-Omni-3B](https://huggingface.co/Qwen/Qwen2.5-Omni-3B)                             | `duui-mutlimodality-transformer:latest`|                 | Transformer                     | multi       | `latest`     |
-| `Qwen/Qwen3-32B`                           | 🤗 [Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B)                                            | `duui-mutlimodality-transformer:latest`|                 | Transformer  **with reasoning** | multi       | `latest`     |
-| `Qwen/Qwen3-14B`                           | 🤗  [Qwen3-14B](https://huggingface.co/Qwen/Qwen3-14B)                                           | `duui-mutlimodality-transformer:latest`|                 | Transformer  **with reasoning**                   | multi       | `latest`     |
-| `Qwen/Qwen3-8B`                            | 🤗 [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)                                              | `duui-mutlimodality-transformer:latest`|                 | Transformer  **with reasoning**                   | multi       | `latest`     |
-| `Qwen/Qwen3-4B`                            | 🤗 [Qwen3-4B](https://huggingface.co/Qwen/Qwen3-4B)                                              | `duui-mutlimodality-transformer:latest`|                 | Transformer  **with reasoning**                   | multi       | `latest`     |
-| `Qwen/Qwen3-0.6B`                          | 🤗 [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B)                                          | `duui-mutlimodality-transformer:latest`|                 | Transformer  **with reasoning**                   | multi       | `latest`     |
+| Model Name | Source | Docker image | Backend | Lang | Version |
+|---|---|---|---|---|---|
+| `vllm/microsoft/Phi-4-multimodal-instruct` | 🤗 [Phi-4](https://huggingface.co/microsoft/Phi-4-multimodal-instruct) | `duui-mutlimodality-vllm:latest` | vLLM | multi | `0af439b...` |
+| `microsoft/Phi-4-multimodal-instruct` | 🤗 [Phi-4](https://huggingface.co/microsoft/Phi-4-multimodal-instruct) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `0af439b...` |
+| `vllm/Qwen/Qwen2.5-VL-7B-Instruct` | 🤗 [Qwen2.5-VL-7B](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) | `duui-mutlimodality-qwen-7b-vllm:latest` | vLLM | multi | `cc59489...` |
+| `vllm/Qwen/Qwen2.5-VL-3B-Instruct` | 🤗 [Qwen2.5-VL-3B](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) | `duui-mutlimodality-qwen-3b-vllm:latest` | vLLM | multi | `cc59489...` |
+| `vllm/Qwen/Qwen2.5-VL-32B-Instruct` | 🤗 [Qwen2.5-VL-32B](https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct) | `duui-mutlimodality-qwen-32b-vllm:latest` | vLLM | multi | `cc59489...` |
+| `vllm/Qwen/Qwen2.5-VL-72B-Instruct` | 🤗 [Qwen2.5-VL-72B](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct) | `duui-mutlimodality-qwen-72b-vllm:latest` | vLLM | multi | `cc59489...` |
+| `Qwen/Qwen2.5-VL-7B-Instruct` | 🤗 [Qwen2.5-VL-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `cc59489...` |
+| `Qwen/Qwen2.5-VL-7B-Instruct-AWQ` | 🤗 [Qwen2.5-VL-7B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct-AWQ) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `536a357...` |
+| `Qwen/Qwen2.5-VL-3B-Instruct` | 🤗 [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `6628554...` |
+| `Qwen/Qwen2.5-VL-3B-Instruct-AWQ` | 🤗 [Qwen2.5-VL-3B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-AWQ) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `e7b6239...` |
+| `Qwen/Qwen2.5-VL-32B-Instruct` | 🤗 [Qwen2.5-VL-32B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `7cfb30d...` |
+| `Qwen/Qwen2.5-VL-32B-Instruct-AWQ` | 🤗 [Qwen2.5-VL-32B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct-AWQ) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `66c370b...` |
+| `Qwen/Qwen2.5-VL-72B-Instruct` | 🤗 [Qwen2.5-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `cd3b627...` |
+| `Qwen/Qwen2.5-VL-72B-Instruct-AWQ` | 🤗 [Qwen2.5-VL-72B-Instruct-AWQ](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct-AWQ) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `c8b87d4...` |
+| `Qwen/Qwen2.5-Omni-3B` | 🤗 [Qwen2.5-Omni-3B](https://huggingface.co/Qwen/Qwen2.5-Omni-3B) | `duui-mutlimodality-transformer:latest` | Transformer | multi | `latest` |
+| `Qwen/Qwen3-32B` | 🤗 [Qwen3-32B](https://huggingface.co/Qwen/Qwen3-32B) | `duui-mutlimodality-transformer:latest` | Transformer (**with reasoning**) | multi | `latest` |
+| `Qwen/Qwen3-14B` | 🤗 [Qwen3-14B](https://huggingface.co/Qwen/Qwen3-14B) | `duui-mutlimodality-transformer:latest` | Transformer (**with reasoning**) | multi | `latest` |
+| `Qwen/Qwen3-8B` | 🤗 [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) | `duui-mutlimodality-transformer:latest` | Transformer (**with reasoning**) | multi | `latest` |
+| `Qwen/Qwen3-4B` | 🤗 [Qwen3-4B](https://huggingface.co/Qwen/Qwen3-4B) | `duui-mutlimodality-transformer:latest` | Transformer (**with reasoning**) | multi | `latest` |
+| `Qwen/Qwen3-1.7B` | 🤗 [Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) | `duui-mutlimodality-transformer:latest` | Transformer (**with reasoning**) | multi | `latest` |
+| `Qwen/Qwen3-0.6B` | 🤗 [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) | `duui-mutlimodality-transformer:latest` | Transformer (**with reasoning**) | multi | `latest` |
 
 ---
 
@@ -80,7 +80,7 @@ Find available image tags: [Docker Registry](https://docker.texttechnologylab.or
 composer.add(
     new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-mutlimodality-vllm:latest")
         .withParameter("model_name", "microsoft/Phi-4-multimodal-instruct")
-        .withParameter("mode", "video")  // Can be: text_only, image_only, audio, frames_only, video
+        .withParameter("mode", "video")  // Can be: text, image, frames, audio, video, frames_and_audio
 );
 ```
 ### Transformer Models
@@ -92,7 +92,7 @@ public void testText() throws Exception {
     composer.add(
             new DUUIRemoteDriver.Component("docker.texttechnologylab.org/duui-mutlimodality-transformer:latest")
                     .withParameter("model_name", "Qwen/Qwen3-1.7B")
-                    .withParameter("mode", "text") // Can be: text_only, image_only, audio, frames_only, video
+                    .withParameter("mode", "text") // Can be: text, image, frames, audio, video, frames_and_audio
                     .build().withTimeout(1000) 
 
     );
@@ -141,9 +141,11 @@ public void testText() throws Exception {
 
 | Name         | Description                                    |
 | ------------ | ---------------------------------------------- |
-| `model_name` | Name of the multimodal model to use            |
-| `mode`       | Processing mode: text\_only, image\_only, etc. |
-| `prompt`     | Prompt passed alongside media inputs           |
+| `model_name` | Name of the multimodal model to use (see table above) |
+| `mode`       | Processing mode, see [Supported Modes](#supported-modes) (default: `text`) |
+| `individual` | Process frames one by one instead of as one set (`frames` mode only, default: `false`) |
+
+Prompts are read from the `Prompt` annotations in the CAS.
 
 ---
 
@@ -173,11 +175,12 @@ Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399
   pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 
-@misc{abusaleh:2025,
-  author         = {Abusaleh, Ali},
+@misc{Abusaleh:et:al:2025:Multimodal,
+  author         = {Abusaleh, Ali and Mehler, Alexander},
   title          = {Multimodal Inference as {DUUI} Component},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-mm}
 }
+```
 
 

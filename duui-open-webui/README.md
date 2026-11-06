@@ -1,12 +1,11 @@
 
-[![Version](https://img.shields.io/static/v1?label=duui-multimodal\&message=0.1.0\&color=blue)](https://docker.texttechnologylab.org/v2/duui-multimodal/tags/list)
-[![Python](https://img.shields.io/static/v1?label=Python\&message=3.12\&color=green)]()
-[![Transformers](https://img.shields.io/static/v1?label=Transformers\&message=4.48.2\&color=yellow)]()
-[![Torch](https://img.shields.io/static/v1?label=Torch\&message=2.6.0\&color=red)]()
+[![Version](https://img.shields.io/static/v1?label=duui-openwebui-transformer\&message=0.2.0\&color=blue)](https://docker.texttechnologylab.org/v2/duui-openwebui-transformer/tags/list)
+[![Python](https://img.shields.io/static/v1?label=Python\&message=3.10\&color=green)]()
+[![Torch](https://img.shields.io/static/v1?label=Torch\&message=2.8.0\&color=red)]()
 
 # DUUI Open-WebUI 
 
-DUUI implementation for **multimodal Hugging Face models** that support combinations of:
+DUUI wrapper for models served through **Open WebUI / Ollama** (OpenAI-compatible API) that support combinations of:
 
 * Text
 * Image
@@ -40,10 +39,10 @@ Requires the [Docker Unified UIMA Interface (DUUI)](https://github.com/texttechn
 ### Start Docker Container
 
 ```bash
-docker run -p 9714:9714 docker.texttechnologylab.org/duui-open-webui
+docker run -p 9714:9714 docker.texttechnologylab.org/duui-openwebui-transformer:latest
 ```
 
-Find available image tags: [Docker Registry](https://docker.texttechnologylab.org/v2/duui-mutlimodality-transformer/tags/list)
+Find available image tags: [Docker Registry](https://docker.texttechnologylab.org/v2/duui-openwebui-transformer/tags/list)
 
 ---
 
@@ -63,10 +62,10 @@ Find available image tags: [Docker Registry](https://docker.texttechnologylab.or
                         .build().withTimeout(1000)
         );
 ```
-### Transformer Models
+### Running prompts
 
 ```java
-// Code before as it is.. 
+// Composer setup as above
 
 List<String> prompts = Arrays.asList(
         "Who is the current president of the USA?",
@@ -136,9 +135,10 @@ If you want to use the DUUI image, please cite the following:
 Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399.
 \[[LINK](https://aclanthology.org/2023.findings-emnlp.29)] \[[PDF](https://aclanthology.org/2023.findings-emnlp.29.pdf)]
 
-**Abusaleh (2026)**
-*"OpenWebUI wrapper as {DUUI} Component"*
-\[[LINK](https://github.com/texttechnologylab/duui-uima/tree/main/duui-open-webui])]
+**Abusaleh and Mehler (2026)**
+*"OpenWebUI Ollama Wrapper as DUUI Component."*
+\[[LINK](https://github.com/texttechnologylab/duui-uima/tree/main/duui-open-webui)]
+
 ---
 
 ## BibTeX
@@ -156,11 +156,12 @@ Findings of the Association for Computational Linguistics: EMNLP 2023, 385–399
   pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 
-@misc{abusaleh:duui:openwebui:2026,
-  author         = {Abusaleh, Ali},
-  title          = {OpenWebUI Ollama wrapper as {DUUI} Component},
+@misc{Abusaleh:et:al:2026:OpenWebUI,
+  author         = {Abusaleh, Ali and Mehler, Alexander},
+  title          = {OpenWebUI Ollama Wrapper as {DUUI} Component},
   year           = {2026},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-open-webui}
 }
+```
 
 

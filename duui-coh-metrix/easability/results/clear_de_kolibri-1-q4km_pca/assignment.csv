@@ -1,0 +1,9 @@
+component,name,varimax_component,marker_score,marker_measures
+PCNARz,Narrativity,1,0.6968591100439803,6:+;8:+;16:+;3:+;2:-;1:-;19:-
+PCSYNz,Syntactic simplicity,7,0.3221682904051392,28:-;29:-;30:-;45:-;32:+
+PCCNCz,Word concreteness,4,0.7358552879074839,21:+;22:+;20:+
+PCREFz,Referential cohesion,2,0.8015510748316067,33:+;34:+;35:+;36:+;37:+;38:+
+PCDCz,Deep cohesion,6,0.8905550484686429,11:+;47:+
+PCVERBz,Verb cohesion,3,0.38425361569166333,49:+;50:+
+PCCONNz,Connectivity,5,0.6747272929548891,13:+;14:+;15:+;10:+
+PCTEMPz,Temporality,8,0.10539410105280932,51:+;12:+

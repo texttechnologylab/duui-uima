@@ -80,8 +80,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{duui-spacy-eos,
-  author         = {Bundan, Daniel and Baumartz, Daniel},
+@misc{Bundan:et:al:2025,
+  author         = {Bundan, Daniel and Baumartz, Daniel and Abrami, Giuseppe and Mehler, Alexander},
   title          = {Automatic Speech Recognition via {WhisperX} as {DUUI} component},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-whisperX}

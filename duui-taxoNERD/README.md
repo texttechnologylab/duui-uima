@@ -69,8 +69,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Abrami:2022,
-  author         = {Abrami, Giuseppe},
+@misc{Abrami:et:al:2022,
+  author         = {Abrami, Giuseppe and Bundan, Daniel and Mehler, Alexander},
   title          = {taxoNerd as DUUI-Komponent},
   year           = {2022},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-taxoNERD}
