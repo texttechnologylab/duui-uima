@@ -77,23 +77,26 @@ end
 
 -- Deserialize the JSON response from the Python service back into the CAS.
 --
--- Anomaly annotations are added to the *original* CAS view so their
--- character offsets remain valid against the original document text.
--- The redacted text is written into inputCas directly. If the pipeline
--- wants it in a separate view, configure that on the Java side via
--- .withTargetView("opf_redacted") on the DUUIRemoteDriver.Component -
--- DUUI then resolves/creates that view once and passes it here as
--- inputCas, so this script never needs to create the view itself
--- (avoiding a crash when the same view already exists from a prior run).
+-- Anomaly annotations are added to inputCas; their offsets reference the
+-- original document text.
+-- The redacted text is written into inputCas only if that view has no text
+-- yet. If the pipeline wants it in a separate view, configure that on the
+-- Java side via .withTargetView("opf_redacted") on the
+-- DUUIRemoteDriver.Component - DUUI then resolves/creates that view once and
+-- passes it here as inputCas, so this script never needs to create the view
+-- itself (avoiding a crash when the same view already exists from a prior run).
+-- Views that already hold text (e.g. segment CASes when DUUI segmentation is
+-- used) are left untouched: UIMA allows the document text to be set only
+-- once, and the segment merge copies annotations back by original offsets.
 function deserialize(inputCas, inputStream)
     local inputString = luajava.newInstance("java.lang.String", inputStream:readAllBytes(), StandardCharsets.UTF_8)
     local results = json.decode(inputString)
 
-    if results["redacted_text"] ~= nil then
+    if results["redacted_text"] ~= nil and inputCas:getSofaDataString() == nil then
         inputCas:setSofaDataString(results["redacted_text"], "text/plain")
     end
 
-    -- Add Anomaly annotations to the original view; offsets reference original text.
+    -- Add Anomaly annotations; offsets reference the original text.
     if results["detected_spans"] ~= nil then
         for i, span in ipairs(results["detected_spans"]) do
             local anomaly = luajava.newInstance(

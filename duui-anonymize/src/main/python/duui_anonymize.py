@@ -259,13 +259,12 @@ _pipelines = _PipelineCache(ttl=settings.model_ttl_seconds, maxsize=settings.mod
 
 def _load_pipeline(model: str, device: str, trust_remote_code: bool = False):
     def load():
-        dev = 0 if device == "cuda" else -1
         logger.info("Loading pipeline: model=%s device=%s trust_remote_code=%s", model, device, trust_remote_code)
         return hf_pipeline(
             task="token-classification",
             model=model,
             aggregation_strategy="simple",
-            device=dev,
+            device=device,
             trust_remote_code=trust_remote_code,
         )
 
@@ -318,7 +317,16 @@ def _process(request: DUUIRequest) -> DUUIResponse:
             f"Supported models: {sorted(SUPPORTED_MODELS)}"
         )
 
-    device = str(options.get("device") or ("cuda" if torch.cuda.is_available() else "cpu"))
+    device = str(options.get("device") or "").strip().lower()
+    if device in ("", "auto", "none", "null"):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif device == "gpu":
+        device = "cuda"
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        raise ValueError(
+            f"device '{device}' requested but CUDA is not available "
+            f"(torch {torch.__version__}; use the CUDA image and start the container with GPU access)"
+        )
     mode = str(options.get("mode", MODE_PLACEHOLDER))
 
     logger.info("Processing: model=%s device=%s mode=%s text_length=%d", model, device, mode, len(request.text))

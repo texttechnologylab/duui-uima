@@ -60,7 +60,7 @@ The redacted text is written to a secondary CAS view named `opf_redacted`.
 |---|---|---|---|
 | `model` | string | `openai/privacy-filter` | HuggingFace model ID — must be one of the three supported models listed above; any other value returns HTTP 400 |
 | `trust_remote_code` | bool | `false` | Required for `OpenMed/privacy-filter-nemotron` |
-| `device` | string | auto | `cpu` or `cuda` |
+| `device` | string | `auto` | `auto` (CUDA if available, else CPU), `cpu`, `cuda` (or `cuda:N` / `gpu`). `cuda` only works with the CUDA image started with GPU access (`--gpus all`); otherwise the request fails with HTTP 400 |
 | `mode` | string | `placeholder` | See modes below |
 | `placeholder` | string | `[{label}]` | Custom replacement text (placeholder mode only) |
 | `selection_begin` | int | — | Start offset of the text window to analyse |
@@ -123,7 +123,7 @@ docker run -p 9714:9714 duui-anonymize:latest
 docker build -f src/main/docker/Dockerfile --build-arg COMMUNICATION_LUA=communication_open.lua -t duui-anonymize-open:latest .
 ```
 
-GPU (CUDA 11.8) image:
+GPU (CUDA 13.0) image:
 ```bash
 docker build -f src/main/docker/Dockerfile-cuda -t duui-anonymize:cuda .
 docker run --gpus all -p 9714:9714 duui-anonymize:cuda
@@ -158,7 +158,7 @@ src/
       typesystem.xml        # UIMA type system
     docker/
       Dockerfile            # CPU image (python:3.10)
-      Dockerfile-cuda       # GPU image (cuda:11.8)
+      Dockerfile-cuda       # GPU image (cuda:13.0)
   test/
     java/
       AnonymizeTests.java   # JUnit 5 integration tests (service must be running)
