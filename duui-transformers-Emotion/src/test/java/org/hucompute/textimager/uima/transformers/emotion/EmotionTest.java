@@ -181,6 +181,41 @@ public class EmotionTest {
         }
     }
 
+    @Test
+    public void GermanEmptySelectionTest() throws Exception {
+
+        composer.add(
+                new DUUIRemoteDriver.Component(url)
+                        .withParameter(
+                                "selection",
+                                "de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence"
+                        )
+                        .withParameter("batch_size", "8")
+        );
+
+        // Emtpy Test
+        cas.reset();
+        cas.setDocumentLanguage("de");
+        cas.setDocumentText(
+                "Ich hasse dich. Ich bin richtig wütend. " +
+                        "Ich bin sehr glücklich hier zu sein."
+        );
+
+        //No Sentence-Annotationen
+
+        Assertions.assertDoesNotThrow(() -> {
+            composer.run(cas);
+        });
+
+        Collection<Emotion> emotions =
+                JCasUtil.select(cas, Emotion.class);
+
+        Assertions.assertTrue(
+                emotions.isEmpty(),
+                "No emotions should be created for an empty selection."
+        );
+    }
+
 
     @Test
     public void TurkishTest() throws Exception {

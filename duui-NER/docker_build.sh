@@ -70,11 +70,19 @@ export BATCH_SIZE=8
 #export MODEL_LANG="Multi"
 ###---------------------------------------------------------------------
 
+####---------------------------------------------------------------------
+#export MODEL_NAME="flair-ner-german"
+#export MODEL_SPECNAME="flair-ner-german"
+#export MODEL_VERSION="4e3f3d15ba39ce3e00575a7a1de5da0ce8198ce7"
+#export MODEL_SOURCE="https://huggingface.co/flair/ner-german"
+#export MODEL_LANG="DE"
+####--------------------------------------------------------------------
+
 ###---------------------------------------------------------------------
-export MODEL_NAME="flair-ner-german"
-export MODEL_SPECNAME="flair-ner-german"
-export MODEL_VERSION="4e3f3d15ba39ce3e00575a7a1de5da0ce8198ce7"
-export MODEL_SOURCE="https://huggingface.co/flair/ner-german"
+export MODEL_NAME="gelectra-large-hist-core-de"
+export MODEL_SPECNAME="gelectra-large-hist-core-de"
+export MODEL_VERSION="local"
+export MODEL_SOURCE="local:/usr/src/app/models/final-model.pt"
 export MODEL_LANG="DE"
 ###--------------------------------------------------------------------
 

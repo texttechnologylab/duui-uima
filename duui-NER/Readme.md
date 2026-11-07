@@ -138,8 +138,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
   pdf       = {https://aclanthology.org/2023.findings-emnlp.29.pdf}
 }
 
-@misc{Bagci:2026,
-  author       = {Bagci, Mevlüt},
+@misc{Bagci:Mehler:2026,
+  author       = {Bagci, Mevlüt and Meher, Alexander},
   title        = {Transformer-based Named Entity Recognition models as {DUUI} component},
   year         = {2026},
   howpublished = {https://github.com/texttechnologylab/duui-uima}

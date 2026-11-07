@@ -80,8 +80,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bagci:2024,
-  author         = {Bagci, Mevlüt},
+@misc{Bagci:Mehler:2024,
+  author         = {Bagci, Mevlüt and Meher, Alexander},
   title          = {Hugging-Face-based climate models as {DUUI} component},
   year           = {2026},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-Climate}

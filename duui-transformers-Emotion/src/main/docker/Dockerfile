@@ -13,7 +13,7 @@ RUN pip install -r requirements.txt
 
 #RUN python -c "import nltk; nltk.download('all', download_dir='nltk_data')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='02shanky/finetuned-twitter-xlm-roberta-base-emotion')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='DReAMy-lib/xlm-roberta-large-DreamBank-emotion-presence')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='MilaNLProc/xlm-emo-t')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='j-hartmann/emotion-english-distilroberta-base')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='michellejieli/emotion_text_classifier')"
@@ -30,7 +30,7 @@ RUN python -c "from transformers import pipeline; pipeline('text-classification'
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='finiteautomata/beto-emotion-analysis')"
 #RUN python -c "from transformers import AutoTokenizer, AutoModelForSequenceClassification; AutoModelForSequenceClassification.from_pretrained('poltextlab/xlm-roberta-large-pooled-MORES', token='<TOKEN>'); AutoTokenizer.from_pretrained('lytang/MiniCheck-Flan-T5-Large')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='daveni/twitter-xlm-roberta-emotion-es')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ChrisLalk/German-Emotions')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ChrisLalk/German-Emotions')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='msgfrom96/xlm_emo_multi')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='cointegrated/rubert-tiny2-cedr-emotion-detection')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='Aniemore/rubert-tiny2-russian-emotion-detection')"

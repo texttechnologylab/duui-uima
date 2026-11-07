@@ -3,7 +3,7 @@ export ANNOTATOR_VERSION=0.3.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
-#---------------------------------------------------------------------
+#---------------------------------------------------------------------1
 #export  MODEL_NAME="Andrazp/multilingual-hate-speech-robacofi"
 #export MODEL_SPECNAME="andrazp"
 #export MODEL_VERSION="c2b98c47f5e13c326a7af48ba544fff4d93fbc70"
@@ -11,7 +11,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="Multi"
 #--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------2
 #export  MODEL_NAME="alexandrainst/da-hatespeech-detection-base"
 #export MODEL_SPECNAME="alexandrainst"
 #export MODEL_VERSION="6ec0fe1587f6038765b0d7f59525dd4162c4acb2"
@@ -19,7 +19,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
 #
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------3
 #export  MODEL_NAME="l3cube-pune/me-hate-roberta"
 #export MODEL_SPECNAME="l3cube"
 #export MODEL_VERSION="63890c746c153af20a6cd9832ccbeda03e0d960b"
@@ -27,7 +27,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
 #
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------4
 #export  MODEL_NAME="GroNLP/hateBERT"
 #export MODEL_SPECNAME="gronlp"
 #export MODEL_VERSION="1d439ddf8a588fc8c44c4169ff9e102f3e839cca"
@@ -35,7 +35,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------5
 #export  MODEL_NAME="cardiffnlp/twitter-roberta-base-hate-latest"
 #export MODEL_SPECNAME="cardiffnlp"
 #export MODEL_VERSION="c74b0534df96af8232f6a3ffdb90d9a72223d7b7"
@@ -43,7 +43,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------6
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-english"
 #export MODEL_SPECNAME="cnerg"
 #export MODEL_VERSION="25d0e4d9122d2a5c283e07405a325e3dfd4a73b3"
@@ -51,7 +51,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------7
 #export  MODEL_NAME="deepset/bert-base-german-cased-hatespeech-GermEval18Coarse"
 #export MODEL_SPECNAME="deepset"
 #export MODEL_VERSION="70e4821931a8a685d83bc0e8bd8877157bdb3883"
@@ -59,7 +59,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="DE"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------8
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-german"
 #export MODEL_SPECNAME="cnergde"
 #export MODEL_VERSION="53a24df030e8e20e7880a161494fb5922ce34617"
@@ -67,7 +67,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="DE"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------9
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-spanish"
 #export MODEL_SPECNAME="cnerges"
 #export MODEL_VERSION="2b9664ac59ee7f0b054fc0b1433cbedff3c2bdba"
@@ -75,7 +75,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="ES"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------10
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-polish"
 #export MODEL_SPECNAME="cnergpl"
 #export MODEL_VERSION="ec586b2e2e6140879c6f533ccd5208d1c2692715"
@@ -83,7 +83,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="PL"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------11
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-portugese"
 #export MODEL_SPECNAME="cnergpt"
 #export MODEL_VERSION="a212b2dd7e8e3d953787a49d92c469b30c6da6ba"
@@ -91,7 +91,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="PT"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------12
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-italian"
 #export MODEL_SPECNAME="cnergit"
 #export MODEL_VERSION="aeb70b454d5fc3046aa2a062c525d1ac60f2f01b"
@@ -99,7 +99,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="IT"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------13
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-arabic"
 #export MODEL_SPECNAME="cnergar"
 #export MODEL_VERSION="e592a5ee3b913ec33286ee90fb27c7f7f1a8b996"
@@ -107,7 +107,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="AR"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------14
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-french"
 #export MODEL_SPECNAME="cnergfr"
 #export MODEL_VERSION="7c0e8c45e9176581e57d4ae7e52327258116f969"
@@ -115,7 +115,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="FR"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------15
 #export  MODEL_NAME="Hate-speech-CNERG/dehatebert-mono-indonesian"
 #export MODEL_SPECNAME="cnergid"
 #export MODEL_VERSION="08693d6cc64f7e7b3019b2a3abe3b1a9c8ca74c2"
@@ -123,7 +123,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="ID"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------16
 #export  MODEL_NAME="facebook/roberta-hate-speech-dynabench-r4-target"
 #export MODEL_SPECNAME="lftw-facebook"
 #export MODEL_VERSION="391c99ab8b3f65beb77746a2cf6ddf1ddf9817e6"
@@ -131,7 +131,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------17
 #export  MODEL_NAME="irlab-udc/MetaHateBERT"
 #export MODEL_SPECNAME="metahatebert"
 #export MODEL_VERSION="60fa7df002300a3fdf56dbfb5c0fbe2a45ee43fa"
@@ -139,7 +139,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------18
 #export  MODEL_NAME="HateBERT_hateval"
 #export MODEL_SPECNAME="hatebert-hateval"
 #export MODEL_VERSION="d90e681c672a494bb555de99fc7ae780"
@@ -147,7 +147,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------19
 #export  MODEL_NAME="HateCheckEziisk"
 #export MODEL_SPECNAME="hate-check-eziisk"
 #export MODEL_VERSION="acad8f3dfadfa4a86695398c01953bc324efe03b"
@@ -155,7 +155,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------20
 #export MODEL_NAME="Exqrch/IndoBERTweet-HateSpeech"
 #export MODEL_SPECNAME="indo-bert-tweet"
 #export MODEL_VERSION="3a4ea9e295cdca78f87581bbf39729b767e9521c"
@@ -163,7 +163,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN, IN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------21
 #export MODEL_NAME="MilaNLProc/hate-ita-xlm-r-large"
 #export MODEL_SPECNAME="hate-ita-large"
 #export MODEL_VERSION="f7d96c3ee937fd8f01f98ce9b7783dfea0f5085d"
@@ -171,7 +171,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="IT"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------22
 #export MODEL_NAME="MilaNLProc/hate-ita-xlm-r-base"
 #export MODEL_SPECNAME="hate-ita-base"
 #export MODEL_VERSION="723fa1158c76c684312c43692afb9780810be099"
@@ -179,7 +179,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="IT"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------23
 #export MODEL_NAME="MilaNLProc/hate-ita"
 #export MODEL_SPECNAME="hate-ita"
 #export MODEL_VERSION="00a79c2221d16f04fcca2c9202dec85c6a815ba7"
@@ -187,7 +187,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="IT"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------24
 #export MODEL_NAME="l3cube-pune/me-hate-bert"
 #export MODEL_SPECNAME="mehate-bert"
 #export MODEL_VERSION="407f19357c3b2166db6cbc2107807fc07a17b8f5"
@@ -195,7 +195,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="Multi"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------25
 #export MODEL_NAME="HannahRoseKirk/Hatemoji"
 #export MODEL_SPECNAME="hatemoji"
 #export MODEL_VERSION="f2f98581ab15fb3ccf8b8a5465d7ca70c2958902"
@@ -203,7 +203,7 @@ eport MODEL_CACHE_SIZE=3
 #export MODEL_LANG="EN"
 ##--------------------------------------------------------------------
 
-##---------------------------------------------------------------------
+##---------------------------------------------------------------------26
 export MODEL_NAME="debajyotimaz/codemix_hate"
 export MODEL_SPECNAME="codemix-hate"
 export MODEL_VERSION="b07d73f1a05dd04c0adbb941b5446064b14feb10"
