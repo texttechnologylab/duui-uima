@@ -4,7 +4,7 @@ RUN apt update && \
     DEBIAN_FRONTEND=noninteractive \
     apt install --no-install-recommends -y build-essential software-properties-common && \
     add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt install --no-install-recommends -y python3.10 python3-pip python3-setuptools python3-distutils && \
+    apt install --no-install-recommends -y python3.11 python3-pip python3-setuptools python3-distutils && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
@@ -30,7 +30,7 @@ RUN pip install blinker==1.6.2
 
 RUN pip install torch==2.5.0 torchvision==0.20.0 torchaudio==2.5.0 --index-url https://download.pytorch.org/whl/cu118
 COPY ./requirements.txt ./requirements.txt
-RUN pip install -r requirements.txt
+RUN SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True pip install -r requirements.txt
 
 
 

@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.11
 
 WORKDIR /usr/src/app
 
@@ -13,7 +13,7 @@ COPY ./src/main/python/duui-transformers-berttopic.lua ./duui-transformers-bertt
 
 # dependencies
 COPY ./requirements.txt ./requirements.txt
-RUN pip install -r requirements.txt
+RUN SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True pip install -r requirements.txt
 
 
 ENTRYPOINT ["uvicorn", "duui-transformers-berttopic:app", "--host", "0.0.0.0", "--port" ,"9714"]
