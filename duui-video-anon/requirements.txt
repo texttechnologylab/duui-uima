@@ -1,0 +1,4 @@
+fastapi==0.141.1
+pydantic==2.13.5
+uvicorn==0.53.0
+duui-logging @ git+https://github.com/texttechnologylab/DUUIlogger.git@0e0a9974097f9dd8009857f38b7fb5f647a7bfb2
