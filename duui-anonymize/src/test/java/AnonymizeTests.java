@@ -238,6 +238,32 @@ public class AnonymizeTests {
         }
     }
 
+    @Test
+    @DisplayName("Excluded labels: names and phones preserved while email is anonymized")
+    void testExcludeLabels() throws Exception {
+        String text = "Call John Smith at john.smith@company.com or +1-800-555-0199 for help.";
+        createCas("en", text);
+
+        composer.add(new DUUIRemoteDriver.Component(SERVICE_URL)
+                .withParameter("model", "openai/privacy-filter")
+                .withParameter("mode", "placeholder")
+                .withParameter("exclude_labels", "private_person,private_phone"));
+        composer.run(cas);
+
+        Collection<Anomaly> anomalies = collectAnomalies();
+        assertTrue(anomalies.stream().noneMatch(a ->
+                        "private_person".equals(a.getCategory()) || "private_phone".equals(a.getCategory())),
+                "Excluded labels should not produce Anomaly annotations");
+        assertTrue(anomalies.stream().anyMatch(a -> "private_email".equals(a.getCategory())),
+                "The non-excluded email should still produce an Anomaly annotation");
+
+        String redacted = extractRedactedText();
+        assertTrue(redacted.contains("John Smith"), "Excluded name should remain unchanged");
+        assertTrue(redacted.contains("+1-800-555-0199"), "Excluded phone should remain unchanged");
+        assertFalse(redacted.contains("john.smith@company.com"), "Email should still be anonymized");
+        assertTrue(redacted.contains("[private_email]"), "Email should be replaced with its placeholder");
+    }
+
     /** Pseudo mode: not yet supported - service returns input unchanged with no annotations. */
     @Test
     @DisplayName("Pseudo mode: not yet supported, returns input unchanged")
