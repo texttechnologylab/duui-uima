@@ -122,8 +122,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bagci:2024,
-  author         = {Bagci, Mevlüt},
+@misc{Bagci:Mehler:2024,
+  author         = {Bagci, Mevlüt and Meher, Alexander},
   title          = {Emotion models as {DUUI} component},
   year           = {2024},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-transformers-Emotion}

@@ -42,6 +42,12 @@ MODEL_REGISTRY: Dict[str, Dict[str, str]] = {
         "model_source": "https://huggingface.co/flair/ner-german",
         "model_lang": "de",
     },
+    "gelectra-large-hist-core-de": {
+        "backend": "flair_sequence_tagger",
+        "model_id": "/usr/src/app/models/final-model.pt",
+        "model_source": "local",
+        "model_lang": "de",
+    },
 }
 
 

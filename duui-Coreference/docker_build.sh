@@ -3,23 +3,23 @@ export ANNOTATOR_VERSION=0.2.0
 export LOG_LEVEL=INFO
 eport MODEL_CACHE_SIZE=3
 
-###---------------------------------------------------------------------
-#export MODEL_NAME="coreferee"
-#export MODEL_SPECNAME="coreferee"
-#export MODEL_VERSION="3ee6f2781e54988d6c3593c6b8f37cc3bae8f982"
-#export MODEL_SOURCE="https://github.com/richardpaulhudson/coreferee"
-#export MODEL_LANG="en"
-#export MODEL_VARIANT="sm"
-###--------------------------------------------------------------------
-
 ##---------------------------------------------------------------------
 export MODEL_NAME="coreferee"
 export MODEL_SPECNAME="coreferee"
 export MODEL_VERSION="3ee6f2781e54988d6c3593c6b8f37cc3bae8f982"
 export MODEL_SOURCE="https://github.com/richardpaulhudson/coreferee"
-export MODEL_LANG="de"
+export MODEL_LANG="en"
 export MODEL_VARIANT="sm"
 ##--------------------------------------------------------------------
+
+###---------------------------------------------------------------------
+#export MODEL_NAME="coreferee"
+#export MODEL_SPECNAME="coreferee"
+#export MODEL_VERSION="3ee6f2781e54988d6c3593c6b8f37cc3bae8f982"
+#export MODEL_SOURCE="https://github.com/richardpaulhudson/coreferee"
+#export MODEL_LANG="de"
+#export MODEL_VARIANT="sm"
+###--------------------------------------------------------------------
 #
 ###---------------------------------------------------------------------
 #export MODEL_NAME="coreferee"

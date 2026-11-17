@@ -24,7 +24,9 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 # MODEL_NAME=xlm-r-ner-40-lang
 #RUN python -c "from transformers import pipeline; pipeline('token-classification', model='nbroad/jplu-xlm-r-ner-40-lang', aggregation_strategy='simple')"
 # MODEL_NAME=flair-ner-german
-RUN python -c "from flair.models import SequenceTagger; SequenceTagger.load('flair/ner-german')"
+#RUN python -c "from flair.models import SequenceTagger; SequenceTagger.load('flair/ner-german')"
+# MODEL_NAME=flair-ner-german
+COPY /storage/main/resources/models/flair-ner-de-historic-core-misc ./models/
 
 # copy DUUI NER scripts
 COPY ./src/main/python/TypeSystemNER.xml ./TypeSystemNER.xml

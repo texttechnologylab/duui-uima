@@ -249,40 +249,46 @@ def fix_unicode_problems(text):
     return clean_text
 
 def process_selection(model_name, selection, doc_len, lang_document, batch_size):
+    if not selection.sentences:
+        return {
+            "begin": [],
+            "end": [],
+            "len_results": [],
+            "results": [],
+            "factors": []
+        }, settings.model_version
+
     begin = []
     end = []
     results_out = []
     factors = []
     len_results = []
+
     for s in selection.sentences:
         s.text = fix_unicode_problems(s.text)
 
-    texts = [
-        s.text
-        for s in selection.sentences
-    ]
-    # logger.debug("Preprocessed texts:")
-    # logger.debug(texts)
+    texts = [s.text for s in selection.sentences]
 
     with model_lock:
         classifier = load_model(model_name, lang_document)
-
         results = classifier.emotion_prediction(texts, batch_size)
+
         for c, res in enumerate(results):
             res_i = []
             factor_i = []
             sentence_i = selection.sentences[c]
-            begin_i = sentence_i.begin
-            end_i = sentence_i.end
-            len_rel = len(res)
-            begin.append(begin_i)
-            end.append(end_i)
+
+            begin.append(sentence_i.begin)
+            end.append(sentence_i.end)
+
             for i in res:
                 res_i.append(i)
                 factor_i.append(res[i])
-            len_results.append(len_rel)
+
+            len_results.append(len(res))
             results_out.append(res_i)
             factors.append(factor_i)
+
     output = {
         "begin": begin,
         "end": end,
@@ -290,6 +296,8 @@ def process_selection(model_name, selection, doc_len, lang_document, batch_size)
         "results": results_out,
         "factors": factors
     }
+
+    return output, settings.model_version
 
     return output, settings.model_version
 

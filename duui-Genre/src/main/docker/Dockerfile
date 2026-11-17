@@ -15,10 +15,10 @@ COPY ./src/main/python/duui_genre.lua ./duui_genre.lua
 COPY ./src/main/python/GenreSpeech.py ./GenreSpeech.py
 
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='TurkuNLP/web-register-classification-multilingual'); pipeline('fill-mask', model='FacebookAI/xlm-roberta-large')"
-#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='TurkuNLP/web-register-classification-en'); pipeline('fill-mask', model='FacebookAI/xlm-roberta-large')"
+RUN python -c "from transformers import pipeline; pipeline('text-classification', model='TurkuNLP/web-register-classification-en'); pipeline('fill-mask', model='FacebookAI/xlm-roberta-large')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='TurkuNLP/finerweb-quality-classifier')"
 #RUN python -c "from transformers import pipeline; pipeline('text-classification', model='ssharoff/genres')"
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
+#RUN python -c "from transformers import pipeline; pipeline('text-classification', model='classla/xlm-roberta-base-multilingual-text-genre-classifier')"
 
 # log level
 ARG LOG_LEVEL="DEBUG"

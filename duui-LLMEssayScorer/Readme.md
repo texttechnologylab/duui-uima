@@ -68,8 +68,8 @@ Alexander Leonhardt, Giuseppe Abrami, Daniel Baumartz and Alexander Mehler. (202
                data.}
 }
 
-@misc{Bagci:2024,
-  author         = {Bagci, Mevlüt},
+@misc{Bagci:Mehler:2024,
+  author         = {Bagci, Mevlüt and Meher, Alexander},
   title          = {Text L2SCA Metrics as {DUUI} component},
   year           = {2025},
   howpublished   = {https://github.com/texttechnologylab/duui-uima/tree/main/duui-L2SCA}
