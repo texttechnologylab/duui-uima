@@ -1,3 +1,5 @@
+import json
+
 import yaml
 from bertopic import BERTopic
 import numpy as np
@@ -16,6 +18,7 @@ import pandas as pd
 from collections import defaultdict as dd
 import duui_logging
 from duui_logging import log_info, log_warn, log_error, log_debug
+from pydantic import BaseModel, model_validator
 
 class Config(BaseSettings):
     # Name of this annotator
@@ -54,6 +57,13 @@ class DUUIRequest(BaseModel):
     lang: str
     selections: List[UimaSentenceSelection]
 
+    @model_validator(mode="before")
+    @classmethod
+    def parse_json_string(cls, data):
+        if isinstance(data, (str, bytes)):
+            return json.loads(data)
+        return data
+
 # Response sent by DUUI
 # Note, this is transformed by the Lua script
 class DUUIResponse(BaseModel):
@@ -77,90 +87,6 @@ def fix_unicode_problems(text):
     clean_text = text.encode('utf-16', 'surrogatepass').decode('utf-16', 'surrogateescape')
     return clean_text
 
-def get_word_dist(topic_model, texts, topic_token_distr):
-    word_dist = dd(lambda: dd())
-    analyzer = topic_model.vectorizer_model.build_tokenizer()
-    for i, text in enumerate(texts):
-        tokens = analyzer(text)
-
-        # Prepare dataframe with results
-        df = pd.DataFrame(topic_token_distr[i] / topic_token_distr[i].sum()).T
-        #df = pd.DataFrame(topic_token_distr).T
-
-        df.columns = [f"{token}_{i}" for i, token in enumerate(tokens)]
-        df.columns = [f"{token}{' ' * i}" for i, token in enumerate(tokens)]
-        df.index = list(topic_model.topic_labels_.values())[topic_model._outliers :]
-        df = df.loc[(df.sum(axis=1) != 0), :]
-
-        # Filter each row to only include words with probability > 0
-        filtered_topics = {topic: row[row > 0] for topic, row in df.iterrows()}
-
-        word_list = []
-        prob_list = []
-        for topic, words in filtered_topics.items():
-            word_list.append([k.strip() for k in words.to_dict().keys()])
-            prob_list.append(list(words.to_dict().values()))
-        word_dist[i]['words'] = word_list
-        word_dist[i]['prob'] = prob_list
-
-    return word_dist
-
-def process_selection(model_name, selection):
-    begin = []
-    end = []
-    results_out = []
-    factors = []
-    len_results = []
-    words = []
-    words_prob = []
-    for s in selection.sentences:
-        s.text = fix_unicode_problems(s.text)
-
-    texts = [
-        s.text
-        for s in selection.sentences
-    ]
-    logger.debug("Preprocessed texts:")
-    logger.debug(texts)
-
-    topic_model = BERTopic.load(model_name, embedding_model="BAAI/bge-small-en")
-    topic_distr, topic_token_distr = topic_model.approximate_distribution(texts, calculate_tokens=True)
-    topic_indices_per_doc = [list(np.where(row > 0)[0]) for row in topic_distr]
-    word_dists = get_word_dist(topic_model, texts, topic_token_distr)
-
-    for doc_idx, topic_idxs in enumerate(topic_indices_per_doc):
-        t = []
-        p = []
-        w = word_dists[doc_idx]['words']
-        wp = word_dists[doc_idx]['prob']
-        for topic_idx in topic_idxs:
-            t.append(topic_model.custom_labels_[topic_idx])
-            p.append(topic_distr[doc_idx][topic_idx])
-
-        sentence_i = selection.sentences[doc_idx]
-        begin_i = sentence_i.begin
-        end_i = sentence_i.end
-        len_i = len(t)
-        begin.append(begin_i)
-        end.append(end_i)
-        len_results.append(len_i)
-        results_out.append(t)
-        factors.append(p)
-        words.append(w)
-        words_prob.append(wp)
-
-
-    output = {
-        "begin": begin,
-        "end": end,
-        "len_results": len_results,
-        "results": results_out,
-        "factors": factors,
-        "words": words,
-        "words_prob": words_prob
-    }
-
-    return output
 
 
 
@@ -245,7 +171,96 @@ def get_documentation():
 
 @lru_cache_with_size
 def load_model(model_name):
-    pass
+    topic_model = BERTopic.load(model_name, embedding_model="BAAI/bge-small-en")
+    return topic_model
+
+
+
+def get_word_dist(topic_model, texts, topic_token_distr):
+    word_dist = dd(lambda: dd())
+    analyzer = topic_model.vectorizer_model.build_tokenizer()
+    for i, text in enumerate(texts):
+        tokens = analyzer(text)
+
+        # Prepare dataframe with results
+        df = pd.DataFrame(topic_token_distr[i] / topic_token_distr[i].sum()).T
+        #df = pd.DataFrame(topic_token_distr).T
+
+        df.columns = [f"{token}_{i}" for i, token in enumerate(tokens)]
+        df.columns = [f"{token}{' ' * i}" for i, token in enumerate(tokens)]
+        df.index = list(topic_model.topic_labels_.values())[topic_model._outliers :]
+        df = df.loc[(df.sum(axis=1) != 0), :]
+
+        # Filter each row to only include words with probability > 0
+        filtered_topics = {topic: row[row > 0] for topic, row in df.iterrows()}
+
+        word_list = []
+        prob_list = []
+        for topic, words in filtered_topics.items():
+            word_list.append([k.strip() for k in words.to_dict().keys()])
+            prob_list.append(list(words.to_dict().values()))
+        word_dist[i]['words'] = word_list
+        word_dist[i]['prob'] = prob_list
+
+    return word_dist
+
+def process_selection(model_name, selection):
+    begin = []
+    end = []
+    results_out = []
+    factors = []
+    len_results = []
+    words = []
+    words_prob = []
+    for s in selection.sentences:
+        s.text = fix_unicode_problems(s.text)
+
+    texts = [
+        s.text
+        for s in selection.sentences
+    ]
+    logger.debug("Preprocessed texts:")
+    logger.debug(texts)
+
+    topic_model = load_model(model_name)
+    topic_distr, topic_token_distr = topic_model.approximate_distribution(texts, calculate_tokens=True)
+    topic_indices_per_doc = [list(np.where(row > 0)[0]) for row in topic_distr]
+    word_dists = get_word_dist(topic_model, texts, topic_token_distr)
+
+    for doc_idx, topic_idxs in enumerate(topic_indices_per_doc):
+        t = []
+        p = []
+        w = word_dists[doc_idx]['words']
+        wp = word_dists[doc_idx]['prob']
+        for topic_idx in topic_idxs:
+            t.append(topic_model.custom_labels_[topic_idx])
+            p.append(topic_distr[doc_idx][topic_idx])
+
+        sentence_i = selection.sentences[doc_idx]
+        begin_i = sentence_i.begin
+        end_i = sentence_i.end
+        len_i = len(t)
+        begin.append(begin_i)
+        end.append(end_i)
+        len_results.append(len_i)
+        results_out.append(t)
+        factors.append(p)
+        words.append(w)
+        words_prob.append(wp)
+
+
+    output = {
+        "begin": begin,
+        "end": end,
+        "len_results": len_results,
+        "results": results_out,
+        "factors": factors,
+        "words": words,
+        "words_prob": words_prob
+    }
+
+    return output
+
 
 @app.post("/v1/process")
 def post_process(request: DUUIRequest):
