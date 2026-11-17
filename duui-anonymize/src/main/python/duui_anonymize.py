@@ -288,6 +288,17 @@ def _resolve_selection(options: dict[str, Any], text_length: int) -> Optional[tu
     return begin, end
 
 
+def _parse_exclude_labels(value: Any) -> set[str]:
+    """Accept comma-separated DUUI parameters or a JSON array of labels."""
+    if value is None:
+        return set()
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, list) or any(not isinstance(label, str) for label in value):
+        raise ValueError("exclude_labels must be a comma-separated string or an array of strings")
+    return {label.strip() for label in value if label.strip()}
+
+
 def _build_redacted(text: str, spans: list[DetectedSpan], mode: str) -> str:
     """Apply mode transformation to text using already-computed spans."""
     if not spans:
@@ -328,6 +339,7 @@ def _process(request: DUUIRequest) -> DUUIResponse:
             f"(torch {torch.__version__}; use the CUDA image and start the container with GPU access)"
         )
     mode = str(options.get("mode", MODE_PLACEHOLDER))
+    exclude_labels = _parse_exclude_labels(options.get("exclude_labels"))
 
     logger.info("Processing: model=%s device=%s mode=%s text_length=%d", model, device, mode, len(request.text))
     
@@ -360,6 +372,7 @@ def _process(request: DUUIRequest) -> DUUIResponse:
             placeholder=f"[{item['entity_group']}]" if mode == MODE_PLACEHOLDER else "",
         )
         for item in raw
+        if item["entity_group"] not in exclude_labels
     ]
 
     redacted_text = _build_redacted(request.text, spans, mode)

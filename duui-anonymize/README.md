@@ -63,6 +63,7 @@ The redacted text is written to a secondary CAS view named `opf_redacted`.
 | `device` | string | `auto` | `auto` (CUDA if available, else CPU), `cpu`, `cuda` (or `cuda:N` / `gpu`). `cuda` only works with the CUDA image started with GPU access (`--gpus all`); otherwise the request fails with HTTP 400 |
 | `mode` | string | `placeholder` | See modes below |
 | `placeholder` | string | `[{label}]` | Custom replacement text (placeholder mode only) |
+| `exclude_labels` | string | — | Comma-separated output labels to leave unchanged, e.g. `private_date,private_url`. Excluded labels produce no annotations. Matching is case-sensitive and model-specific |
 | `selection_begin` | int | — | Start offset of the text window to analyse |
 | `selection_end` | int | — | End offset of the text window to analyse |
 
