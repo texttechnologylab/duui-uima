@@ -1,0 +1,5 @@
+measure_a,measure_b,r
+13 Logical connectives,14 Additive connectives,0.9584884395059928
+16 Word frequency (logarithm),17 Content word frequency (logarithm),0.927953692467729
+36 Argument overlap—all sentences,38 Stem overlap—all sentences,0.9908700737434433
+43 LSA overlap—adjacent sentences,44 LSA overlap—all sentences,0.902142189322832
