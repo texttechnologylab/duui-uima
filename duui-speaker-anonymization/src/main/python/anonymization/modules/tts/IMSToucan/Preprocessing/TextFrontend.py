@@ -5,6 +5,7 @@ import re
 import sys
 
 import torch
+from duui_logging import log_debug, log_error, log_info, log_warn
 from dragonmapper.transcriptions import pinyin_to_ipa
 from phonemizer.backend import EspeakBackend
 from pypinyin import pinyin
@@ -60,106 +61,106 @@ class ArticulatoryCombinedTextFrontend:
             self.g2p_lang = "en-us"
             self.expand_abbreviations = english_text_expansion
             if not silent:
-                print("Created an English Text-Frontend")
+                log_info("Created an English Text-Frontend")
 
         elif language == "de":
             self.g2p_lang = "de"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a German Text-Frontend")
+                log_info("Created a German Text-Frontend")
 
         elif language == "el":
             self.g2p_lang = "el"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Greek Text-Frontend")
+                log_info("Created a Greek Text-Frontend")
 
         elif language == "es":
             self.g2p_lang = "es"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Spanish Text-Frontend")
+                log_info("Created a Spanish Text-Frontend")
 
         elif language == "fi":
             self.g2p_lang = "fi"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Finnish Text-Frontend")
+                log_info("Created a Finnish Text-Frontend")
 
         elif language == "ru":
             self.g2p_lang = "ru"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Russian Text-Frontend")
+                log_info("Created a Russian Text-Frontend")
 
         elif language == "hu":
             self.g2p_lang = "hu"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Hungarian Text-Frontend")
+                log_info("Created a Hungarian Text-Frontend")
 
         elif language == "nl":
             self.g2p_lang = "nl"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Dutch Text-Frontend")
+                log_info("Created a Dutch Text-Frontend")
 
         elif language == "fr":
             self.g2p_lang = "fr-fr"
             self.expand_abbreviations = remove_french_spacing
             if not silent:
-                print("Created a French Text-Frontend")
+                log_info("Created a French Text-Frontend")
 
         elif language == "it":
             self.g2p_lang = "it"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Italian Text-Frontend")
+                log_info("Created a Italian Text-Frontend")
 
         elif language == "pt":
             self.g2p_lang = "pt"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Portuguese Text-Frontend")
+                log_info("Created a Portuguese Text-Frontend")
 
         elif language == "pt-br":
             self.g2p_lang = "pt-br"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Brazilian Portuguese Text-Frontend")
+                log_info("Created a Brazilian Portuguese Text-Frontend")
 
         elif language == "pl":
             self.g2p_lang = "pl"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Polish Text-Frontend")
+                log_info("Created a Polish Text-Frontend")
 
         elif language == "cmn":
             self.g2p_lang = "cmn"  # we don't use espeak for this case
             self.expand_abbreviations = convert_kanji_to_pinyin_mandarin
             if not silent:
-                print("Created a Mandarin-Chinese Text-Frontend")
+                log_info("Created a Mandarin-Chinese Text-Frontend")
 
         elif language == "vi":
             self.g2p_lang = "vi"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Northern-Vietnamese Text-Frontend")
+                log_info("Created a Northern-Vietnamese Text-Frontend")
 
         elif language == "uk":
             self.g2p_lang = "uk"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Ukrainian Text-Frontend")
+                log_info("Created a Ukrainian Text-Frontend")
 
         elif language == "fa":
             self.g2p_lang = "fa"
             self.expand_abbreviations = lambda x: x
             if not silent:
-                print("Created a Farsi Text-Frontend")
+                log_info("Created a Farsi Text-Frontend")
 
         else:
-            print("Language not supported yet")
+            log_error("Language not supported yet")
             sys.exit()
 
         # remember to also update get_language_id() below when adding something here, as well as the get_example_sentence function
@@ -206,7 +207,7 @@ class ArticulatoryCombinedTextFrontend:
         elif lang == "vi":
             return "Đây là một câu phức tạp, nó thậm chí còn chứa một khoảng dừng."
         else:
-            print(f"No example sentence specified for the language: {lang}\n "
+            log_warn(f"No example sentence specified for the language: {lang}\n "
                   f"Please specify an example sentence in the get_example_sentence function in Preprocessing/TextFrontend to track your progress.")
             return None
 
@@ -222,7 +223,7 @@ class ArticulatoryCombinedTextFrontend:
             phones = self.get_phone_string(text=text, include_eos_symbol=True, for_feature_extraction=True)
         phones = phones.replace("ɚ", "ə").replace("ᵻ", "ɨ")
         if view:
-            print("Phonemes: \n{}\n".format(phones))
+            log_debug("Phonemes: \n{}\n".format(phones))
         phones_vector = list()
         # turn into numeric vectors
         stressed_flag = False
@@ -277,7 +278,7 @@ class ArticulatoryCombinedTextFrontend:
                     try:
                         phones_vector.append(self.phone_to_vector[char].copy())
                     except KeyError:
-                        print("unknown phoneme: {}".format(char))
+                        log_warn("unknown phoneme: {}".format(char))
                 else:
                     phones_vector.append(self.phone_to_vector[char].copy())  # leave error handling to elsewhere
 

@@ -10,7 +10,7 @@ EXPOSE 9714
 # System dependencies. curl is needed only for model artifact downloads such as TEI2GO,
 # but keeping it here makes the model-specific RUN block simple and deterministic.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends curl ca-certificates git \
     && rm -rf /var/lib/apt/lists/*
 
 # Python dependencies.

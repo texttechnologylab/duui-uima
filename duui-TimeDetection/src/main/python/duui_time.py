@@ -7,7 +7,9 @@ from threading import Lock
 from time import time
 from typing import Any, Dict, Final, Iterable, List, Optional, Tuple
 
+import duui_logging
 import torch
+from duui_logging import log_info, log_warn, log_error
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
@@ -75,7 +77,7 @@ logger = logging.getLogger(__name__)
 
 lru_cache_with_size = lru_cache(maxsize=max(1, settings.model_cache_size))
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-logger.info("USING %s", device)
+log_info(f"USING {device}")
 
 
 class DUUIRequest(BaseModel):
@@ -212,6 +214,10 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+# Collect component logs (log_* helpers + stdlib logging) and return them to DUUI
+duui_logging.add_logging(app)
+duui_logging.install(level=getattr(logging, settings.log_level.upper(), logging.INFO))
 
 
 @app.get("/v1/typesystem")
@@ -445,16 +451,20 @@ async def post_process(raw_request: Request):
     try:
         request = _validate_duui_request_payload(await raw_request.body())
     except Exception as ex:
+        log_warn(f"Invalid request body: {ex}")
         return JSONResponse(status_code=400, content={"message": f"Invalid request body: {ex}"})
     if not request.selections:
+        log_warn("The request must contain sentence selections.")
         return JSONResponse(status_code=400, content={"message": "The request must contain sentence selections."})
 
     try:
         language = validate_language(request.lang)
         model_name = get_selected_model_name(settings.model_name)
     except Exception as ex:
+        log_warn(f"Rejected request: {ex}")
         return JSONResponse(status_code=400, content={"message": str(ex)})
 
+    log_info(f"Processing {len(request.selections)} selection(s): model={model_name}, language={language}")
     effective_threshold = request.threshold if request.threshold is not None else settings.threshold
     effective_batch_size = request.batch_size if request.batch_size is not None else settings.batch_size
     reference_time = request.document_creation_time or request.reference_time
@@ -536,5 +546,5 @@ async def post_process(raw_request: Request):
             model_lang=model_lang,
         )
     except Exception as ex:
-        logger.exception("TimeX3 processing failed")
+        log_error("TimeX3 processing failed")
         return JSONResponse(status_code=500, content={"message": str(ex)})

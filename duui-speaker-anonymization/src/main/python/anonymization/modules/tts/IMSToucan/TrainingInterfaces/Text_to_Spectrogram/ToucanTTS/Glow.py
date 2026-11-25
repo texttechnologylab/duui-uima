@@ -1,4 +1,5 @@
 import numpy as np
+from duui_logging import log_warn
 import scipy
 import torch
 import torch.distributions as dist
@@ -354,7 +355,7 @@ class Glow(nn.Module):
             try:
                 postflow_loss = -prior_dist.log_prob(z_postflow).mean() - ldj.mean()
             except ValueError:
-                print("log probability of plostflow could not be calculated for this step")
+                log_warn("log probability of plostflow could not be calculated for this step")
                 postflow_loss = None
             return postflow_loss
         else:

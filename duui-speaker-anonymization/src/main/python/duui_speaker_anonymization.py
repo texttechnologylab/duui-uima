@@ -13,6 +13,7 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any, Optional
 
+import duui_logging
 import torch
 import uvicorn
 from cassis import load_typesystem
@@ -122,6 +123,10 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+# Collect component logs (log_* helpers + stdlib logging) and return them to DUUI
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.INFO)
 
 
 @app.exception_handler(ValueError)

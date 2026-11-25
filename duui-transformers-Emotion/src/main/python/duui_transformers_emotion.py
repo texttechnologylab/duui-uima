@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings
 from typing import List, Optional, Dict, Union
 import logging
 from time import time
+import duui_logging
+from duui_logging import log_info, log_error
 from fastapi import FastAPI, Response
 from cassis import load_typesystem
 import torch
@@ -106,7 +108,7 @@ logger = logging.getLogger(__name__)
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
-logger.info(f'USING {device}')
+log_info(f'USING {device}')
 # Load the predefined typesystem that is needed for this annotator to work
 typesystem_filename = 'TypeSystemEmotion.xml'
 logger.debug("Loading typesystem from \"%s\"", typesystem_filename)
@@ -192,6 +194,9 @@ app = FastAPI(
         "url": "http://www.gnu.org/licenses/agpl-3.0.en.html",
     },
 )
+
+duui_logging.add_logging(app)
+duui_logging.install(level=logging.getLevelName(str(settings.log_level).upper()))
 
 with open(lua_communication_script_filename, 'rb') as f:
     lua_communication_script = f.read().decode("utf-8")
@@ -306,6 +311,7 @@ def post_process(request: TextImagerRequest):
     # Save modification start time for later
     modification_timestamp_seconds = int(time())
     try:
+        log_info(f"Processing {len(request.selections)} selection(s): model={settings.model_name}, lang={request.lang}")
         # logger.info(f"{settings.model_name} {settings.model_version} {settings.model_source} {settings.model_lang}")
         model_source = settings.model_source
         model_lang = settings.model_lang
@@ -335,7 +341,7 @@ def post_process(request: TextImagerRequest):
             results = results + processed_sentences["results"]
             factors = factors + processed_sentences["factors"]
     except Exception as ex:
-        logger.exception(ex)
+        log_error(f"Emotion processing failed: {ex}")
     return TextImagerResponse(meta=meta, modification_meta=modification_meta, begin_emo=begin, end_emo=end, results=results, len_results=len_results, factors=factors, model_name=settings.model_name, model_version=model_version, model_source=model_source, model_lang=model_lang)
 
 

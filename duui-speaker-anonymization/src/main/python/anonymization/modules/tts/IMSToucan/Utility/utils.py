@@ -3,6 +3,7 @@ Taken from ESPNet, modified by Florian Lux
 """
 
 import os
+from duui_logging import log_info, log_warn
 from abc import ABC
 
 import librosa.display as lbd
@@ -343,11 +344,11 @@ def get_most_recent_checkpoint(checkpoint_dir, verbose=True):
             except ValueError:
                 pass
     if len(checkpoint_list) == 0:
-        print("No previous checkpoints found, cannot reload.")
+        log_warn("No previous checkpoints found, cannot reload.")
         return None
     checkpoint_list.sort(reverse=True)
     if verbose:
-        print("Reloading checkpoint_{}.pt".format(checkpoint_list[0]))
+        log_info("Reloading checkpoint_{}.pt".format(checkpoint_list[0]))
     return os.path.join(checkpoint_dir, "checkpoint_{}.pt".format(checkpoint_list[0]))
 
 

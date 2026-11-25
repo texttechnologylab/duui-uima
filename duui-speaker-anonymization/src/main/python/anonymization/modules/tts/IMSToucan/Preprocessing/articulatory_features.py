@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from duui_logging import log_warn
 
 
 # partly derived from an open-source resource provided by Papercup Technologies Limited
@@ -942,7 +943,7 @@ def generate_feature_table():
     for feat in feat_to_val_set:
         for value in feat_to_val_set[feat]:
             if value not in value_to_index:
-                print(f"Unknown feature value in featureset! {value}")
+                log_warn(f"Unknown feature value in featureset! {value}")
 
     # print(f"{sum([len(values) for values in [feat_to_val_set[feat] for feat in feat_to_val_set]])} should be 49")
 
