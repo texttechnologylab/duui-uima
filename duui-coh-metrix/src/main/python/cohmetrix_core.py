@@ -90,15 +90,20 @@ class Settings:
         # the German Text Easability model (2026-10-29): ours, fitted on reference corpus v1 (easability/), shipped in resources/;
         # since 0.3.0 (2026-10-31) refitted on the corpus as annotated by the review code, new id ("new"); since 0.4.0
         # (2026-11-01) refitted on the corpus as 0.4.0 annotates it, refv1-ud-rr-cr2; since 0.5.0-py (2026-11-03, PR #306)
-        # refitted on the corpus as 0.5.0-py annotates it, refv1-ud-rr-cr3
+        # refitted on the corpus as 0.5.0-py annotates it, refv1-ud-rr-cr3; since 2026-11-04 refitted on the corpus as 0.6.0
+        # annotates it (SYNNP, LSAGN, German SMTEMP of 0.6.0; SUBTLEX-DE's full list), refv1-ud-rr-cr4; since 2026-11-05
+        # refv1-ud-rr-cr5 (coh-metrix_resurrection 0.6.1-py: the same German values, so cr4's weights; only the id is new)
         self.easability_model_path = env("easability_model_path",
-                                         str(RESOURCES / "easability" / "text_easability_de_refv1-ud-rr-cr3.json"))
+                                         str(RESOURCES / "easability" / "text_easability_de_refv1-ud-rr-cr5.json"))
         # the English one (2026-10-30): fitted on reference corpus A, components named by congruence with the German model; since
         # 0.3.0 refitted likewise and named after the refitted German model; since 0.4.0 refa-en-rr-gn-cr2, since 0.5.0-py
-        # refa-en-rr-gn-cr3. The models of 0.2.0 to 0.4.0 stay in resources/ (refv1-ud-rr, refa-en-rr-gn; refv1-ud-rr-cr,
+        # refa-en-rr-gn-cr3, since 2026-11-04 refa-en-rr-gn-cr4 (named by congruence with refa-en-rr-gn-cr3), since 2026-11-05
+        # refa-en-rr-gn-cr5 (refitted on reference corpus A parsed with the ELECTRA-large tokenizer, which the model folders of
+        # coh-metrix_resurrection's cluster runs lacked until then; named by congruence with refv1-ud-rr-cr5). The models of
+        # 0.2.0 to 0.4.0 stay in resources/ (refv1-ud-rr, refa-en-rr-gn; refv1-ud-rr-cr,
         # refa-en-rr-gn-cr; refv1-ud-rr-cr2, refa-en-rr-gn-cr2) for old outputs: set the paths to them.
         self.easability_model_path_en = env("easability_model_path_en",
-                                            str(RESOURCES / "easability" / "text_easability_en_refa-en-rr-gn-cr3.json"))
+                                            str(RESOURCES / "easability" / "text_easability_en_refa-en-rr-gn-cr5.json"))
         self.lsa_use_truncated_svd = str(env("lsa_use_truncated_svd", "false")).lower() == "true"
         self.lsa_svd_components = int(env("lsa_svd_components", "100"))
 
@@ -1236,6 +1241,8 @@ def _load_easability_model(path: str, lang: str) -> Optional[dict]:
         if not (isinstance(m.get("scale"), (int, float)) and math.isfinite(m["scale"]) and m["scale"] > 0):
             raise ValueError(f'Text Easability model "{path}": input {m["_parts"]} has scale {m.get("scale")!r}')
     model["_weights"] = np.asarray([c["weights"] for c in model["components"]]).T
+    # the models of easability/pca.py (CLEAR) have no model_id: named by their file
+    model.setdefault("model_id", Path(path).stem.removeprefix("text_easability_"))
     logger.info('Text Easability model "%s": %d inputs, %d reference texts', model["model_id"], len(model["inputs"]),
                 model["documents"])
     return model

@@ -1,34 +1,34 @@
 # Text Easability components: EN vs. DE
 
-Created 2026-10-27T10:00:57+00:00 by `easability/compare_models.py` from `easability/results/clear_en_pca` (EN) and `easability/results/clear_de_kolibri-1-q4km_pca` (DE).
+Created 2026-11-04T21:21:20+00:00 by `easability/compare_models.py` from `easability/results/clear_en_pca` (EN) and `easability/results/clear_de_kolibri-1-q4km_pca` (DE).
 
 ## How to read
 
-- **Congruence** (Tucker's phi): similarity of the loadings of the component in EN and DE over 48 shared input measures; >= 0.95 equal, 0.85-0.94 fairly similar, below 0.85 different (Lorenzo-Seva & ten Berge 2006). If another DE component has a higher congruence, the components are swapped or mixed.
+- **Congruence** (Tucker's phi): similarity of the loadings of the component in EN and DE over 49 shared input measures; >= 0.95 equal, 0.85-0.94 fairly similar, below 0.85 different (Lorenzo-Seva & ten Berge 2006). If another DE component has a higher congruence, the components are swapped or mixed.
 - **r texts**: correlation of the component scores of the same 4669 texts in EN and DE. High means the component ranks the texts the same way in both languages.
 
 ## Components
 
 | Component | Name | Congruence | Rating | Best match in DE | r texts (Pearson) | Spearman |
 |---|---|---|---|---|---|---|
-| PCNARz | Narrativity | 0.88 | fairly similar |  | 0.90 | 0.91 |
-| PCSYNz | Syntactic simplicity | 0.05 | different | PCVERBz (0.93) | -0.04 | -0.05 |
-| PCCNCz | Word concreteness | 0.94 | fairly similar |  | 0.71 | 0.70 |
-| PCREFz | Referential cohesion | 0.97 | equal |  | 0.71 | 0.70 |
-| PCDCz | Deep cohesion | 0.64 | different |  | 0.30 | 0.29 |
-| PCVERBz | Verb cohesion | 0.47 | different | PCSYNz (0.90) | 0.35 | 0.35 |
-| PCCONNz | Connectivity | 0.97 | equal |  | 0.87 | 0.86 |
-| PCTEMPz | Temporality | -0.79 | different |  | -0.51 | -0.50 |
+| PCNARz | Narrativity | 0.90 | fairly similar |  | 0.89 | 0.90 |
+| PCSYNz | Syntactic simplicity | 0.89 | fairly similar |  | 0.67 | 0.65 |
+| PCCNCz | Word concreteness | 0.94 | fairly similar |  | 0.83 | 0.83 |
+| PCREFz | Referential cohesion | 0.98 | equal |  | 0.78 | 0.76 |
+| PCDCz | Deep cohesion | 0.97 | equal |  | 0.48 | 0.48 |
+| PCVERBz | Verb cohesion | 0.48 | different | PCNARz (0.53) | 0.13 | 0.07 |
+| PCCONNz | Connectivity | 0.96 | equal |  | 0.82 | 0.80 |
+| PCTEMPz | Temporality | 0.19 | different | PCVERBz (0.93) | 0.14 | 0.19 |
 
 ## Congruence matrix (rows EN, columns DE)
 
 |  | PCNARz | PCSYNz | PCCNCz | PCREFz | PCDCz | PCVERBz | PCCONNz | PCTEMPz |
 |---|---|---|---|---|---|---|---|---|
-| PCNARz | 0.88 | 0.24 | 0.17 | -0.00 | 0.40 | 0.05 | 0.10 | 0.06 |
-| PCSYNz | 0.02 | 0.05 | 0.21 | 0.15 | -0.16 | 0.93 | -0.14 | -0.04 |
-| PCCNCz | 0.06 | 0.10 | 0.94 | -0.05 | -0.24 | 0.18 | 0.01 | 0.01 |
-| PCREFz | -0.00 | -0.37 | -0.03 | 0.97 | 0.14 | 0.30 | 0.05 | 0.08 |
-| PCDCz | -0.15 | -0.11 | -0.14 | 0.04 | 0.64 | -0.20 | 0.12 | 0.11 |
-| PCVERBz | 0.38 | 0.90 | 0.16 | -0.29 | 0.10 | 0.47 | -0.17 | -0.05 |
-| PCCONNz | 0.02 | -0.14 | 0.06 | 0.05 | 0.11 | -0.15 | 0.97 | 0.16 |
-| PCTEMPz | -0.08 | 0.04 | 0.05 | -0.18 | -0.08 | -0.16 | -0.09 | -0.79 |
+| PCNARz | 0.90 | 0.12 | 0.17 | 0.01 | 0.12 | 0.02 | 0.39 | -0.31 |
+| PCSYNz | 0.23 | 0.89 | 0.26 | -0.26 | -0.17 | 0.27 | -0.06 | 0.10 |
+| PCCNCz | 0.28 | 0.29 | 0.94 | -0.05 | -0.07 | 0.10 | 0.19 | -0.12 |
+| PCREFz | -0.02 | -0.31 | -0.07 | 0.98 | 0.11 | 0.22 | 0.09 | 0.05 |
+| PCDCz | 0.12 | -0.08 | -0.09 | 0.13 | 0.97 | -0.01 | 0.15 | -0.17 |
+| PCVERBz | 0.53 | 0.49 | 0.28 | 0.20 | -0.02 | 0.48 | 0.25 | -0.44 |
+| PCCONNz | 0.63 | -0.01 | 0.30 | 0.13 | 0.14 | -0.02 | 0.96 | -0.07 |
+| PCTEMPz | 0.03 | 0.43 | 0.19 | 0.23 | -0.09 | 0.93 | -0.10 | 0.19 |

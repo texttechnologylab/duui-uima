@@ -13,8 +13,6 @@ import org.apache.uima.jcas.JCas;
 import org.apache.uima.resource.metadata.TypeSystemDescription;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
-import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIPipelineComponent;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 
@@ -37,56 +35,54 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Checks the Text Easability components (PC*) of the Coh-Metrix component against the reference scores of the PCA
- * ({@code easability/pca.py}): every 100th CLEAR excerpt of {@link ClearCorpusCohMetrixTest}'s output is processed
- * again (previous Coh-Metrix output removed), and its z scores must equal the PCA's component scores. A second run
- * with only {@link #SELECTED} in {@code include_indices} must output only these, with the same values.
+ * Checks the Text Easability components of the models fitted on CLEAR (records {@code PC*_REFIT_CLEAR}, German
+ * {@code PC*_REFIT_CLEARtr}) against the reference scores of the PCA ({@code easability/pca.py}): every 100th excerpt of
+ * {@link ClearCorpusCohMetrixTest}'s output (the reference corpus, {@code xmi_en_<version>} / {@code xmi_de_..._<version>})
+ * is processed again by the running Coh-Metrix service (its earlier output removed), and the z scores of its CLEAR
+ * records must equal the PCA's component scores of that excerpt. A second run with only {@link #SELECTED} in
+ * {@code include_indices} must output only these records, with the same values.
  *
- * <p>German: the translated corpus ({@link ClearCorpusCohMetrixTest#translationDirectory()}), with GermaNet
- * ({@link GermanetCohMetrixContainer}) as for the reference corpus.
+ * <p>The service ({@code -Dcohmetrix.url}, as for {@link ClearCorpusCohMetrixTest}) must run with GermaNet and the
+ * resources supplied by the user mounted, as for the reference corpus; otherwise the inputs differ and the records are
+ * None with an error. Until 2026-11-05 this test ran the Docker image of 0.2.0 on the 0.2.0 corpus.
  */
 public class ClearCorpusTextEasabilityTest {
 
-    // two-layer labels (docs/label-scheme.md); built by src/main/bash/docker_build.sh
-    private static final String COHMETRIX_IMAGE = "docker.texttechnologylab.org/duui-coh-metrix:0.2.0";
+    private static final String COH_METRIX_URL = System.getProperty("cohmetrix.url", "http://localhost:9802");
 
     private static final int SAMPLE_STEP = 100;
     private static final double TOLERANCE = 1e-6;
 
     private static final String INDEX_TYPE = "org.texttechnologylab.uima.type.cohmetrix.Index";
     private static final String META_TYPE = "org.texttechnologylab.annotation.AnnotatorMetaData";
-    private static final String TYPE_NAME = "Text Easability Principal Component Scores";
+    /** Public labels of the records selected alone (with the language's internal suffix). */
     private static final List<String> SELECTED = List.of("PCNARz", "PCSYNp");
 
     @Test
     public void componentScoresMatchPca() throws Exception {
-        check(ClearCorpusCohMetrixTest.CLEAR_DIR.resolve("xmi_en"), Paths.get("easability/results/clear_en_pca/scores.csv"),
-                "_REFIT_CLEAR", COHMETRIX_IMAGE, false);
+        check(ClearCorpusCohMetrixTest.CLEAR_DIR.resolve("xmi_en_" + ClearCorpusCohMetrixTest.COH_METRIX_VERSION),
+                Paths.get("easability/results/clear_en_pca/scores.csv"), "_REFIT_CLEAR");
     }
 
     @Test
     public void germanComponentScoresMatchPca() throws Exception {
         Path translation = ClearCorpusCohMetrixTest.translationDirectory();
         String name = translation.getFileName().toString().replaceFirst("^translation_", "");
-        try (GermanetCohMetrixContainer container = new GermanetCohMetrixContainer(COHMETRIX_IMAGE)) {
-            check(ClearCorpusCohMetrixTest.germanXmiLocation(translation),
-                    Paths.get("easability/results/clear_de_" + name + "_pca/scores.csv"),
-                    "_REFIT_CLEARtr", container.url(), true);
-        }
+        check(ClearCorpusCohMetrixTest.germanXmiLocation(translation),
+                Paths.get("easability/results/clear_de_" + name + "_pca/scores.csv"), "_REFIT_CLEARtr");
     }
 
-    /** component: a Docker image, or the URL of a running component if remote. */
-    private static void check(Path xmiLocation, Path scoresFile, String internalSuffix, String component,
-                              boolean remote) throws Exception {
+    private static void check(Path xmiLocation, Path scoresFile, String internalSuffix) throws Exception {
         List<CSVRecord> scores;
         try (Reader in = Files.newBufferedReader(scoresFile, StandardCharsets.UTF_8);
              CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(in)) {
             scores = parser.getRecords();
         }
 
-        DUUIComposer composer = composer(component, remote, null);
-        // only some PC indices selected: their inputs are computed, but not output
-        DUUIComposer selectedComposer = composer(component, remote, String.join(",", SELECTED));
+        List<String> selectedLabels = SELECTED.stream().map(label -> label + internalSuffix).toList();
+        DUUIComposer composer = composer(null);
+        // only some CLEAR records selected (by internal label): their inputs are computed, but not output
+        DUUIComposer selectedComposer = composer(String.join(",", selectedLabels));
 
         try {
             // the CAS needs the type system of the components (Coh-Metrix index types)
@@ -99,34 +95,35 @@ public class ClearCorpusTextEasabilityTest {
 
                 JCas jCas = load(typeSystem, xmiLocation, id);
                 composer.run(jCas);
-
-                Map<String, FeatureStructure> components = components(jCas.getCas());
-                assertEquals(16, components.size(), id);
+                Map<String, FeatureStructure> records = byInternalLabel(jCas.getCas());
 
                 JCas selectedJCas = load(typeSystem, xmiLocation, id);
                 selectedComposer.run(selectedJCas);
-                assertEquals(SELECTED.size(), indexed(selectedJCas.getCas(),
-                        selectedJCas.getTypeSystem().getType(INDEX_TYPE)).size(), id + " output indices");
-                Map<String, FeatureStructure> selected = components(selectedJCas.getCas());
-                for (String label : SELECTED) {
+                Map<String, FeatureStructure> selected = byInternalLabel(selectedJCas.getCas());
+                assertEquals(new HashSet<>(selectedLabels), selected.keySet(), id + " output records");
+                for (String label : selectedLabels) {
                     assertNull(string(selected.get(label), "error"), id + " " + label);
-                    assertEquals(value(components.get(label)), value(selected.get(label)), 0, id + " " + label);
+                    assertEquals(value(records.get(label)), value(selected.get(label)), 0, id + " " + label);
                 }
+
+                int checked = 0;
                 for (String header : expected.getParser().getHeaderNames()) {
                     if (!header.startsWith("PC")) {
                         continue;
                     }
-                    String percentileLabel = header.substring(0, header.length() - 1) + "p";
-                    FeatureStructure z = components.get(header);
-                    FeatureStructure p = components.get(percentileLabel);
+                    String percentile = header.substring(0, header.length() - 1) + "p";
+                    FeatureStructure z = records.get(header + internalSuffix);
+                    FeatureStructure p = records.get(percentile + internalSuffix);
+                    assertTrue(z != null && p != null, id + " " + header + internalSuffix + " output");
                     assertNull(string(z, "error"), id + " " + header);
                     assertEquals(header, string(z, "labelV3"), id);
-                    assertEquals(header + internalSuffix, string(z, "labelTTLab"), id);
                     assertEquals(Double.parseDouble(expected.get(header)), value(z), TOLERANCE, id + " " + header);
-                    assertTrue(value(p) >= 0 && value(p) <= 100, id + " " + percentileLabel);
+                    assertTrue(value(p) >= 0 && value(p) <= 100, id + " " + percentile);
+                    checked += 2;
                 }
-                System.out.println(id + ": " + components.size() + " Text Easability indices match, "
-                        + SELECTED + " alone identical");
+                assertEquals(16, checked, id + " components in " + scoresFile);
+                System.out.println(id + ": 16 CLEAR Text Easability records match the PCA, " + selectedLabels
+                        + " alone identical");
             }
         } finally {
             composer.shutdown();
@@ -134,27 +131,16 @@ public class ClearCorpusTextEasabilityTest {
         }
     }
 
-    private static DUUIComposer composer(String component, boolean remote, String includeIndices) throws Exception {
+    private static DUUIComposer composer(String includeIndices) throws Exception {
         DUUIComposer composer = new DUUIComposer()
                 .withSkipVerification(true)
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
-        DUUIPipelineComponent pipelineComponent;
-        if (remote) {
-            composer.addDriver(new DUUIRemoteDriver());
-            DUUIRemoteDriver.Component remoteComponent = new DUUIRemoteDriver.Component(component).withScale(1);
-            if (includeIndices != null) {
-                remoteComponent.withParameter("include_indices", includeIndices);
-            }
-            pipelineComponent = remoteComponent.build();
-        } else {
-            composer.addDriver(new DUUIDockerDriver());
-            DUUIDockerDriver.Component dockerComponent = new DUUIDockerDriver.Component(component).withScale(1);
-            if (includeIndices != null) {
-                dockerComponent.withParameter("include_indices", includeIndices);
-            }
-            pipelineComponent = dockerComponent.build();
+        composer.addDriver(new DUUIRemoteDriver());
+        DUUIRemoteDriver.Component component = new DUUIRemoteDriver.Component(COH_METRIX_URL).withScale(1);
+        if (includeIndices != null) {
+            component.withParameter("include_indices", includeIndices);
         }
-        composer.add(pipelineComponent.withTimeout(500L));
+        composer.add(component.build().withTimeout(500L));
         return composer;
     }
 
@@ -168,16 +154,14 @@ public class ClearCorpusTextEasabilityTest {
         return jCas;
     }
 
-    /** Text Easability indices by labelV3. */
-    private static Map<String, FeatureStructure> components(CAS cas) {
+    /** All Coh-Metrix records by internal label (unique per output; several records can share a public label). */
+    private static Map<String, FeatureStructure> byInternalLabel(CAS cas) {
         Type indexType = cas.getTypeSystem().getType(INDEX_TYPE);
-        Map<String, FeatureStructure> components = new LinkedHashMap<>();
+        Map<String, FeatureStructure> records = new LinkedHashMap<>();
         for (FeatureStructure index : indexed(cas, indexType)) {
-            if (TYPE_NAME.equals(string(index, "typeName"))) {
-                components.put(string(index, "labelV3"), index);
-            }
+            records.put(string(index, "labelTTLab"), index);
         }
-        return components;
+        return records;
     }
 
     private static void removePreviousCohMetrixOutput(CAS cas) {

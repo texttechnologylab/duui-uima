@@ -259,13 +259,12 @@ _pipelines = _PipelineCache(ttl=settings.model_ttl_seconds, maxsize=settings.mod
 
 def _load_pipeline(model: str, device: str, trust_remote_code: bool = False):
     def load():
-        dev = 0 if device == "cuda" else -1
         logger.info("Loading pipeline: model=%s device=%s trust_remote_code=%s", model, device, trust_remote_code)
         return hf_pipeline(
             task="token-classification",
             model=model,
             aggregation_strategy="simple",
-            device=dev,
+            device=device,
             trust_remote_code=trust_remote_code,
         )
 
@@ -287,6 +286,17 @@ def _resolve_selection(options: dict[str, Any], text_length: int) -> Optional[tu
     if begin < 0 or end < begin or end > text_length:
         raise ValueError(f"selection must satisfy 0 <= begin <= end <= {text_length}")
     return begin, end
+
+
+def _parse_exclude_labels(value: Any) -> set[str]:
+    """Accept comma-separated DUUI parameters or a JSON array of labels."""
+    if value is None:
+        return set()
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, list) or any(not isinstance(label, str) for label in value):
+        raise ValueError("exclude_labels must be a comma-separated string or an array of strings")
+    return {label.strip() for label in value if label.strip()}
 
 
 def _build_redacted(text: str, spans: list[DetectedSpan], mode: str) -> str:
@@ -318,8 +328,18 @@ def _process(request: DUUIRequest) -> DUUIResponse:
             f"Supported models: {sorted(SUPPORTED_MODELS)}"
         )
 
-    device = str(options.get("device") or ("cuda" if torch.cuda.is_available() else "cpu"))
+    device = str(options.get("device") or "").strip().lower()
+    if device in ("", "auto", "none", "null"):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif device == "gpu":
+        device = "cuda"
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        raise ValueError(
+            f"device '{device}' requested but CUDA is not available "
+            f"(torch {torch.__version__}; use the CUDA image and start the container with GPU access)"
+        )
     mode = str(options.get("mode", MODE_PLACEHOLDER))
+    exclude_labels = _parse_exclude_labels(options.get("exclude_labels"))
 
     logger.info("Processing: model=%s device=%s mode=%s text_length=%d", model, device, mode, len(request.text))
     
@@ -352,6 +372,7 @@ def _process(request: DUUIRequest) -> DUUIResponse:
             placeholder=f"[{item['entity_group']}]" if mode == MODE_PLACEHOLDER else "",
         )
         for item in raw
+        if item["entity_group"] not in exclude_labels
     ]
 
     redacted_text = _build_redacted(request.text, spans, mode)
